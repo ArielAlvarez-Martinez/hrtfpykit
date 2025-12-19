@@ -179,6 +179,7 @@ def sht_core_from_scratch(f, dirs, sh_order, epsilon=1e-6):
     return C, f_recons, Y
 
 def _sh_vector(sh_order, az, el):
+    
 
     theta = np.pi / 2.0 - el   # elevation -> colatitude
     phi = az
@@ -327,6 +328,7 @@ def sht_reconstruction(N, dirs, sh_order, C_matrix):
 
     n_coeffs = (sh_order + 1) ** 2
 
+    # To be sure that the HRTFs are compatible aka "they were measured using the same spatial setup/grid"
     if C_matrix.size != n_coeffs:
         raise ValueError(
             "C_matrix has incompatible size. "
