@@ -1,127 +1,5 @@
-import numpy as np
-import sofa
-from scipy.fft import rfft, rfftfreq
-import os
-import matplotlib.pyplot as plt 
-
-def _read_sofa(path):
-    sofa_object = sofa.Database.open(path)
-    hrir = np.array(sofa_object.Data.IR)         
-    sampling_rate = int(np.array(sofa_object.Data.SamplingRate)[0])
-    source_directions = np.array(sofa_object.Source.Position)
-    source_direction_type = sofa_object.Source.Position.Type
-
-    return hrir, sampling_rate, source_directions, source_direction_type
-
-def _parse_directions(source_direction, source_direction_type):
-    if source_direction_type.lower() != 'spherical':
-        raise ValueError(
-            "Unsupported SourcePositionType. Only 'spherical' is supported."
-        )
-
-    az = source_direction[:, 0]
-    el = source_direction[:, 1]
-
-    if np.max(np.abs(az)) > 2 * np.pi:
-        az = np.deg2rad(az)
-    if np.max(np.abs(el)) > np.pi:
-        el = np.deg2rad(el)
-
-    return np.column_stack((az, el))
-
-def _hrir_to_hrtf_magnitude(hrir, sampling_rate):
-    H = rfft(hrir, axis=-1, n=256)
-
-    freqs = rfftfreq(256, d=1.0 / sampling_rate)
-    return np.abs(H), freqs
-
-
-def load_hrtf(sofa_path):
-    """
-    Load HRTF magnitude data from a SOFA file.
-
-    Returns
-    -------
-    hrtf_mag : ndarray, shape (N_dirs, N_ears, N_freqs)
-    source_directions     : ndarray, shape (N_dirs, 2) [az, el] in radians
-    frequency_vector    : ndarray, shape (N_freqs,)
-    sampling_rate       : float
-    """
-    hrir, sampling_rate, source_direction, source_direction_type = _read_sofa(sofa_path)
-    source_directions = _parse_directions(source_direction, source_direction_type)
-    hrtf_mag, frequency_vector = _hrir_to_hrtf_magnitude(hrir, sampling_rate)
-
-    return hrtf_mag, source_directions, frequency_vector, sampling_rate
-
-
-
-def load_multiple_hrtfs_from_folder(folder_path):
-    """
-    Load multiple HRTFs from a folder containing SOFA files.
-
-    Parameters
-    ----------
-    folder_path : str
-        Path to folder containing SOFA files
-
-    Returns
-    -------
-    hrtf_mag_list : list of ndarray
-        Each element has shape (N_dirs, N_ears, N_freqs)
-    source_directions : ndarray
-        Source directions (shared across all HRTFs)
-    frequency_vector : ndarray
-        Frequency axis in Hz (shared)
-    fs : float
-        Sampling rate (shared)
-    file_names : list of str
-        Loaded SOFA file names (for labeling / tracking)
-    """
-
-    hrtf_mag_list = []
-    file_names = []
-
-    source_directions_ref = None
-    frequency_vector_ref = None
-    fs_ref = None
-
-    for fname in sorted(os.listdir(folder_path)):
-        if not fname.lower().endswith(".sofa"):
-            continue
-
-        sofa_path = os.path.join(folder_path, fname)
-
-        hrtf_mag, source_directions, frequency_vector, fs = load_hrtf(sofa_path)
-
-        # --- consistency checks ---
-        if source_directions_ref is None:
-            source_directions_ref = source_directions
-            frequency_vector_ref = frequency_vector
-            fs_ref = fs
-        else:
-            if not np.allclose(source_directions, source_directions_ref):
-                raise ValueError(f"Source directions mismatch in {fname}")
-
-            if not np.allclose(frequency_vector, frequency_vector_ref):
-                raise ValueError(f"Frequency vector mismatch in {fname}")
-
-            if fs != fs_ref:
-                raise ValueError(f"Sampling rate mismatch in {fname}")
-
-        hrtf_mag_list.append(hrtf_mag)
-        file_names.append(fname)
-
-    if len(hrtf_mag_list) == 0:
-        raise RuntimeError("No SOFA files found in the given folder.")
-
-    return (
-        hrtf_mag_list,
-        source_directions_ref,
-        frequency_vector_ref,
-        fs_ref,
-        file_names
-    )
-
+import numpy as np 
+import matplotlib.pyplot as plt
 
 """
     HRTF VISUALIZATION AND COMPARISON 
@@ -202,6 +80,93 @@ def plot_hrtf_magnitude(
                ([1000,5000,10000,20000]), labels=(['1K', '5K', '10K', '20k']))
     plt.grid(linestyle = '--')
     plt.show()
+
+def plot_hrtf_magnitude_multiple_hrtfs(
+    hrtf_mag_list,
+    source_directions,
+    frequency_vector,
+    azimuth,
+    elevation,
+    ear=0,
+    freq_limits=None,
+    labels=None
+):
+    """
+    Plot and compare HRTF magnitudes from multiple HRTFs at a given
+    source direction and ear.
+
+    Parameters
+    ----------
+    hrtf_mag_list : list of ndarray
+        List of HRTF magnitude arrays.
+        Each array must have shape (N_dirs, N_ears, N_freqs).
+        Length: 1 to ~10.
+    source_directions : ndarray, shape (N_dirs, 2)
+        [azimuth, elevation] in degrees
+    frequency_vector : ndarray, shape (N_freqs,)
+        Frequency axis in Hz
+    azimuth : float
+        Desired azimuth (degrees)
+    elevation : float
+        Desired elevation (degrees)
+    ear : int
+        Ear index (0 = left, 1 = right)
+    freq_limits : tuple or None
+        (fmin, fmax) in Hz
+    labels : list of str or None
+        Labels for each HRTF (used in legend)
+    """
+
+    if labels is None:
+        labels = [f"HRTF {i+1}" for i in range(len(hrtf_mag_list))]
+
+    colors = plt.cm.tab10.colors
+    linestyles = ['-', '--', '-.', ':']
+
+    # --- find closest direction (shared for all HRTFs) ---
+    idx = _get_index_from_specific_source_position(
+        source_directions, azimuth, elevation
+    )
+
+    plt.figure(figsize=(10, 5))
+
+    for i, hrtf_mag in enumerate(hrtf_mag_list):
+        mag = hrtf_mag[idx, ear, :]
+
+        # --- frequency limits ---
+        if freq_limits is not None:
+            fmin, fmax = freq_limits
+            mask = (frequency_vector >= fmin) & (frequency_vector <= fmax)
+            freqs_plot = frequency_vector[mask]
+            mag_plot = mag[mask]
+        else:
+            freqs_plot = frequency_vector
+            mag_plot = mag
+
+        plt.semilogx(
+            freqs_plot,
+            20 * np.log10(mag_plot + 1e-12),
+            color=colors[i % len(colors)],
+            linestyle=linestyles[i % len(linestyles)],
+            label=labels[i]
+        )
+
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Magnitude (dB)")
+    plt.title(
+        f"HRTF magnitude comparison | az={azimuth:.1f}°, "
+        f"el={elevation:.1f}°, ear={ear}"
+    )
+
+    plt.xticks(
+        ticks=[1000, 5000, 10000, 20000],
+        labels=['1K', '5K', '10K', '20K']
+    )
+
+    plt.grid(linestyle='--')
+    plt.legend()
+    plt.show()
+
 
 def plot_hrtf_magnitude_multiple_source_positions(
     hrtf_mag,
@@ -493,10 +458,55 @@ def plot_hrtf_magnitude_main_directions_multiple_hrtf(
     plt.tight_layout(rect=[0, 0.05, 1, 1])
     plt.show()
 
-def plot_hrtf_magnitude_specific_direction(hrtf_mag_1, hrtf_mag_2, frequency_vector):
-    pass
-    # plt.figure(figsize=(10,5))
-    # plt.semilogx(frequency_vector, 20 * np.log10(hrtf_mag_1 + 1e-12), label="HRTF_1")
-    # plt.semilogx(frequency_vector, 20 * np.log10(hrtf_mag_2 + 1e-12), label="HRTF_2")
-    # plt.show()
+def plot_comparison_two_hrtf_magnitude_vectors(hrtf_mag_1, hrtf_mag_2, frequency_vector, labels=["HRTF_magnitude_1", "HRTF_magnitude_2"]):
+    
+    """
+    Plot and visually compare two HRTF magnitude vectors on the same
+    frequency axis.
+
+    This function overlays the magnitude responses of two HRTFs in the
+    frequency domain using a logarithmic frequency scale. It is intended
+    for qualitative comparison between two HRTF magnitude representations,
+    such as original vs reconstructed HRTFs or comparisons between
+    different subjects or models.
+
+    Parameters
+    ----------
+    hrtf_mag_1 : array_like, shape (N_freqs,)
+        First HRTF magnitude vector. This is typically the reference HRTF
+        (e.g., ground truth or measured HRTF).
+
+    hrtf_mag_2 : array_like, shape (N_freqs,)
+        Second HRTF magnitude vector. This is typically a reconstructed,
+        predicted, or alternative HRTF to be compared against the reference.
+
+    frequency_vector : array_like, shape (N_freqs,)
+        Frequency axis in Hz corresponding to the HRTF magnitude vectors.
+        Both HRTF magnitude vectors are assumed to be defined on the same
+        frequency grid.
+
+    labels : list of str, optional
+        Labels used in the plot legend to identify each HRTF magnitude curve.
+        The list must contain two strings, one for each HRTF.
+        Default is ["HRTF_magnitude_1", "HRTF_magnitude_2"].
+    """
+
+    # Magnitude vector checks
+    if hrtf_mag_1.shape != hrtf_mag_2.shape:
+        raise ValueError("HRTF magnitude vectors must have the same shape")
+
+    if hrtf_mag_1.shape != frequency_vector.shape or hrtf_mag_2.shape != frequency_vector.shape:
+        raise ValueError("HRTF magnitude vectors and frequency_vector must have the same shape")
+
+    plt.figure(figsize=(10,5))
+    plt.semilogx(frequency_vector, 20 * np.log10(hrtf_mag_1 + 1e-12), label=labels[0], linestyle="solid")
+    plt.semilogx(frequency_vector, 20 * np.log10(hrtf_mag_2 + 1e-12), label=labels[1], linestyle="dashed")
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Magnitude (dB)")
+    plt.title( "HRTF magnitude comparison")
+    plt.xticks(ticks =
+               ([1000,5000,10000,20000]), labels=(['1K', '5K', '10K', '20k']))
+    plt.grid(linestyle = '--')
+    plt.legend()
+    plt.show()
 
