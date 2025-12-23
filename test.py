@@ -49,3 +49,5 @@ hrtf_mag_specific_direction_2 = hrtf_mag_2[10,0,:]
 hrtf = hrtf_loader._read_sofa('hrtf.sofa')
 
 print(hrtf[2][100])
+
+print('testing branchs')
