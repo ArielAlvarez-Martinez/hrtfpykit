@@ -24,7 +24,7 @@ hrtf_mag_2 = hrtf_2[0]
 hrtf_mag_specific_direction_1 = hrtf_mag_1[10,0,:]
 hrtf_mag_specific_direction_2 = hrtf_mag_2[10,0,:]
 
-print(hrtf_mag_specific_direction_1.shape, frequency_vector.shape)
+
 
 #frequency_vector = frequency_vector[:120]
 
@@ -40,7 +40,12 @@ print(hrtf_mag_specific_direction_1.shape, frequency_vector.shape)
 #     labels=["Subject A", "Reconstructed", "Reconstructed"]
 # )
 
-C, f_recons, Y = sht_core(f,source_directions,20)
+# C, f_recons, Y = sht_core(f,source_directions,20)
 
-hrtf_visualization.plot_comparison_two_hrtf_magnitude_vectors(hrtf_mag_specific_direction_1,hrtf_mag_specific_direction_2, frequency_vector=frequency_vector,
-                                                               labels=["Original", "Reconstructed"])
+# hrtf_visualization.plot_comparison_two_hrtf_magnitude_vectors(hrtf_mag_specific_direction_1,hrtf_mag_specific_direction_2, frequency_vector=frequency_vector,
+#                                                                labels=["Original", "Reconstructed"])
+
+
+hrtf = hrtf_loader._read_sofa('hrtf.sofa')
+
+print(hrtf[2][100])
