@@ -4,12 +4,11 @@ from scipy.fft import rfft, rfftfreq
 from scipy.special import sph_harm
 import matplotlib.pyplot as plt
 import os
-from sh_transformation_tools import sht_core
-import hrtf_loader, hrtf_visualization, sh_transformation_tools
+from ..hrtfpykit import hrtf_loader, hrtf_visualization, transforms
 
 
 hrtf_mag, source_directions, frequency_vector, sampling_rate = hrtf_loader.load_hrtf('hrtf.sofa')
-hrtfs_list = hrtf_loader.load_multiple_hrtfs_from_folder('hrtfs/')
+hrtfs_list = hrtf_loader.load_from_folder('hrtfs/')
 
 hrtfs_mag_list = hrtfs_list[0]
 
@@ -45,7 +44,13 @@ hrtf_mag_specific_direction_2 = hrtf_mag_2[10,0,:]
 # hrtf_visualization.plot_comparison_two_hrtf_magnitude_vectors(hrtf_mag_specific_direction_1,hrtf_mag_specific_direction_2, frequency_vector=frequency_vector,
 #                                                                labels=["Original", "Reconstructed"])
 
+def main():
+    hrtf = hrtf_loader._read_sofa('hrtf.sofa')
 
-hrtf = hrtf_loader._read_sofa('hrtf.sofa')
+    print(hrtf[2][100])
 
-print(hrtf[2][100])
+
+if __name__ == "__main__":
+        main()
+   
+

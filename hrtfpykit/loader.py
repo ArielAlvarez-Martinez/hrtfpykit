@@ -1,7 +1,7 @@
 import numpy as np
-import sofa
 from scipy.fft import rfft, rfftfreq
 import os
+import sofa
 
 def _read_sofa(path):
     sofa_object = sofa.Database.open(path)
@@ -54,7 +54,7 @@ def load_hrtf(sofa_path, fft_length=256):
 
 
 
-def load_multiple_hrtfs_from_folder(folder_path, fft_length=256):
+def load_from_folder(folder_path, fft_length=256):
     """
     Load multiple HRTFs from a folder containing SOFA files.
 
@@ -119,4 +119,3 @@ def load_multiple_hrtfs_from_folder(folder_path, fft_length=256):
         fs_ref,
         file_names
     )
-

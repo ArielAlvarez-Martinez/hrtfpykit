@@ -1,4 +1,4 @@
-from hrtf_loader import load_hrtf
+from .hrtf_loader import load_hrtf
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -102,8 +102,7 @@ class HRTF:
 
 
 
-hrtf_1 = HRTF.load_hrtf("hrtf.sofa")
-
-hrtf_1.plot_hrtf_magnitude(100,200)
-
-print(hrtf_1.source_directions_degrees)
+if __name__ == "__main__":
+    hrtf_1 = HRTF.load_hrtf("hrtf.sofa")
+    hrtf_1.plot_hrtf_magnitude(100, 200)
+    print(hrtf_1.source_directions_degrees)

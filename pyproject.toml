@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hrtfpykit"
+version = "0.0.1"
+description = "Toolkit for loading, handling, analyzing, and visualizing HRTF data in Python"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Ariel Alvarez-Martinez" }]
+keywords = ["audio", "hrtf", "sofa", "spatial-audio"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "matplotlib>=3.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hrtfpykit*"]
