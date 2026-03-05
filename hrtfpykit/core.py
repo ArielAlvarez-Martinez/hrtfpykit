@@ -1,4 +1,4 @@
-from .hrtf_loader import load_hrtf
+from .loader import load_hrtf
 import numpy as np
 import matplotlib.pyplot as plt
 
