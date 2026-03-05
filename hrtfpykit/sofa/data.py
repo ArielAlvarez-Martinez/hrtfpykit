@@ -140,10 +140,10 @@ class Variables:
 
     def get(self, name: Optional[str] = None):
         if name is None:
-            return {k: VariablesWrap(v) for k, v in self.netCDF4_dataset.variables.items()}
+            return {k: VariablesWrap(k, v) for k, v in self.netCDF4_dataset.variables.items()}
         if name not in self.netCDF4_dataset.variables:
             return None
-        return VariablesWrap(self.netCDF4_dataset.variables[name])
+        return VariablesWrap(name, self.netCDF4_dataset.variables[name])
 
     def get_values(self, name: Optional[str] = None):
         if name is None:
@@ -160,14 +160,6 @@ class Variables:
             lines.append(
                 f"{name} :  shape ({dims})  , current_shape = {data.shape} , data_type = {data.dtype}"
             )
-        print("\n".join(lines))
-
-    def dimensions(self) -> None:
-        lines = []
-        for name, var in self.netCDF4_dataset.variables.items():
-            dims = ",".join(var.dimensions)
-            dtype = getattr(var, "dtype", None)
-            lines.append(f"{name} = {dims} ({dtype})")
         print("\n".join(lines))
 
     def __getitem__(self, key: str) -> Optional[VariablesWrap]:

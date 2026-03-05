@@ -1,29 +1,9 @@
 print("core.py")
-from typing import Optional, Union
+from typing import Union
 import pathlib
 import netCDF4 as ncdf
-import time
-from functools import wraps
 from .data import Dimensions, Attributes, Variables
-
-
-def time_it(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start = time.perf_counter()
-        result = func(*args, **kwargs)
-        end = time.perf_counter()
-        print(f"{func.__name__} took {end - start:.6f} seconds")
-        return result
-    return wrapper
-
-def print_return(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-        print(f"{func.__name__} returned: {result!r}")
-        return result
-    return wrapper
+from .check import check_hrtf
 
 
 class SOFA:
@@ -33,7 +13,7 @@ class SOFA:
         self.path = None
 
     @staticmethod
-    def _check_path(path: Optional[Union[str, pathlib.Path]]):
+    def _check_path(path : Union[str, pathlib.Path]):
         if not isinstance(path, pathlib.Path):
            path = pathlib.Path(path)
         if not path.exists():
@@ -41,15 +21,18 @@ class SOFA:
         if path.suffix.lower() != ".sofa":
             raise ValueError(f"SOFA file must end with .sofa: {path}")
 
-    def _open(self,path: Optional[Union[str, pathlib.Path]], mode : str = "r", parallel : bool = False):
+    def _open(self,path : Union[str, pathlib.Path], mode : str = "r", parallel : bool = False, check_sofa : bool = True):
         self._check_path(path)
+        if check_sofa is True:
+            check_hrtf(path)    
         self.netCDF4_dataset = ncdf.Dataset(path,mode=mode, parallel=parallel)
         return self
 
+    
     @classmethod
-    def load(cls,path: Optional[Union[str, pathlib.Path]], mode : str = "r", parallel : bool = False):
+    def load(cls,path : Union[str, pathlib.Path], mode : str = "r", parallel : bool = False, check_sofa : bool = True):
         Sofa_object = cls()
-        Sofa_object._open(path, mode, parallel)
+        Sofa_object._open(path, mode, parallel, check_sofa)
         return Sofa_object
 
     @property
@@ -69,4 +52,4 @@ class SOFA:
         if self.netCDF4_dataset is None:
             return None
         return Variables(self.netCDF4_dataset)
- 
+     

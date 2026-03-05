@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from hrtfpykit import loader
+from ..hrtfpykit import loader
 
 
 def test_parse_directions_converts_degrees_to_radians():

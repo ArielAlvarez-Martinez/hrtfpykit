@@ -23,8 +23,13 @@ class DimensionsWrap:
 
 
 class VariablesWrap:
-    def __init__(self, var):
+    def __init__(self, name: str, var):
+        self._name = name
         self._var = var
+
+    @property
+    def name(self) -> str:
+        return self._name
 
     @property
     def dtype(self):
@@ -34,11 +39,11 @@ class VariablesWrap:
     def shape(self):
         return self._var.shape
 
-    def values(self):
+    def value(self):
         return np.array(self._var[:])
 
     def __repr__(self) -> str:
-        return f"VariablesWrap(shape={self.shape}, dtype={self.dtype})"
+        return f"VariablesWrap(name={self._name!r}, shape={self.shape}, dtype={self.dtype})"
 
 
 class AttributesWrap:
