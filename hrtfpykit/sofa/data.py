@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Union, Any, Dict, overload
+from typing import Optional, Dict, Iterator
 import netCDF4
 import numpy as np
 from .wraps import DimensionsWrap, VariablesWrap, AttributesWrap
+
 
 class _Data(ABC):
 
@@ -10,21 +11,25 @@ class _Data(ABC):
         if dataset is None:
             raise ValueError("Dataset is required")
         self.netCDF4_dataset = dataset
-        
-    @abstractmethod
-    def get(self, name: str): 
-        pass
-
-    @abstractmethod
-    def get_all(self):
-        pass
 
     @abstractmethod
     def get_names(self):
         pass
+
+    @abstractmethod
+    def get_values(self):
+        pass
+
+    @abstractmethod
+    def get(self, name: str): 
+        pass
     
     @abstractmethod
-    def info(self):
+    def get_all(self):
+        pass
+    
+    @abstractmethod
+    def summary(self):
         pass
 
     @abstractmethod
@@ -39,73 +44,47 @@ class _Data(ABC):
     def __len__(self):
         pass
 
-class Dimensions(_Data):
+
+class _Dimensions(_Data):
     
     def __init__(self, dataset : netCDF4.Dataset = None):
         super().__init__(dataset)
 
-    def get_all(self):
-        return {
-            k: DimensionsWrap(k, v.size, bool(getattr(v, "isunlimited", lambda: False)()))
-            for k, v in self.netCDF4_dataset.dimensions.items()
-        }
-
-    def info(self):
-        info = {}
-        for name, dim in self.netCDF4_dataset.dimensions.items():
-            info[name] = {
-                "size": dim.size,
-                "unlimited": bool(getattr(dim, "isunlimited", lambda: False)()),
-            }
-        return info
-
-    def get_names(self):
+    def get_names(self) -> list[str]:
         return list(self.netCDF4_dataset.dimensions.keys())
+    
+    def get_values(self) -> list[int]:
+        return [dim.size for dim in self.netCDF4_dataset.dimensions.values()]
 
-    @property
-    def description(self) -> None:
-        description = [
-            ("I", "Singleton axis for global listener/receiver metadata (one set for the whole HRTF set)"),
-            ("C", "3D coordinate triplet used for HRTF geometry (e.g., source/ear positions: x,y,z or az,el,r)"),
-            ("R", "Receivers = ears (left/right HRTF)"),
-            ("E", "Emitter(s) (typically one loudspeaker/source definition)"),
-            ("N", "Number of samples (time-domain HRIR) or frequency bins (frequency-domain HRTF)"),
-            ("M", "Measurements = directions/positions around the head (one HRTF per direction per ear)"),
-            ("S", "String-length dimension (if 0 no string-array fields stored)"),
-        ]
-        lines = [f"{dim}: {desc}" for dim, desc in description]
-        header = "DIMENSIONS"
-        width = max(len(header), max(len(line) for line in lines))
-        rule = "-" * (width + 4)
-        out = [rule, f"| {header.center(width)} |", rule]
-        for line in lines:
-            out.append(f"| {line.ljust(width)} |")
-            out.append(rule)
-        print("\n".join(out))
-
-    def get(self, name: Optional[str] = None) -> Union[None, DimensionsWrap, Dict[str, DimensionsWrap]]:
+    def get(self, name: str) -> Optional[DimensionsWrap]:
         if name not in self.netCDF4_dataset.dimensions:
             print("Please insert a valid dimension name")
             return None
-        dim = self.netCDF4_dataset.dimensions[name]
-        return DimensionsWrap(name, dim.size, bool(getattr(dim, "isunlimited", lambda: False)()))
-    
+        return DimensionsWrap(name, self.netCDF4_dataset.dimensions)
+
+    def get_all(self) -> Dict[str, DimensionsWrap]:
+        return {
+            k: DimensionsWrap(k, self.netCDF4_dataset.dimensions)
+            for k in self.netCDF4_dataset.dimensions.keys()
+            }
+   
     def summary(self) -> None:
         lines = []
         for name, dim in self.netCDF4_dataset.dimensions.items():
             lines.append(f"{name} = {dim.size}")
         print("\n".join(lines))
 
-    def __getitem__(self, key: str) -> Optional[DimensionsWrap]:
-        return self.get(key)
+    def __getitem__(self, name: str) -> Optional[DimensionsWrap]:
+        return self.get(name)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[DimensionsWrap]:
         return iter(self.get_all().values())
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.netCDF4_dataset.dimensions)
+    
 
-class Attributes(_Data):
+class _Attributes(_Data):
 
     def get_all(self):
         pass
@@ -141,21 +120,14 @@ class Attributes(_Data):
     def __len__(self):
         return len(self._netCDF4_dataset.ncattrs())
 
-class Variables(_Data):
+
+class _Variables(_Data):
 
     def __init__(self, dataset : netCDF4.Dataset = None):
         if dataset is None:
             raise ValueError("Dataset is required")
         self.netCDF4_dataset = dataset
 
-
-    @overload
-    def get(self, name: None = None) -> Dict[str, VariablesWrap]:
-        ...
-
-    @overload
-    def get(self, name: str) -> Optional[VariablesWrap]:
-        ...
 
     def get(self, name: Optional[str] = None):
         if name is None:

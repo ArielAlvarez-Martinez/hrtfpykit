@@ -1,15 +1,15 @@
 print("core.py")
-from typing import Union
+from typing import Union, Optional
 import pathlib
 import netCDF4 as ncdf
-from .data import Dimensions, Attributes, Variables
+from .data import _Dimensions, _Attributes, _Variables
 from .check import check_hrtf, check_path
 
 
 class SOFA:
 
     def __init__(self):
-        self.netCDF4_dataset : ncdf.Dataset= None
+        self.netCDF4_dataset: ncdf.Dataset | None = None
         self.path = None
 
     def _open(self,path : Union[str, pathlib.Path], mode : str = "r", parallel : bool = False, check_sofa : bool = True):
@@ -28,26 +28,20 @@ class SOFA:
         return Sofa_object
 
     @property
-    def Dimensions(self):
+    def Dimensions(self) -> _Dimensions:
         if self.netCDF4_dataset is None:
             return None
-        return Dimensions(self.netCDF4_dataset)
+        return _Dimensions(self.netCDF4_dataset)
     
     @property 
-    def Attributes(self):
+    def Attributes(self) -> _Attributes :
         if self.netCDF4_dataset is None:
             return None
-        return Attributes(self.netCDF4_dataset)
+        return _Attributes(self.netCDF4_dataset)
 
     @property
-    def Variables(self):
+    def Variables(self) -> _Variables:
         if self.netCDF4_dataset is None:
             return None
-        return Variables(self.netCDF4_dataset)
-     
-path = ""
-
-sofa_object = SOFA.load(path)
-
-i = sofa_object.Dimensions.get("I")
-
+        return _Variables(self.netCDF4_dataset)
+    

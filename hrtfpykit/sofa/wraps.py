@@ -2,13 +2,14 @@ import numpy as np
 
 
 class DimensionsWrap:
-    def __init__(self, name: str, value, is_unlimited: bool = False):
+    def __init__(self, name: str, _netCDF4_dataset_dimensions):
         self.name = name
-        self.value = value
-        self.is_unlimited = bool(is_unlimited)
+        self._netCDF4_dataset_dimensions = _netCDF4_dataset_dimensions
+        self.value = self._netCDF4_dataset_dimensions[name].size
+        self.is_unlimited = bool(getattr(self.value, "isunlimited", lambda: False)())
 
     def __repr__(self) -> str:
-        return f"DimensionsWrap(name={self.name!r}, value={self.value}, unlimited={self.is_unlimited})"
+        return f"DimensionsWrap(name = {self.name!r}, value = {self.value}, unlimited = {self.is_unlimited})"
 
 
 class VariablesWrap:
