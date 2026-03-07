@@ -1,9 +1,10 @@
-from typing import Any, Optional
+from typing import Any, Optional, Union
 import warnings
-import netCDF4 as ncdf
+import netCDF4
 import numpy as np
-from .conventions import CONVENTIONS
 import pathlib
+from .conventions import CONVENTIONS
+
 
 def _formatwarning(message, category, filename, lineno, line=None):
     return f"{category.__name__}: {message}\n"
@@ -12,7 +13,7 @@ def _formatwarning(message, category, filename, lineno, line=None):
 warnings.formatwarning = _formatwarning
 
 
-def check_path(path : str | pathlib.Path):
+def check_path(path : Union[str, pathlib.Path]):
         if not isinstance(path, pathlib.Path):
            path = pathlib.Path(path)
         if not path.exists():
@@ -21,7 +22,7 @@ def check_path(path : str | pathlib.Path):
             raise ValueError(f"SOFA file must end with .sofa: {path}")
 
 
-def check_hrtf(target: str | ncdf.Dataset, convention_name: Optional[str] = None, version: Optional[str] = None):
+def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str] = None, version: Optional[str] = None):
     """Check a HRTF SOFA object against SOFA conventions.
 
     Raises ValueError for unsupported conventions or DataType.
@@ -133,12 +134,12 @@ def check_hrtf(target: str | ncdf.Dataset, convention_name: Optional[str] = None
         if _closer is not None:
             _closer.close()
 
-def _resolve_dataset(target: str | ncdf.Dataset):
+def _resolve_dataset(target: Union[str, netCDF4.Dataset]):
     if hasattr(target, "netCDF4_dataset"):
         return target.netCDF4_dataset, None
     if hasattr(target, "variables") and hasattr(target, "ncattrs"):
         return target, None
-    ds = ncdf.Dataset(str(target), "r")
+    ds = netCDF4.Dataset(str(target), "r")
     return ds, ds
 
 
@@ -178,7 +179,7 @@ def _matches_dim_option(var_dims: tuple[str, ...], option: str) -> bool:
     return True
 
 
-def _warn_dim_mismatch(dataset: ncdf.Dataset, var_name: str, var, dim_spec: Optional[str]) -> None:
+def _warn_dim_mismatch(dataset: netCDF4.Dataset, var_name: str, var, dim_spec: Optional[str]) -> None:
     options = _split_dim_options(dim_spec)
     if options and not any(_matches_dim_option(var.dimensions, opt) for opt in options):
         warnings.warn(
