@@ -2,24 +2,13 @@ import numpy as np
 
 
 class DimensionsWrap:
-    def __init__(self, name: str, dim):
-        self._name = name
-        self._dim = dim
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def dimension(self) -> int:
-        return self._dim.size
-
-    @property
-    def is_unlimited(self) -> bool:
-        return bool(getattr(self._dim, "isunlimited", lambda: False)())
+    def __init__(self, name: str, value, is_unlimited: bool = False):
+        self.name = name
+        self.value = value
+        self.is_unlimited = bool(is_unlimited)
 
     def __repr__(self) -> str:
-        return f"DimensionsWrap(name={self._name!r}, dimension={self.dimension}, unlimited={self.is_unlimited})"
+        return f"DimensionsWrap(name={self.name!r}, value={self.value}, unlimited={self.is_unlimited})"
 
 
 class VariablesWrap:

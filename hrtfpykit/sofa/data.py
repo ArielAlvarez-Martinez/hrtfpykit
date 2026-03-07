@@ -20,15 +20,15 @@ class _Data(ABC):
         pass
 
     @abstractmethod
-    def names(self):
+    def get_names(self):
         pass
     
     @abstractmethod
-    def summary(self):
+    def info(self):
         pass
 
     @abstractmethod
-    def __getitem__(self, key):
+    def __getitem__(self, name):
         pass
 
     @abstractmethod
@@ -39,12 +39,28 @@ class _Data(ABC):
     def __len__(self):
         pass
 
-class Dimensions:
-
+class Dimensions(_Data):
+    
     def __init__(self, dataset : netCDF4.Dataset = None):
-        if dataset is None:
-            raise ValueError("dataset is required")
-        self.netCDF4_dataset = dataset
+        super().__init__(dataset)
+
+    def get_all(self):
+        return {
+            k: DimensionsWrap(k, v.size, bool(getattr(v, "isunlimited", lambda: False)()))
+            for k, v in self.netCDF4_dataset.dimensions.items()
+        }
+
+    def info(self):
+        info = {}
+        for name, dim in self.netCDF4_dataset.dimensions.items():
+            info[name] = {
+                "size": dim.size,
+                "unlimited": bool(getattr(dim, "isunlimited", lambda: False)()),
+            }
+        return info
+
+    def get_names(self):
+        return list(self.netCDF4_dataset.dimensions.keys())
 
     @property
     def description(self) -> None:
@@ -67,16 +83,12 @@ class Dimensions:
             out.append(rule)
         print("\n".join(out))
 
-    @overload
-    def get(self, name: Optional[str] = None) -> Dict[str, DimensionsWrap] | DimensionsWrap | None:
-        ...
-
     def get(self, name: Optional[str] = None) -> Union[None, DimensionsWrap, Dict[str, DimensionsWrap]]:
-        if name is None:
-            return {k: DimensionsWrap(k, v) for k, v in self.netCDF4_dataset.dimensions.items()}
         if name not in self.netCDF4_dataset.dimensions:
+            print("Please insert a valid dimension name")
             return None
-        return DimensionsWrap(name, self.netCDF4_dataset.dimensions[name])
+        dim = self.netCDF4_dataset.dimensions[name]
+        return DimensionsWrap(name, dim.size, bool(getattr(dim, "isunlimited", lambda: False)()))
     
     def summary(self) -> None:
         lines = []
@@ -88,41 +100,48 @@ class Dimensions:
         return self.get(key)
 
     def __iter__(self):
-        return iter(self.netCDF4_dataset.dimensions)
+        return iter(self.get_all().values())
 
     def __len__(self):
         return len(self.netCDF4_dataset.dimensions)
 
-class Attributes:
+class Attributes(_Data):
+
+    def get_all(self):
+        pass
+    def info(self):
+        pass
+    def get_names(self):
+        pass
 
     def __init__(self, dataset : netCDF4.Dataset = None):
         if dataset is None:
             raise ValueError("Dataset is required")
-        self.netCDF4_dataset = dataset
+        self._netCDF4_dataset = dataset
 
     def get(self, name: Optional[str] = None):
         if name is None:
-            return {k: AttributesWrap(k, getattr(self.netCDF4_dataset, k)) for k in self.netCDF4_dataset.ncattrs()}
-        if name not in self.netCDF4_dataset.ncattrs():
+            return {k: AttributesWrap(k, getattr(self._netCDF4_dataset, k)) for k in self._netCDF4_dataset.ncattrs()}
+        if name not in self._netCDF4_dataset.ncattrs():
             return None
-        return AttributesWrap(name, getattr(self.netCDF4_dataset, name))
+        return AttributesWrap(name, getattr(self._netCDF4_dataset, name))
 
     def summary(self) -> None:
         lines = []
-        for name in self.netCDF4_dataset.ncattrs():
-            lines.append(f"{name} = {getattr(self.netCDF4_dataset, name)}")
+        for name in self._netCDF4_dataset.ncattrs():
+            lines.append(f"{name} = {getattr(self._netCDF4_dataset, name)}")
         print("\n".join(lines))
 
     def __getitem__(self, key):
         return self.get(key)
 
     def __iter__(self):
-        return iter(self.netCDF4_dataset.ncattrs())
+        return iter(self._netCDF4_dataset.ncattrs())
 
     def __len__(self):
-        return len(self.netCDF4_dataset.ncattrs())
+        return len(self._netCDF4_dataset.ncattrs())
 
-class Variables:
+class Variables(_Data):
 
     def __init__(self, dataset : netCDF4.Dataset = None):
         if dataset is None:

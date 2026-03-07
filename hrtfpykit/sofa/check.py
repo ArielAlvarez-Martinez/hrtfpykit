@@ -3,6 +3,7 @@ import warnings
 import netCDF4 as ncdf
 import numpy as np
 from .conventions import CONVENTIONS
+import pathlib
 
 def _formatwarning(message, category, filename, lineno, line=None):
     return f"{category.__name__}: {message}\n"
@@ -11,83 +12,13 @@ def _formatwarning(message, category, filename, lineno, line=None):
 warnings.formatwarning = _formatwarning
 
 
-def _resolve_dataset(target: str | ncdf.Dataset):
-    if hasattr(target, "netCDF4_dataset"):
-        return target.netCDF4_dataset, None
-    if hasattr(target, "variables") and hasattr(target, "ncattrs"):
-        return target, None
-    ds = ncdf.Dataset(str(target), "r")
-    return ds, ds
-
-
-def _parse_name(name: str):
-    if name.startswith("GLOBAL:"):
-        return ("global_attr", name.split("GLOBAL:", 1)[1])
-    if ":" in name:
-        var, attr = name.split(":", 1)
-        return ("var_attr", var, attr)
-    return ("variable", name)
-
-
-def _compare_default(default: Any, value: Any) -> bool:
-    if default in ("", None):
-        return True
-    try:
-        if isinstance(value, np.ndarray) or isinstance(default, (list, tuple)):
-            return np.array_equal(np.array(value), np.array(default))
-        return value == default
-    except Exception:
-        return False
-
-
-def _split_dim_options(dimensions: Optional[str]) -> list[str]:
-    if not dimensions:
-        return []
-    return [opt.strip() for opt in dimensions.split(",") if opt.strip()]
-
-
-def _matches_dim_option(var_dims: tuple[str, ...], option: str) -> bool:
-    letters = [c for c in option if c.strip()]
-    if len(var_dims) != len(letters):
-        return False
-    for dim_name, letter in zip(var_dims, letters):
-        if dim_name.upper() != letter.upper():
-            return False
-    return True
-
-
-def _warn_dim_mismatch(dataset: ncdf.Dataset, var_name: str, var, dim_spec: Optional[str]) -> None:
-    options = _split_dim_options(dim_spec)
-    if options and not any(_matches_dim_option(var.dimensions, opt) for opt in options):
-        warnings.warn(
-            f"Variable {var_name} has dims {var.dimensions}, expected one of {options}"
-        )
-    for dim_name, size in zip(var.dimensions, var.shape):
-        if dim_name in dataset.dimensions:
-            if dataset.dimensions[dim_name].size != size:
-                warnings.warn(
-                    f"Variable {var_name} dimension {dim_name} size {size} "
-                    f"does not match Dimensions {dataset.dimensions[dim_name].size}"
-                )
-
-
-def _is_invalid_values(values: np.ndarray) -> bool:
-    if values is None:
-        return True
-    try:
-        arr = np.array(values)
-    except Exception:
-        return True
-    if arr.size == 0:
-        return True
-    if arr.dtype == object:
-        for item in arr.ravel().tolist():
-            if item is None or item == "":
-                return True
-    if np.issubdtype(arr.dtype, np.number):
-        if np.all(arr == 0):
-            return True
-    return False
+def check_path(path : str | pathlib.Path):
+        if not isinstance(path, pathlib.Path):
+           path = pathlib.Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"SOFA file not found: {path}")
+        if path.suffix.lower() != ".sofa":
+            raise ValueError(f"SOFA file must end with .sofa: {path}")
 
 
 def check_hrtf(target: str | ncdf.Dataset, convention_name: Optional[str] = None, version: Optional[str] = None):
@@ -201,3 +132,81 @@ def check_hrtf(target: str | ncdf.Dataset, convention_name: Optional[str] = None
     finally:
         if _closer is not None:
             _closer.close()
+
+def _resolve_dataset(target: str | ncdf.Dataset):
+    if hasattr(target, "netCDF4_dataset"):
+        return target.netCDF4_dataset, None
+    if hasattr(target, "variables") and hasattr(target, "ncattrs"):
+        return target, None
+    ds = ncdf.Dataset(str(target), "r")
+    return ds, ds
+
+
+def _parse_name(name: str):
+    if name.startswith("GLOBAL:"):
+        return ("global_attr", name.split("GLOBAL:", 1)[1])
+    if ":" in name:
+        var, attr = name.split(":", 1)
+        return ("var_attr", var, attr)
+    return ("variable", name)
+
+
+def _compare_default(default: Any, value: Any) -> bool:
+    if default in ("", None):
+        return True
+    try:
+        if isinstance(value, np.ndarray) or isinstance(default, (list, tuple)):
+            return np.array_equal(np.array(value), np.array(default))
+        return value == default
+    except Exception:
+        return False
+
+
+def _split_dim_options(dimensions: Optional[str]) -> list[str]:
+    if not dimensions:
+        return []
+    return [opt.strip() for opt in dimensions.split(",") if opt.strip()]
+
+
+def _matches_dim_option(var_dims: tuple[str, ...], option: str) -> bool:
+    letters = [c for c in option if c.strip()]
+    if len(var_dims) != len(letters):
+        return False
+    for dim_name, letter in zip(var_dims, letters):
+        if dim_name.upper() != letter.upper():
+            return False
+    return True
+
+
+def _warn_dim_mismatch(dataset: ncdf.Dataset, var_name: str, var, dim_spec: Optional[str]) -> None:
+    options = _split_dim_options(dim_spec)
+    if options and not any(_matches_dim_option(var.dimensions, opt) for opt in options):
+        warnings.warn(
+            f"Variable {var_name} has dims {var.dimensions}, expected one of {options}"
+        )
+    for dim_name, size in zip(var.dimensions, var.shape):
+        if dim_name in dataset.dimensions:
+            if dataset.dimensions[dim_name].size != size:
+                warnings.warn(
+                    f"Variable {var_name} dimension {dim_name} size {size} "
+                    f"does not match Dimensions {dataset.dimensions[dim_name].size}"
+                )
+
+
+def _is_invalid_values(values: np.ndarray) -> bool:
+    if values is None:
+        return True
+    try:
+        arr = np.array(values)
+    except Exception:
+        return True
+    if arr.size == 0:
+        return True
+    if arr.dtype == object:
+        for item in arr.ravel().tolist():
+            if item is None or item == "":
+                return True
+    if np.issubdtype(arr.dtype, np.number):
+        if np.all(arr == 0):
+            return True
+    return False
