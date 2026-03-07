@@ -45,3 +45,8 @@ class SOFA:
             return None
         return _Variables(self.netCDF4_dataset)
     
+
+so = SOFA.load("<local-projects>/hrtfpykit/hrtfs/hrtf_24.sofa")
+
+for i in so.Dimensions:
+    print(i.value)
