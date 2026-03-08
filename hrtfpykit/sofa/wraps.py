@@ -1,53 +1,40 @@
+from typing import Union
+
 import numpy as np
 
 
 class DimensionsWrap:
     def __init__(self, name: str, _netCDF4_dataset_dimensions):
         self.name = name
-        self._netCDF4_dataset_dimensions = _netCDF4_dataset_dimensions
-        self.value = self._netCDF4_dataset_dimensions[name].size
+        self.value = _netCDF4_dataset_dimensions[name].size
         self.is_unlimited = bool(getattr(self.value, "isunlimited", lambda: False)())
-
+        self._netCDF4_dataset_dimensions = _netCDF4_dataset_dimensions
+    
     def __repr__(self) -> str:
         return f"DimensionsWrap(name = {self.name!r}, value = {self.value}, unlimited = {self.is_unlimited})"
 
 
-class VariablesWrap:
-    def __init__(self, name: str, var):
-        self._name = name
-        self._var = var
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def dtype(self):
-        return self._var.dtype
-
-    @property
-    def shape(self):
-        return self._var.shape
-
-    def value(self):
-        return np.array(self._var[:])
-
-    def __repr__(self) -> str:
-        return f"VariablesWrap(name={self._name!r}, shape={self.shape}, dtype={self.dtype})"
-
-
 class AttributesWrap:
     def __init__(self, name: str, value: str):
-        self._name = name
-        self._value = value
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def value(self) -> str:
-        return self._value
+        self.name = name
+        self.value = value
 
     def __repr__(self) -> str:
-        return f"AttributesWrap(name={self._name!r}, value={self._value!r})"
+        return f"AttributesWrap(name={self.name!r}, value={self.value!r})"
+
+
+class VariablesWrap:
+    def __init__(self, name: str, var):
+        self.name = name
+        self._var = var
+        
+    @property
+    def value(self) -> Union[int, np.ndarray]:
+        data = np.array(self._var[:])
+        if data.size == 1 and np.issubdtype(data.dtype, np.number):
+            return int(data.reshape(-1)[0])
+        return data
+
+    def __repr__(self) -> str:
+        value = self.value
+        return f"VariablesWrap(name={self.name!r}, dimension= {self._var.shape}, dtype= {type(value)})"

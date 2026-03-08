@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Iterator, Union, Optional
+from typing import Optional, Dict, Iterator, Union
 import netCDF4
 import numpy as np
 import pathlib
@@ -12,7 +12,7 @@ class _Data(ABC):
     def __init__(self, dataset : netCDF4.Dataset = None):
         if dataset is None:
             raise ValueError("Dataset is required")
-        self.netCDF4_dataset = dataset
+        self._netCDF4_dataset = dataset
 
     @abstractmethod
     def get_names(self):
@@ -53,28 +53,28 @@ class _Dimensions(_Data):
         super().__init__(dataset)
 
     def get_names(self) -> list[str]:
-        return list(self.netCDF4_dataset.dimensions.keys())
+        return list(self._netCDF4_dataset.dimensions.keys())
     
     def get_values(self) -> list[int]:
-        return [dim.size for dim in self.netCDF4_dataset.dimensions.values()]
+        return [dim.size for dim in self._netCDF4_dataset.dimensions.values()]
 
     def get(self, name: str) -> Optional[DimensionsWrap]:
-        if name not in self.netCDF4_dataset.dimensions:
+        if name not in self._netCDF4_dataset.dimensions:
             print("Please insert a valid dimension name")
             return None
-        return DimensionsWrap(name, self.netCDF4_dataset.dimensions)
+        return DimensionsWrap(name, self._netCDF4_dataset.dimensions)
 
     def get_all(self) -> Dict[str, DimensionsWrap]:
         return {
-            k: DimensionsWrap(k, self.netCDF4_dataset.dimensions)
-            for k in self.netCDF4_dataset.dimensions.keys()
+            k: DimensionsWrap(k, self._netCDF4_dataset.dimensions)
+            for k in self._netCDF4_dataset.dimensions.keys()
             }
    
-    def summary(self) -> None:
+    def summary(self) -> str:
         lines = []
-        for name, dim in self.netCDF4_dataset.dimensions.items():
+        for name, dim in self._netCDF4_dataset.dimensions.items():
             lines.append(f"{name} = {dim.size}")
-        print("\n".join(lines))
+        return "\n".join(lines)
 
     def __getitem__(self, name: str) -> Optional[DimensionsWrap]:
         return self.get(name)
@@ -83,86 +83,94 @@ class _Dimensions(_Data):
         return iter(self.get_all().values())
 
     def __len__(self) -> int:
-        return len(self.netCDF4_dataset.dimensions)
+        return len(self._netCDF4_dataset.dimensions)
     
 
 class _Attributes(_Data):
 
-    def get_all(self):
-        pass
-    def info(self):
-        pass
-    def get_names(self):
-        pass
-
     def __init__(self, dataset : netCDF4.Dataset = None):
-        if dataset is None:
-            raise ValueError("Dataset is required")
-        self._netCDF4_dataset = dataset
+        super().__init__(dataset)
 
-    def get(self, name: Optional[str] = None):
-        if name is None:
-            return {k: AttributesWrap(k, getattr(self._netCDF4_dataset, k)) for k in self._netCDF4_dataset.ncattrs()}
+    def get_names(self) -> list[str]:
+        return list(self._netCDF4_dataset.ncattrs())
+
+    def get_values(self) -> list[str]:
+        return [getattr(self._netCDF4_dataset, name) for name in self._netCDF4_dataset.ncattrs()]
+
+    def get(self, name: str) -> Optional[AttributesWrap]:
         if name not in self._netCDF4_dataset.ncattrs():
+            print("Please insert a valid attribute name")
             return None
         return AttributesWrap(name, getattr(self._netCDF4_dataset, name))
 
-    def summary(self) -> None:
+    def get_all(self) -> Dict[str, AttributesWrap]:
+        return {
+            k: AttributesWrap(k, getattr(self._netCDF4_dataset, k))
+            for k in self._netCDF4_dataset.ncattrs()
+        }
+
+    def summary(self) -> str:
         lines = []
         for name in self._netCDF4_dataset.ncattrs():
             lines.append(f"{name} = {getattr(self._netCDF4_dataset, name)}")
-        print("\n".join(lines))
+        return "\n".join(lines)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Optional[AttributesWrap]:
         return self.get(key)
 
-    def __iter__(self):
-        return iter(self._netCDF4_dataset.ncattrs())
+    def __iter__(self) -> Iterator[AttributesWrap]:
+        return iter(self.get_all().values())
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._netCDF4_dataset.ncattrs())
 
 
 class _Variables(_Data):
 
     def __init__(self, dataset : netCDF4.Dataset = None):
-        if dataset is None:
-            raise ValueError("Dataset is required")
-        self.netCDF4_dataset = dataset
+        super().__init__(dataset)
 
+    def get_names(self) -> list[str]:
+        return list(self._netCDF4_dataset.variables.keys())
 
-    def get(self, name: Optional[str] = None):
-        if name is None:
-            return {k: VariablesWrap(k, v) for k, v in self.netCDF4_dataset.variables.items()}
-        if name not in self.netCDF4_dataset.variables:
+    def get_values(self) -> list[np.ndarray]:
+        return [np.array(v[:]) for v in self._netCDF4_dataset.variables.values()]
+
+    def get(self, name: str) -> Optional[VariablesWrap]:
+        if name not in self._netCDF4_dataset.variables:
+            print("Please insert a valid variable name")
             return None
-        return VariablesWrap(name, self.netCDF4_dataset.variables[name])
+        return VariablesWrap(name, self._netCDF4_dataset.variables[name])
 
-    def get_values(self, name: Optional[str] = None):
-        if name is None:
-            return {k: np.array(v[:]) for k, v in self.netCDF4_dataset.variables.items()}
-        if name not in self.netCDF4_dataset.variables:
-            return None
-        return np.array(self.netCDF4_dataset.variables[name][:])
+    def get_all(self) -> Dict[str, VariablesWrap]:
+        return {
+            k: VariablesWrap(k, v) for k, v in self._netCDF4_dataset.variables.items()
+        }
 
-    def summary(self) -> None:
+    def summary(self) -> str:
         lines = []
-        for name, var in self.netCDF4_dataset.variables.items():
-            dims = ",".join(var.dimensions)
-            data = np.array(var[:])
+        for name, var in self._netCDF4_dataset.variables.items():
+            dims = []
+            for dim_name in var.dimensions:
+                if dim_name in self._netCDF4_dataset.dimensions:
+                    dim_size = self._netCDF4_dataset.dimensions[dim_name].size
+                else:
+                    dim_size = "?"
+                dims.append(f"{dim_name}={dim_size}")
+            dims_str = ", ".join(dims)
             lines.append(
-                f"{name} :  shape ({dims})  , current_shape = {data.shape} , data_type = {data.dtype}"
+                f"{name} : dimensions = ({dims_str}) "
             )
-        print("\n".join(lines))
+        return "\n".join(lines)
 
     def __getitem__(self, key: str) -> Optional[VariablesWrap]:
         return self.get(key)
 
-    def __iter__(self):
-        return iter(self.netCDF4_dataset.variables)
+    def __iter__(self) -> Iterator[VariablesWrap]:
+        return iter(self.get_all().values())
 
-    def __len__(self):
-        return len(self.netCDF4_dataset.variables)
+    def __len__(self) -> int:
+        return len(self._netCDF4_dataset.variables)
 
 
 class SOFA:
@@ -203,4 +211,4 @@ class SOFA:
         if self.netCDF4_dataset is None:
             return None
         return _Variables(self.netCDF4_dataset)
-    
+
