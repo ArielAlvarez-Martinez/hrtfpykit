@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Iterator, Union
+from typing import Any, Optional, Dict, Iterator
 import netCDF4
 import numpy as np
-import pathlib
 from .wraps import DimensionsWrap, VariablesWrap, AttributesWrap
-from .check import check_hrtf, check_path
 
 
 class _Data(ABC):
@@ -86,33 +84,40 @@ class _Dimensions(_Data):
         return len(self._netCDF4_dataset.dimensions)
     
 
-class _Attributes(_Data):
+class _AttributesBase(_Data):
 
     def __init__(self, dataset : netCDF4.Dataset = None):
         super().__init__(dataset)
 
-    def get_names(self) -> list[str]:
-        return list(self._netCDF4_dataset.ncattrs())
+    @abstractmethod
+    def _iter_items(self) -> Iterator[tuple[str, Any]]:
+        pass
 
-    def get_values(self) -> list[str]:
-        return [getattr(self._netCDF4_dataset, name) for name in self._netCDF4_dataset.ncattrs()]
+    @abstractmethod
+    def _get_value(self, name: str) -> Optional[Any]:
+        pass
+
+    def _invalid_name_message(self) -> str:
+        return "Please insert a valid attribute name"
+
+    def get_names(self) -> list[str]:
+        return [name for name, _ in self._iter_items()]
+
+    def get_values(self) -> list[Any]:
+        return [value for _, value in self._iter_items()]
 
     def get(self, name: str) -> Optional[AttributesWrap]:
-        if name not in self._netCDF4_dataset.ncattrs():
-            print("Please insert a valid attribute name")
+        value = self._get_value(name)
+        if value is None:
+            print(self._invalid_name_message())
             return None
-        return AttributesWrap(name, getattr(self._netCDF4_dataset, name))
+        return AttributesWrap(name, value)
 
     def get_all(self) -> Dict[str, AttributesWrap]:
-        return {
-            k: AttributesWrap(k, getattr(self._netCDF4_dataset, k))
-            for k in self._netCDF4_dataset.ncattrs()
-        }
+        return {name: AttributesWrap(name, value) for name, value in self._iter_items()}
 
     def summary(self) -> str:
-        lines = []
-        for name in self._netCDF4_dataset.ncattrs():
-            lines.append(f"{name} = {getattr(self._netCDF4_dataset, name)}")
+        lines = [f"{name} = {value}" for name, value in self._iter_items()]
         return "\n".join(lines)
 
     def __getitem__(self, key: str) -> Optional[AttributesWrap]:
@@ -122,7 +127,93 @@ class _Attributes(_Data):
         return iter(self.get_all().values())
 
     def __len__(self) -> int:
-        return len(self._netCDF4_dataset.ncattrs())
+        return len(self.get_names())
+
+
+class _GlobalAttributes(_AttributesBase):
+
+    def _iter_items(self) -> Iterator[tuple[str, Any]]:
+        for name in self._netCDF4_dataset.ncattrs():
+            yield name, getattr(self._netCDF4_dataset, name)
+
+    def _get_value(self, name: str) -> Optional[Any]:
+        if name not in self._netCDF4_dataset.ncattrs():
+            return None
+        return getattr(self._netCDF4_dataset, name)
+
+    def _invalid_name_message(self) -> str:
+        return "Please insert a valid global attribute name"
+
+
+class _VariableAttributes(_AttributesBase):
+
+    def _iter_items(self) -> Iterator[tuple[str, Any]]:
+        for var_name, var in self._netCDF4_dataset.variables.items():
+            for attr_name in var.ncattrs():
+                yield f"{var_name}:{attr_name}", getattr(var, attr_name)
+
+    def _get_value(self, name: str) -> Optional[Any]:
+        if ":" not in name:
+            return None
+        var_name, attr_name = name.split(":", 1)
+        if var_name not in self._netCDF4_dataset.variables:
+            return None
+        var = self._netCDF4_dataset.variables[var_name]
+        if attr_name not in var.ncattrs():
+            return None
+        return getattr(var, attr_name)
+
+    def _invalid_name_message(self) -> str:
+        return "Please insert a valid variable attribute name"
+
+
+class _Attributes(_Data):
+
+    def __init__(self, dataset : netCDF4.Dataset = None):
+        super().__init__(dataset)
+        self._global = _GlobalAttributes(dataset)
+        self._variable = _VariableAttributes(dataset)
+
+    @property
+    def GlobalAttributes(self) -> _GlobalAttributes:
+        return self._global
+
+    @property
+    def VariableAttributes(self) -> _VariableAttributes:
+        return self._variable
+
+    def get_names(self) -> list[str]:
+        return self._global.get_names() + self._variable.get_names()
+
+    def get_values(self) -> list[Any]:
+        return self._global.get_values() + self._variable.get_values()
+
+    def get(self, name: str) -> Optional[AttributesWrap]:
+        if ":" in name:
+            return self._variable.get(name)
+        return self._global.get(name)
+
+    def get_all(self) -> Dict[str, AttributesWrap]:
+        return {**self._global.get_all(), **self._variable.get_all()}
+
+    def summary(self) -> str:
+        lines = []
+        global_summary = self._global.summary()
+        variable_summary = self._variable.summary()
+        if global_summary:
+            lines.append(global_summary)
+        if variable_summary:
+            lines.append(variable_summary)
+        return "\n".join(lines)
+
+    def __getitem__(self, key: str) -> Optional[AttributesWrap]:
+        return self.get(key)
+
+    def __iter__(self) -> Iterator[AttributesWrap]:
+        return iter(self.get_all().values())
+
+    def __len__(self) -> int:
+        return len(self.get_names())
 
 
 class _Variables(_Data):
@@ -171,44 +262,4 @@ class _Variables(_Data):
 
     def __len__(self) -> int:
         return len(self._netCDF4_dataset.variables)
-
-
-class SOFA:
-
-    def __init__(self):
-        self.netCDF4_dataset: Optional[netCDF4.Dataset] = None
-        self.path = None
-
-    def _open(self,path : Union[str, pathlib.Path], mode : str = "r", parallel : bool = False, check_sofa : bool = True):
-        check_path(path)
-        if check_sofa is True:
-            check_hrtf(path)    
-        self.netCDF4_dataset = netCDF4.Dataset(path,mode=mode, parallel=parallel)
-        self.path = path
-        return self
-
-    
-    @classmethod
-    def load(cls,path : Union[str, pathlib.Path], mode : str = "r", parallel : bool = False, check_sofa : bool = True):
-        Sofa_object = cls()
-        Sofa_object._open(path, mode, parallel, check_sofa)
-        return Sofa_object
-
-    @property
-    def Dimensions(self) -> _Dimensions:
-        if self.netCDF4_dataset is None:
-            return None
-        return _Dimensions(self.netCDF4_dataset)
-    
-    @property 
-    def Attributes(self) -> _Attributes :
-        if self.netCDF4_dataset is None:
-            return None
-        return _Attributes(self.netCDF4_dataset)
-
-    @property
-    def Variables(self) -> _Variables:
-        if self.netCDF4_dataset is None:
-            return None
-        return _Variables(self.netCDF4_dataset)
 
