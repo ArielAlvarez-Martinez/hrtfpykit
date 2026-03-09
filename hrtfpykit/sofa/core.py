@@ -8,7 +8,7 @@ import netCDF4
 import numpy as np
 from .check import check_hrtf, check_path
 from .conventions import CONVENTIONS
-from .data import _Attributes, _Dimensions, _GlobalAttributes, _VariableAttributes, _Variables
+from .data import  _Dimensions, _GlobalAttributes, _VariableAttributes, _Variables
 
 
 class SOFA:
@@ -16,6 +16,30 @@ class SOFA:
     def __init__(self):
         self.netCDF4_dataset: Optional[netCDF4.Dataset] = None
         self.path = None
+
+    @property
+    def Dimensions(self) -> Optional[_Dimensions]:
+        if self.netCDF4_dataset is None:
+            return None
+        return _Dimensions(self.netCDF4_dataset)
+
+    @property
+    def GlobalAttributes(self) -> Optional[_GlobalAttributes]:
+        if self.netCDF4_dataset is None:
+            return None
+        return _GlobalAttributes(self.netCDF4_dataset)
+
+    @property
+    def VariableAttributes(self) -> Optional[_VariableAttributes]:
+        if self.netCDF4_dataset is None:
+            return None
+        return _VariableAttributes(self.netCDF4_dataset)
+
+    @property
+    def Variables(self) -> Optional[_Variables]:
+        if self.netCDF4_dataset is None:
+            return None
+        return _Variables(self.netCDF4_dataset)
 
     def _open(self, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa: bool = True):
         check_path(path)
@@ -344,33 +368,41 @@ class SOFA:
         sofa_object.path = None
         return sofa_object
 
-    @property
-    def Dimensions(self) -> Optional[_Dimensions]:
+    def summary(self) -> str:
         if self.netCDF4_dataset is None:
-            return None
-        return _Dimensions(self.netCDF4_dataset)
+            raise ValueError("Dataset is not loaded")
 
-    @property
-    def Attributes(self) -> Optional[_Attributes]:
-        if self.netCDF4_dataset is None:
-            return None
-        return _Attributes(self.netCDF4_dataset)
+        dataset = self.netCDF4_dataset
+        lines: list[str] = [
+            "****************************",
+            "     GLOBAL ATTRIBUTES",
+            "****************************",
+        ]
+        for name in dataset.ncattrs():
+            lines.append(f"GLOBAL:{name} : {getattr(dataset, name)}")
 
-    @property
-    def GlobalAttributes(self) -> Optional[_GlobalAttributes]:
-        if self.netCDF4_dataset is None:
-            return None
-        return _GlobalAttributes(self.netCDF4_dataset)
-
-    @property
-    def VariableAttributes(self) -> Optional[_VariableAttributes]:
-        if self.netCDF4_dataset is None:
-            return None
-        return _VariableAttributes(self.netCDF4_dataset)
-
-    @property
-    def Variables(self) -> Optional[_Variables]:
-        if self.netCDF4_dataset is None:
-            return None
-        return _Variables(self.netCDF4_dataset)
+        lines.extend(
+            [
+                "*******************************************",
+                "    VARIABLES AND VARIABLES ATTRIBUTES",
+                "*******************************************",
+            ]
+        )
+        for name, var in dataset.variables.items():
+            dims = []
+            for dim_name in var.dimensions:
+                if dim_name in dataset.dimensions:
+                    dim_size = dataset.dimensions[dim_name].size
+                else:
+                    dim_size = "?"
+                dims.append(f"{dim_name}={dim_size}")
+            dims_str = ", ".join(dims)
+            lines.append(f"{name} : dimensions= ({dims_str})")
+            attrs = list(var.ncattrs())
+            if attrs:
+                lines.append("    attributes:")
+                for attr_name in attrs:
+                    value = getattr(var, attr_name)
+                    lines.append(f"        {name}:{attr_name}= {value}")
+        return "\n".join(lines)
 

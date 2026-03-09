@@ -37,7 +37,6 @@ def test_sofa_properties(tmp_path: Path) -> None:
     sofa = SOFA.load(path, check_sofa=True)
     try:
         assert sofa.Dimensions is not None
-        assert sofa.Attributes is not None
         assert sofa.GlobalAttributes is not None
         assert sofa.VariableAttributes is not None
         assert sofa.Variables is not None
@@ -82,28 +81,6 @@ def test_global_and_variable_attributes(tmp_path: Path) -> None:
         sofa.netCDF4_dataset.close()
 
 
-def test_attributes_facade(tmp_path: Path) -> None:
-    path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa=True)
-    try:
-        attrs = sofa.Attributes
-        assert attrs is not None
-
-        global_wrap = attrs.get("DatabaseName")
-        assert global_wrap is not None
-        assert global_wrap.value == "TestDB"
-
-        var_wrap = attrs.get("Data.IR:Units")
-        assert var_wrap is not None
-        assert var_wrap.value == "pascal"
-
-        names = attrs.get_names()
-        assert "DatabaseName" in names
-        assert "Data.IR:Units" in names
-    finally:
-        sofa.netCDF4_dataset.close()
-
-
 def test_variables_logic(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
     sofa = SOFA.load(path, check_sofa=True)
@@ -121,6 +98,21 @@ def test_variables_logic(tmp_path: Path) -> None:
         assert isinstance(sr.value, int)
 
         summary = variables.summary()
-        assert "Data.IR : dimensions = (m=2, R=2, n=4)" in summary
+        assert "Data.IR : dimensions:(m=2, R=2, n=4)" in summary
+        assert "Data.IR:Units: pascal" in summary
+    finally:
+        sofa.netCDF4_dataset.close()
+
+
+def test_sofa_summary(tmp_path: Path) -> None:
+    path = _create_sofa_file(tmp_path)
+    sofa = SOFA.load(path, check_sofa=True)
+    try:
+        summary = sofa.summary()
+        assert "GLOBAL ATTRIBUTES" in summary
+        assert "GLOBAL:DatabaseName : TestDB" in summary
+        assert "VARIABLES AND VARIABLES ATTRIBUTES" in summary
+        assert "Data.IR : dimensions= (m=2, R=2, n=4)" in summary
+        assert "Data.IR:Units= pascal" in summary
     finally:
         sofa.netCDF4_dataset.close()

@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Any, Dict, Union
 import numpy as np
 
 
@@ -33,9 +33,21 @@ class VariablesWrap:
         data = np.array(self._var[:])
         return data
 
+    @property
+    def attributes(self) -> Dict[str, AttributesWrap]:
+        attributes: Dict[str, AttributesWrap] = {}
+        for attr_name in self._var.ncattrs():
+            full_name = f"{self.name}:{attr_name}"
+            attributes[full_name] = AttributesWrap(
+                full_name,
+                getattr(self._var, attr_name),
+                "VariableAttribute",
+            )
+        return attributes
+
     def __repr__(self) -> str:
         value = self.value
         return (
             f"VariablesWrap(name={self.name!r}, dimension={self._var.shape}, "
-            f"dtype={type(value)}, value={value!r})"
+            f"dtype={type(value)}, value={value!r}, attributes={self.attributes!r}"
         )

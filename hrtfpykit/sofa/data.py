@@ -70,7 +70,8 @@ class _Dimensions(_Data):
    
     def summary(self) -> str:
         lines = []
-        for name, dim in self._netCDF4_dataset.dimensions.items():
+        for name in sorted(self._netCDF4_dataset.dimensions.keys()):
+            dim = self._netCDF4_dataset.dimensions[name]
             lines.append(f"{name} = {dim.size}")
         return "\n".join(lines)
 
@@ -121,7 +122,7 @@ class _AttributesBase(_Data):
         }
 
     def summary(self) -> str:
-        lines = [f"{name} = {value}" for name, value in self._iter_items()]
+        lines = [f"{name} : {value}" for name, value in self._iter_items()]
         return "\n".join(lines)
 
     def __getitem__(self, key: str) -> Optional[AttributesWrap]:
@@ -151,6 +152,18 @@ class _GlobalAttributes(_AttributesBase):
     def _invalid_name_message(self) -> str:
         return "Please insert a valid global attribute name"
 
+    def summary(self) -> str:
+        items = list(self._iter_items())
+        if not items:
+            return ""
+        lines = [
+            "****************************",
+            "   GLOBAL ATTRIBUTES",
+            "****************************",
+        ]
+        lines.extend(f"GLOBAL:{name} = {value}" for name, value in items)
+        return "\n".join(lines)
+
 
 class _VariableAttributes(_AttributesBase):
 
@@ -176,62 +189,17 @@ class _VariableAttributes(_AttributesBase):
     def _invalid_name_message(self) -> str:
         return "Please insert a valid variable attribute name"
 
-
-class _Attributes(_Data):
-
-    def __init__(self, dataset : netCDF4.Dataset = None):
-        super().__init__(dataset)
-        self._global = _GlobalAttributes(dataset)
-        self._variable = _VariableAttributes(dataset)
-
-    @property
-    def GlobalAttributes(self) -> _GlobalAttributes:
-        return self._global
-
-    @property
-    def VariableAttributes(self) -> _VariableAttributes:
-        return self._variable
-
-    def get_names(self) -> list[str]:
-        return self._global.get_names() + self._variable.get_names()
-
-    def get_values(self) -> list[Any]:
-        return self._global.get_values() + self._variable.get_values()
-
-    def get(self, name: str) -> Optional[AttributesWrap]:
-        if ":" in name:
-            value = self._variable._get_value(name)
-            attribute_type = "VariableAttribute"
-        else:
-            value = self._global._get_value(name)
-            attribute_type = "GlobalAttribut"
-        if value is None:
-            print("Please insert a valid global or variable attribute name")
-            return None
-        return AttributesWrap(name, value, attribute_type)
-
-    def get_all(self) -> Dict[str, AttributesWrap]:
-        return {**self._global.get_all(), **self._variable.get_all()}
-
     def summary(self) -> str:
-        lines = []
-        global_summary = self._global.summary()
-        variable_summary = self._variable.summary()
-        if global_summary:
-            lines.append(global_summary)
-        if variable_summary:
-            lines.append(variable_summary)
+        items = list(self._iter_items())
+        if not items:
+            return ""
+        lines = [
+            "****************************",
+            "   VARIABLE ATTRIBUTES",
+            "****************************",
+        ]
+        lines.extend(f"{name} = {value}" for name, value in items)
         return "\n".join(lines)
-
-    def __getitem__(self, key: str) -> Optional[AttributesWrap]:
-        return self.get(key)
-
-    def __iter__(self) -> Iterator[AttributesWrap]:
-        return iter(self.get_all().values())
-
-    def __len__(self) -> int:
-        return len(self.get_names())
-
 
 class _Variables(_Data):
 
@@ -266,9 +234,13 @@ class _Variables(_Data):
                     dim_size = "?"
                 dims.append(f"{dim_name}={dim_size}")
             dims_str = ", ".join(dims)
-            lines.append(
-                f"{name} : dimension:({dims_str}) "
-            )
+            lines.append(f"{name} : dimensions= ({dims_str})")
+            attrs = list(var.ncattrs())
+            if attrs:
+                lines.append("      attributes:")
+                for attr_name in attrs:
+                    value = getattr(var, attr_name)
+                    lines.append(f"      {name}:{attr_name}= {value}")
         return "\n".join(lines)
 
     def __getitem__(self, key: str) -> Optional[VariablesWrap]:
