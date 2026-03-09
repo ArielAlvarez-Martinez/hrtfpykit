@@ -127,7 +127,11 @@ def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str
                 if var_name in value_check_vars:
                     values = np.array(var[:])
                     if _is_invalid_values(values):
+<<<<<<< HEAD
                         raise ValueError(f"{var_name} has invalid values (zero/None/missing)")
+=======
+                        warnings.warn(f"{var_name} has invalid values (zero/None/missing)")
+>>>>>>> developer
 
         return {"convention": {"name": convention_name, "version": version}}
     finally:

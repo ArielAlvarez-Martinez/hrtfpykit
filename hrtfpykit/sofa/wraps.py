@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Any, Union
 import numpy as np
 
 
@@ -6,7 +6,7 @@ class DimensionsWrap:
     def __init__(self, name: str, _netCDF4_dataset_dimensions):
         self.name = name
         self.value = _netCDF4_dataset_dimensions[name].size
-        self.is_unlimited = bool(getattr(self.value, "isunlimited", lambda: False)())
+        self.is_unlimited = bool(_netCDF4_dataset_dimensions[name].isunlimited())
         self._netCDF4_dataset_dimensions = _netCDF4_dataset_dimensions
     
     def __repr__(self) -> str:
@@ -14,12 +14,13 @@ class DimensionsWrap:
 
 
 class AttributesWrap:
-    def __init__(self, name: str, value: str):
+    def __init__(self, name: str, value: Any, type: str):
         self.name = name
         self.value = value
+        self.type = type
 
     def __repr__(self) -> str:
-        return f"AttributesWrap(name={self.name!r}, value={self.value!r})"
+        return f"AttributesWrap(name={self.name!r}, value={self.value!r}, type={self.type!r})"
 
 
 class VariablesWrap:
@@ -28,12 +29,13 @@ class VariablesWrap:
         self._var = var
         
     @property
-    def value(self) -> Union[int, np.ndarray]:
+    def value(self) -> Union[float, np.ndarray]:
         data = np.array(self._var[:])
-        if data.size == 1 and np.issubdtype(data.dtype, np.number):
-            return int(data.reshape(-1)[0])
         return data
 
     def __repr__(self) -> str:
         value = self.value
-        return f"VariablesWrap(name={self.name!r}, dimension= {self._var.shape}, dtype= {type(value)})"
+        return (
+            f"VariablesWrap(name={self.name!r}, dimension={self._var.shape}, "
+            f"dtype={type(value)}, value={value!r})"
+        )

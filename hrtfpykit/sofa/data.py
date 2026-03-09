@@ -86,8 +86,9 @@ class _Dimensions(_Data):
 
 class _AttributesBase(_Data):
 
-    def __init__(self, dataset : netCDF4.Dataset = None):
+    def __init__(self, dataset: netCDF4.Dataset = None, attribute_type: str = "Attribute") -> None:
         super().__init__(dataset)
+        self._attribute_type = attribute_type
 
     @abstractmethod
     def _iter_items(self) -> Iterator[tuple[str, Any]]:
@@ -111,10 +112,13 @@ class _AttributesBase(_Data):
         if value is None:
             print(self._invalid_name_message())
             return None
-        return AttributesWrap(name, value)
+        return AttributesWrap(name, value, self._attribute_type)
 
     def get_all(self) -> Dict[str, AttributesWrap]:
-        return {name: AttributesWrap(name, value) for name, value in self._iter_items()}
+        return {
+            name: AttributesWrap(name, value, self._attribute_type)
+            for name, value in self._iter_items()
+        }
 
     def summary(self) -> str:
         lines = [f"{name} = {value}" for name, value in self._iter_items()]
@@ -132,6 +136,9 @@ class _AttributesBase(_Data):
 
 class _GlobalAttributes(_AttributesBase):
 
+    def __init__(self, dataset: netCDF4.Dataset = None) -> None:
+        super().__init__(dataset, attribute_type="GlobalAttribute")
+
     def _iter_items(self) -> Iterator[tuple[str, Any]]:
         for name in self._netCDF4_dataset.ncattrs():
             yield name, getattr(self._netCDF4_dataset, name)
@@ -146,6 +153,9 @@ class _GlobalAttributes(_AttributesBase):
 
 
 class _VariableAttributes(_AttributesBase):
+
+    def __init__(self, dataset: netCDF4.Dataset = None) -> None:
+        super().__init__(dataset, attribute_type="VariableAttribute")
 
     def _iter_items(self) -> Iterator[tuple[str, Any]]:
         for var_name, var in self._netCDF4_dataset.variables.items():
@@ -190,8 +200,15 @@ class _Attributes(_Data):
 
     def get(self, name: str) -> Optional[AttributesWrap]:
         if ":" in name:
-            return self._variable.get(name)
-        return self._global.get(name)
+            value = self._variable._get_value(name)
+            attribute_type = "VariableAttribute"
+        else:
+            value = self._global._get_value(name)
+            attribute_type = "GlobalAttribut"
+        if value is None:
+            print("Please insert a valid global or variable attribute name")
+            return None
+        return AttributesWrap(name, value, attribute_type)
 
     def get_all(self) -> Dict[str, AttributesWrap]:
         return {**self._global.get_all(), **self._variable.get_all()}
@@ -250,7 +267,7 @@ class _Variables(_Data):
                 dims.append(f"{dim_name}={dim_size}")
             dims_str = ", ".join(dims)
             lines.append(
-                f"{name} : dimensions = ({dims_str}) "
+                f"{name} : dimension:({dims_str}) "
             )
         return "\n".join(lines)
 
@@ -262,4 +279,3 @@ class _Variables(_Data):
 
     def __len__(self) -> int:
         return len(self._netCDF4_dataset.variables)
-

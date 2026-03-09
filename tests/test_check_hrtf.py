@@ -2,7 +2,7 @@ import warnings
 
 import netCDF4 as ncdf
 
-from hrtfpykit import check_hrtf
+from hrtfpykit.sofa.check import check_hrtf
 
 
 def _make_dataset(data_ir_dims):
