@@ -45,6 +45,19 @@ class SOFA:
         if self.netCDF4_dataset is None:
             return None
         return _Variables(self.netCDF4_dataset)
+    
+    def create_dimension(self, name: str, value: int):
+        dataset = self._require_dataset()
+        if name in dataset.dimensions:
+            raise ValueError(f"Dimension attribute already exists: {name}")
+        spec = CONVENTIONS[dataset.SOFAConventions][dataset.SOFAConventionsVersion]
+        
+
+        dataset.createDimension(name, value)
+        
+    def rename_dimension(self, old_name: str, new_name: str):
+        dataset = self._require_dataset()
+        dataset.renameDimension(old_name , new_name)
 
     def create_global_attribute(self, name: str, value: Optional[str] = None) -> None:
         dataset = self._require_dataset()
