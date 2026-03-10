@@ -24,8 +24,6 @@ def check_path(path : Union[str, pathlib.Path]):
 
 def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str] = None, version: Optional[str] = None):
     """Check a HRTF SOFA object against SOFA conventions.
-
-    Raises ValueError for unsupported conventions or DataType.
     Emits warnings for missing mandatory fields or read-only mismatches.
     """
     dataset, _closer = _resolve_dataset(target)
@@ -34,12 +32,15 @@ def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str
             convention_name = getattr(dataset, "SOFAConventions", None)
 
         if not convention_name:
-            raise ValueError("Missing SOFAConventions on dataset")
+            warnings.warn("Missing SOFAConventions on dataset", UserWarning)
+            return {"convention": {"name": convention_name, "version": version}}
         if convention_name not in CONVENTIONS:
-            raise ValueError(
+            warnings.warn(
                 f"Unsupported SOFAConventions '{convention_name}'. "
-                f"Supported: {', '.join(sorted(CONVENTIONS.keys()))}"
+                f"Supported: {', '.join(sorted(CONVENTIONS.keys()))}",
+                UserWarning,
             )
+            return {"convention": {"name": convention_name, "version": version}}
 
         expected_data_type = None
         if convention_name == "SimpleFreeFieldHRIR":
@@ -49,9 +50,11 @@ def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str
 
         data_type = getattr(dataset, "DataType", None)
         if expected_data_type and data_type != expected_data_type:
-            raise ValueError(
-                f"Unsupported DataType '{data_type}', expected '{expected_data_type}'"
+            warnings.warn(
+                f"Unsupported DataType '{data_type}', expected '{expected_data_type}'",
+                UserWarning,
             )
+            return {"convention": {"name": convention_name, "version": version}}
 
         if version is None:
             version = getattr(dataset, "SOFAConventionsVersion", None)
@@ -59,7 +62,8 @@ def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str
         if not version or version not in CONVENTIONS[convention_name]:
             warnings.warn(
                 f"Unsupported or missing SOFAConventionsVersion '{version}' for {convention_name}. "
-                f"Supported: {', '.join(sorted(CONVENTIONS[convention_name].keys()))}"
+                f"Supported: {', '.join(sorted(CONVENTIONS[convention_name].keys()))}",
+                UserWarning,
             )
             return {"convention": {"name": convention_name, "version": version}}
 
@@ -80,38 +84,45 @@ def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str
                 attr_name = kind[1]
                 exists = attr_name in dataset.ncattrs()
                 if "m" in flags and not exists:
-                    warnings.warn(f"Missing global attribute: {attr_name}")
+                    warnings.warn(f"Missing global attribute: {attr_name}", UserWarning)
                     continue
                 if exists and "r" in flags and default not in ("", None):
                     value = getattr(dataset, attr_name)
                     if not _compare_default(default, value):
                         warnings.warn(
-                            f"Global attribute {attr_name} should be '{default}', got '{value}'"
+                            f"Global attribute {attr_name} should be '{default}', got '{value}'",
+                            UserWarning,
                         )
 
             elif kind[0] == "var_attr":
                 var_name, attr_name = kind[1], kind[2]
                 if var_name not in dataset.variables:
                     if "m" in flags:
-                        warnings.warn(f"Missing variable for attribute: {var_name}")
+                        warnings.warn(
+                            f"Missing variable for attribute: {var_name}", UserWarning
+                        )
                     continue
                 var = dataset.variables[var_name]
                 exists = attr_name in var.ncattrs()
                 if "m" in flags and not exists:
-                    warnings.warn(f"Missing attribute {attr_name} on variable {var_name}")
+                    warnings.warn(
+                        f"Missing attribute {attr_name} on variable {var_name}",
+                        UserWarning,
+                    )
                     continue
                 if exists and "r" in flags and default not in ("", None):
                     value = getattr(var, attr_name)
                     if not _compare_default(default, value):
                         warnings.warn(
-                            f"Attribute {var_name}:{attr_name} should be '{default}', got '{value}'"
+                            f"Attribute {var_name}:{attr_name} should be '{default}', got '{value}'",
+                            UserWarning,
                         )
 
             else:
                 var_name = kind[1]
                 if var_name not in dataset.variables:
                     if "m" in flags:
-                        warnings.warn(f"Missing variable: {var_name}")
+                        warnings.warn(f"Missing variable: {var_name}", UserWarning)
                     continue
                 var = dataset.variables[var_name]
                 dim_spec = entry.get("dimensions")
@@ -121,13 +132,17 @@ def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str
                     value = np.array(var[:])
                     if not _compare_default(default, value):
                         warnings.warn(
-                            f"Variable {var_name} does not match default value"
+                            f"Variable {var_name} does not match default value",
+                            UserWarning,
                         )
 
                 if var_name in value_check_vars:
                     values = np.array(var[:])
                     if _is_invalid_values(values):
-                        warnings.warn(f"{var_name} has invalid values (zero/None/missing)")
+                        warnings.warn(
+                            f"{var_name} has invalid values (zero/None/missing)",
+                            UserWarning,
+                        )
 
         return {"convention": {"name": convention_name, "version": version}}
     finally:
@@ -183,14 +198,16 @@ def _warn_dim_mismatch(dataset: netCDF4.Dataset, var_name: str, var, dim_spec: O
     options = _split_dim_options(dim_spec)
     if options and not any(_matches_dim_option(var.dimensions, opt) for opt in options):
         warnings.warn(
-            f"Variable {var_name} has dims {var.dimensions}, expected one of {options}"
+            f"Variable {var_name} has dims {var.dimensions}, expected one of {options}",
+            UserWarning,
         )
     for dim_name, size in zip(var.dimensions, var.shape):
         if dim_name in dataset.dimensions:
             if dataset.dimensions[dim_name].size != size:
                 warnings.warn(
                     f"Variable {var_name} dimension {dim_name} size {size} "
-                    f"does not match Dimensions {dataset.dimensions[dim_name].size}"
+                    f"does not match Dimensions {dataset.dimensions[dim_name].size}",
+                    UserWarning,
                 )
 
 

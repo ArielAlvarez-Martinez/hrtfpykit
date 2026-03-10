@@ -46,11 +46,11 @@ class SOFA:
             return None
         return _Variables(self.netCDF4_dataset)
 
-    def create_global_attribute(self, name: str, value: str) -> None:
+    def create_global_attribute(self, name: str, value: Optional[str] = None) -> None:
         dataset = self._require_dataset()
         if name in dataset.ncattrs():
             raise ValueError(f"Global attribute already exists: {name}")
-        setattr(dataset, name, value)
+        setattr(dataset, name, "" if value is None else value)
 
     def modify_global_attribute(self, name: str, value: str) -> None:
         dataset = self._require_dataset()
@@ -63,6 +63,42 @@ class SOFA:
         if name not in dataset.ncattrs():
             raise ValueError(f"Global attribute not found: {name}")
         delattr(dataset, name)
+
+    def create_variable_attribute(self, name: str, value: Optional[str] = None) -> None:
+        dataset = self._require_dataset()
+        if ":" not in name:
+            raise ValueError("Variable attribute name must be in format 'Variable:Attribute'")
+        var_name, attr_name = name.split(":", 1)
+        if var_name not in dataset.variables:
+            raise ValueError(f"Variable not found: {var_name}")
+        var = dataset.variables[var_name]
+        if attr_name in var.ncattrs():
+            raise ValueError(f"Variable attribute already exists: {name}")
+        setattr(var, attr_name, "" if value is None else value)
+
+    def modify_variable_attribute(self, name: str, value: str) -> None:
+        dataset = self._require_dataset()
+        if ":" not in name:
+            raise ValueError("Variable attribute name must be in format 'Variable:Attribute'")
+        var_name, attr_name = name.split(":", 1)
+        if var_name not in dataset.variables:
+            raise ValueError(f"Variable not found: {var_name}")
+        var = dataset.variables[var_name]
+        if attr_name not in var.ncattrs():
+            raise ValueError(f"Variable attribute not found: {name}")
+        setattr(var, attr_name, value)
+
+    def delete_variable_attribute(self, name: str) -> None:
+        dataset = self._require_dataset()
+        if ":" not in name:
+            raise ValueError("Variable attribute name must be in format 'Variable:Attribute'")
+        var_name, attr_name = name.split(":", 1)
+        if var_name not in dataset.variables:
+            raise ValueError(f"Variable not found: {var_name}")
+        var = dataset.variables[var_name]
+        if attr_name not in var.ncattrs():
+            raise ValueError(f"Variable attribute not found: {name}")
+        delattr(var, attr_name)
 
     def _open(self, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa: bool = True):
         check_path(path)
@@ -86,7 +122,8 @@ class SOFA:
         sofa_conventions: str,
         version: Optional[str] = None,
         dim_sizes: Optional[Dict[str, int]] = None,
-        custom_attributes: Optional[Dict[str, str]] = None,
+        custom_global_attributes: Optional[Dict[str, str]] = None,
+        override_default_global_attributes: bool = False,
     ) -> "SOFA":
         print("Creating in-memory dummy SOFA dataset")
         print(f"SOFA conventions: {sofa_conventions}")
@@ -156,16 +193,9 @@ class SOFA:
                     data_index += 1
             return data.reshape(tuple(reshaped))
 
-        default_dim_sizes: Dict[str, int] = {
-            "R": 2,
-            "E": 1,
-            "M": 1,
-            "N": 1,
-            "C": 3,
-            "I": 1,
-            "S": 0,
-        }
+        default_dim_sizes: Dict[str, int] = {"R": 2,"E": 1,"M": 1,"N": 1,"C": 3,"I": 1,"S": 0}
         user_dim_sizes: Dict[str, int] = {}
+        
         if dim_sizes is not None:
             user_dim_sizes = {str(k).upper(): int(v) for k, v in dim_sizes.items()}
         if user_dim_sizes:
@@ -270,7 +300,11 @@ class SOFA:
 
         dataset.SOFAConventions = sofa_conventions
         dataset.SOFAConventionsVersion = version
-        cls._complete_global_attributes(dataset, custom_attributes)
+        cls._complete_global_attributes(
+            dataset,
+            custom_global_attributes,
+            override_default_global_attributes,
+        )
 
         sofa_object = cls()
         sofa_object.netCDF4_dataset = dataset
@@ -281,7 +315,8 @@ class SOFA:
     @staticmethod
     def _complete_global_attributes(
         dataset: netCDF4.Dataset,
-        custom_attributes: Optional[Dict[str, str]] = None,
+        custom_global_attributes: Optional[Dict[str, str]] = None,
+        override_default_global_attributes: bool = False,
     ) -> None:
         def _is_missing(value: object) -> bool:
             if value is None:
@@ -314,11 +349,11 @@ class SOFA:
         }
 
         resolved = default_custom_attributes
-        if custom_attributes:
-            resolved = {**default_custom_attributes, **custom_attributes}
+        if custom_global_attributes:
+            resolved = {**default_custom_attributes, **custom_global_attributes}
 
         for attr_name, value in resolved.items():
-            if _is_missing(getattr(dataset, attr_name, None)):
+            if override_default_global_attributes or _is_missing(getattr(dataset, attr_name, None)):
                 setattr(dataset, attr_name, value)
 
     def save(self, path: Optional[Union[str, pathlib.Path]] = None, overwrite: bool = False) -> pathlib.Path:
@@ -428,3 +463,4 @@ class SOFA:
                     value = getattr(var, attr_name)
                     lines.append(f"        {name}:{attr_name}= {value}")
         return "\n".join(lines)
+
