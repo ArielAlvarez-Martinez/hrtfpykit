@@ -17,6 +17,11 @@ class SOFA:
         self.netCDF4_dataset: Optional[netCDF4.Dataset] = None
         self.path = None
 
+    def _require_dataset(self) -> netCDF4.Dataset:
+        if self.netCDF4_dataset is None:
+            raise ValueError("Dataset is not loaded")
+        return self.netCDF4_dataset
+
     @property
     def Dimensions(self) -> Optional[_Dimensions]:
         if self.netCDF4_dataset is None:
@@ -40,6 +45,24 @@ class SOFA:
         if self.netCDF4_dataset is None:
             return None
         return _Variables(self.netCDF4_dataset)
+
+    def create_global_attribute(self, name: str, value: str) -> None:
+        dataset = self._require_dataset()
+        if name in dataset.ncattrs():
+            raise ValueError(f"Global attribute already exists: {name}")
+        setattr(dataset, name, value)
+
+    def modify_global_attribute(self, name: str, value: str) -> None:
+        dataset = self._require_dataset()
+        if name not in dataset.ncattrs():
+            raise ValueError(f"Global attribute not found: {name}")
+        setattr(dataset, name, value)
+
+    def delete_global_attribute(self, name: str) -> None:
+        dataset = self._require_dataset()
+        if name not in dataset.ncattrs():
+            raise ValueError(f"Global attribute not found: {name}")
+        delattr(dataset, name)
 
     def _open(self, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa: bool = True):
         check_path(path)
@@ -405,4 +428,3 @@ class SOFA:
                     value = getattr(var, attr_name)
                     lines.append(f"        {name}:{attr_name}= {value}")
         return "\n".join(lines)
-
