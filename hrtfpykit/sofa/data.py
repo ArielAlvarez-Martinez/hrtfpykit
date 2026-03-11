@@ -58,8 +58,7 @@ class _Dimensions(_Data):
 
     def get(self, name: str) -> Optional[DimensionsWrap]:
         if name not in self._netCDF4_dataset.dimensions:
-            print("Please insert a valid dimension name")
-            return None
+            raise ValueError(f"Dimension not found: {name}")
         return DimensionsWrap(name, self._netCDF4_dataset.dimensions)
 
     def get_all(self) -> Dict[str, DimensionsWrap]:
@@ -111,8 +110,12 @@ class _AttributesBase(_Data):
     def get(self, name: str) -> Optional[AttributesWrap]:
         value = self._get_value(name)
         if value is None:
-            print(self._invalid_name_message())
-            return None
+            label = self._attribute_type
+            if label.endswith("Attribute"):
+                label = f"{label[:-9]} attribute"
+            else:
+                label = f"{label} attribute"
+            raise ValueError(f"{label} not found: {name}")
         return AttributesWrap(name, value, self._attribute_type)
 
     def get_all(self) -> Dict[str, AttributesWrap]:
@@ -122,8 +125,7 @@ class _AttributesBase(_Data):
         }
 
     def summary(self) -> str:
-        lines = [f"{name} : {value}" for name, value in self._iter_items()]
-        return "\n".join(lines)
+        pass
 
     def __getitem__(self, key: str) -> Optional[AttributesWrap]:
         return self.get(key)
@@ -214,8 +216,7 @@ class _Variables(_Data):
 
     def get(self, name: str) -> Optional[VariablesWrap]:
         if name not in self._netCDF4_dataset.variables:
-            print("Please insert a valid variable name")
-            return None
+            raise ValueError(f"Variable not found: {name}")
         return VariablesWrap(name, self._netCDF4_dataset.variables[name])
 
     def get_all(self) -> Dict[str, VariablesWrap]:

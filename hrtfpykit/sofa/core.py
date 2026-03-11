@@ -1,9 +1,10 @@
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 import datetime
 import importlib.metadata
 import pathlib
 import platform
 import sys
+import warnings
 import netCDF4
 import numpy as np
 from .check import check_hrtf, check_path
@@ -35,47 +36,107 @@ class SOFA:
         return _GlobalAttributes(self.netCDF4_dataset)
 
     @property
+    def Variables(self) -> Optional[_Variables]:
+        if self.netCDF4_dataset is None:
+            return None
+        return _Variables(self.netCDF4_dataset)
+
+    @property
     def VariableAttributes(self) -> Optional[_VariableAttributes]:
         if self.netCDF4_dataset is None:
             return None
         return _VariableAttributes(self.netCDF4_dataset)
 
-    @property
-    def Variables(self) -> Optional[_Variables]:
-        if self.netCDF4_dataset is None:
-            return None
-        return _Variables(self.netCDF4_dataset)
-    
-    def create_dimension(self, name: str, value: int):
+    def create_dimension(self, name: str, value: int) -> None:
         dataset = self._require_dataset()
         if name in dataset.dimensions:
             raise ValueError(f"Dimension attribute already exists: {name}")
-        spec = CONVENTIONS[dataset.SOFAConventions][dataset.SOFAConventionsVersion]
-        
-
         dataset.createDimension(name, value)
+        print(f"Dimension: '{name}' created succesfully")
         
-    def rename_dimension(self, old_name: str, new_name: str):
+    def rename_dimension(self, old_name: str, new_name: str) -> None:
         dataset = self._require_dataset()
+        if old_name not in dataset.dimensions:
+            print(f"Dimension: '{old_name}' not found")
+            raise ValueError(f"Dimension not found: {old_name}")
         dataset.renameDimension(old_name , new_name)
+        print(f"Dimension: '{old_name}' renamed succesfully")
+
+    @staticmethod
+    def _warn_dimension_shape_mismatch(
+        variable_name: str,
+        dimensions: tuple[str, ...],
+        data_shape: tuple[int, ...],
+        dataset: netCDF4.Dataset,
+    ) -> None:
+        if len(dimensions) != len(data_shape):
+            warnings.warn(
+                (
+                    f"Variable '{variable_name}' dimensions do not coincide with dataset Dimensions "
+                    f"(dims={dimensions}); got shape {data_shape}."
+                ),
+                UserWarning,
+            )
+            return
+
+        expected_sizes: list[int] = []
+        mismatch = False
+        for dim_name, size in zip(dimensions, data_shape):
+            dim = dataset.dimensions[dim_name]
+            if dim.isunlimited():
+                expected_sizes.append(size)
+                continue
+            expected_sizes.append(dim.size)
+            if dim.size != size:
+                mismatch = True
+
+        if mismatch:
+            dims_desc = ", ".join(
+                f"{dim_name}={'unlimited' if dataset.dimensions[dim_name].isunlimited() else dataset.dimensions[dim_name].size}"
+                for dim_name in dimensions
+            )
+            warnings.warn(
+                (
+                    f"Variable '{variable_name}' dimensions do not coincide with dataset Dimensions "
+                    f"({dims_desc}); expected shape {tuple(expected_sizes)}, got {data_shape}."
+                ),
+                UserWarning,
+            )
+
+    @staticmethod
+    def _ensure_broadcastable(
+        variable_name: str,
+        data: np.ndarray,
+        target_shape: tuple[int, ...],
+    ) -> None:
+        try:
+            np.broadcast_to(data, target_shape)
+        except ValueError as exc:
+            raise ValueError(
+                f"Variable '{variable_name}' data shape must match: {target_shape}"
+            ) from exc
 
     def create_global_attribute(self, name: str, value: Optional[str] = None) -> None:
         dataset = self._require_dataset()
         if name in dataset.ncattrs():
             raise ValueError(f"Global attribute already exists: {name}")
-        setattr(dataset, name, "" if value is None else value)
+        stored_value = "" if value is None else value
+        setattr(dataset, name, stored_value)
+        print(f"Global attribute: '{name}' created succesfully")
 
     def modify_global_attribute(self, name: str, value: str) -> None:
         dataset = self._require_dataset()
         if name not in dataset.ncattrs():
             raise ValueError(f"Global attribute not found: {name}")
         setattr(dataset, name, value)
+        print(f"Global attribute: '{name}' modified succesfully")
 
     def delete_global_attribute(self, name: str) -> None:
         dataset = self._require_dataset()
         if name not in dataset.ncattrs():
             raise ValueError(f"Global attribute not found: {name}")
         delattr(dataset, name)
+        print(f"Global attribute: '{name}' deleted succesfully")
 
     def create_variable_attribute(self, name: str, value: Optional[str] = None) -> None:
         dataset = self._require_dataset()
@@ -87,7 +148,9 @@ class SOFA:
         var = dataset.variables[var_name]
         if attr_name in var.ncattrs():
             raise ValueError(f"Variable attribute already exists: {name}")
-        setattr(var, attr_name, "" if value is None else value)
+        stored_value = "" if value is None else value
+        setattr(var, attr_name, stored_value)
+        print(f"Variable attribute: '{name}' created succesfully")
 
     def modify_variable_attribute(self, name: str, value: str) -> None:
         dataset = self._require_dataset()
@@ -100,6 +163,7 @@ class SOFA:
         if attr_name not in var.ncattrs():
             raise ValueError(f"Variable attribute not found: {name}")
         setattr(var, attr_name, value)
+        print(f"Variable attribute: '{name}' modified succesfully")
 
     def delete_variable_attribute(self, name: str) -> None:
         dataset = self._require_dataset()
@@ -112,6 +176,79 @@ class SOFA:
         if attr_name not in var.ncattrs():
             raise ValueError(f"Variable attribute not found: {name}")
         delattr(var, attr_name)
+        print(f"Variable attribute: '{name}' deleted succesfully")
+
+    def create_variable(
+        self,
+        name: str,
+        data: Union[np.ndarray, list],
+        dimensions: Union[tuple[str, ...], list[str]],
+        dtype: Optional[Union[str, np.dtype]] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        dataset = self._require_dataset()
+        if name in dataset.variables:
+            raise ValueError(f"Variable already exists: {name}")
+
+        dims = tuple(dimensions)
+        missing_dims = [dim_name for dim_name in dims if dim_name not in dataset.dimensions]
+        if missing_dims:
+            missing_str = ", ".join(missing_dims)
+            raise ValueError(f"Dimensions not found: {missing_str}")
+
+        array = np.array(data)
+        if dtype is None:
+            dtype = array.dtype
+
+        self._warn_dimension_shape_mismatch(name, dims, array.shape, dataset)
+        target_shape: list[int] = []
+        for idx, dim_name in enumerate(dims):
+            dim = dataset.dimensions[dim_name]
+            if dim.isunlimited():
+                if idx < array.ndim:
+                    target_shape.append(array.shape[idx])
+                else:
+                    target_shape.append(1)
+            else:
+                target_shape.append(dim.size)
+        self._ensure_broadcastable(name, array, tuple(target_shape))
+
+        var = dataset.createVariable(name, dtype, dims)
+        var[...] = array
+
+        if attributes:
+            for attr_name, attr_value in attributes.items():
+                setattr(var, attr_name, attr_value)
+
+        print(f"Variable: '{name}' created succesfully")
+
+    def modify_variable(self, name: str, data: Union[np.ndarray, list]) -> None:
+        dataset = self._require_dataset()
+        if name not in dataset.variables:
+            raise ValueError(f"Variable not found: {name}")
+        var = dataset.variables[name]
+        array = np.array(data)
+        self._warn_dimension_shape_mismatch(name, var.dimensions, array.shape, dataset)
+        target_shape: list[int] = []
+        for idx, dim_name in enumerate(var.dimensions):
+            dim = dataset.dimensions[dim_name]
+            if dim.isunlimited():
+                if idx < array.ndim:
+                    target_shape.append(array.shape[idx])
+                else:
+                    target_shape.append(var.shape[idx])
+            else:
+                target_shape.append(var.shape[idx])
+        self._ensure_broadcastable(name, array, tuple(target_shape))
+        var[...] = array
+        print(f"Variable: '{name}' modified succesfully")
+
+    def delete_variable(self, name: str) -> None:
+        dataset = self._require_dataset()
+        if name not in dataset.variables:
+            raise ValueError(f"Variable not found: {name}")
+        del dataset.variables[name]
+        print(f"Variable: '{name}' deleted succesfully")
 
     def _open(self, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa: bool = True):
         check_path(path)
