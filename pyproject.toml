@@ -7,7 +7,7 @@ name = "hrtfpykit"
 version = "0.0.1"
 description = "Toolkit for loading, handling, analyzing, and visualizing HRTF data in Python"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 authors = [{ name = "Ariel Alvarez-Martinez" }]
 keywords = ["audio", "hrtf", "sofa", "spatial-audio"]
 classifiers = [
@@ -17,9 +17,15 @@ classifiers = [
   "Operating System :: OS Independent",
 ]
 dependencies = [
-  "numpy>=1.24",
-  "scipy>=1.10",
-  "matplotlib>=3.7",
+  "numpy>=2.3.5",
+  "scipy>=1.16.3",
+  "matplotlib>=3.10.7",
+  "netCDF4>=1.7.3",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=9.0.2",
 ]
 
 [tool.setuptools.packages.find]

@@ -1,4 +1,3 @@
-from .loader import load_hrtf
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,15 +9,7 @@ class HRTF:
         self.frequency_vector = frequency_vector
         self.sampling_rate = sampling_rate
         
-    @classmethod
-    def load_hrtf(cls, sofa_path, fft_length=256):
-        hrtf_mag, source_directions, frequency_vector, sampling_rate = load_hrtf(sofa_path, fft_length)
 
-        return cls(hrtf_mag=hrtf_mag,
-                   source_directions=source_directions,
-                   frequency_vector=frequency_vector,
-                   sampling_rate=sampling_rate)
-        
     """
     HRTF VISUALIZATION 
     """
@@ -101,8 +92,3 @@ class HRTF:
         plt.show()
 
 
-
-if __name__ == "__main__":
-    hrtf_1 = HRTF.load_hrtf("hrtf.sofa")
-    hrtf_1.plot_hrtf_magnitude(100, 200)
-    print(hrtf_1.source_directions_degrees)

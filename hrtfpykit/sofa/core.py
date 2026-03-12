@@ -622,3 +622,4 @@ class SOFA:
                     value = getattr(var, attr_name)
                     lines.append(f"        {name}:{attr_name}= {value}")
         return "\n".join(lines)
+    
