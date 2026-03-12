@@ -45,9 +45,35 @@ def check_sofa_against_conventions(
     target: Union[str, netCDF4.Dataset],
     convention_name: Optional[str] = None,
     version: Optional[str] = None,
-):
-    """Check a SOFA file against SOFA conventions.
-    Emits warnings for missing mandatory fields or read-only mismatches.
+) -> dict[str, str]:
+    """Validate a SOFA file against its SOFA convention specification.
+
+    The check emits warnings for:
+    - missing mandatory attributes/variables
+    - read-only defaults that do not match
+    - dimension mismatches
+    - custom attributes/variables/dimensions not listed in the spec
+
+    Parameters
+    ----------
+    target : Union[str, netCDF4.Dataset]
+        Path to a SOFA file or an open netCDF4 SOFA dataset.
+    convention_name : Optional[str], optional
+        Convention name to validate against. If None, uses the file's
+        ``SOFAConventions`` attribute.
+    version : Optional[str], optional
+        Convention version to validate against. If None, uses the file's
+        ``SOFAConventionsVersion`` attribute.
+
+    Returns
+    -------
+    dict
+        Summary containing the resolved convention name and version.
+
+    Examples
+    --------
+    >>> check_sofa_against_conventions("my.sofa")
+    {'convention': {'name': 'SimpleFreeFieldHRIR', 'version': '1.2'}}
     """
     dataset, _closer = _resolve_dataset(target)
     try:
@@ -226,7 +252,57 @@ def check_sofa_security(
     print_report: bool = True,
     paranoid_mode: bool = False,
 ) -> dict[str, Any]:
-    """Verify SOFA/HDF5 security posture for a target file and environment."""
+    """Run security checks for SOFA/HDF5 handling.
+
+    Checks include:
+    - HDF5 runtime version against a minimum safety baseline. The default
+      baseline (``HDF5_MIN_SAFE_VERSION``) is set to the first release that
+      addressed a large batch of HDF5 parsing CVEs. For details, consult the
+      HDF Group security advisories and the NVD CVE database for HDF5 issues.
+    - detection of external links/domains and suspicious file extensions
+
+    Modes:
+    - STANDARD: parse SOFA attributes using netCDF4 (opens the SOFA file)
+    - PARANOID: scan raw SOFA file bytes only (no parsing). Requires a path.
+
+    Parameters
+    ----------
+    target : Optional[Union[str, pathlib.Path, netCDF4.Dataset]], optional
+        SOFA file path or open SOFA dataset. In paranoid mode, this must be a path.
+    hdf5_version : Optional[str], optional
+        HDF5 version to validate against. If None, attempts to detect the
+        linked HDF5 version from netCDF4.
+    min_safe_hdf5 : str, optional
+        Minimum acceptable HDF5 version for baseline safety checks.
+    print_report : bool, optional
+        Whether to print a formatted report of all checks.
+    paranoid_mode : bool, optional
+        If True, reads raw bytes from the file path only and never parses
+        the SOFA file. Raises ValueError if checks fail.
+
+    Returns
+    -------
+    dict
+        Security report with overall status and individual check results.
+
+    Raises
+    ------
+    ValueError
+        If ``paranoid_mode`` is True and ``target`` is not a file path, or if
+        paranoid mode checks fail.
+
+    Examples
+    --------
+    Standard mode (parses attributes):
+
+    >>> report = check_sofa_security("my.sofa")
+    >>> report["passed"]
+    True
+
+    Paranoid mode (raw bytes only, raises on failure):
+
+    >>> check_sofa_security("my.sofa", paranoid_mode=True)
+    """
     report: dict[str, Any] = {
         "passed": True,
         "hdf5_version": None,

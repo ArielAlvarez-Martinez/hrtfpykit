@@ -13,6 +13,33 @@ from .data import  _Dimensions, _GlobalAttributes, _VariableAttributes, _Variabl
 
 
 class SOFA:
+    """High-level SOFA file handler backed by netCDF4.
+
+    This class wraps a netCDF4 SOFA dataset and provides CRUD helpers for
+    dimensions, attributes, and variables, along with utilities for loading,
+    copying, saving, and summarizing SOFA files.
+
+    Notes
+    -----
+    - No hidden I/O is performed. Files are only read/written when you call
+      ``load()``, ``save()``, or other explicit methods.
+    - The underlying dataset is a netCDF4 Dataset, so standard netCDF4
+      rules and constraints apply.
+
+    Examples
+    --------
+    Load, edit, and save in place:
+
+    >>> sofa = SOFA.load("my.sofa")
+    >>> sofa_copy = sofa.copy()
+    >>> sofa_copy.create_global_attribute("Title", "My HRTF")
+    >>> sofa_copy.save("my_copy.sofa")
+
+    Create a dummy in-memory writable dataset:
+
+    >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+    >>> print(sofa.summary())
+    """
 
     def __init__(self):
         self.netCDF4_dataset: Optional[netCDF4.Dataset] = None
@@ -25,29 +52,87 @@ class SOFA:
 
     @property
     def Dimensions(self) -> Optional[_Dimensions]:
+        """Return the dimension access wrapper.
+
+        Returns
+        -------
+        Optional[_Dimensions]
+            Wrapper for dimension access, or None if no dataset is loaded.
+        """
         if self.netCDF4_dataset is None:
             return None
         return _Dimensions(self.netCDF4_dataset)
 
     @property
     def GlobalAttributes(self) -> Optional[_GlobalAttributes]:
+        """Return the global attribute access wrapper.
+
+        Returns
+        -------
+        Optional[_GlobalAttributes]
+            Wrapper for global attributes, or None if no dataset is loaded.
+        """
         if self.netCDF4_dataset is None:
             return None
         return _GlobalAttributes(self.netCDF4_dataset)
 
     @property
     def Variables(self) -> Optional[_Variables]:
+        """Return the variable access wrapper.
+
+        Returns
+        -------
+        Optional[_Variables]
+            Wrapper for variables, or None if no dataset is loaded.
+        """
         if self.netCDF4_dataset is None:
             return None
         return _Variables(self.netCDF4_dataset)
 
     @property
     def VariableAttributes(self) -> Optional[_VariableAttributes]:
+        """Return the variable attribute access wrapper.
+
+        Returns
+        -------
+        Optional[_VariableAttributes]
+            Wrapper for variable attributes, or None if no dataset is loaded.
+        """
         if self.netCDF4_dataset is None:
             return None
         return _VariableAttributes(self.netCDF4_dataset)
 
     def create_dimension(self, name: str, value: int) -> None:
+        """Create a new SOFA dimension.
+
+        Parameters
+        ----------
+        name : str
+            Dimension name.
+        value : int
+            Dimension size.
+
+        Notes
+        -----
+        Editing a SOFA file requires it to be loaded in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> sofa_copy.create_dimension("X", 3)
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> sofa.create_dimension("X", 3)
+        """
         dataset = self._require_dataset()
         if name in dataset.dimensions:
             raise ValueError(f"Dimension attribute already exists: {name}")
@@ -55,6 +140,36 @@ class SOFA:
         print(f"Dimension: '{name}' created succesfully")
         
     def rename_dimension(self, old_name: str, new_name: str) -> None:
+        """Rename an existing SOFA dimension.
+
+        Parameters
+        ----------
+        old_name : str
+            Existing dimension name.
+        new_name : str
+            New dimension name.
+
+        Notes
+        -----
+        Editing a SOFA file requires it to be loaded in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> sofa_copy.rename_dimension("M", "Measurements")
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> sofa.rename_dimension("M", "Measurements")
+        """
         dataset = self._require_dataset()
         if old_name not in dataset.dimensions:
             print(f"Dimension: '{old_name}' not found")
@@ -117,6 +232,36 @@ class SOFA:
             ) from exc
 
     def create_global_attribute(self, name: str, value: Optional[str] = None) -> None:
+        """Create a global SOFA attribute.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name.
+        value : Optional[str], optional
+            Attribute value. Empty string is used when None.
+
+        Notes
+        -----
+        Editing a SOFA file requires it to be loaded in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> sofa_copy.create_global_attribute("Title", "My HRTF")
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> sofa.create_global_attribute("Title", "My HRTF")
+        """
         dataset = self._require_dataset()
         if name in dataset.ncattrs():
             raise ValueError(f"Global attribute already exists: {name}")
@@ -125,6 +270,36 @@ class SOFA:
         print(f"Global attribute: '{name}' created succesfully")
 
     def modify_global_attribute(self, name: str, value: str) -> None:
+        """Modify an existing global SOFA attribute.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name.
+        value : str
+            New attribute value.
+
+        Notes
+        -----
+        Editing a SOFA file requires it to be loaded in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> sofa_copy.modify_global_attribute("Title", "Updated title")
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> sofa.modify_global_attribute("Title", "Updated title")
+        """
         dataset = self._require_dataset()
         if name not in dataset.ncattrs():
             raise ValueError(f"Global attribute not found: {name}")
@@ -132,6 +307,34 @@ class SOFA:
         print(f"Global attribute: '{name}' modified succesfully")
 
     def delete_global_attribute(self, name: str) -> None:
+        """Delete a global SOFA attribute.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name to remove.
+
+        Notes
+        -----
+        Editing a SOFA file requires it to be loaded in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> sofa_copy.delete_global_attribute("Comment")
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> sofa.delete_global_attribute("Comment")
+        """
         dataset = self._require_dataset()
         if name not in dataset.ncattrs():
             raise ValueError(f"Global attribute not found: {name}")
@@ -139,6 +342,36 @@ class SOFA:
         print(f"Global attribute: '{name}' deleted succesfully")
 
     def create_variable_attribute(self, name: str, value: Optional[str] = None) -> None:
+        """Create a variable attribute.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name in the form ``"Variable:Attribute"``.
+        value : Optional[str], optional
+            Attribute value. Empty string is used when None.
+
+        Notes
+        -----
+        Editing a SOFA file requires it to be loaded in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> sofa_copy.create_variable_attribute("Data.SamplingRate:Units", "hertz")
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> sofa.create_variable_attribute("Data.SamplingRate:Units", "hertz")
+        """
         dataset = self._require_dataset()
         if ":" not in name:
             raise ValueError("Variable attribute name must be in format 'Variable:Attribute'")
@@ -153,6 +386,36 @@ class SOFA:
         print(f"Variable attribute: '{name}' created succesfully")
 
     def modify_variable_attribute(self, name: str, value: str) -> None:
+        """Modify an existing variable attribute.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name in the form ``"Variable:Attribute"``.
+        value : str
+            New attribute value.
+
+        Notes
+        -----
+        Editing a SOFA file requires it to be loaded in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> sofa_copy.modify_variable_attribute("Data.IR:Units", "Pa")
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> sofa.modify_variable_attribute("Data.IR:Units", "Pa")
+        """
         dataset = self._require_dataset()
         if ":" not in name:
             raise ValueError("Variable attribute name must be in format 'Variable:Attribute'")
@@ -166,6 +429,34 @@ class SOFA:
         print(f"Variable attribute: '{name}' modified succesfully")
 
     def delete_variable_attribute(self, name: str) -> None:
+        """Delete a variable attribute.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name in the form ``"Variable:Attribute"``.
+
+        Notes
+        -----
+        Editing a SOFA file requires it to be loaded in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> sofa_copy.delete_variable_attribute("Data.IR:Units")
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> sofa.delete_variable_attribute("Data.IR:Units")
+        """
         dataset = self._require_dataset()
         if ":" not in name:
             raise ValueError("Variable attribute name must be in format 'Variable:Attribute'")
@@ -186,6 +477,47 @@ class SOFA:
         dtype: Optional[Union[str, np.dtype]] = None,
         attributes: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """Create a SOFA variable and optionally its attributes.
+
+        Parameters
+        ----------
+        name : str
+            Variable name.
+        data : Union[np.ndarray, list]
+            Variable data.
+        dimensions : Union[tuple[str, ...], list[str]]
+            Dimension names in order, matching the data shape.
+        dtype : Optional[Union[str, np.dtype]], optional
+            Data type for the variable. Defaults to the array dtype.
+        attributes : Optional[Dict[str, Any]], optional
+            Optional attributes to set on the variable.
+
+        Notes
+        -----
+        The function warns when dimension sizes do not coincide with the
+        dataset dimensions and raises an error if the data cannot be
+        broadcast to the target shape.
+        Editing a SOFA file requires it to be loaded in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> data = np.zeros((sofa_copy.netCDF4_dataset.dimensions["M"].size,))
+        >>> sofa_copy.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> data = np.zeros((sofa.netCDF4_dataset.dimensions["M"].size,))
+        >>> sofa.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
+        """
         dataset = self._require_dataset()
         if name in dataset.variables:
             raise ValueError(f"Variable already exists: {name}")
@@ -223,6 +555,41 @@ class SOFA:
         print(f"Variable: '{name}' created succesfully")
 
     def modify_variable(self, name: str, data: Union[np.ndarray, list]) -> None:
+        """Overwrite data for an existing SOFA variable.
+
+        Parameters
+        ----------
+        name : str
+            Variable name.
+        data : Union[np.ndarray, list]
+            New variable data.
+
+        Notes
+        -----
+        The function warns when dimension sizes do not coincide with the
+        dataset dimensions and raises an error if the data cannot be
+        broadcast to the target shape.
+        Editing a SOFA file requires the dataset to be opened in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> new_data = np.zeros((sofa_copy.netCDF4_dataset.dimensions["M"].size, 2, 256))
+        >>> sofa_copy.modify_variable("Data.IR", new_data)
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> new_data = np.zeros((sofa.netCDF4_dataset.dimensions["M"].size, 2, 256))
+        >>> sofa.modify_variable("Data.IR", new_data)
+        """
         dataset = self._require_dataset()
         if name not in dataset.variables:
             raise ValueError(f"Variable not found: {name}")
@@ -244,6 +611,34 @@ class SOFA:
         print(f"Variable: '{name}' modified succesfully")
 
     def delete_variable(self, name: str) -> None:
+        """Delete a SOFA variable.
+
+        Parameters
+        ----------
+        name : str
+            Variable name to remove.
+
+        Notes
+        -----
+        Editing a SOFA file requires the dataset to be opened in a writable
+        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
+        working on an in-memory copy created with ``copy()`` and then save
+        to a new file path.
+
+        Examples
+        --------
+        Recommended (safe) workflow:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        >>> sofa_copy.delete_variable("Custom")
+        >>> sofa_copy.save("my_copy.sofa")
+
+        Direct edit (expert users):
+
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> sofa.delete_variable("Custom")
+        """
         dataset = self._require_dataset()
         if name not in dataset.variables:
             raise ValueError(f"Variable not found: {name}")
@@ -269,6 +664,28 @@ class SOFA:
 
     @classmethod
     def load(cls, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa_against_conventions: bool = True) -> "SOFA": 
+        """Load a SOFA file and return a SOFA class instance.
+
+        Parameters
+        ----------
+        path : Union[str, pathlib.Path]
+            Path to the SOFA file.
+        mode : str, optional
+            netCDF4 open mode (e.g., "r", "r+").
+        parallel : bool, optional
+            Whether to open in parallel mode.
+        check_sofa_against_conventions : bool, optional
+            If True, validates against SOFA conventions on open.
+
+        Returns
+        -------
+        SOFA
+            Loaded SOFA instance.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        """
         print(f"Loading SOFA file from: {path}")
         sofa_object = cls()
         sofa_object._open(path, mode, parallel, check_sofa_against_conventions)
@@ -284,6 +701,31 @@ class SOFA:
         custom_global_attributes: Optional[Dict[str, str]] = None,
         override_default_global_attributes: bool = False,
     ) -> "SOFA":
+        """Create an in-memory dummy SOFA dataset following a convention.
+
+        Parameters
+        ----------
+        sofa_conventions : str
+            SOFA convention name.
+        version : Optional[str], optional
+            Convention version. If None, the latest available is used.
+        dim_sizes : Optional[Dict[str, int]], optional
+            Dimension size overrides.
+        custom_global_attributes : Optional[Dict[str, str]], optional
+            Additional global attributes to set.
+        override_default_global_attributes : bool, optional
+            If True, custom attributes override defaults even if set.
+
+        Returns
+        -------
+        SOFA
+            In-memory SOFA instance.
+
+        Examples
+        --------
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> print(sofa.Dimensions.summary())
+        """
         print("Creating in-memory dummy SOFA dataset")
         print(f"SOFA conventions: {sofa_conventions}")
         if sofa_conventions not in CONVENTIONS:
@@ -516,6 +958,38 @@ class SOFA:
                 setattr(dataset, attr_name, value)
 
     def save(self, path: Optional[Union[str, pathlib.Path]] = None, overwrite: bool = False) -> pathlib.Path:
+        """Save the SOFA dataset to disk.
+
+        Parameters
+        ----------
+        path : Optional[Union[str, pathlib.Path]], optional
+            Target path. If None, saves to the original path.
+        overwrite : bool, optional
+            If True, allows overwriting an existing file.
+
+        Returns
+        -------
+        pathlib.Path
+            Path to the saved SOFA file.
+
+        Notes
+        -----
+        File locking only becomes an issue when you try to overwrite the
+        *same* path while the original file is still open (for example,
+        using ``overwrite=True``). In that case, close the original dataset
+        or save to a new file path.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa", mode="r+")
+        >>> sofa.save()
+
+        >>> # If you need to overwrite the same path, close the original first:
+        >>> sofa_ro = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa_ro.copy()
+        >>> sofa_ro.netCDF4_dataset.close()
+        >>> sofa_copy.save("my.sofa", overwrite=True)
+        """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
 
@@ -553,6 +1027,18 @@ class SOFA:
         return target_path
 
     def copy(self) -> "SOFA":
+        """Create an in-memory writable copy of the current SOFA dataset.
+
+        Returns
+        -------
+        SOFA
+            A new SOFA instance backed by a diskless dataset.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_copy = sofa.copy()
+        """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
 
@@ -586,6 +1072,18 @@ class SOFA:
         return sofa_object
 
     def summary(self) -> str:
+        """Return a formatted summary of globals, variables, and attributes.
+
+        Returns
+        -------
+        str
+            Multi-line summary string.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> print(sofa.summary())
+        """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
 

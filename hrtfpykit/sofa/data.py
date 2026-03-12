@@ -6,6 +6,13 @@ from .wraps import DimensionsWrap, VariablesWrap, AttributesWrap
 
 
 class _Data(ABC):
+    """Base wrapper for SOFA netCDF4 collections.
+
+    Parameters
+    ----------
+    dataset : netCDF4.Dataset
+        Open SOFA dataset. Must not be None.
+    """
 
     def __init__(self, dataset : netCDF4.Dataset = None):
         if dataset is None:
@@ -14,22 +21,27 @@ class _Data(ABC):
 
     @abstractmethod
     def get_names(self):
+        """Return the list of available item names."""
         pass
 
     @abstractmethod
     def get_values(self):
+        """Return the list of raw item values."""
         pass
 
     @abstractmethod
     def get(self, name: str): 
+        """Return a single item by name."""
         pass
     
     @abstractmethod
     def get_all(self):
+        """Return all items as a mapping of name -> wrap."""
         pass
     
     @abstractmethod
     def summary(self):
+        """Return a formatted text summary for this collection."""
         pass
 
     @abstractmethod
@@ -46,28 +58,62 @@ class _Data(ABC):
 
 
 class _Dimensions(_Data):
+    """Access wrapper for SOFA dimension metadata."""
     
     def __init__(self, dataset : netCDF4.Dataset = None):
         super().__init__(dataset)
 
     def get_names(self) -> list[str]:
+        """Return all dimension names in the dataset."""
         return list(self._netCDF4_dataset.dimensions.keys())
     
     def get_values(self) -> list[int]:
+        """Return all dimension sizes in the dataset."""
         return [dim.size for dim in self._netCDF4_dataset.dimensions.values()]
 
     def get(self, name: str) -> Optional[DimensionsWrap]:
+        """Return a wrapped dimension by name.
+
+        Parameters
+        ----------
+        name : str
+            Dimension name.
+
+        Returns
+        -------
+        DimensionsWrap
+            Wrapped dimension metadata.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa.Dimensions.get("M").value
+        """
         if name not in self._netCDF4_dataset.dimensions:
             raise ValueError(f"Dimension not found: {name}")
         return DimensionsWrap(name, self._netCDF4_dataset.dimensions)
 
     def get_all(self) -> Dict[str, DimensionsWrap]:
+        """Return all dimensions as wrapped objects.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> list(sofa.Dimensions.get_all().keys())
+        """
         return {
             k: DimensionsWrap(k, self._netCDF4_dataset.dimensions)
             for k in self._netCDF4_dataset.dimensions.keys()
             }
    
     def summary(self) -> str:
+        """Return a formatted summary of dimensions and sizes.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> print(sofa.Dimensions.summary())
+        """
         lines = []
         for name in sorted(self._netCDF4_dataset.dimensions.keys()):
             dim = self._netCDF4_dataset.dimensions[name]
@@ -85,6 +131,7 @@ class _Dimensions(_Data):
     
 
 class _AttributesBase(_Data):
+    """Base wrapper for SOFA attributes collections."""
 
     def __init__(self, dataset: netCDF4.Dataset = None, attribute_type: str = "Attribute") -> None:
         super().__init__(dataset)
@@ -102,12 +149,31 @@ class _AttributesBase(_Data):
         return "Please insert a valid attribute name"
 
     def get_names(self) -> list[str]:
+        """Return all attribute names."""
         return [name for name, _ in self._iter_items()]
 
     def get_values(self) -> list[Any]:
+        """Return all attribute values."""
         return [value for _, value in self._iter_items()]
 
     def get(self, name: str) -> Optional[AttributesWrap]:
+        """Return a wrapped attribute by name.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name.
+
+        Returns
+        -------
+        AttributesWrap
+            Wrapped attribute metadata.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa.GlobalAttributes.get("Title").value
+        """
         value = self._get_value(name)
         if value is None:
             label = self._attribute_type
@@ -119,6 +185,13 @@ class _AttributesBase(_Data):
         return AttributesWrap(name, value, self._attribute_type)
 
     def get_all(self) -> Dict[str, AttributesWrap]:
+        """Return all attributes as wrapped objects.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> list(sofa.GlobalAttributes.get_all().keys())
+        """
         return {
             name: AttributesWrap(name, value, self._attribute_type)
             for name, value in self._iter_items()
@@ -138,6 +211,7 @@ class _AttributesBase(_Data):
 
 
 class _GlobalAttributes(_AttributesBase):
+    """Access wrapper for global SOFA attributes."""
 
     def __init__(self, dataset: netCDF4.Dataset = None) -> None:
         super().__init__(dataset, attribute_type="GlobalAttribute")
@@ -155,6 +229,13 @@ class _GlobalAttributes(_AttributesBase):
         return "Please insert a valid global attribute name"
 
     def summary(self) -> str:
+        """Return a formatted summary of global attributes.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> print(sofa.GlobalAttributes.summary())
+        """
         items = list(self._iter_items())
         if not items:
             return ""
@@ -168,6 +249,7 @@ class _GlobalAttributes(_AttributesBase):
 
 
 class _VariableAttributes(_AttributesBase):
+    """Access wrapper for variable SOFA attributes."""
 
     def __init__(self, dataset: netCDF4.Dataset = None) -> None:
         super().__init__(dataset, attribute_type="VariableAttribute")
@@ -192,6 +274,13 @@ class _VariableAttributes(_AttributesBase):
         return "Please insert a valid variable attribute name"
 
     def summary(self) -> str:
+        """Return a formatted summary of variable attributes.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> print(sofa.VariableAttributes.summary())
+        """
         items = list(self._iter_items())
         if not items:
             return ""
@@ -204,27 +293,61 @@ class _VariableAttributes(_AttributesBase):
         return "\n".join(lines)
 
 class _Variables(_Data):
+    """Access wrapper for SOFA variables."""
 
     def __init__(self, dataset : netCDF4.Dataset = None):
         super().__init__(dataset)
 
     def get_names(self) -> list[str]:
+        """Return all variable names in the dataset."""
         return list(self._netCDF4_dataset.variables.keys())
 
     def get_values(self) -> list[np.ndarray]:
+        """Return all variable values as NumPy arrays."""
         return [np.array(v[:]) for v in self._netCDF4_dataset.variables.values()]
 
     def get(self, name: str) -> Optional[VariablesWrap]:
+        """Return a wrapped variable by name.
+
+        Parameters
+        ----------
+        name : str
+            Variable name.
+
+        Returns
+        -------
+        VariablesWrap
+            Wrapped variable data and metadata.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa.Variables.get("Data.IR").value.shape
+        """
         if name not in self._netCDF4_dataset.variables:
             raise ValueError(f"Variable not found: {name}")
         return VariablesWrap(name, self._netCDF4_dataset.variables[name])
 
     def get_all(self) -> Dict[str, VariablesWrap]:
+        """Return all variables as wrapped objects.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> list(sofa.Variables.get_all().keys())
+        """
         return {
             k: VariablesWrap(k, v) for k, v in self._netCDF4_dataset.variables.items()
         }
 
     def summary(self) -> str:
+        """Return a formatted summary of variables and their attributes.
+
+        Examples
+        --------
+        >>> sofa = SOFA.load("my.sofa")
+        >>> print(sofa.Variables.summary())
+        """
         lines = []
         for name, var in self._netCDF4_dataset.variables.items():
             dims = []
