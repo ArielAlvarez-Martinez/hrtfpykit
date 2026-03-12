@@ -28,11 +28,16 @@ SUSPICIOUS_EXTENSIONS = (
     ".py",
     ".ipynb",
     ".jar",
+    ".html",
+    ".js",
 )
 URL_PATTERN = re.compile(r"\b(?:https?|ftp|file|s3)://\S+", re.IGNORECASE)
 BARE_DOMAIN_PATTERN = re.compile(
     r"\b(?:[a-z0-9-]+\.)+(?:com|net|org|edu|gov|mil|io|co|info|biz|ai|app|dev|tech|xyz)\b",
     re.IGNORECASE,
+)
+SUSPICIOUS_FILE_PATTERN = re.compile(
+    r"(?i)(?:^|[^a-z0-9_\-\.])([a-z0-9_\-\.]+\.(?:pdf|exe|dll|so|dylib|bat|cmd|ps1|sh|py|ipynb|jar|html|js))(?=$|[^a-z0-9_\-\.])"
 )
 
 
@@ -318,9 +323,7 @@ def check_sofa_security(
                         "No external links detected in content.",
                     )
 
-                extension_hits = _find_extension_hits_in_text(
-                    text, SUSPICIOUS_EXTENSIONS
-                )
+                extension_hits = _find_extension_hits_in_text(text)
                 if extension_hits:
                     _add_check(
                         "risk_suspicious_attribute_extensions",
@@ -522,15 +525,36 @@ def _find_extension_hits(
 
 def _find_url_hits_in_text(text: str) -> list[str]:
     hits: list[str] = []
-    hits.extend(URL_PATTERN.findall(text))
-    hits.extend(BARE_DOMAIN_PATTERN.findall(text))
+    for chunk in _extract_printable_runs(text):
+        for match in URL_PATTERN.findall(chunk):
+            hits.append(_clean_match(match))
+        for match in BARE_DOMAIN_PATTERN.findall(chunk):
+            cleaned = _clean_match(match)
+            if cleaned and len(cleaned) >= 7:
+                hits.append(cleaned)
+    cleaned = [item for item in hits if item]
+    return sorted(set(cleaned))
+
+
+def _find_extension_hits_in_text(text: str) -> list[str]:
+    hits: list[str] = []
+    for chunk in _extract_printable_runs(text):
+        for match in SUSPICIOUS_FILE_PATTERN.findall(chunk):
+            cleaned = _clean_match(match)
+            if cleaned:
+                hits.append(cleaned)
     return sorted(set(hits))
 
 
-def _find_extension_hits_in_text(text: str, extensions: tuple[str, ...]) -> list[str]:
-    lower = text.lower()
-    hits = [ext for ext in extensions if ext in lower]
-    return sorted(set(hits))
+def _clean_match(value: str) -> str:
+    cleaned = value.split("\x00", 1)[0]
+    cleaned = "".join(ch for ch in cleaned if 32 <= ord(ch) <= 126)
+    return cleaned.strip()
+
+
+def _extract_printable_runs(text: str, min_len: int = 6) -> list[str]:
+    pattern = rf"[\x20-\x7E]{{{min_len},}}"
+    return re.findall(pattern, text)
 
 
 def _path_from_target(

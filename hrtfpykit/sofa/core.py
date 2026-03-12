@@ -268,10 +268,10 @@ class SOFA:
         return self
 
     @classmethod
-    def load(cls, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa: bool = True) -> "SOFA": 
+    def load(cls, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa_against_conventions: bool = True) -> "SOFA": 
         print(f"Loading SOFA file from: {path}")
         sofa_object = cls()
-        sofa_object._open(path, mode, parallel, check_sofa)
+        sofa_object._open(path, mode, parallel, check_sofa_against_conventions)
         print("SOFA load complete")
         return sofa_object
 
@@ -622,4 +622,3 @@ class SOFA:
                     value = getattr(var, attr_name)
                     lines.append(f"        {name}:{attr_name}= {value}")
         return "\n".join(lines)
-
