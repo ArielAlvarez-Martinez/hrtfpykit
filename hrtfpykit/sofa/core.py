@@ -721,10 +721,40 @@ class SOFA:
         SOFA
             In-memory SOFA instance.
 
+        Notes
+        -----
+        The dummy dataset always includes an unlimited ``S`` dimension with
+        initial size 0. Passing ``S`` in ``dim_sizes`` raises an error because
+        ``S`` is reserved by the SOFA conventions. To create other unlimited
+        dimensions, set their size to 0 in ``dim_sizes``.
+
         Examples
         --------
+        Basic dummy:
+
         >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
         >>> print(sofa.Dimensions.summary())
+
+        Override fixed dimensions:
+
+        >>> sofa = SOFA.create_dummy(
+        ...     "SimpleFreeFieldHRIR",
+        ...     dim_sizes={"R": 2, "C": 3, "M": 100, "N": 256},
+        ... )
+
+        Create an additional unlimited dimension:
+
+        >>> sofa = SOFA.create_dummy(
+        ...     "SimpleFreeFieldHRIR",
+        ...     dim_sizes={"R": 2, "C": 3, "K": 0},
+        ... )
+
+        Passing ``S`` raises an error (``S`` is always unlimited and starts at 0):
+
+        >>> SOFA.create_dummy("SimpleFreeFieldHRIR", dim_sizes={"S": 10})
+        Traceback (most recent call last):
+        ...
+        ValueError: dim_sizes must not include 'S' (reserved unlimited dimension).
         """
         print("Creating in-memory dummy SOFA dataset")
         print(f"SOFA conventions: {sofa_conventions}")
@@ -794,14 +824,25 @@ class SOFA:
                     data_index += 1
             return data.reshape(tuple(reshaped))
 
-        default_dim_sizes: Dict[str, int] = {"R": 2,"E": 1,"M": 1,"N": 1,"C": 3,"I": 1,"S": 0}
         user_dim_sizes: Dict[str, int] = {}
-        
+
         if dim_sizes is not None:
+            if any(str(k).upper() == "S" for k in dim_sizes.keys()):
+                raise ValueError(
+                    "dim_sizes must not include 'S' (reserved unlimited dimension). "
+                    "S is always created with size 0 and unlimited. "
+                    "To create other unlimited dimensions, pass size 0 (e.g., {'K': 0})."
+                )
             user_dim_sizes = {str(k).upper(): int(v) for k, v in dim_sizes.items()}
         if user_dim_sizes:
             ordered = ", ".join(f"{k}={v}" for k, v in sorted(user_dim_sizes.items()))
             print(f"User dimension overrides: {ordered}")
+
+        effective_dim_sizes = dict(user_dim_sizes)
+        effective_dim_sizes["S"] = 0
+
+        unlimited_dims = {name for name, size in effective_dim_sizes.items() if size == 0}
+        unlimited_dims.add("S")
 
         dim_sizes: Dict[str, int] = {}
         for name, entry in spec.items():
@@ -818,20 +859,17 @@ class SOFA:
                 except Exception:
                     shape = None
             if shape is None or len(shape) != len(dim_names):
-                shape = tuple(user_dim_sizes.get(dim_name, default_dim_sizes.get(dim_name, 1)) for dim_name in dim_names)
+                shape = tuple(effective_dim_sizes.get(dim_name, 1) for dim_name in dim_names)
             for dim_name, size in zip(dim_names, shape):
-                base_size = user_dim_sizes.get(dim_name, default_dim_sizes.get(dim_name, 1))
+                base_size = effective_dim_sizes.get(dim_name, 1)
                 dim_sizes[dim_name] = max(dim_sizes.get(dim_name, base_size), base_size, int(size))
-
-        for dim_name, size in default_dim_sizes.items():
-            if dim_name not in dim_sizes:
-                dim_sizes[dim_name] = user_dim_sizes.get(dim_name, size)
         for dim_name, size in user_dim_sizes.items():
             if dim_name not in dim_sizes:
                 dim_sizes[dim_name] = size
 
         if "S" not in dim_sizes:
-            dim_sizes["S"] = 0
+            dim_sizes["S"] = effective_dim_sizes.get("S", 0)
+
         ordered = ", ".join(f"{k}={v}" for k, v in sorted(dim_sizes.items()))
         print(f"Final dimension sizes: {ordered}")
         dataset = netCDF4.Dataset(
@@ -843,7 +881,7 @@ class SOFA:
         try:
             for dim_name in sorted(dim_sizes.keys()):
                 size = dim_sizes[dim_name]
-                if dim_name == "S" and size == 0:
+                if dim_name in unlimited_dims:
                     dataset.createDimension(dim_name, None)
                 else:
                     dataset.createDimension(dim_name, size)
@@ -869,7 +907,7 @@ class SOFA:
                 if len(dim_names) == 0:
                     var[...] = default
                     continue
-                shape = tuple(dim_sizes.get(dim_name, default_dim_sizes.get(dim_name, 1)) for dim_name in dim_names)
+                shape = tuple(dim_sizes.get(dim_name, 1) for dim_name in dim_names)
                 data = np.array(default)
                 if data.shape == shape:
                     var[:] = data

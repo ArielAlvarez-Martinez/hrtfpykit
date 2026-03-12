@@ -124,8 +124,7 @@ def check_sofa_against_conventions(
                 for letter in option:
                     if letter.strip():
                         spec_dim_letters.add(letter.upper())
-        default_dim_letters = {"R", "E", "M", "N", "C", "I", "S"}
-        expected_dim_letters = spec_dim_letters.union(default_dim_letters)
+        expected_dim_letters = spec_dim_letters
 
         for name, entry in spec.items():
             flags = set(entry.get("flags") or "")
