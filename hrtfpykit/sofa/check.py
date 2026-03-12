@@ -1,4 +1,6 @@
 from typing import Any, Optional, Union
+import pathlib
+import re
 import warnings
 import netCDF4
 import numpy as np
@@ -10,6 +12,28 @@ def _formatwarning(message, category, filename, lineno, line=None):
 
 
 warnings.formatwarning = _formatwarning
+
+
+HDF5_MIN_SAFE_VERSION = "1.14.4"
+SUSPICIOUS_EXTENSIONS = (
+    ".pdf",
+    ".exe",
+    ".dll",
+    ".so",
+    ".dylib",
+    ".bat",
+    ".cmd",
+    ".ps1",
+    ".sh",
+    ".py",
+    ".ipynb",
+    ".jar",
+)
+URL_PATTERN = re.compile(r"\b(?:https?|ftp|file|s3)://\S+", re.IGNORECASE)
+BARE_DOMAIN_PATTERN = re.compile(
+    r"\b(?:[a-z0-9-]+\.)+(?:com|net|org|edu|gov|mil|io|co|info|biz|ai|app|dev|tech|xyz)\b",
+    re.IGNORECASE,
+)
 
 
 def check_sofa_against_conventions(
@@ -189,6 +213,186 @@ def check_sofa_against_conventions(
         if _closer is not None:
             _closer.close()
 
+
+def check_sofa_security(
+    target: Optional[Union[str, pathlib.Path, netCDF4.Dataset]] = None,
+    hdf5_version: Optional[str] = None,
+    min_safe_hdf5: str = HDF5_MIN_SAFE_VERSION,
+    print_report: bool = True,
+    paranoid_mode: bool = False,
+) -> dict[str, Any]:
+    """Verify SOFA/HDF5 security posture for a target file and environment."""
+    report: dict[str, Any] = {
+        "passed": True,
+        "hdf5_version": None,
+        "netcdf4_version": getattr(netCDF4, "__version__", None),
+        "min_safe_hdf5": min_safe_hdf5,
+        "checks": [],
+        "failed": [],
+    }
+
+    def _add_check(name: str, passed: bool, message: str) -> None:
+        report["checks"].append({"name": name, "passed": passed, "message": message})
+        if not passed:
+            report["passed"] = False
+            report["failed"].append(name)
+
+    dataset = None
+    closer = None
+    if not paranoid_mode and target is not None:
+        try:
+            dataset, closer = _resolve_dataset(target)
+        except Exception as exc:
+            _add_check(
+                "attribute_scan",
+                False,
+                f"Unable to open dataset for attribute scan: {exc}",
+            )
+            dataset = None
+
+    if hdf5_version is None:
+        hdf5_version = _detect_hdf5_version()
+
+    report["hdf5_version"] = hdf5_version
+    if hdf5_version is None:
+        _add_check(
+            "hdf5_version_detected",
+            False,
+            "Unable to detect HDF5 library version; cannot assess CVE exposure.",
+        )
+        return report
+
+    _add_check("hdf5_version_detected", True, f"HDF5 version detected: {hdf5_version}")
+
+    version_ok = _version_ge(hdf5_version, min_safe_hdf5)
+    if version_ok is None:
+        _add_check(
+            "hdf5_version_parse",
+            False,
+            f"Could not parse HDF5 version '{hdf5_version}'.",
+        )
+        return report
+
+    _add_check(
+        "hdf5_min_safe_version",
+        version_ok,
+        f"Minimum safe HDF5 version is {min_safe_hdf5}.",
+    )
+
+    _add_check(
+        "risk_memory_corruption_rce",
+        bool(version_ok),
+        "Relies on HDF5 version meeting minimum safety baseline.",
+    )
+    _add_check(
+        "risk_denial_of_service",
+        bool(version_ok),
+        "Relies on HDF5 version meeting minimum safety baseline.",
+    )
+
+    if paranoid_mode:
+        if target is not None and not isinstance(target, (str, pathlib.Path)):
+            raise ValueError("paranoid_mode requires a file path (str or pathlib.Path)")
+        path = _path_from_target(target)
+        if path is None:
+            _add_check(
+                "content_scan",
+                False,
+                "No file path provided for safe content scan.",
+            )
+        else:
+            try:
+                content = path.read_bytes()
+                text = content.decode(errors="ignore")
+                url_hits = _find_url_hits_in_text(text)
+                if url_hits:
+                    _add_check(
+                        "risk_external_links_in_attributes",
+                        False,
+                        f"External links detected in content: {url_hits}",
+                    )
+                else:
+                    _add_check(
+                        "risk_external_links_in_attributes",
+                        True,
+                        "No external links detected in content.",
+                    )
+
+                extension_hits = _find_extension_hits_in_text(
+                    text, SUSPICIOUS_EXTENSIONS
+                )
+                if extension_hits:
+                    _add_check(
+                        "risk_suspicious_attribute_extensions",
+                        False,
+                        f"Suspicious extensions detected in content: {extension_hits}",
+                    )
+                else:
+                    _add_check(
+                        "risk_suspicious_attribute_extensions",
+                        True,
+                        "No suspicious extensions detected in content.",
+                    )
+            except Exception as exc:
+                _add_check(
+                    "content_scan",
+                    False,
+                    f"Unable to scan file content safely: {exc}",
+                )
+    else:
+        if dataset is None:
+            _add_check(
+                "attribute_scan",
+                False,
+                "No dataset available for attribute scan.",
+            )
+        else:
+            attribute_values = _collect_attribute_strings(dataset)
+            url_hits = _find_url_hits(attribute_values)
+            if url_hits:
+                _add_check(
+                    "risk_external_links_in_attributes",
+                    False,
+                    f"External links detected in attributes: {url_hits}",
+                )
+            else:
+                _add_check(
+                    "risk_external_links_in_attributes",
+                    True,
+                    "No external links detected in attributes.",
+                )
+
+            extension_hits = _find_extension_hits(
+                attribute_values, SUSPICIOUS_EXTENSIONS
+            )
+            if extension_hits:
+                _add_check(
+                    "risk_suspicious_attribute_extensions",
+                    False,
+                    f"Suspicious extensions detected in attributes: {extension_hits}",
+                )
+            else:
+                _add_check(
+                    "risk_suspicious_attribute_extensions",
+                    True,
+                    "No suspicious extensions detected in attributes.",
+                )
+
+    if closer is not None:
+        closer.close()
+
+    if paranoid_mode:
+        if print_report:
+            _print_security_report(report, mode="PARANOID")
+        if not report["passed"]:
+            raise ValueError("SOFA security check failed in paranoid mode.")
+        return report
+
+    if print_report:
+        _print_security_report(report, mode="STANDARD")
+
+    return report
+
 def _resolve_dataset(target: Union[str, netCDF4.Dataset]):
     if hasattr(target, "netCDF4_dataset"):
         return target.netCDF4_dataset, None
@@ -216,6 +420,144 @@ def _compare_default(default: Any, value: Any) -> bool:
         return value == default
     except Exception:
         return False
+
+
+def _parse_version(version: str) -> Optional[tuple[int, ...]]:
+    parts = re.findall(r"\d+", version)
+    if not parts:
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def _version_ge(version: str, minimum: str) -> Optional[bool]:
+    parsed_version = _parse_version(version)
+    parsed_minimum = _parse_version(minimum)
+    if parsed_version is None or parsed_minimum is None:
+        return None
+    return parsed_version >= parsed_minimum
+
+
+def _detect_hdf5_version() -> Optional[str]:
+    candidates = [
+        ("__hdf5libversion__", netCDF4),
+        ("hdf5libversion", netCDF4),
+    ]
+    if hasattr(netCDF4, "_netCDF4"):
+        candidates.extend(
+            [
+                ("__hdf5libversion__", netCDF4._netCDF4),
+                ("hdf5libversion", netCDF4._netCDF4),
+            ]
+        )
+    for attr_name, module in candidates:
+        value = getattr(module, attr_name, None)
+        if value is None:
+            continue
+        if callable(value):
+            value = value()
+        if isinstance(value, tuple):
+            return ".".join(str(item) for item in value)
+        if isinstance(value, bytes):
+            return value.decode()
+        return str(value)
+    return None
+
+
+def _collect_attribute_strings(dataset: netCDF4.Dataset) -> list[tuple[str, str]]:
+    values: list[tuple[str, str]] = []
+    for attr_name in dataset.ncattrs():
+        value = getattr(dataset, attr_name)
+        values.append(("GLOBAL_ATTR_NAME", attr_name))
+        values.extend(_normalize_attribute_value(f"GLOBAL:{attr_name}", value))
+    for var_name, var in dataset.variables.items():
+        for attr_name in var.ncattrs():
+            value = getattr(var, attr_name)
+            values.append(("VAR_ATTR_NAME", f"{var_name}:{attr_name}"))
+            values.extend(
+                _normalize_attribute_value(f"{var_name}:{attr_name}", value)
+            )
+    return values
+
+
+def _normalize_attribute_value(label: str, value: Any) -> list[tuple[str, str]]:
+    normalized: list[tuple[str, str]] = []
+    if isinstance(value, bytes):
+        normalized.append((label, value.decode(errors="ignore")))
+        return normalized
+    if isinstance(value, str):
+        normalized.append((label, value))
+        return normalized
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            normalized.extend(_normalize_attribute_value(label, item))
+        return normalized
+    if isinstance(value, np.ndarray):
+        for item in value.ravel().tolist():
+            normalized.extend(_normalize_attribute_value(label, item))
+        return normalized
+    return normalized
+
+
+def _find_url_hits(values: list[tuple[str, str]]) -> list[str]:
+    hits: list[str] = []
+    for label, text in values:
+        if URL_PATTERN.search(text) or BARE_DOMAIN_PATTERN.search(text):
+            hits.append(f"{label}={text}")
+    return hits
+
+
+def _find_extension_hits(
+    values: list[tuple[str, str]],
+    extensions: tuple[str, ...],
+) -> list[str]:
+    hits: list[str] = []
+    for label, text in values:
+        lower = text.lower()
+        for ext in extensions:
+            if ext in lower:
+                hits.append(f"{label}={text}")
+                break
+    return hits
+
+
+def _find_url_hits_in_text(text: str) -> list[str]:
+    hits: list[str] = []
+    hits.extend(URL_PATTERN.findall(text))
+    hits.extend(BARE_DOMAIN_PATTERN.findall(text))
+    return sorted(set(hits))
+
+
+def _find_extension_hits_in_text(text: str, extensions: tuple[str, ...]) -> list[str]:
+    lower = text.lower()
+    hits = [ext for ext in extensions if ext in lower]
+    return sorted(set(hits))
+
+
+def _path_from_target(
+    target: Optional[Union[str, pathlib.Path, netCDF4.Dataset]]
+) -> Optional[pathlib.Path]:
+    if target is None:
+        return None
+    if isinstance(target, (str, pathlib.Path)):
+        return pathlib.Path(target)
+    if hasattr(target, "filepath"):
+        try:
+            path_value = target.filepath()
+        except Exception:
+            return None
+        if path_value:
+            return pathlib.Path(path_value)
+    return None
+
+
+def _print_security_report(report: dict[str, Any], mode: str = "STANDARD") -> None:
+    status = "PASSED" if report.get("passed") else "FAILED"
+    print(f"Security check [{mode}]: {status}", flush=True)
+    for check in report.get("checks", []):
+        check_status = "PASSED" if check.get("passed") else "FAILED"
+        name = check.get("name", "unknown")
+        message = check.get("message", "")
+        print(f"- {name}: {check_status} | {message}", flush=True)
 
 
 def _split_dim_options(dimensions: Optional[str]) -> list[str]:
