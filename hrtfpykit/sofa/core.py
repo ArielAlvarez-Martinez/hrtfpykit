@@ -1110,7 +1110,7 @@ class SOFA:
         return sofa_object
 
     def summary(self) -> str:
-        """Return a formatted summary of globals, variables, and attributes.
+        """Return a formatted summary of GLOBALS Attributes, Variables and Variables Attributes.
 
         Returns
         -------
