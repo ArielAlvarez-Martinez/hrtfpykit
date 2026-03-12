@@ -2,7 +2,6 @@ from typing import Any, Optional, Union
 import warnings
 import netCDF4
 import numpy as np
-import pathlib
 from .conventions import CONVENTIONS
 
 
@@ -13,17 +12,12 @@ def _formatwarning(message, category, filename, lineno, line=None):
 warnings.formatwarning = _formatwarning
 
 
-def check_path(path : Union[str, pathlib.Path]):
-        if not isinstance(path, pathlib.Path):
-           path = pathlib.Path(path)
-        if not path.exists():
-            raise FileNotFoundError(f"SOFA file not found: {path}")
-        if path.suffix.lower() != ".sofa":
-            raise ValueError(f"SOFA file must end with .sofa: {path}")
-
-
-def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str] = None, version: Optional[str] = None):
-    """Check a HRTF SOFA object against SOFA conventions.
+def check_sofa_against_conventions(
+    target: Union[str, netCDF4.Dataset],
+    convention_name: Optional[str] = None,
+    version: Optional[str] = None,
+):
+    """Check a SOFA file against SOFA conventions.
     Emits warnings for missing mandatory fields or read-only mismatches.
     """
     dataset, _closer = _resolve_dataset(target)
@@ -36,22 +30,11 @@ def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str
             return {"convention": {"name": convention_name, "version": version}}
         if convention_name not in CONVENTIONS:
             warnings.warn(
-                f"Unsupported SOFAConventions '{convention_name}'. "
-                f"Supported: {', '.join(sorted(CONVENTIONS.keys()))}",
-                UserWarning,
-            )
-            return {"convention": {"name": convention_name, "version": version}}
-
-        expected_data_type = None
-        if convention_name == "SimpleFreeFieldHRIR":
-            expected_data_type = "FIR"
-        elif convention_name == "SimpleFreeFieldHRTF":
-            expected_data_type = "TF"
-
-        data_type = getattr(dataset, "DataType", None)
-        if expected_data_type and data_type != expected_data_type:
-            warnings.warn(
-                f"Unsupported DataType '{data_type}', expected '{expected_data_type}'",
+                (
+                    f"Unsupported SOFAConventions '{convention_name}'. "
+                    "API may not behave as expected. "
+                    f"Supported: {', '.join(sorted(CONVENTIONS.keys()))}"
+                ),
                 UserWarning,
             )
             return {"convention": {"name": convention_name, "version": version}}
@@ -68,11 +51,26 @@ def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str
             return {"convention": {"name": convention_name, "version": version}}
 
         spec = CONVENTIONS[convention_name][version]
-        value_check_vars = []
-        if convention_name == "SimpleFreeFieldHRIR":
-            value_check_vars = ["Data.IR", "Data.SamplingRate"]
-        elif convention_name == "SimpleFreeFieldHRTF":
-            value_check_vars = ["Data.Real", "Data.Imag", "N"]
+        spec_global_attrs = {
+            name.split("GLOBAL:", 1)[1] for name in spec.keys() if name.startswith("GLOBAL:")
+        }
+        spec_var_attrs = {
+            name for name in spec.keys() if ":" in name and not name.startswith("GLOBAL:")
+        }
+        spec_vars = {
+            name for name in spec.keys() if not name.startswith("GLOBAL:") and ":" not in name
+        }
+        spec_dim_letters = set()
+        for entry in spec.values():
+            dim_spec = entry.get("dimensions")
+            if not dim_spec:
+                continue
+            for option in _split_dim_options(dim_spec):
+                for letter in option:
+                    if letter.strip():
+                        spec_dim_letters.add(letter.upper())
+        default_dim_letters = {"R", "E", "M", "N", "C", "I", "S"}
+        expected_dim_letters = spec_dim_letters.union(default_dim_letters)
 
         for name, entry in spec.items():
             flags = set(entry.get("flags") or "")
@@ -136,13 +134,55 @@ def check_hrtf(target: Union[str,netCDF4.Dataset], convention_name: Optional[str
                             UserWarning,
                         )
 
-                if var_name in value_check_vars:
-                    values = np.array(var[:])
-                    if _is_invalid_values(values):
-                        warnings.warn(
-                            f"{var_name} has invalid values (zero/None/missing)",
-                            UserWarning,
-                        )
+        extra_global_attrs = sorted(
+            attr for attr in dataset.ncattrs() if attr not in spec_global_attrs
+        )
+        if extra_global_attrs:
+            warnings.warn(
+                f"Custom global attributes found: {extra_global_attrs}",
+                UserWarning,
+            )
+
+        extra_vars = sorted(
+            var_name for var_name in dataset.variables.keys() if var_name not in spec_vars
+        )
+        if extra_vars:
+            warnings.warn(
+                f"Custom variables found: {extra_vars}",
+                UserWarning,
+            )
+
+        extra_var_attrs: list[str] = []
+        for var_name, var in dataset.variables.items():
+            for attr_name in var.ncattrs():
+                full_name = f"{var_name}:{attr_name}"
+                if full_name not in spec_var_attrs:
+                    extra_var_attrs.append(full_name)
+        if extra_var_attrs:
+            warnings.warn(
+                f"Custom variable attributes found: {sorted(extra_var_attrs)}",
+                UserWarning,
+            )
+
+        extra_dims = sorted(
+            dim_name
+            for dim_name in dataset.dimensions.keys()
+            if dim_name.upper() not in expected_dim_letters and dim_name.upper() != "S"
+        )
+        if extra_dims:
+            warnings.warn(
+                f"Custom dimensions found: {extra_dims}",
+                UserWarning,
+            )
+
+        missing_dims = sorted(
+            dim for dim in expected_dim_letters if dim not in {d.upper() for d in dataset.dimensions.keys()}
+        )
+        if missing_dims:
+            warnings.warn(
+                f"Missing dimensions found: {missing_dims}",
+                UserWarning,
+            )
 
         return {"convention": {"name": convention_name, "version": version}}
     finally:
@@ -209,22 +249,3 @@ def _warn_dim_mismatch(dataset: netCDF4.Dataset, var_name: str, var, dim_spec: O
                     f"does not match Dimensions {dataset.dimensions[dim_name].size}",
                     UserWarning,
                 )
-
-
-def _is_invalid_values(values: np.ndarray) -> bool:
-    if values is None:
-        return True
-    try:
-        arr = np.array(values)
-    except Exception:
-        return True
-    if arr.size == 0:
-        return True
-    if arr.dtype == object:
-        for item in arr.ravel().tolist():
-            if item is None or item == "":
-                return True
-    if np.issubdtype(arr.dtype, np.number):
-        if np.all(arr == 0):
-            return True
-    return False

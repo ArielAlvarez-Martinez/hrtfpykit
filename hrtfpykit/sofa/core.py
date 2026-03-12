@@ -7,7 +7,7 @@ import sys
 import warnings
 import netCDF4
 import numpy as np
-from .check import check_hrtf, check_path
+from .check import  check_sofa_against_conventions
 from .conventions import CONVENTIONS
 from .data import  _Dimensions, _GlobalAttributes, _VariableAttributes, _Variables
 
@@ -250,10 +250,19 @@ class SOFA:
         del dataset.variables[name]
         print(f"Variable: '{name}' deleted succesfully")
 
+    @staticmethod
+    def _check_path(path : Union[str, pathlib.Path]):
+        if not isinstance(path, pathlib.Path):
+           path = pathlib.Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"SOFA file not found: {path}")
+        if path.suffix.lower() != ".sofa":
+            raise ValueError(f"SOFA file must end with .sofa: {path}")
+
     def _open(self, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa: bool = True):
-        check_path(path)
+        self._check_path(path)
         if check_sofa is True:
-            check_hrtf(path)
+            check_sofa_against_conventions(path)
         self.netCDF4_dataset = netCDF4.Dataset(path, mode=mode, parallel=parallel)
         self.path = path
         return self
@@ -613,4 +622,3 @@ class SOFA:
                     value = getattr(var, attr_name)
                     lines.append(f"        {name}:{attr_name}= {value}")
         return "\n".join(lines)
-
