@@ -1,106 +1,148 @@
-"""Manage SOFA conventions specifications.
-
-This module provides a small registry class to add, remove, inspect, and
-serialize SOFA convention specifications without editing ``conventions.py``.
-
-"""
-from __future__ import annotations
 
 import json
-from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
-
 from .conventions import CONVENTIONS
 
+# TODO: Decide whether this should be a separate feature of hrtfpykit or if SOFA (and later HRTF) should inherit from it.
 
 class ConventionsManager:
     """CRUD and import/export for SOFA convention specifications."""
 
     Spec = dict[str, dict[str, Any]]
-    Registry = dict[str, dict[str, "ConventionsManager.Spec"]]
+   
+    @staticmethod
+    def list_conventions_specifications() -> dict[str, list[str]]:
+        """List available conventions and their versions.
 
-    def __init__(
-        self,
-        registry: "ConventionsManager.Registry" | None = None,
-    ) -> None:
-        """Initialize the manager.
+        Returns
+        -------
+        dict[str, list[str]]
+            Mapping of convention name to sorted version strings.
+        """
+        return {
+            name: sorted(versions.keys())
+            for name, versions in sorted(CONVENTIONS.items())
+        }
+
+    @staticmethod
+    def inspect_sofa_specification(
+        name: str, version: str
+    ) -> "ConventionsManager.Spec":
+        """Return a convention specification.
 
         Parameters
         ----------
-        registry : Registry | None
-            Optional registry to seed the manager with.
-        copy_on_get : bool
-            If True, ``get_convention`` returns a deep copy.
+        name : str
+            Convention name.
+        version : str
+            Convention version.
+
+        Returns
+        -------
+        ConventionsManager.Spec
+            Convention specification dictionary.
         """
-        self._registry: "ConventionsManager.Registry" = (
-            deepcopy(registry) if registry is not None else deepcopy(CONVENTIONS)
-        )
-
-    def list_conventions_specifications(self) -> dict[str, list[str]]:
-        """List available conventions and their versions."""
-        return {
-            name: sorted(versions.keys())
-            for name, versions in sorted(self._registry.items())
-        }
-
-    def inspect_sofa_specification(
-        self, name: str, version: str
-    ) -> "ConventionsManager.Spec":
-        """Return a convention specification."""
         try:
-            spec = self._registry[name][version]
+            spec = CONVENTIONS[name][version]
         except KeyError as exc:
             raise KeyError(f"Convention '{name}' version '{version}' not found") from exc
-        return deepcopy(spec)
+        return spec
 
+    @staticmethod
     def add_convention_specification(
-        self,
         name: str,
         version: str,
         spec: Mapping[str, Mapping[str, Any]],
         *,
         overwrite: bool = False,
     ) -> None:
-        """Add or update a convention specification."""
-        spec_dict = self._validate_spec(spec)
-        if name not in self._registry:
-            self._registry[name] = {}
-        if not overwrite and version in self._registry[name]:
+        """Add or update a convention specification.
+
+        Parameters
+        ----------
+        name : str
+            Convention name.
+        version : str
+            Convention version.
+        spec : Mapping[str, Mapping[str, Any]]
+            Convention specification to store.
+        overwrite : bool, optional
+            If True, allow overwriting an existing version.
+        """
+        spec_dict = ConventionsManager._validate_spec(spec)
+        if name not in CONVENTIONS:
+            CONVENTIONS[name] = {}
+        if not overwrite and version in CONVENTIONS[name]:
             raise ValueError(f"Convention '{name}' version '{version}' already exists")
-        self._registry[name][version] = deepcopy(spec_dict)
+        CONVENTIONS[name][version] = spec_dict
 
-    def delete_convention_specification_version(self, name: str, version: str) -> None:
-        """Delete a specific version of a convention."""
-        if name not in self._registry or version not in self._registry[name]:
+    @staticmethod
+    def delete_convention_specification_version(name: str, version: str) -> None:
+        """Delete a specific version of a convention.
+
+        Parameters
+        ----------
+        name : str
+            Convention name.
+        version : str
+            Convention version to remove.
+        """
+        if name not in CONVENTIONS or version not in CONVENTIONS[name]:
             raise KeyError(f"Convention '{name}' version '{version}' not found")
-        del self._registry[name][version]
-        if not self._registry[name]:
-            del self._registry[name]
+        del CONVENTIONS[name][version]
+        if not CONVENTIONS[name]:
+            del CONVENTIONS[name]
 
-    def delete_convention_specification(self, name: str) -> None:
-        """Delete a convention and all of its versions."""
-        if name not in self._registry:
+    @staticmethod
+    def delete_convention_specification(name: str) -> None:
+        """Delete a convention and all of its versions.
+
+        Parameters
+        ----------
+        name : str
+            Convention name.
+        """
+        if name not in CONVENTIONS:
             raise KeyError(f"Convention '{name}' not found")
-        del self._registry[name]
+        del CONVENTIONS[name]
 
+    @staticmethod
     def export_convention_specification_json(
-        self, name: str, version: str, path: str | Path
+        name: str, version: str, path: str | Path
     ) -> None:
-        """Export a convention specification to JSON."""
-        spec = self.inspect_sofa_specification(name, version)
+        """Export a convention specification to JSON.
+
+        Parameters
+        ----------
+        name : str
+            Convention name.
+        version : str
+            Convention version.
+        path : str | Path
+            Destination file path.
+        """
+        spec = ConventionsManager.inspect_sofa_specification(name, version)
         payload = {"convention": name, "version": version, "spec": spec}
         out_path = Path(path)
         out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
+    @staticmethod
     def add_convention_specification_from_json(
-        self, path: str | Path, *, overwrite: bool = False
+        path: str | Path, *, overwrite: bool = False
     ) -> None:
         """Register conventions from a JSON file.
 
         The JSON can be either:
         - {"convention": "...", "version": "...", "spec": {...}}
         - {"registry": { "Name": { "1.0": {...}, ... } } }
+
+        Parameters
+        ----------
+        path : str | Path
+            Path to the JSON file.
+        overwrite : bool, optional
+            If True, allow overwriting existing versions.
         """
         in_path = Path(path)
         if not in_path.exists():
@@ -115,7 +157,7 @@ class ConventionsManager:
             spec = payload.get("spec")
             if not name or not version or spec is None:
                 raise ValueError("JSON must include 'convention' (or 'name'), 'version', and 'spec'")
-            self.add_convention_specification(
+            ConventionsManager.add_convention_specification(
                 str(name), str(version), spec, overwrite=overwrite
             )
             return
@@ -128,7 +170,7 @@ class ConventionsManager:
                 if not isinstance(versions, Mapping):
                     raise ValueError(f"Registry entry for '{name}' must be a mapping")
                 for version, spec in versions.items():
-                    self.add_convention_specification(
+                    ConventionsManager.add_convention_specification(
                         str(name), str(version), spec, overwrite=overwrite
                     )
             return
@@ -139,20 +181,30 @@ class ConventionsManager:
     def _validate_spec(
         spec: Mapping[str, Mapping[str, Any]],
     ) -> "ConventionsManager.Spec":
-        """Validate and return a spec as a plain dict."""
+        """Validate and return a spec as a plain dict.
+
+        Parameters
+        ----------
+        spec : Mapping[str, Mapping[str, Any]]
+            Convention specification to validate.
+
+        Returns
+        -------
+        ConventionsManager.Spec
+            Normalized specification dictionary.
+        """
+
+        _required_fields = {"default", "flags", "dimensions", "type", "comment"}
         if not isinstance(spec, Mapping):
             raise ValueError("Spec must be a mapping of metadata entries")
 
         normalized: "ConventionsManager.Spec" = {}
-        _required_fields = {"default", "flags", "dimensions", "type", "comment"}
         for entry_name, entry in spec.items():
             if not isinstance(entry, Mapping):
                 raise ValueError(f"Entry '{entry_name}' must be a mapping")
-            missing = ConventionsManager._required_fields - set(entry.keys())
+            missing = _required_fields - set(entry.keys())
             if missing:
                 missing_list = ", ".join(sorted(missing))
                 raise ValueError(f"Entry '{entry_name}' is missing fields: {missing_list}")
             normalized[str(entry_name)] = dict(entry)
         return normalized
-
-
