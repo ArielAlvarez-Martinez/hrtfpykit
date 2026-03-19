@@ -4,8 +4,6 @@ from pathlib import Path
 from typing import Any, Mapping
 from .conventions import CONVENTIONS
 
-# TODO: Decide whether this should be a separate feature of hrtfpykit or if SOFA (and later HRTF) should inherit from it.
-
 class ConventionsManager:
     """CRUD and import/export for SOFA convention specifications."""
 

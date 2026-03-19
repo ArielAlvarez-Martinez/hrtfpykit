@@ -1,22 +1,24 @@
 # hrtfpykit docs
 
-`hrtfpykit` is a lightweight toolkit for loading and working with HRTF datasets.
+`hrtfpykit` is a lightweight toolkit for loading and working with HRTFs.
 
 ## What is included
 
-- SOFA file loading utilities
-- HRTF magnitude extraction with FFT
-- Basic visualization helpers
-- HRTF transformation tools
+- SOFA file loading and inspection
+- SOFA convention validation and security checks
+- HRTF transforms and visualization helpers
 
 ## Quick start
 
 ```python
-from hrtfpykit.hrtf_loader import load_hrtf
+from hrtfpykit.sofa import SOFA, check_sofa_against_conventions
 
-hrtf_mag, source_dirs, freqs, fs = load_hrtf("hrtf.sofa")
+sofa = SOFA.load("hrtf.sofa")
+print(sofa.summary())
+check_sofa_against_conventions(sofa)
 ```
 
 ## Next pages
 
+- `docs/hrtfpykit-sofa.md` for the SOFA API reference
 - `docs/development.md` for local setup and tests
