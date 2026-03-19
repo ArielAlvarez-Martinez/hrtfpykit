@@ -14,8 +14,8 @@ reproducible behavior.
 - [Recommended edit workflow](#recommended-edit-workflow)
 - [Public surface](#public-surface)
 - [Wrappers](#wrappers)
-- [SOFA class reference](#sofa-class-reference)
-- [CRUD methods](#crud-methods)
+- [SOFA Main Methods](#sofa-main-methods)
+- [SOFA CRUD Methods](#sofa-crud-methods)
 - [Validation and security](#validation-and-security)
 - [ConventionsManager](#conventionsmanager)
 - [SOFA conventions registry](#sofa-conventions-registry-conventions)
@@ -26,12 +26,12 @@ reproducible behavior.
 
 ## Overview
 
-The SOFA API provides high-level access to SOFA files backed by `netCDF4`.
+The SOFA API provides high-level access to SOFA.
 It wraps common operations for dimensions, variables, and attributes, while
 preserving the underlying SOFA conventions and constraints.
 
 You can:
-- Load SOFA files without hidden side effects.
+- Load, handle and save SOFA files.
 - Inspect or validate metadata against the conventions registry.
 - Create in-memory SOFA objects for tests.
 - Safely modify files via an explicit copy → save workflow.
@@ -332,7 +332,7 @@ print(len(sofa.Variables))
 
 ---
 
-## SOFA class reference
+## SOFA Main Methods
 
 ### `SOFA.load(path, mode="r", parallel=False, check_sofa_against_conventions=True)`
 
@@ -462,7 +462,7 @@ print(sofa.summary())
 
 ---
 
-## CRUD methods
+## SOFA CRUD Methods
 
 ### Dimensions
 

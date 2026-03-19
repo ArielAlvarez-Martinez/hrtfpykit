@@ -14,17 +14,17 @@ class FrequencyDomainWrapper:
 
     @property
     def tf(self) -> np.ndarray | None:
-        return self._hrtf.tf
+        return self._hrtf.TF
 
     @property
-    def freqs(self) -> np.ndarray | None:
-        return self._hrtf.freqs
+    def frequency_bins(self) -> np.ndarray | None:
+        return self._hrtf.FrequencyBins
 
     @property
     def magnitude(self) -> np.ndarray | None:
-        if self._hrtf.tf is None:
+        if self._hrtf.TF is None:
             return None
-        return np.abs(self._hrtf.tf)
+        return np.abs(self._hrtf.TF)
 
     @property
     def magnitude_db(self) -> np.ndarray | None:
@@ -35,24 +35,24 @@ class FrequencyDomainWrapper:
 
     @property
     def phase(self) -> np.ndarray | None:
-        if self._hrtf.tf is None:
+        if self._hrtf.TF is None:
             return None
-        return np.angle(self._hrtf.tf)
+        return np.angle(self._hrtf.TF)
 
     @property
     def real(self) -> np.ndarray | None:
-        if self._hrtf.tf is None:
+        if self._hrtf.TF is None:
             return None
-        return np.real(self._hrtf.tf)
+        return np.real(self._hrtf.TF)
 
     @property
     def imaginary(self) -> np.ndarray | None:
-        if self._hrtf.tf is None:
+        if self._hrtf.TF is None:
             return None
-        return np.imag(self._hrtf.tf)
+        return np.imag(self._hrtf.TF)
 
     @property
     def fft_length(self) -> int | None:
-        if self._hrtf.attrs.get("fft") and self._hrtf.attrs["fft"].get("n_fft"):
-            return int(self._hrtf.attrs["fft"]["n_fft"])
-        return None
+        if self._hrtf.FFT_length is None:
+            return None
+        return int(self._hrtf.FFT_length)

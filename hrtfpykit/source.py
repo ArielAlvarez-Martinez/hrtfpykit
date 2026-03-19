@@ -1,28 +1,28 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 import numpy as np
-
-if TYPE_CHECKING:
-    from .hrtf import HRTF
 
 
 class SourceWrapper:
-    def __init__(self, hrtf: HRTF) -> None:
-        self._hrtf = hrtf
+    def __init__(
+        self,
+        positions: np.ndarray | None = None,
+        position_type: str | None = None,
+        position_units: str | None = None,
+    ) -> None:
+        self._positions = positions
+        self._position_type = position_type
+        self._position_units = position_units
 
     @property
     def positions(self) -> np.ndarray | None:
-        return self._hrtf.source_positions
+        return self._positions
 
     @property
     def position_type(self) -> str | None:
-        return self._hrtf.source_position_type
+        return self._position_type
 
     @property
     def position_units(self) -> str | None:
-        return self._hrtf.source_position_units
+        return self._position_units
 
     @property
     def azimuth(self) -> np.ndarray | None:
