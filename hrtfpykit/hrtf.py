@@ -480,8 +480,4 @@ class HRTF:
             return first
         return None
 
-ob = HRTF.load_hrtf("hrtfs/hrtf_24.sofa")
 
-print(ob.SampleRate)
-
-print(type(ob.SampleRate))
