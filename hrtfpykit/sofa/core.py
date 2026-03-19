@@ -31,9 +31,9 @@ class SOFA:
     Load, edit, and save in place:
 
     >>> sofa = SOFA.load("my.sofa")
-    >>> sofa_copy = sofa.copy()
-    >>> sofa_copy.create_global_attribute("Title", "My HRTF")
-    >>> sofa_copy.save("my_copy.sofa")
+    >>> sofa_clone = sofa.clone()
+    >>> sofa_clone.create_global_attribute("Title", "My HRTF")
+    >>> sofa_clone.save("my_copy.sofa")
 
     Create a dummy in-memory writable dataset:
 
@@ -116,7 +116,7 @@ class SOFA:
         -----
         Editing a SOFA file requires it to be loaded in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -124,9 +124,9 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> sofa_copy.create_dimension("X", 3)
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> sofa_clone.create_dimension("X", 3)
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -153,7 +153,7 @@ class SOFA:
         -----
         Editing a SOFA file requires it to be loaded in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -161,9 +161,9 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> sofa_copy.rename_dimension("M", "Measurements")
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> sofa_clone.rename_dimension("M", "Measurements")
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -245,7 +245,7 @@ class SOFA:
         -----
         Editing a SOFA file requires it to be loaded in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -253,9 +253,9 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> sofa_copy.create_global_attribute("Title", "My HRTF")
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> sofa_clone.create_global_attribute("Title", "My HRTF")
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -283,7 +283,7 @@ class SOFA:
         -----
         Editing a SOFA file requires it to be loaded in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -291,9 +291,9 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> sofa_copy.modify_global_attribute("Title", "Updated title")
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> sofa_clone.modify_global_attribute("Title", "Updated title")
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -318,7 +318,7 @@ class SOFA:
         -----
         Editing a SOFA file requires it to be loaded in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -326,9 +326,9 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> sofa_copy.delete_global_attribute("Comment")
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> sofa_clone.delete_global_attribute("Comment")
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -355,7 +355,7 @@ class SOFA:
         -----
         Editing a SOFA file requires it to be loaded in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -363,9 +363,9 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> sofa_copy.create_variable_attribute("Data.SamplingRate:Units", "hertz")
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> sofa_clone.create_variable_attribute("Data.SamplingRate:Units", "hertz")
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -399,7 +399,7 @@ class SOFA:
         -----
         Editing a SOFA file requires it to be loaded in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -407,9 +407,9 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> sofa_copy.modify_variable_attribute("Data.IR:Units", "Pa")
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> sofa_clone.modify_variable_attribute("Data.IR:Units", "Pa")
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -440,7 +440,7 @@ class SOFA:
         -----
         Editing a SOFA file requires it to be loaded in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -448,9 +448,9 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> sofa_copy.delete_variable_attribute("Data.IR:Units")
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> sofa_clone.delete_variable_attribute("Data.IR:Units")
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -499,7 +499,7 @@ class SOFA:
         broadcast to the target shape.
         Editing a SOFA file requires it to be loaded in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -507,10 +507,10 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> data = np.zeros((sofa_copy.netCDF4_dataset.dimensions["M"].size,))
-        >>> sofa_copy.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> data = np.zeros((sofa_clone.netCDF4_dataset.dimensions["M"].size,))
+        >>> sofa_clone.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -571,7 +571,7 @@ class SOFA:
         broadcast to the target shape.
         Editing a SOFA file requires the dataset to be opened in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -579,10 +579,10 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> new_data = np.zeros((sofa_copy.netCDF4_dataset.dimensions["M"].size, 2, 256))
-        >>> sofa_copy.modify_variable("Data.IR", new_data)
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> new_data = np.zeros((sofa_clone.netCDF4_dataset.dimensions["M"].size, 2, 256))
+        >>> sofa_clone.modify_variable("Data.IR", new_data)
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -622,7 +622,7 @@ class SOFA:
         -----
         Editing a SOFA file requires the dataset to be opened in a writable
         mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``copy()`` and then save
+        working on an in-memory copy created with ``clone()`` and then save
         to a new file path.
 
         Examples
@@ -630,9 +630,9 @@ class SOFA:
         Recommended (safe) workflow:
 
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
-        >>> sofa_copy.delete_variable("Custom")
-        >>> sofa_copy.save("my_copy.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> sofa_clone.delete_variable("Custom")
+        >>> sofa_clone.save("my_copy.sofa")
 
         Direct edit (expert users):
 
@@ -1024,9 +1024,9 @@ class SOFA:
 
         >>> # If you need to overwrite the same path, close the original first:
         >>> sofa_ro = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa_ro.copy()
+        >>> sofa_clone = sofa_ro.clone()
         >>> sofa_ro.netCDF4_dataset.close()
-        >>> sofa_copy.save("my.sofa", overwrite=True)
+        >>> sofa_clone.save("my.sofa", overwrite=True)
         """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
@@ -1064,8 +1064,8 @@ class SOFA:
         print("SOFA save complete")
         return target_path
 
-    def copy(self) -> "SOFA":
-        """Create an in-memory writable copy of the current SOFA dataset.
+    def clone(self) -> "SOFA":
+        """Create an in-memory writable clone of the current SOFA object.
 
         Returns
         -------
@@ -1075,7 +1075,7 @@ class SOFA:
         Examples
         --------
         >>> sofa = SOFA.load("my.sofa")
-        >>> sofa_copy = sofa.copy()
+        >>> sofa_clone = sofa.clone()
         """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
@@ -1100,6 +1100,140 @@ class SOFA:
                 dst_var = dst.createVariable(name, var.datatype, var.dimensions)
                 dst_var.setncatts({attr: getattr(var, attr) for attr in var.ncattrs()})
                 dst_var[:] = var[:]
+        except Exception:
+            dst.close()
+            raise
+
+        sofa_object = SOFA()
+        sofa_object.netCDF4_dataset = dst
+        sofa_object.path = None
+        return sofa_object
+
+    def copy_with(
+        self,
+        dim_sizes: dict[str, int] | None = None,
+        global_attributes: dict[str, Any] | None = None,
+        variable_attributes: dict[str, dict[str, Any]] | None = None,
+        variables: dict[str, np.ndarray] | None = None,
+    ) -> "SOFA":
+        """Create a modified in-memory copy of the current SOFA object.
+
+        Parameters
+        ----------
+        dim_sizes : dict[str, int] | None
+            Dimension size overrides. Only fixed dimensions may be overridden.
+        global_attributes : dict[str, Any] | None
+            Global attributes to add or replace.
+        variable_attributes : dict[str, dict[str, Any]] | None
+            Per-variable attributes to add or replace.
+        variables : dict[str, numpy.ndarray] | None
+            Variable data overrides. Only existing variable names are supported.
+
+        Returns
+        -------
+        SOFA
+            A new SOFA instance backed by a diskless dataset.
+
+        Raises
+        ------
+        ValueError
+            If the dataset is not loaded, an override refers to a missing
+            dimension or variable, or a provided array cannot be broadcast
+            to the target variable shape.
+
+        Warnings
+        --------
+        - If you override a dimension size, you must also provide replacement
+          arrays for variables that depend on that dimension (e.g., ``Data.IR``),
+          otherwise shape checks will fail.
+        - Only existing variables can be overridden; use a separate creation
+          workflow if you need to add brand-new variables.
+
+        Examples
+        --------
+        Resize the ``N`` dimension and replace ``Data.IR`` accordingly:
+
+        >>> sofa = SOFA.load("my_sofa.sofa")
+        >>> new_ir = np.zeros((1550, 2, 200))
+        >>> sofa_mod = sofa.copy_with(
+        ...     dim_sizes={"N": 200},
+        ...     variables={"Data.IR": new_ir},
+        ... )
+
+        Override global and variable attributes:
+
+        >>> sofa_mod = sofa.copy_with(
+        ...     global_attributes={"Title": "Modified HRTF"},
+        ...     variable_attributes={"Data.IR": {"Units": "Pa"}},
+        ... )
+
+        """
+        if self.netCDF4_dataset is None:
+            raise ValueError("Dataset is not loaded")
+
+        src = self.netCDF4_dataset
+        file_format = getattr(src, "file_format", "NETCDF4")
+        dst = netCDF4.Dataset(
+            f"inmemory_{id(self)}_copy_with",
+            mode="w",
+            diskless=True,
+            persist=False,
+            format=file_format,
+        )
+        try:
+            override_dims = dim_sizes or {}
+            missing_dims = set(override_dims) - set(src.dimensions)
+            if missing_dims:
+                missing_str = ", ".join(sorted(missing_dims))
+                raise ValueError(f"Dimensions not found: {missing_str}")
+
+            for name, dim in src.dimensions.items():
+                if dim.isunlimited():
+                    if name in override_dims:
+                        raise ValueError(f"Cannot override unlimited dimension: {name}")
+                    size = None
+                else:
+                    size = override_dims.get(name, dim.size)
+                dst.createDimension(name, size)
+
+            dst.setncatts({name: getattr(src, name) for name in src.ncattrs()})
+            if global_attributes:
+                for attr_name, value in global_attributes.items():
+                    setattr(dst, attr_name, value)
+
+            override_vars = variables or {}
+            missing_vars = set(override_vars) - set(src.variables)
+            if missing_vars:
+                missing_str = ", ".join(sorted(missing_vars))
+                raise ValueError(f"Variables not found: {missing_str}")
+
+            var_attr_overrides = variable_attributes or {}
+            missing_attr_vars = set(var_attr_overrides) - set(src.variables)
+            if missing_attr_vars:
+                missing_str = ", ".join(sorted(missing_attr_vars))
+                raise ValueError(f"Variables not found: {missing_str}")
+
+            for name, var in src.variables.items():
+                dst_var = dst.createVariable(name, var.datatype, var.dimensions)
+                dst_var.setncatts({attr: getattr(var, attr) for attr in var.ncattrs()})
+                if name in var_attr_overrides:
+                    for attr_name, value in var_attr_overrides[name].items():
+                        setattr(dst_var, attr_name, value)
+
+                data = override_vars[name] if name in override_vars else var[:]
+                array = np.array(data)
+                target_shape: list[int] = []
+                for idx, dim_name in enumerate(var.dimensions):
+                    dim = dst.dimensions[dim_name]
+                    if dim.isunlimited():
+                        if idx < array.ndim:
+                            target_shape.append(array.shape[idx])
+                        else:
+                            target_shape.append(dst_var.shape[idx])
+                    else:
+                        target_shape.append(dim.size)
+                self._ensure_broadcastable(name, array, tuple(target_shape))
+                dst_var[...] = array
         except Exception:
             dst.close()
             raise

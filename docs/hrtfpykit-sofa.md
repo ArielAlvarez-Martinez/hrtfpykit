@@ -44,7 +44,7 @@ You can:
 - Deterministic behavior: no implicit shuffling or randomization.
 - Explicit validation: use `check_sofa_against_conventions` and
   `check_sofa_security` when needed.
-- Safe editing: prefer `copy()` then `save()` to a new path.
+- Safe editing: prefer `clone()` then `save()` to a new path.
 - NetCDF4-backed: the underlying SOFA object is a `netCDF4.Dataset` and can be
   accessed via `sofa.netCDF4_dataset` for advanced use.
 
@@ -78,11 +78,11 @@ check_sofa_against_conventions(sofa)
 sofa = SOFA.load("my.sofa")
 
 # Make changes on a copy
-sofa_copy = sofa.copy()
-sofa_copy.modify_global_attribute("Title", "Updated title")
+sofa_clone = sofa.clone()
+sofa_clone.modify_global_attribute("Title", "Updated title")
 
 # Save to a new path
-sofa_copy.save("my_updated.sofa")
+sofa_clone.save("my_updated.sofa")
 
 # Close the original object if no longer needed
 sofa.netCDF4_dataset.close()
@@ -99,6 +99,12 @@ sofa.netCDF4_dataset.close()
 ### Functions
 - `check_sofa_against_conventions`
 - `check_sofa_security`
+
+### Key SOFA methods
+- `SOFA.load`
+- `SOFA.save`
+- `SOFA.clone`
+- `SOFA.copy_with`
 
 ---
 
@@ -417,8 +423,8 @@ Save the SOFA file to disk.
 
 **Example**
 ```python
-sofa_copy = sofa.copy()
-sofa_copy.save("new.sofa")
+sofa_clone = sofa.clone()
+sofa_clone.save("new.sofa")
 ```
 
 **Notes**
@@ -426,10 +432,10 @@ sofa_copy.save("new.sofa")
 
 ---
 
-### `SOFA.copy()`
+### `SOFA.clone()`
 
 **Purpose**
-Create an in-memory, writable copy of the SOFA object.
+Create an in-memory, writable clone of the SOFA object.
 
 **Returns**
 - `SOFA`
@@ -439,7 +445,43 @@ Create an in-memory, writable copy of the SOFA object.
 
 **Example**
 ```python
-sofa_copy = sofa.copy()
+sofa_clone = sofa.clone()
+```
+
+---
+
+### `SOFA.copy_with(dim_sizes=None, global_attributes=None, variable_attributes=None, variables=None)`
+
+**Purpose**
+Create a modified in-memory copy of a SOFA object, with optional dimension and data overrides.
+
+**Parameters**
+- `dim_sizes : dict[str, int] | None`
+  Dimension size overrides. Only fixed dimensions may be overridden.
+- `global_attributes : dict[str, Any] | None`
+  Global attributes to add or replace.
+- `variable_attributes : dict[str, dict[str, Any]] | None`
+  Per-variable attributes to add or replace.
+- `variables : dict[str, np.ndarray] | None`
+  Variable data overrides. Only existing variable names are supported.
+
+**Returns**
+- `SOFA`
+
+**Raises**
+- `ValueError` if the dataset is not loaded, a dimension/variable name is invalid,
+  or a provided array cannot be broadcast to the target variable shape.
+
+**Warnings**
+- Resizing fixed dimensions requires providing replacement arrays for dependent variables.
+- Only existing variables can be overridden in this workflow.
+
+**Example**
+```python
+sofa_mod = sofa.copy_with(
+    dim_sizes={"N": 512},
+    variables={"Data.IR": new_ir},
+)
 ```
 
 ---
@@ -485,7 +527,7 @@ Create a new dimension.
 
 **Example**
 ```python
-sofa_copy.create_dimension("X", 3)
+sofa_clone.create_dimension("X", 3)
 ```
 
 **Notes**
@@ -513,7 +555,7 @@ Rename an existing dimension.
 
 **Example**
 ```python
-sofa_copy.rename_dimension("M", "Measurements")
+sofa_clone.rename_dimension("M", "Measurements")
 ```
 
 **Notes**
@@ -543,7 +585,7 @@ Create a global attribute.
 
 **Example**
 ```python
-sofa_copy.create_global_attribute("Title", "My HRTF")
+sofa_clone.create_global_attribute("Title", "My HRTF")
 ```
 
 **Notes**
@@ -571,7 +613,7 @@ Modify a global attribute.
 
 **Example**
 ```python
-sofa_copy.modify_global_attribute("Title", "Updated")
+sofa_clone.modify_global_attribute("Title", "Updated")
 ```
 
 **Notes**
@@ -597,7 +639,7 @@ Delete a global attribute.
 
 **Example**
 ```python
-sofa_copy.delete_global_attribute("Comment")
+sofa_clone.delete_global_attribute("Comment")
 ```
 
 **Notes**
@@ -628,7 +670,7 @@ Create a variable attribute.
 
 **Example**
 ```python
-sofa_copy.create_variable_attribute("Data.IR:Units", "pascal")
+sofa_clone.create_variable_attribute("Data.IR:Units", "pascal")
 ```
 
 **Notes**
@@ -657,7 +699,7 @@ Modify a variable attribute.
 
 **Example**
 ```python
-sofa_copy.modify_variable_attribute("Data.IR:Units", "Pa")
+sofa_clone.modify_variable_attribute("Data.IR:Units", "Pa")
 ```
 
 **Notes**
@@ -684,7 +726,7 @@ Delete a variable attribute.
 
 **Example**
 ```python
-sofa_copy.delete_variable_attribute("Data.IR:Units")
+sofa_clone.delete_variable_attribute("Data.IR:Units")
 ```
 
 **Notes**
@@ -725,8 +767,8 @@ Create a variable and optionally set its attributes.
 
 **Example**
 ```python
-data = np.zeros((sofa_copy.netCDF4_dataset.dimensions["M"].size,))
-sofa_copy.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
+data = np.zeros((sofa_clone.netCDF4_dataset.dimensions["M"].size,))
+sofa_clone.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
 ```
 
 **Notes**
@@ -759,7 +801,7 @@ Overwrite data for an existing variable.
 **Example**
 ```python
 new_data = np.zeros((100, 2, 256))
-sofa_copy.modify_variable("Data.IR", new_data)
+sofa_clone.modify_variable("Data.IR", new_data)
 ```
 
 **Notes**
@@ -785,7 +827,7 @@ Delete a variable.
 
 **Example**
 ```python
-sofa_copy.delete_variable("Custom")
+sofa_clone.delete_variable("Custom")
 ```
 
 **Notes**

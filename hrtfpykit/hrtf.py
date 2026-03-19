@@ -5,7 +5,7 @@ import numpy as np
 from .analytics import AnalyticsWrapper
 from .frequency_domain import FrequencyDomainWrapper
 from .sofa.core import SOFA
-from .source import SourceWrapper
+from .spatial import SpatialWrapper
 from .time_domain import TimeDomainWrapper
 
 
@@ -13,19 +13,15 @@ class HRTF:
     def __init__(
         self,
         Sofa: SOFA | None = None,
-        IR: np.ndarray | None = None,
-        TF: np.ndarray | None = None,
-        SampleRate: int | None = None,
-        FrequencyBins: np.ndarray | None = None,
-        FFT_length: int | None = None,
     ) -> None:
         self.Sofa: SOFA | None = Sofa
-        self.IR: np.ndarray | None = IR
-        self.TF: np.ndarray | None = TF
-        self.SampleRate: int | None = SampleRate
-        self.FrequencyBins: np.ndarray | None = FrequencyBins
-        self.SOFAConvention: str | None = self._extract_convention(Sofa)
-        self.FFT_length: int | None = FFT_length
+        # TODO : create a better logic for IR in TimeDomainWrapper, e.g : IR["both", "left", "right"]
+        self.IR: np.ndarray | None = None
+        self.TF: np.ndarray | None = None
+        self.SampleRate: int | None = None
+        self.FrequencyBins: np.ndarray | None = None
+        self.SOFAConvention: str | None = None
+        self.FFT_length: int | None = None
 
     @property
     def TimeDomain(self) -> "TimeDomainWrapper":
@@ -36,8 +32,15 @@ class HRTF:
         return FrequencyDomainWrapper(self)
 
     @property
-    def Source(self) -> "SourceWrapper":
-        return SourceWrapper()
+    def Spatial(self) -> "SpatialWrapper":
+        if self.Sofa is None:
+            return SpatialWrapper()
+        positions, pos_type, pos_units = self._extract_source_metadata(self.Sofa)
+        return SpatialWrapper(
+            positions=positions,
+            position_type=pos_type,
+            position_units=pos_units,
+        )
 
     @property
     def Analytics(self) -> "AnalyticsWrapper":
@@ -154,12 +157,6 @@ class HRTF:
         except ValueError:
             convention = None
         variable_names = set(variables.get_names())
-        source_positions, source_position_type, source_position_units = cls._extract_source_metadata(Sofa)
-        source = SourceWrapper(
-            positions=source_positions,
-            position_type=source_position_type,
-            position_units=source_position_units,
-        )
         if convention == "SimpleFreeFieldHRIR" or "Data.IR" in variable_names:
             ir = np.asarray(variables.get("Data.IR").value)
             SampleRate = SampleRate_override or cls._extract_sampling_rate(Sofa)
@@ -174,17 +171,15 @@ class HRTF:
                     SampleRate,
                     FFT_length=FFT_length,
                 )
-            hrtf = cls(
-                Sofa=Sofa,
-                IR=ir,
-                TF=tf,
-                SampleRate=SampleRate,
-                FrequencyBins=freqs,
-                FFT_length=FFT_length,
-            )
+            hrtf = cls(Sofa)
+            hrtf.IR = ir
+            hrtf.TF = tf
+            hrtf.SampleRate = SampleRate
+            hrtf.FrequencyBins = freqs
+            hrtf.FFT_length = FFT_length
             if n_fft_used is not None:
                 hrtf.FFT_length = n_fft_used
-            hrtf._source = source
+            hrtf.SOFAConvention = convention
             return hrtf
 
         if (
@@ -217,49 +212,34 @@ class HRTF:
                 warnings.warn(message, UserWarning)
             if SampleRate is None:
                 warnings.warn("Unable to infer samplerate from frequency axis.", UserWarning)
-            hrtf = cls(
-                Sofa=Sofa,
-                IR=ir,
-                TF=tf,
-                SampleRate=SampleRate,
-                FrequencyBins=freqs,
-                FFT_length=FFT_length,
-            )
+            hrtf = cls(Sofa)
+            hrtf.IR = ir
+            hrtf.TF = tf
+            hrtf.SampleRate = SampleRate
+            hrtf.FrequencyBins = freqs
+            hrtf.FFT_length = FFT_length
             if n_fft_used is not None:
                 hrtf.FFT_length = n_fft_used
-            hrtf._source = source
+            hrtf.SOFAConvention = convention
             return hrtf
 
         message = "Unable to determine HRTF domain from SOFA content."
         warnings.warn(message, UserWarning)
-        hrtf = cls(
-            Sofa=Sofa,
-            FFT_length=FFT_length,
-        )
-        hrtf._source = source
+        hrtf = cls(Sofa)
+        hrtf.FFT_length = FFT_length
+        hrtf.SOFAConvention = convention
         return hrtf
 
     def _clone_with_ir(self, ir: np.ndarray) -> "HRTF":
-        new_hrtf = HRTF(
-            Sofa=self.Sofa,
-            IR=ir,
-            TF=None,
-            SampleRate=self.SampleRate,
-            FrequencyBins=None,
-            FFT_length=self.FFT_length,
-        )
-        new_hrtf._source = self._clone_source()
+        new_hrtf = HRTF(self.Sofa)
+        new_hrtf.IR = ir
+        new_hrtf.TF = None
+        new_hrtf.SampleRate = self.SampleRate
+        new_hrtf.FrequencyBins = None
+        new_hrtf.FFT_length = self.FFT_length
+        new_hrtf.SOFAConvention = self.SOFAConvention
         new_hrtf._recompute_tf_from_ir()
         return new_hrtf
-
-    def _clone_source(self) -> SourceWrapper | None:
-        if self._source is None:
-            return None
-        return SourceWrapper(
-            positions=self._source.positions,
-            position_type=self._source.position_type,
-            position_units=self._source.position_units,
-        )
 
     def _recompute_tf_from_ir(
         self,
@@ -479,5 +459,3 @@ class HRTF:
         if np.allclose(diffs, first, rtol=1e-5, atol=1e-8):
             return first
         return None
-
-
