@@ -928,21 +928,6 @@ ConventionsManager.available_conventions_specifications()
 
 ---
 
-### `ConventionsManager.list_conventions_specifications()`
-
-**Purpose**
-Return a mapping of convention name → list of versions.
-
-**Returns**
-- `dict[str, list[str]]`
-
-**Example**
-```python
-listing = ConventionsManager.list_conventions_specifications()
-```
-
----
-
 ### `ConventionsManager.inspect_sofa_specification(name, version)`
 
 **Purpose**

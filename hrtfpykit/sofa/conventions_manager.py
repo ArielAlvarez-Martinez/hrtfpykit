@@ -42,21 +42,6 @@ class ConventionsManager:
         table = ConventionsManager._format_table(rows)
         print(table)
 
-
-    @staticmethod
-    def list_conventions_specifications() -> dict[str, list[str]]:
-        """List available conventions and their versions.
-
-        Returns
-        -------
-        dict[str, list[str]]
-            Mapping of convention name to sorted version strings.
-        """
-        return {
-            name: sorted(versions.keys())
-            for name, versions in sorted(CONVENTIONS.items())
-        }
-
     @staticmethod
     def inspect_sofa_specification(
         name: str, version: str
