@@ -6,6 +6,6 @@ if TYPE_CHECKING:
     from .hrtf import HRTF
 
 
-class AnalyticsWrapper:
+class Analytics:
     def __init__(self, hrtf: HRTF) -> None:
         self._hrtf = hrtf

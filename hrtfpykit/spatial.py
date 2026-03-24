@@ -1,31 +1,63 @@
+from typing import TYPE_CHECKING
+
 import numpy as np
 
+if TYPE_CHECKING:
+    from .hrtf import HRTF
 
-class SpatialWrapper:
+
+class Sources:
     def __init__(
         self,
-        positions: np.ndarray | None = None,
-        position_type: str | None = None,
-        position_units: str | None = None,
+        hrtf: "HRTF | None" = None,
     ) -> None:
-        self._positions = positions
-        self._position_type = position_type
-        self._position_units = position_units
+        self._hrtf = hrtf
+
+    #TODO :Convert properties to methods .
 
     @property
     def positions(self) -> np.ndarray | None:
-        return self._positions
+        if self._hrtf is None:
+            return None
+        if self._hrtf.Sofa is None:
+            return None
+        variables = self._hrtf.Sofa.Variables
+        if variables is None:
+            return None
+        if "SourcePosition" not in set(variables.get_names()):
+            return None
+        return np.asarray(variables.get("SourcePosition").value, dtype=float)
 
     @property
     def position_type(self) -> str | None:
-        return self._position_type
+        if self._hrtf is None:
+            return None
+        if self._hrtf.Sofa is None:
+            return None
+        var_attrs = self._hrtf.Sofa.VariableAttributes
+        if var_attrs is None:
+            return None
+        try:
+            return var_attrs.get("SourcePosition:Type").value
+        except ValueError:
+            return None
 
     @property
     def position_units(self) -> str | None:
-        return self._position_units
+        if self._hrtf is None:
+            return None
+        if self._hrtf.Sofa is None:
+            return None
+        var_attrs = self._hrtf.Sofa.VariableAttributes
+        if var_attrs is None:
+            return None
+        try:
+            return var_attrs.get("SourcePosition:Units").value
+        except ValueError:
+            return None
 
     @property
-    def azimuth(self) -> np.ndarray | None:
+    def azimuth_angles(self) -> np.ndarray | None:
         if self.position_type != "spherical":
             return None
         if self.positions is None or self.positions.shape[-1] < 1:
@@ -33,7 +65,7 @@ class SpatialWrapper:
         return self.positions[..., 0]
 
     @property
-    def elevation(self) -> np.ndarray | None:
+    def elevation_angles(self) -> np.ndarray | None:
         if self.position_type != "spherical":
             return None
         if self.positions is None or self.positions.shape[-1] < 2:
@@ -41,9 +73,14 @@ class SpatialWrapper:
         return self.positions[..., 1]
 
     @property
-    def distance(self) -> np.ndarray | None:
+    def radius(self) -> np.ndarray | None:
         if self.position_type != "spherical":
             return None
         if self.positions is None or self.positions.shape[-1] < 3:
             return None
         return self.positions[..., 2]
+
+
+class Planes:
+    #TODO : class Planes will allow select specific planes from the HRTF
+    pass 
