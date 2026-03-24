@@ -82,5 +82,5 @@ class Sources:
 
 
 class Planes:
-    #TODO : class Planes will allow select specific planes from the HRTF
+    #TODO : class Planes will allow select specific planes from a HRTF
     pass 

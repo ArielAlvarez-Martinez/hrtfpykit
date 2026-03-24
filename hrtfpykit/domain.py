@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import warnings
 import numpy as np
 
-from .dsp import compute_tf_from_ir, window as dsp_window
+from .dsp import compute_tf_from_ir, window 
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -25,12 +25,12 @@ class TimeDomain:
         self._hrtf.ir = self._hrtf.ir[..., slice(start, end)]
         self._recompute_tf_from_ir()
 
-    def apply_window(self, window: str) -> None:
+    def apply_window(self, window_name: str) -> None:
         if self._hrtf.ir is None:
             raise ValueError("IR data is not available")
-        windowed = dsp_window(self._hrtf.ir, window)
+        windowed = window(self._hrtf.ir, window_name)
         if windowed is None:
-            raise ValueError(f"Unsupported window '{window}'")
+            raise ValueError(f"Unsupported window '{window_name}'")
         self._hrtf.ir = windowed
         self._recompute_tf_from_ir()
     

@@ -4,11 +4,11 @@ import warnings
 import numpy as np
 
 
-def window(ir: np.ndarray, name: str) -> np.ndarray | None:
+def window(ir: np.ndarray, window_name: str) -> np.ndarray | None:
     length = ir.shape[-1]
     if length <= 0:
         return None
-    key = name.strip().lower()
+    key = window_name.strip().lower()
     if key in {"hann", "hanning"}:
         window_values = np.hanning(length)
     elif key in {"rectangular"}:
@@ -19,7 +19,7 @@ def window(ir: np.ndarray, name: str) -> np.ndarray | None:
         window_values = np.blackman(length)
     else:
         warnings.warn(
-            f"Unsupported window '{name}'; proceeding without windowing.",
+            f"Unsupported window '{window_name}'; proceeding without windowing.",
             UserWarning,
         )
         return None
