@@ -9,6 +9,58 @@ if TYPE_CHECKING:
     from .domain import FrequencyDomain, TimeDomain
 
 
+def apply_normalization(
+    data: np.ndarray | "TimeDomain" | "FrequencyDomain",
+    value: float,
+) -> np.ndarray | None:
+    if isinstance(data, np.ndarray):
+        signal = data
+    elif hasattr(data, "ir"):
+        signal = data.ir
+    elif hasattr(data, "tf"):
+        signal = data.tf
+    else:
+        signal = None
+    if signal is None:
+        warnings.warn("Signal data is not available; cannot apply normalization.", UserWarning)
+        return None
+    try:
+        norm_value = float(value)
+    except (TypeError, ValueError):
+        warnings.warn("Normalization value is invalid; cannot apply normalization.", UserWarning)
+        return None
+    if np.isclose(norm_value, 0.0):
+        warnings.warn("Normalization value is zero; cannot apply normalization.", UserWarning)
+        return None
+    return signal / norm_value
+
+
+def undo_normalization(
+    data: np.ndarray | "TimeDomain" | "FrequencyDomain",
+    value: float,
+) -> np.ndarray | None:
+    if isinstance(data, np.ndarray):
+        signal = data
+    elif hasattr(data, "ir"):
+        signal = data.ir
+    elif hasattr(data, "tf"):
+        signal = data.tf
+    else:
+        signal = None
+    if signal is None:
+        warnings.warn("Signal data is not available; cannot undo normalization.", UserWarning)
+        return None
+    try:
+        norm_value = float(value)
+    except (TypeError, ValueError):
+        warnings.warn("Normalization value is invalid; cannot undo normalization.", UserWarning)
+        return None
+    if np.isclose(norm_value, 0.0):
+        warnings.warn("Normalization value is zero; cannot undo normalization.", UserWarning)
+        return None
+    return signal * norm_value
+
+
 def window(ir: np.ndarray | "TimeDomain", window_name: str) -> np.ndarray | None:
     if not isinstance(ir, np.ndarray):
         if hasattr(ir, "ir"):
