@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import warnings
 import numpy as np
 
+if TYPE_CHECKING:
+    from .domain import FrequencyDomain, TimeDomain
 
-def window(ir: np.ndarray, window_name: str) -> np.ndarray | None:
+
+def window(ir: np.ndarray | "TimeDomain", window_name: str) -> np.ndarray | None:
+    if not isinstance(ir, np.ndarray):
+        if hasattr(ir, "ir"):
+            ir = ir.ir
+    if ir is None:
+        return None
     length = ir.shape[-1]
     if length <= 0:
         return None
@@ -27,12 +37,17 @@ def window(ir: np.ndarray, window_name: str) -> np.ndarray | None:
 
 
 def compute_tf_from_ir(
-    ir: np.ndarray,
+    ir: np.ndarray | "TimeDomain",
     sample_rate: float,
     fft_length: int | None = None,
     window_name: str | None = None,
     normalize: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, int | None]:
+    if not isinstance(ir, np.ndarray):
+        if hasattr(ir, "ir"):
+            ir = ir.ir
+    if ir is None:
+        raise ValueError("IR data is not available")
     n_fft = fft_length if fft_length is not None else ir.shape[-1]
 
     signal = ir
@@ -49,51 +64,103 @@ def compute_tf_from_ir(
 
 
 def compute_ir_from_tf(
-    tf: np.ndarray,
-    freqs: np.ndarray | None,
+    tf: np.ndarray | "FrequencyDomain",
+    frequency_bins: np.ndarray | None = None,
     fft_length: int | None = None,
-    normalization: float | None = None,
-) -> tuple[np.ndarray | None, float | None, int | None]:
+    tf_normalization: float | None = None,
+    normalization_action: str = "undo",
+) -> np.ndarray | None:
+    """Convert a transfer function to an impulse response.
+
+    Parameters
+    ----------
+    tf : numpy.ndarray or FrequencyDomain
+        Complex transfer function values. If a FrequencyDomain is provided,
+        its ``tf`` (and optionally ``frequency_bins``) are used.
+    frequency_bins : numpy.ndarray, optional
+        Frequency axis in Hz. If omitted, a one-sided positive spectrum is assumed.
+    fft_length : int, optional
+        FFT length for IFFT/IRFFT and for inferring frequency bins.
+    tf_normalization : float, optional
+        Normalization factor to apply or undo on the transfer function.
+    normalization_action : {"apply", "undo"}, optional
+        Controls how the transfer function is scaled before IFFT:
+        "apply" divides the TF by ``tf_normalization``,
+        "undo" multiplies the TF by ``tf_normalization``.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        Time-domain impulse response. Returns None when conversion fails.
+
+    Examples
+    --------
+    ir = compute_ir_from_tf(tf, frequency_bins=freqs, fft_length=512)
+    ir = compute_ir_from_tf(freq_domain, tf_normalization=2.0, normalization_action="undo")
+
+    Best Practices
+    --------------
+    - Provide ``frequency_bins`` when available to avoid ambiguity.
+    - Keep ``fft_length`` consistent with the TF length.
+
+    Warnings / Errors
+    -----------------
+    - Raises ValueError if ``normalization_action`` is invalid.
+    - Returns None when TF length is too short or FFT length is invalid.
+    """
+    tf_array = tf
+    if not isinstance(tf, np.ndarray):
+        if hasattr(tf, "tf"):
+            tf_array = tf.tf
+            if frequency_bins is None and hasattr(tf, "frequency_bins"):
+                frequency_bins = tf.frequency_bins
+    if tf_array is None:
+        warnings.warn("TF data is not available; cannot compute IR.", UserWarning)
+        return None
     n_fft = fft_length
 
-    scale = None
-    if normalization is not None:
+    action = normalization_action.strip().lower()
+    if action not in {"apply", "undo"}:
+        raise ValueError("normalization_action must be 'apply' or 'undo'")
+
+    tf_used = tf_array
+    if tf_normalization is not None:
         try:
-            norm_value = float(normalization)
+            norm_value = float(tf_normalization)
         except (TypeError, ValueError):
             norm_value = None
         if norm_value is not None and not np.isclose(norm_value, 0.0):
-            scale = 1.0 / norm_value
-    if scale is None:
-        scale = 1.0
+            if action == "apply":
+                tf_used = tf_array / norm_value
+            else:
+                tf_used = tf_array * norm_value
 
-    if tf.shape[-1] < 2:
-        return None, None, None
+    if tf_used.shape[-1] < 2:
+        warnings.warn("TF length is too short to compute IR.", UserWarning)
+        return None
 
-    if freqs is not None and freqs.ndim == 1 and freqs.size == tf.shape[-1]:
+    freqs = frequency_bins
+
+    if freqs is not None and freqs.ndim == 1 and freqs.size == tf_used.shape[-1]:
         step = None
         if freqs.size >= 2:
             diffs = np.diff(freqs)
             first = float(diffs[0])
             if np.allclose(diffs, first, rtol=1e-5, atol=1e-8):
                 step = first
-            if step is not None:
-                if float(np.min(freqs)) < 0.0:
-                    n_fft_used = n_fft or freqs.size
-                    samplerate = step * n_fft_used
-                    tf_used = tf * scale
-                    ir = np.fft.ifft(tf_used, n=n_fft_used, axis=-1)
-                    ir = np.real_if_close(ir, tol=1000)
-                    return ir, float(samplerate), int(n_fft_used)
-                n_fft_used = n_fft or (2 * (freqs.size - 1))
-                samplerate = step * n_fft_used
-                tf_used = tf * scale
-                ir = np.fft.irfft(tf_used, n=n_fft_used, axis=-1)
-                return ir, float(samplerate), int(n_fft_used)
+        if step is not None:
+            if float(np.min(freqs)) < 0.0:
+                n_fft_used = n_fft or freqs.size
+                ir = np.fft.ifft(tf_used, n=n_fft_used, axis=-1)
+                ir = np.real_if_close(ir, tol=1000)
+                return ir
+            n_fft_used = n_fft or (2 * (freqs.size - 1))
+            ir = np.fft.irfft(tf_used, n=n_fft_used, axis=-1)
+            return ir
 
-    n_fft_used = n_fft or (2 * (tf.shape[-1] - 1))
+    n_fft_used = n_fft or (2 * (tf_used.shape[-1] - 1))
     if n_fft_used <= 0:
-        return None, None, None
-    tf_used = tf * scale
+        warnings.warn("FFT length is invalid; cannot compute IR.", UserWarning)
+        return None
     ir = np.fft.irfft(tf_used, n=n_fft_used, axis=-1)
-    return ir, None, int(n_fft_used)
+    return ir

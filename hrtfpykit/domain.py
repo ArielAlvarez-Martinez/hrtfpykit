@@ -88,11 +88,11 @@ class TimeDomain:
         if self._hrtf.ir is None:
             raise ValueError("IR data is not available")
         self._hrtf.fft_length = int(new_fft_length)
-        self._recompute_tf_from_ir(FFT_length=int(new_fft_length))
+        self._recompute_tf_from_ir(fft_length=int(new_fft_length))
 
     def _recompute_tf_from_ir(
         self,
-        FFT_length: int | None = None,
+        fft_length: int | None = None,
         window: str | None = None,
         normalize: bool | None = None,
     ) -> None:
@@ -101,7 +101,7 @@ class TimeDomain:
         if self._hrtf.sample_rate is None:
             warnings.warn("Missing samplerate; cannot compute TF from IR.", UserWarning)
             return
-        fft_length_value = FFT_length if FFT_length is not None else self._hrtf.fft_length
+        fft_length_value = fft_length if fft_length is not None else self._hrtf.fft_length
         window_value = window if window is not None else None
         normalize_value = normalize if normalize is not None else False
         tf, freqs, n_fft_used = compute_tf_from_ir(

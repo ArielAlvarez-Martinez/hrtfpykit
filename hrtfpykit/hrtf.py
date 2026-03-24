@@ -45,8 +45,8 @@ class HRTF:
         mode: str = "r",
         parallel: bool = False,
         check_sofa_against_conventions: bool = True,
-        SampleRate: int | None = None,
-        FFT_length: int | None = None,
+        sample_rate: int | None = None,
+        fft_length: int | None = None,
     ) -> "HRTF":
         
         Sofa = SOFA.load(
@@ -84,7 +84,7 @@ class HRTF:
         variable_names = set(variables.get_names())
         if convention == "SimpleFreeFieldHRIR" or "Data.IR" in variable_names:
             ir = np.asarray(variables.get("Data.IR").value)
-            resolved_sample_rate = SampleRate
+            resolved_sample_rate = sample_rate
             if resolved_sample_rate is None:
                 if "Data.SamplingRate" in variable_names:
                     data = np.asarray(
@@ -103,14 +103,14 @@ class HRTF:
                 tf, freqs, n_fft_used = compute_tf_from_ir(
                     ir,
                     resolved_sample_rate,
-                    fft_length=FFT_length,
+                    fft_length=fft_length,
                 )
             hrtf = cls(Sofa)
             hrtf.ir = ir
             hrtf.tf = tf
             hrtf.sample_rate = resolved_sample_rate
             hrtf.frequency_bins = freqs
-            hrtf.fft_length = FFT_length
+            hrtf.fft_length = fft_length
             if n_fft_used is not None:
                 hrtf.fft_length = n_fft_used
             hrtf.sofa_convention = convention
@@ -138,19 +138,31 @@ class HRTF:
                             "Frequency axis should start at 0 Hz to compute IR from TF.",
                             UserWarning,
                         )
-            normalization_value = None
+            tf_normalization = None
             if "Normalization" in variable_names:
                 norm_data = np.asarray(variables.get("Normalization").value, dtype=float)
                 if norm_data.size > 0:
-                    normalization_value = float(norm_data.flat[0])
-            ir, resolved_sample_rate, n_fft_used = compute_ir_from_tf(
+                    tf_normalization = float(norm_data.flat[0])
+            ir = compute_ir_from_tf(
                 tf,
-                freqs,
-                fft_length=FFT_length,
-                normalization=normalization_value,
+                frequency_bins=freqs,
+                fft_length=fft_length,
+                tf_normalization=tf_normalization,
+                normalization_action="undo",
             )
-            if SampleRate is not None:
-                resolved_sample_rate = SampleRate
+            resolved_sample_rate = sample_rate
+            n_fft_used = None
+            if freqs is not None and freqs.ndim == 1 and freqs.size >= 2:
+                diffs = np.diff(freqs)
+                first = float(diffs[0])
+                if np.allclose(diffs, first, rtol=1e-5, atol=1e-8):
+                    if float(np.min(freqs)) < 0.0:
+                        n_fft_used = fft_length or freqs.size
+                    else:
+                        n_fft_used = fft_length or (2 * (freqs.size - 1))
+                    resolved_sample_rate = first * n_fft_used
+            if n_fft_used is None:
+                n_fft_used = fft_length or (2 * (tf.shape[-1] - 1))
             if ir is None:
                 message = "Unable to compute IR from TF with the provided frequency axis."
                 warnings.warn(message, UserWarning)
@@ -161,16 +173,15 @@ class HRTF:
             hrtf.tf = tf
             hrtf.sample_rate = resolved_sample_rate
             hrtf.frequency_bins = freqs
-            hrtf.fft_length = FFT_length
-            if n_fft_used is not None:
-                hrtf.fft_length = n_fft_used
+            hrtf.fft_length = n_fft_used
             hrtf.sofa_convention = convention
             return hrtf
 
         message = "Unable to determine HRTF domain from SOFA content."
         warnings.warn(message, UserWarning)
         hrtf = cls(Sofa)
-        hrtf.fft_length = FFT_length
+        hrtf.fft_length = fft_length
         hrtf.sofa_convention = convention
         return hrtf
+
 
