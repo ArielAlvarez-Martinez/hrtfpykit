@@ -64,19 +64,17 @@ class TimeDomain:
 
     def apply_filter(
         self,
-        kernel: np.ndarray | None = None,
-        filter: str = "custom",
+        filter: str,
         cutoff: float | tuple[float, float] | None = None,
         num_taps: int = 101,
         window: str | None = None,
     ) -> None:
         if self._hrtf.ir is None:
             raise ValueError("IR data is not available")
-        if filter != "custom" and self._hrtf.sample_rate is None:
-            raise ValueError("sample_rate is required for non-custom filters")
+        if self._hrtf.sample_rate is None:
+            raise ValueError("sample_rate is required for filters")
         self._hrtf.ir = apply_filter(
             self._hrtf.ir,
-            kernel=kernel,
             filter=filter,
             sample_rate=self._hrtf.sample_rate,
             cutoff=cutoff,

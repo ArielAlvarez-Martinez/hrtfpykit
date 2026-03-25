@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import warnings
 import numpy as np
+from scipy import signal
 
 if TYPE_CHECKING:
     from .domain import FrequencyDomain, TimeDomain
@@ -141,8 +142,7 @@ def apply_padding(
 
 def apply_filter(
     ir: np.ndarray | "TimeDomain",
-    kernel: np.ndarray | None = None,
-    filter: str = "custom",
+    filter: str,
     sample_rate: float | None = None,
     cutoff: float | tuple[float, float] | None = None,
     num_taps: int = 101,
@@ -155,22 +155,10 @@ def apply_filter(
         raise ValueError("IR data is not available")
 
     filter_type = str(filter).strip().lower()
-    if filter_type == "custom":
-        if kernel is None:
-            raise ValueError("Custom filter requires a kernel")
-        kernel_values = np.asarray(kernel)
-        if kernel_values.ndim != 1:
-            raise ValueError("Filter kernel must be 1D")
-        return np.apply_along_axis(
-            lambda x: np.convolve(x, kernel_values, mode="same"),
-            axis=-1,
-            arr=ir,
-        )
-
     if sample_rate is None:
-        raise ValueError("sample_rate is required for non-custom filters")
+        raise ValueError("sample_rate is required for filters")
     if cutoff is None:
-        raise ValueError("cutoff is required for non-custom filters")
+        raise ValueError("cutoff is required for filters")
     if isinstance(num_taps, bool) or not isinstance(num_taps, int):
         raise ValueError("num_taps must be an integer")
     if num_taps <= 0:
@@ -178,22 +166,44 @@ def apply_filter(
     if num_taps % 2 == 0:
         raise ValueError("num_taps must be odd")
 
+    window_value = None
+    if window is None:
+        window_value = "boxcar"
+    else:
+        window_type = str(window).strip().lower()
+        if window_type in {"hann", "hanning"}:
+            window_value = "hann"
+        elif window_type in {"rectangular"}:
+            window_value = "boxcar"
+        elif window_type == "hamming":
+            window_value = "hamming"
+        elif window_type == "blackman":
+            window_value = "blackman"
+        else:
+            raise ValueError("window must be one of: hann, hamming, blackman, rectangular")
     nyquist = 0.5 * sample_rate
     if filter_type in {"lowpass", "low-pass", "lp"}:
         cutoff_value = float(cutoff)
         if cutoff_value <= 0.0 or cutoff_value >= nyquist:
             raise ValueError("cutoff must be between 0 and Nyquist for lowpass")
-        normalized_cutoff = cutoff_value / sample_rate
-        time_index = np.arange(num_taps) - (num_taps - 1) / 2
-        kernel_values = 2.0 * normalized_cutoff * np.sinc(2.0 * normalized_cutoff * time_index)
+        kernel_values = signal.firwin(
+            num_taps,
+            cutoff_value,
+            window=window_value,
+            pass_zero=True,
+            fs=sample_rate,
+        )
     elif filter_type in {"highpass", "high-pass", "hp"}:
         cutoff_value = float(cutoff)
         if cutoff_value <= 0.0 or cutoff_value >= nyquist:
             raise ValueError("cutoff must be between 0 and Nyquist for highpass")
-        normalized_cutoff = cutoff_value / sample_rate
-        time_index = np.arange(num_taps) - (num_taps - 1) / 2
-        kernel_values = -2.0 * normalized_cutoff * np.sinc(2.0 * normalized_cutoff * time_index)
-        kernel_values[int((num_taps - 1) / 2)] += 1.0
+        kernel_values = signal.firwin(
+            num_taps,
+            cutoff_value,
+            window=window_value,
+            pass_zero=False,
+            fs=sample_rate,
+        )
     elif filter_type in {"bandpass", "band-pass", "bp"}:
         if not isinstance(cutoff, tuple) or len(cutoff) != 2:
             raise ValueError("cutoff must be (low, high) for bandpass")
@@ -201,29 +211,15 @@ def apply_filter(
         cutoff_high = float(cutoff[1])
         if cutoff_low <= 0.0 or cutoff_high >= nyquist or cutoff_low >= cutoff_high:
             raise ValueError("cutoff must satisfy 0 < low < high < Nyquist for bandpass")
-        normalized_low = cutoff_low / sample_rate
-        normalized_high = cutoff_high / sample_rate
-        time_index = np.arange(num_taps) - (num_taps - 1) / 2
-        kernel_values = (
-            2.0 * normalized_high * np.sinc(2.0 * normalized_high * time_index)
-            - 2.0 * normalized_low * np.sinc(2.0 * normalized_low * time_index)
+        kernel_values = signal.firwin(
+            num_taps,
+            [cutoff_low, cutoff_high],
+            window=window_value,
+            pass_zero=False,
+            fs=sample_rate,
         )
     else:
-        raise ValueError("filter must be one of: custom, lowpass, highpass, bandpass")
-
-    if window is not None:
-        window_type = str(window).strip().lower()
-        if window_type in {"hann", "hanning"}:
-            window_values = np.hanning(num_taps)
-        elif window_type in {"rectangular"}:
-            window_values = np.ones(num_taps)
-        elif window_type == "hamming":
-            window_values = np.hamming(num_taps)
-        elif window_type == "blackman":
-            window_values = np.blackman(num_taps)
-        else:
-            raise ValueError("window must be one of: hann, hamming, blackman, rectangular")
-        kernel_values = kernel_values * window_values
+        raise ValueError("filter must be one of: lowpass, highpass, bandpass")
 
     return np.apply_along_axis(
         lambda x: np.convolve(x, kernel_values, mode="same"),
