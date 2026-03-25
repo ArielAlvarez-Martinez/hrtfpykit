@@ -94,7 +94,59 @@ def compute_tf_from_ir(
     fft_length: int | None = None,
     window_name: str | None = None,
     normalize: bool = False,
+    ir_normalization: float | None = None,
+    normalization_action: str = "apply",
 ) -> tuple[np.ndarray, np.ndarray, int | None]:
+    """Compute the transfer function (TF) from a time-domain impulse response.
+
+    Parameters
+    ----------
+    ir : numpy.ndarray or TimeDomain
+        Impulse response array. If a TimeDomain is provided, its ``ir`` is used.
+        Expected shape is (..., N), where the last axis is time samples.
+    sample_rate : float
+        ``sample_rate`` of the IR in Hz.
+    fft_length : int, optional
+        FFT length to use. If None, defaults to the IR length (last axis).
+        Larger values zero-pad; smaller values truncate.
+    window_name : str, optional
+        Optional window to apply before the FFT. Supported: "hann"/"hanning",
+        "rectangular", "hamming", "blackman".
+    normalize : bool, optional
+        If True, divide the TF by ``fft_length``.
+    ir_normalization : float, optional
+        Normalization factor to apply or undo on the impulse response.
+    normalization_action : {"apply", "undo"}, optional
+        Controls how the impulse response is scaled before FFT:
+        "apply" divides the IR by ``ir_normalization``,
+        "undo" multiplies the IR by ``ir_normalization``.
+
+    Returns
+    -------
+    tf : numpy.ndarray
+        Complex transfer function values from ``np.fft.rfft``.
+    freqs : numpy.ndarray
+        ``frequency_bins`` in Hz corresponding to ``tf``.
+    n_fft_used : int or None
+        The FFT length actually used (always an int here).
+
+    Examples
+    --------
+    >>> tf, freqs, n_fft = compute_tf_from_ir(ir, sample_rate=44100)
+    >>> tf, freqs, n_fft = compute_tf_from_ir(ir, 48000, fft_length=512, window_name="hann")
+
+    Best Practices
+    --------------
+    - Use a consistent ``fft_length`` across HRTFs when comparing spectra.
+    - Provide the true ``sample_rate`` to obtain ``frequency_bins`` in Hz.
+    - Apply a window only when you intentionally want spectral smoothing.
+
+    Warnings / Errors
+    -----------------
+    - Raises ValueError if IR data is missing.
+    - If an unsupported window is requested, no windowing is applied.
+    - Raises ValueError if ``normalization_action`` is invalid.
+    """
     if not isinstance(ir, np.ndarray):
         if hasattr(ir, "ir"):
             ir = ir.ir
@@ -107,6 +159,19 @@ def compute_tf_from_ir(
         windowed = window(ir, window_name)
         if windowed is not None:
             signal = windowed
+    if ir_normalization is not None:
+        try:
+            norm_value = float(ir_normalization)
+        except (TypeError, ValueError):
+            norm_value = None
+        if norm_value is not None and not np.isclose(norm_value, 0.0):
+            action = normalization_action.strip().lower()
+            if action not in {"apply", "undo"}:
+                raise ValueError("normalization_action must be 'apply' or 'undo'")
+            if action == "apply":
+                signal = signal / norm_value
+            else:
+                signal = signal * norm_value
 
     tf = np.fft.rfft(signal, n=n_fft, axis=-1)
     if normalize and n_fft:
@@ -122,23 +187,26 @@ def compute_ir_from_tf(
     tf_normalization: float | None = None,
     normalization_action: str = "undo",
 ) -> np.ndarray | None:
-    """Convert a transfer function to an impulse response.
+    """Convert a transfer function (TF) to an impulse response (IR).
 
     Parameters
     ----------
     tf : numpy.ndarray or FrequencyDomain
         Complex transfer function values. If a FrequencyDomain is provided,
         its ``tf`` (and optionally ``frequency_bins``) are used.
+        Expected shape is (..., K), where K is the number of ``frequency_bins``.
     frequency_bins : numpy.ndarray, optional
-        Frequency axis in Hz. If omitted, a one-sided positive spectrum is assumed.
+        ``frequency_bins`` in Hz. If provided and uniformly spaced, it is used
+        to decide between ``ifft`` (full spectrum) and ``irfft`` (one-sided).
     fft_length : int, optional
-        FFT length for IFFT/IRFFT and for inferring frequency bins.
+        FFT length to use for IFFT/IRFFT. If None, it is inferred from
+        ``frequency_bins`` or from ``tf`` length.
     tf_normalization : float, optional
         Normalization factor to apply or undo on the transfer function.
+        Use this when the TF was stored with a known normalization.
     normalization_action : {"apply", "undo"}, optional
         Controls how the transfer function is scaled before IFFT:
-        "apply" divides the TF by ``tf_normalization``,
-        "undo" multiplies the TF by ``tf_normalization``.
+        "apply" divides by ``tf_normalization``; "undo" multiplies it.
 
     Returns
     -------
@@ -147,18 +215,20 @@ def compute_ir_from_tf(
 
     Examples
     --------
-    ir = compute_ir_from_tf(tf, frequency_bins=freqs, fft_length=512)
-    ir = compute_ir_from_tf(freq_domain, tf_normalization=2.0, normalization_action="undo")
+    >>> ir = compute_ir_from_tf(tf, frequency_bins=freqs, fft_length=512)
+    >>> ir = compute_ir_from_tf(freq_domain, tf_normalization=2.0, normalization_action="undo")
 
     Best Practices
     --------------
-    - Provide ``frequency_bins`` when available to avoid ambiguity.
-    - Keep ``fft_length`` consistent with the TF length.
+    - Provide ``frequency_bins`` when available and make sure they start at 0 Hz.
+    - Keep ``fft_length`` consistent with ``tf`` length and ``frequency_bins`` spacing.
+    - Use one-sided spectra with ``irfft`` when the time-domain signal is real.
 
     Warnings / Errors
     -----------------
     - Raises ValueError if ``normalization_action`` is invalid.
     - Returns None when TF length is too short or FFT length is invalid.
+    - If ``frequency_bins`` are not uniform, a default ``irfft`` path is used.
     """
     tf_array = tf
     if not isinstance(tf, np.ndarray):
@@ -202,11 +272,23 @@ def compute_ir_from_tf(
                 step = first
         if step is not None:
             if float(np.min(freqs)) < 0.0:
-                n_fft_used = n_fft or freqs.size
+                expected_n_fft = freqs.size
+                if n_fft is not None and n_fft != expected_n_fft:
+                    warnings.warn(
+                        "FFT length does not match the provided frequency bins; using inferred length.",
+                        UserWarning,
+                    )
+                n_fft_used = expected_n_fft
                 ir = np.fft.ifft(tf_used, n=n_fft_used, axis=-1)
                 ir = np.real_if_close(ir, tol=1000)
                 return ir
-            n_fft_used = n_fft or (2 * (freqs.size - 1))
+            expected_n_fft = 2 * (freqs.size - 1)
+            if n_fft is not None and n_fft != expected_n_fft:
+                warnings.warn(
+                    "FFT length does not match the provided frequency bins; using inferred length.",
+                    UserWarning,
+                )
+            n_fft_used = expected_n_fft
             ir = np.fft.irfft(tf_used, n=n_fft_used, axis=-1)
             return ir
 

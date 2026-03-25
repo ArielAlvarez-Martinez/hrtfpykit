@@ -17,7 +17,7 @@ class HRTF:
         self.Sofa: SOFA | None = Sofa
         self.ir: np.ndarray | None = None
         self.tf: np.ndarray | None = None
-        self.sample_rate: int | None = None
+        self.sample_rate: float | None = None
         self.frequency_bins: np.ndarray | None = None
         self.sofa_convention: str | None = None
         self.fft_length: int | None = None
@@ -45,9 +45,68 @@ class HRTF:
         mode: str = "r",
         parallel: bool = False,
         check_sofa_against_conventions: bool = True,
-        sample_rate: int | None = None,
         fft_length: int | None = None,
     ) -> "HRTF":
+        """Load an HRTF from a SOFA file and populate time/frequency fields.
+
+        This method loads a SOFA dataset and builds an ``HRTF`` object with
+        its impulse response (IR), transfer function (TF), and related metadata.
+        Both SimpleFreeFieldHRIR (time domain) and SimpleFreeFieldHRTF (frequency
+        domain) conventions are supported.
+
+        Parameters
+        ----------
+        path : str or pathlib.Path
+            Path to the SOFA file.
+        mode : str, optional
+            File open mode passed to ``SOFA.load`` (e.g., "r", "r+").
+        parallel : bool, optional
+            Whether to enable parallel mode in ``netCDF4`` (if supported).
+        check_sofa_against_conventions : bool, optional
+            If True, validate the SOFA dataset against the conventions registry.
+        fft_length : int, optional
+            FFT length to use when converting between IR and TF.
+
+        Returns
+        -------
+        HRTF
+            Loaded HRTF object with ``ir``, ``tf``, ``sample_rate``,
+            ``frequency_bins``, and ``fft_length`` populated when possible.
+
+        Examples
+        --------
+        >>> hrtf = HRTF.load_hrtf("hrtf.sofa")
+        >>> hrtf = HRTF.load_hrtf("hrtf.sofa", fft_length=512)
+
+        Best Practices
+        --------------
+        - Prefer SOFA files that include ``Data.SamplingRate`` (HRIR) or ``N``
+          ``frequency_bins`` (HRTF) to avoid ambiguity.
+        - Use a consistent ``fft_length`` when comparing HRTFs.
+        - Keep the file open mode read-only unless you intend to modify it.
+
+        Notes
+        -----
+        - HRIR (time-domain) path:
+          - ``sample_rate`` is taken from ``Data.SamplingRate`` when available;
+            otherwise it remains unknown.
+          - ``fft_length`` controls the FFT length for IR→TF conversion.
+            If omitted, the IR length is used.
+        - HRTF (frequency-domain) path:
+          - If a valid, uniform ``N`` frequency_bins array is present, the FFT length
+            is inferred from it and overrides any provided ``fft_length``.
+          - ``sample_rate`` is inferred as ``(frequency_bins[1] - frequency_bins[0]) * fft_length``
+            when frequency_bins are uniform; otherwise it remains unknown.
+          - If frequency_bins are missing, ``fft_length`` is used to attempt
+            TF→IR conversion, but frequency_bins remain unknown.
+
+        Warnings / Errors
+        -----------------
+        - Raises ValueError if the SOFA dataset fails to load.
+        - Warns if the SOFA convention is not HRTF-related or missing.
+        - Warns when required metadata (sample_rate or frequency_bins) is
+          unavailable to compute the other domain.
+        """
         
         Sofa = SOFA.load(
             path,
@@ -84,15 +143,14 @@ class HRTF:
         variable_names = set(variables.get_names())
         if convention == "SimpleFreeFieldHRIR" or "Data.IR" in variable_names:
             ir = np.asarray(variables.get("Data.IR").value)
-            resolved_sample_rate = sample_rate
-            if resolved_sample_rate is None:
-                if "Data.SamplingRate" in variable_names:
-                    data = np.asarray(
-                        variables.get("Data.SamplingRate").value,
-                        dtype=float,
-                    )
-                    if data.size > 0:
-                        resolved_sample_rate = int(data.flat[0])
+            resolved_sample_rate = None
+            if "Data.SamplingRate" in variable_names:
+                data = np.asarray(
+                    variables.get("Data.SamplingRate").value,
+                    dtype=float,
+                )
+                if data.size > 0:
+                    resolved_sample_rate = int(data.flat[0])
             tf = None
             freqs = None
             n_fft_used = None
@@ -129,7 +187,7 @@ class HRTF:
                 if data.size > 0:
                     freqs = data
             if freqs is None:
-                message = "Missing N frequency axis; cannot compute IR from TF."
+                message = "Missing N frequency_bins; cannot compute IR from TF."
                 warnings.warn(message, UserWarning)
             else:
                 if freqs.ndim == 1 and freqs.size > 0:
@@ -143,31 +201,37 @@ class HRTF:
                 norm_data = np.asarray(variables.get("Normalization").value, dtype=float)
                 if norm_data.size > 0:
                     tf_normalization = float(norm_data.flat[0])
-            ir = compute_ir_from_tf(
-                tf,
-                frequency_bins=freqs,
-                fft_length=fft_length,
-                tf_normalization=tf_normalization,
-                normalization_action="undo",
-            )
-            resolved_sample_rate = sample_rate
+            resolved_sample_rate = None
             n_fft_used = None
             if freqs is not None and freqs.ndim == 1 and freqs.size >= 2:
                 diffs = np.diff(freqs)
                 first = float(diffs[0])
                 if np.allclose(diffs, first, rtol=1e-5, atol=1e-8):
                     if float(np.min(freqs)) < 0.0:
-                        n_fft_used = fft_length or freqs.size
+                        expected_n_fft = freqs.size
                     else:
-                        n_fft_used = fft_length or (2 * (freqs.size - 1))
-                    resolved_sample_rate = first * n_fft_used
+                        expected_n_fft = 2 * (freqs.size - 1)
+                    if fft_length is not None and fft_length != expected_n_fft:
+                        warnings.warn(
+                            "FFT length does not match the provided frequency bins; using inferred length.",
+                            UserWarning,
+                        )
+                    n_fft_used = expected_n_fft
+                    resolved_sample_rate = first * expected_n_fft
+            ir = compute_ir_from_tf(
+                tf,
+                frequency_bins=freqs,
+                fft_length=n_fft_used or fft_length,
+                tf_normalization=tf_normalization,
+                normalization_action="undo",
+            )
             if n_fft_used is None:
                 n_fft_used = fft_length or (2 * (tf.shape[-1] - 1))
             if ir is None:
-                message = "Unable to compute IR from TF with the provided frequency axis."
+                message = "Unable to compute IR from TF with the provided frequency_bins."
                 warnings.warn(message, UserWarning)
             if resolved_sample_rate is None:
-                warnings.warn("Unable to infer samplerate from frequency axis.", UserWarning)
+                warnings.warn("Unable to infer samplerate from frequency_bins.", UserWarning)
             hrtf = cls(Sofa)
             hrtf.ir = ir
             hrtf.tf = tf
@@ -183,3 +247,4 @@ class HRTF:
         hrtf.fft_length = fft_length
         hrtf.sofa_convention = convention
         return hrtf
+
