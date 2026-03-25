@@ -19,6 +19,12 @@ class TimeDomain:
     def ir(self) -> np.ndarray | None:
         return self._hrtf.ir
 
+    @property
+    def ir_length(self) -> int | None:
+        if self._hrtf.ir is None:
+            return None
+        return int(self._hrtf.ir.shape[-1])
+
     def apply_crop(self, start: int | None = None, end: int | None = None) -> None:
         if self._hrtf.ir is None:
             raise ValueError("IR data is not available")
@@ -126,8 +132,30 @@ class FrequencyDomain:
         return self._hrtf.tf
 
     @property
+    def tf_length(self) -> int | None:
+        if self._hrtf.tf is None:
+            return None
+        return int(self._hrtf.tf.shape[-1])
+
+    @property
     def frequency_bins(self) -> np.ndarray | None:
         return self._hrtf.frequency_bins
+
+    @property
+    def min_frequency_bin(self) -> float | None:
+        if self._hrtf.frequency_bins is None:
+            return None
+        if self._hrtf.frequency_bins.size == 0:
+            return None
+        return float(np.min(self._hrtf.frequency_bins))
+
+    @property
+    def max_frequency_bin(self) -> float | None:
+        if self._hrtf.frequency_bins is None:
+            return None
+        if self._hrtf.frequency_bins.size == 0:
+            return None
+        return float(np.max(self._hrtf.frequency_bins))
 
     @property
     def magnitude(self) -> np.ndarray | None:
