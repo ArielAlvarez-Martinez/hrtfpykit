@@ -142,6 +142,18 @@ class FrequencyDomain:
         return self._hrtf.frequency_bins
 
     @property
+    def frequency_bins_step(self) -> float | None:
+        if self._hrtf.frequency_bins is None:
+            return None
+        if self._hrtf.frequency_bins.size < 2:
+            return None
+        diffs = np.diff(self._hrtf.frequency_bins)
+        first = float(diffs[0])
+        if np.allclose(diffs, first, rtol=1e-5, atol=1e-8):
+            return first
+        return None
+
+    @property
     def min_frequency_bin(self) -> float | None:
         if self._hrtf.frequency_bins is None:
             return None

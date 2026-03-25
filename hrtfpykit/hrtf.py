@@ -183,5 +183,3 @@ class HRTF:
         hrtf.fft_length = fft_length
         hrtf.sofa_convention = convention
         return hrtf
-
-
