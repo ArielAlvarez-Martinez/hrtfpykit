@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import warnings
 import numpy as np
 
-from .dsp import compute_tf_from_ir, window 
+from .dsp import apply_crop, apply_filter, apply_padding, apply_window, calculate_tf_from_ir
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -28,25 +28,18 @@ class TimeDomain:
     def apply_crop(self, start: int | None = None, end: int | None = None) -> None:
         if self._hrtf.ir is None:
             raise ValueError("IR data is not available")
-        self._hrtf.ir = self._hrtf.ir[..., slice(start, end)]
-        self._recompute_tf_from_ir()
+        self._hrtf.ir = apply_crop(self._hrtf.ir, start=start, end=end)
+        self._recompute_tf()
 
     def apply_window(self, window_name: str) -> None:
         if self._hrtf.ir is None:
             raise ValueError("IR data is not available")
-        windowed = window(self._hrtf.ir, window_name)
+        windowed = apply_window(self._hrtf.ir, window_name)
         if windowed is None:
             raise ValueError(f"Unsupported window '{window_name}'")
         self._hrtf.ir = windowed
-        self._recompute_tf_from_ir()
+        self._recompute_tf()
     
-    #TODO: create a better general logic for itd
-    # def apply_itd_shift(self, samples: int) -> None:
-    #     if self._hrtf.ir is None:
-    #         raise ValueError("IR data is not available")
-    #     self._hrtf.ir = self._hrtf._shift_ir(self._hrtf.ir, samples)
-    #     self._recompute_tf_from_ir()
-
     def apply_padding(
         self,
         padding_length: int,
@@ -61,46 +54,30 @@ class TimeDomain:
             raise ValueError("Padding must be non-negative")
         if padding_length == 0:
             return
-        location_key = location.strip().lower()
-        if location_key == "start":
-            before, after = padding_length, 0
-        elif location_key == "end":
-            before, after = 0, padding_length
-        else:
-            raise ValueError("Padding location must be 'start' or 'end'")
-        pad_width = [(0, 0)] * (self._hrtf.ir.ndim - 1) + [(before, after)]
-        self._hrtf.ir = np.pad(
+        self._hrtf.ir = apply_padding(
             self._hrtf.ir,
-            pad_width,
-            mode="constant",
-            constant_values=value,
+            padding_length=padding_length,
+            location=location,
+            value=value,
         )
-        self._recompute_tf_from_ir()
+        self._recompute_tf()
 
     def apply_filter(self, kernel: np.ndarray) -> None:
         if self._hrtf.ir is None:
             raise ValueError("IR data is not available")
-        kernel_arr = np.asarray(kernel)
-        if kernel_arr.ndim != 1:
-            raise ValueError("Filter kernel must be 1D")
-        self._hrtf.ir = np.apply_along_axis(
-            lambda x: np.convolve(x, kernel_arr, mode="same"),
-            axis=-1,
-            arr=self._hrtf.ir,
-        )
-        self._recompute_tf_from_ir()
+        self._hrtf.ir = apply_filter(self._hrtf.ir, kernel)
+        self._recompute_tf()
 
     def modify_fft_length(self, new_fft_length: int) -> None:
         if self._hrtf.ir is None:
             raise ValueError("IR data is not available")
         self._hrtf.fft_length = int(new_fft_length)
-        self._recompute_tf_from_ir(fft_length=int(new_fft_length))
+        self._recompute_tf(fft_length=int(new_fft_length))
 
-    def _recompute_tf_from_ir(
+    def _recompute_tf(
         self,
         fft_length: int | None = None,
         window: str | None = None,
-        normalize: bool | None = None,
     ) -> None:
         if self._hrtf.ir is None:
             raise ValueError("IR data is not available")
@@ -109,18 +86,15 @@ class TimeDomain:
             return
         fft_length_value = fft_length if fft_length is not None else self._hrtf.fft_length
         window_value = window if window is not None else None
-        normalize_value = normalize if normalize is not None else False
-        tf, freqs, n_fft_used = compute_tf_from_ir(
+        tf, frequency_bins, fft_length = calculate_tf_from_ir(
             self._hrtf.ir,
             self._hrtf.sample_rate,
             fft_length=fft_length_value,
             window_name=window_value,
-            normalize=normalize_value,
         )
         self._hrtf.tf = tf
-        self._hrtf.frequency_bins = freqs
-        if n_fft_used is not None:
-            self._hrtf.fft_length = n_fft_used
+        self._hrtf.frequency_bins = frequency_bins
+        self._hrtf.fft_length = fft_length
 
 
 class FrequencyDomain:
