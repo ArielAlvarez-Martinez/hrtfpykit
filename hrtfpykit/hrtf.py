@@ -1,4 +1,5 @@
 import warnings
+from functools import cached_property
 from pathlib import Path
 
 import numpy as np
@@ -6,7 +7,7 @@ from .analytics import Analytics
 from .dsp import calculate_ir_from_tf, calculate_tf_from_ir
 from .sofa.core import SOFA
 from .spatial import Sources
-from .domain import TimeDomain, FrequencyDomain
+from .domain import IR, TF
 
 
 class HRTF:
@@ -15,20 +16,16 @@ class HRTF:
         Sofa: SOFA | None = None,
     ) -> None:
         self.Sofa: SOFA | None = Sofa
-        self.ir: np.ndarray | None = None
-        self.tf: np.ndarray | None = None
-        self.sample_rate: float | None = None
-        self.frequency_bins: np.ndarray | None = None
-        self.sofa_convention: str | None = None
+        self.SOFAConventions: str | None = None
         self.fft_length: int | None = None
 
-    @property
-    def TimeDomain(self) -> "TimeDomain":
-        return TimeDomain(self)
+    @cached_property
+    def IR(self) -> "IR":
+        return IR(self)
 
-    @property
-    def FrequencyDomain(self) -> "FrequencyDomain":
-        return FrequencyDomain(self)
+    @cached_property
+    def TF(self) -> "TF":
+        return TF(self)
 
     @property
     def Sources(self) -> "Sources":
@@ -81,51 +78,79 @@ class HRTF:
         except ValueError:
             convention = None
         variable_names = set(variables.get_names())
-        if convention == "SimpleFreeFieldHRIR" or "Data.IR" in variable_names:
+       
+        if convention == "SimpleFreeFieldHRIR":
+            if "Data.IR" not in variable_names:
+                raise ValueError(
+                    "SimpleFreeFieldHRIR requires variable 'Data.IR', but it is missing."
+                )
             ir = np.asarray(variables.get("Data.IR").value)
-            resolved_sample_rate = None
-            if "Data.SamplingRate" in variable_names:
-                data = np.asarray(
-                    variables.get("Data.SamplingRate").value,
-                    dtype=float,
+            if ir.size == 0 or np.all(ir == 0):
+                raise ValueError(
+                    "SimpleFreeFieldHRIR requires non empty 'Data.IR'."
                 )
-                if data.size > 0:
-                    resolved_sample_rate = int(data.flat[0])
-            tf = None
-            frequency_bins = None
-            fft_length_used = None
-            if resolved_sample_rate is None:
-                message = "Missing Data.SamplingRate; cannot compute TF from IR."
-                warnings.warn(message, UserWarning)
-            else:
-                tf, frequency_bins, fft_length_used = calculate_tf_from_ir(
-                    ir,
-                    resolved_sample_rate,
-                    fft_length=fft_length,
+            if "Data.SamplingRate" not in variable_names:
+                raise ValueError(
+                    "SimpleFreeFieldHRIR requires variable 'Data.SamplingRate', but it is missing."
                 )
+            sample_rate_data = np.asarray(
+                variables.get("Data.SamplingRate").value,
+                dtype=float,
+            )
+            if sample_rate_data.size == 0 or np.all(sample_rate_data == 0):
+                raise ValueError(
+                    "SimpleFreeFieldHRIR requires non empty 'Data.SamplingRate'."
+                )
+            resolved_sample_rate = float(sample_rate_data.flat[0])
+            if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
+                raise ValueError(
+                    "SimpleFreeFieldHRIR requires a finite, positive 'Data.SamplingRate' value."
+                )
+
+            tf, frequency_bins, fft_length_used = calculate_tf_from_ir(
+                ir,
+                resolved_sample_rate,
+                fft_length=fft_length,
+            )
             hrtf = cls(Sofa)
-            hrtf.ir = ir
-            hrtf.tf = tf
-            hrtf.sample_rate = resolved_sample_rate
-            hrtf.frequency_bins = frequency_bins
+            hrtf.IR.values = ir
+            hrtf.IR.sample_rate = resolved_sample_rate
+            hrtf.TF.values = tf
+            hrtf.TF.frequency_bins = frequency_bins
             hrtf.fft_length = fft_length
             if fft_length_used is not None:
                 hrtf.fft_length = fft_length_used
-            hrtf.sofa_convention = convention
+            hrtf.SOFAConventions = convention
             return hrtf
 
-        if (
-            convention == "SimpleFreeFieldHRTF"
-            or ("Data.Real" in variable_names and "Data.Imag" in variable_names)
-        ):
+        if convention == "SimpleFreeFieldHRTF":
+            required_variables = ("Data.Real", "Data.Imag", "N")
+            missing_variables = [name for name in required_variables if name not in variable_names]
+            if missing_variables:
+                raise ValueError(
+                    "SimpleFreeFieldHRTF requires variables "
+                    f"{required_variables}, but missing: {missing_variables}."
+                )
+
             real = np.asarray(variables.get("Data.Real").value, dtype=float)
+            if real.size == 0 or np.all(real == 0):
+                raise ValueError(
+                    "SimpleFreeFieldHRTF requires non empty 'Data.Real'."
+                )
+
             imag = np.asarray(variables.get("Data.Imag").value, dtype=float)
+            if imag.size == 0 or np.all(imag == 0):
+                raise ValueError(
+                    "SimpleFreeFieldHRTF requires non empty 'Data.Imag'."
+                )
+
+            frequency_bins = np.asarray(variables.get("N").value, dtype=float)
+            if frequency_bins.size == 0 or np.all(frequency_bins == 0):
+                raise ValueError(
+                    "SimpleFreeFieldHRTF requires non empty 'N'."
+                )
+
             tf = real + 1j * imag
-            frequency_bins = None
-            if "N" in variable_names:
-                data = np.asarray(variables.get("N").value, dtype=float)
-                if data.size > 0:
-                    frequency_bins = data
             if frequency_bins is None:
                 message = "Missing N frequency_bins; cannot compute IR from TF."
                 warnings.warn(message, UserWarning)
@@ -177,23 +202,23 @@ class HRTF:
             if resolved_sample_rate is None and sample_rate is not None:
                 resolved_sample_rate = sample_rate
             hrtf = cls(Sofa)
-            hrtf.ir = ir
-            hrtf.tf = tf
-            hrtf.sample_rate = resolved_sample_rate
-            hrtf.frequency_bins = frequency_bins
+            hrtf.IR.values = ir
+            hrtf.IR.sample_rate = resolved_sample_rate
+            hrtf.TF.values = tf
+            hrtf.TF.frequency_bins = frequency_bins
             hrtf.fft_length = fft_length_used
             if ir is None:
                 message = "Unable to compute IR from TF with the provided frequency_bins."
                 warnings.warn(message, UserWarning)
             if resolved_sample_rate is None:
                 warnings.warn("Unable to infer samplerate from frequency_bins.", UserWarning)
-            hrtf.sofa_convention = convention
+            hrtf.SOFAConventions = convention
             return hrtf
 
         message = "Unable to determine HRTF domain from SOFA content."
         warnings.warn(message, UserWarning)
         hrtf = cls(Sofa)
         hrtf.fft_length = fft_length
-        hrtf.sofa_convention = convention
+        hrtf.SOFAConventions = convention
         return hrtf
 

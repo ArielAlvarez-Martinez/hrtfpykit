@@ -7,20 +7,18 @@ import numpy as np
 from scipy import signal
 
 if TYPE_CHECKING:
-    from .domain import FrequencyDomain, TimeDomain
+    from .domain import IR, TF
 
 
 def apply_normalization(
-    data: np.ndarray | "TimeDomain" | "FrequencyDomain",
+    data: np.ndarray | "IR" | "TF",
     value: float,
 ) -> np.ndarray | None:
 
     if isinstance(data, np.ndarray):
         signal = data
-    elif hasattr(data, "ir"):
-        signal = data.ir
-    elif hasattr(data, "tf"):
-        signal = data.tf
+    elif hasattr(data, "values"):
+        signal = data.values
     else:
         signal = None
     if signal is None:
@@ -38,16 +36,14 @@ def apply_normalization(
 
 
 def undo_normalization(
-    data: np.ndarray | "TimeDomain" | "FrequencyDomain",
+    data: np.ndarray | "IR" | "TF",
     value: float,
 ) -> np.ndarray | None:
 
     if isinstance(data, np.ndarray):
         signal = data
-    elif hasattr(data, "ir"):
-        signal = data.ir
-    elif hasattr(data, "tf"):
-        signal = data.tf
+    elif hasattr(data, "values"):
+        signal = data.values
     else:
         signal = None
     if signal is None:
@@ -64,11 +60,13 @@ def undo_normalization(
     return signal * norm_value
 
 
-def apply_window(ir: np.ndarray | "TimeDomain", window_name: str) -> np.ndarray | None:
+def apply_window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray | None:
 
     if not isinstance(ir, np.ndarray):
-        if hasattr(ir, "ir"):
-            ir = ir.ir
+        if hasattr(ir, "values"):
+            ir = ir.values
+        else:
+            ir = None
     if ir is None:
         return None
     length = ir.shape[-1]
@@ -93,29 +91,33 @@ def apply_window(ir: np.ndarray | "TimeDomain", window_name: str) -> np.ndarray 
 
 
 def apply_crop(
-    ir: np.ndarray | "TimeDomain",
+    ir: np.ndarray | "IR",
     start: int | None = None,
     end: int | None = None,
 ) -> np.ndarray:
 
     if not isinstance(ir, np.ndarray):
-        if hasattr(ir, "ir"):
-            ir = ir.ir
+        if hasattr(ir, "values"):
+            ir = ir.values
+        else:
+            ir = None
     if ir is None:
         raise ValueError("IR data is not available")
     return ir[..., slice(start, end)]
 
 
 def apply_padding(
-    ir: np.ndarray | "TimeDomain",
+    ir: np.ndarray | "IR",
     padding_length: int,
     location: str = "end",
     value: int = 0,
 ) -> np.ndarray:
 
     if not isinstance(ir, np.ndarray):
-        if hasattr(ir, "ir"):
-            ir = ir.ir
+        if hasattr(ir, "values"):
+            ir = ir.values
+        else:
+            ir = None
     if ir is None:
         raise ValueError("IR data is not available")
     if isinstance(padding_length, bool) or not isinstance(padding_length, int):
@@ -141,7 +143,7 @@ def apply_padding(
 
 
 def apply_filter(
-    ir: np.ndarray | "TimeDomain",
+    ir: np.ndarray | "IR",
     filter: str,
     sample_rate: float | None = None,
     cutoff: float | tuple[float, float] | None = None,
@@ -149,8 +151,10 @@ def apply_filter(
     window: str | None = None,
 ) -> np.ndarray:
     if not isinstance(ir, np.ndarray):
-        if hasattr(ir, "ir"):
-            ir = ir.ir
+        if hasattr(ir, "values"):
+            ir = ir.values
+        else:
+            ir = None
     if ir is None:
         raise ValueError("IR data is not available")
 
