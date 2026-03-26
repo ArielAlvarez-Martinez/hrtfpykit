@@ -231,27 +231,47 @@ def apply_filter(
         arr=ir,
     )
 
-
 def calculate_tf_from_ir(
-    ir: np.ndarray,
-    sample_rate: float,
+    ir: np.ndarray | "IR",
+    sample_rate: float | None = None,
     fft_length: int | None = None,
     window_name: str | None = None,
     ir_normalization: float | None = None,
     normalization_action: str = "apply",
-) -> tuple[np.ndarray, np.ndarray, int]:
-   
-    if ir is None:
-        raise ValueError("IR data is not available")
-    if not isinstance(ir, np.ndarray):
-        raise ValueError("IR data must be a NumPy array")
-    if sample_rate is None:
-        raise ValueError("sample_rate is required when ir is a NumPy array")
-    n_fft = fft_length if fft_length is not None else ir.shape[-1]
+) -> tuple[np.ndarray, np.ndarray, int] | "TF":
 
-    signal = ir
+    ir_object = None
+    values = ir
+    resolved_sample_rate = sample_rate
+
+    if (
+        hasattr(ir, "_hrtf")
+        and hasattr(ir, "values")
+        and hasattr(ir, "sample_rate")
+    ):
+        ir_object = ir
+        values = ir.values
+        if resolved_sample_rate is None:
+            resolved_sample_rate = ir.sample_rate
+    elif not isinstance(ir, np.ndarray):
+        raise ValueError("IR data must be a NumPy array or an IR instance")
+
+    if values is None:
+        raise ValueError("IR data is not available")
+    if not isinstance(values, np.ndarray):
+        raise ValueError("IR data must be a NumPy array")
+    if ir_object is None:
+        if resolved_sample_rate is None:
+            raise ValueError("sample_rate is required when ir is a NumPy array")
+        if fft_length is None:
+            raise ValueError("fft_length is required when ir is a NumPy array")
+    elif resolved_sample_rate is None:
+        raise ValueError("sample_rate is required when IR.sample_rate is unavailable")
+    n_fft = fft_length if fft_length is not None else values.shape[-1]
+
+    signal = values
     if window_name:
-        windowed = apply_window(ir, window_name)
+        windowed = apply_window(values, window_name)
         if windowed is not None:
             signal = windowed
     if ir_normalization is not None:
@@ -269,31 +289,47 @@ def calculate_tf_from_ir(
                 signal = signal * norm_value
 
     tf = np.fft.rfft(signal, n=n_fft, axis=-1)
-    frequency_bins = np.fft.rfftfreq(n_fft, d=1.0 / sample_rate)
+    frequency_bins = np.fft.rfftfreq(n_fft, d=1.0 / resolved_sample_rate)
     fft_length = int(n_fft)
+    if ir_object is not None:
+        tf_object = ir_object._hrtf.TF
+        tf_object.values = tf
+        tf_object.frequency_bins = frequency_bins
+        ir_object._hrtf.fft_length = fft_length
+        return tf_object
     return tf, frequency_bins, fft_length
 
 
 def calculate_ir_from_tf(
-    tf: np.ndarray,
-    frequency_bins: np.ndarray,
-    fft_length: int | None = None,
+    tf: np.ndarray | "TF",
+    frequency_bins: np.ndarray | None = None,
     tf_normalization: float | None = None,
     normalization_action: str = "undo",
-) -> tuple[np.ndarray | None, float | None]:
-    
-    if tf is None:
-        warnings.warn("TF data is not available; cannot compute IR.", UserWarning)
-        return None, None
-    if not isinstance(tf, np.ndarray):
-        raise ValueError("TF data must be a NumPy array")
-    if frequency_bins is None:
-        raise ValueError("frequency_bins is required to compute IR")
+    sample_rate: float | None = None,
+    spectrum_type: str | None = None,
+) -> tuple[np.ndarray, float] | "IR":
+    tf_object = None
+    if isinstance(tf, np.ndarray):
+        tf_values = tf
+        if tf_values.size == 0 or np.all(tf_values == 0):
+            raise ValueError("NumPy tf array requires non empty values.")
+    else:
+        if not hasattr(tf, "_hrtf") or not hasattr(tf, "values"):
+            raise ValueError("tf must be a NumPy array or a TF instance")
+        tf_object = tf
+        tf_values = tf.values
+        if tf_values is None:
+            raise ValueError("TF data is not available; cannot compute IR.")
+        if not isinstance(tf_values, np.ndarray):
+            raise ValueError("TF.values must be a NumPy array.")
+        if tf_values.size == 0 or np.all(tf_values == 0):
+            raise ValueError("TF requires non empty 'values'.")
+
     action = normalization_action.strip().lower()
     if action not in {"apply", "undo"}:
         raise ValueError("normalization_action must be 'apply' or 'undo'")
 
-    tf_used = tf
+    tf_used = tf_values
     if tf_normalization is not None:
         try:
             norm_value = float(tf_normalization)
@@ -301,43 +337,84 @@ def calculate_ir_from_tf(
             norm_value = None
         if norm_value is not None and not np.isclose(norm_value, 0.0):
             if action == "apply":
-                tf_used = tf / norm_value
+                tf_used = tf_values / norm_value
             else:
-                tf_used = tf * norm_value
+                tf_used = tf_values * norm_value
 
     if tf_used.shape[-1] < 2:
-        warnings.warn("TF length is too short to compute IR.", UserWarning)
-        return None, None
+        raise ValueError("TF length must contain at least two points.")
 
-    if frequency_bins.ndim != 1 or frequency_bins.size != tf_used.shape[-1]:
+    if frequency_bins is None:
+        if tf_object is not None:
+            raise ValueError(
+                "calculate_ir_from_tf requires 'frequency_bins' when tf is a TF instance."
+            )
+        if sample_rate is None:
+            raise ValueError(
+                "sample_rate is required when frequency_bins is not provided for NumPy TF."
+            )
+        try:
+            resolved_sample_rate = float(sample_rate)
+        except (TypeError, ValueError):
+            raise ValueError("sample_rate must be a finite, positive value.") from None
+        if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
+            raise ValueError("sample_rate must be a finite, positive value.")
+        if spectrum_type is None:
+            raise ValueError(
+                "spectrum_type is required when frequency_bins is not provided for NumPy TF."
+            )
+        spectrum_key = str(spectrum_type).strip().lower()
+        if spectrum_key == "positive":
+            inferred_fft_length = 2 * (tf_used.shape[-1] - 1)
+            frequency_bins_array = np.fft.rfftfreq(
+                inferred_fft_length,
+                d=1.0 / resolved_sample_rate,
+            )
+        elif spectrum_key == "complete":
+            inferred_fft_length = tf_used.shape[-1]
+            frequency_bins_array = np.fft.fftshift(
+                np.fft.fftfreq(
+                    inferred_fft_length,
+                    d=1.0 / resolved_sample_rate,
+                )
+            )
+        else:
+            raise ValueError(
+                "spectrum_type must be 'positive' or 'complete' when inferring frequency_bins."
+            )
+    else:
+        frequency_bins_array = np.asarray(frequency_bins, dtype=float)
+
+    if frequency_bins_array.size == 0 or np.all(frequency_bins_array == 0):
+        raise ValueError("TF requires non empty 'frequency_bins'.")
+
+    if frequency_bins_array.ndim != 1 or frequency_bins_array.size != tf_used.shape[-1]:
         raise ValueError("frequency_bins must be 1D and match TF length")
-    if frequency_bins.size < 2:
+    if frequency_bins_array.size < 2:
         raise ValueError("frequency_bins must contain at least two points")
-    diffs = np.diff(frequency_bins)
+
+    diffs = np.diff(frequency_bins_array)
     step = float(diffs[0])
     if step <= 0.0 or not np.allclose(diffs, step, rtol=1e-5, atol=1e-8):
         raise ValueError("frequency_bins must be uniformly spaced and increasing")
-    if float(np.min(frequency_bins)) < 0.0:
-        expected_n_fft = frequency_bins.size
-        if fft_length is not None and fft_length != expected_n_fft:
-            warnings.warn(
-                "FFT length does not match the provided frequency bins; using inferred length.",
-                UserWarning,
-            )
+
+    if float(np.min(frequency_bins_array)) < 0.0:
+        expected_n_fft = frequency_bins_array.size
         fft_length_used = expected_n_fft
-        ir = np.fft.ifft(tf_used, n=fft_length_used, axis=-1)
-        ir = np.real_if_close(ir, tol=1000)
-        sample_rate = step * expected_n_fft
-        return ir, sample_rate
-    if not np.isclose(frequency_bins[0], 0.0):
-        raise ValueError("frequency_bins must start at 0 Hz for one-sided spectra")
-    expected_n_fft = 2 * (frequency_bins.size - 1)
-    if fft_length is not None and fft_length != expected_n_fft:
-        warnings.warn(
-            "FFT length does not match the provided frequency bins; using inferred length.",
-            UserWarning,
-        )
-    fft_length_used = expected_n_fft
-    ir = np.fft.irfft(tf_used, n=fft_length_used, axis=-1)
+        ir_values = np.fft.ifft(tf_used, n=fft_length_used, axis=-1)
+        ir_values = np.real_if_close(ir_values, tol=1000)
+    else:
+        if not np.isclose(frequency_bins_array[0], 0.0):
+            raise ValueError("frequency_bins must start at 0 Hz for one-sided spectra")
+        expected_n_fft = 2 * (frequency_bins_array.size - 1)
+        fft_length_used = expected_n_fft
+        ir_values = np.fft.irfft(tf_used, n=fft_length_used, axis=-1)
+
     sample_rate = step * expected_n_fft
-    return ir, sample_rate
+    if tf_object is not None:
+        ir_object = tf_object._hrtf.IR
+        ir_object.values = ir_values
+        ir_object.sample_rate = sample_rate
+        tf_object._hrtf.fft_length = fft_length_used
+        return ir_object
+    return ir_values, sample_rate

@@ -1,4 +1,3 @@
-import warnings
 from functools import cached_property
 from pathlib import Path
 
@@ -53,22 +52,6 @@ class HRTF:
         )
         allowed = {"SimpleFreeFieldHRIR", "SimpleFreeFieldHRTF"}
         global_attrs = Sofa.GlobalAttributes
-        if global_attrs is None:
-            message = "Loaded SOFA dataset is unavailable; cannot verify HRTF convention."
-            warnings.warn(message, UserWarning)
-        else:
-            try:
-                convention = global_attrs.get("SOFAConventions").value
-            except ValueError:
-                convention = None
-            if convention not in allowed:
-                message = (
-                    "SOFAConventions is not an HRTF convention. "
-                    f"Expected one of {sorted(allowed)}, got {convention!r} "
-                    f"for {path!s}."
-                )
-                warnings.warn(message, UserWarning)
-        global_attrs = Sofa.GlobalAttributes
         variables = Sofa.Variables
         if global_attrs is None or variables is None:
             raise ValueError("SOFA dataset is not loaded")
@@ -77,6 +60,12 @@ class HRTF:
             convention = global_attrs.get("SOFAConventions").value
         except ValueError:
             convention = None
+        if convention not in allowed:
+            raise ValueError(
+                "SOFAConventions is not an HRTF convention. "
+                f"Expected one of {sorted(allowed)}, got {convention!r} "
+                f"for {path!s}."
+            )
         variable_names = set(variables.get_names())
        
         if convention == "SimpleFreeFieldHRIR":
@@ -151,74 +140,33 @@ class HRTF:
                 )
 
             tf = real + 1j * imag
-            if frequency_bins is None:
-                message = "Missing N frequency_bins; cannot compute IR from TF."
-                warnings.warn(message, UserWarning)
-            else:
-                if frequency_bins.ndim == 1 and frequency_bins.size > 0:
-                    if float(np.min(frequency_bins)) >= 0.0 and not np.isclose(frequency_bins[0], 0.0):
-                        warnings.warn(
-                            "Frequency axis should start at 0 Hz to compute IR from TF.",
-                            UserWarning,
-                        )
             tf_normalization = None
             if "Normalization" in variable_names:
                 norm_data = np.asarray(variables.get("Normalization").value, dtype=float)
                 if norm_data.size > 0:
                     tf_normalization = float(norm_data.flat[0])
-            resolved_sample_rate = None
-            fft_length_used = None
-            if frequency_bins is not None and frequency_bins.ndim == 1 and frequency_bins.size >= 2:
-                diffs = np.diff(frequency_bins)
-                first = float(diffs[0])
-                if np.allclose(diffs, first, rtol=1e-5, atol=1e-8):
-                    if float(np.min(frequency_bins)) < 0.0:
-                        expected_n_fft = frequency_bins.size
-                    else:
-                        expected_n_fft = 2 * (frequency_bins.size - 1)
-                    if fft_length is not None and fft_length != expected_n_fft:
-                        warnings.warn(
-                            "FFT length does not match the provided frequency bins; using inferred length.",
-                            UserWarning,
-                        )
-                    fft_length_used = expected_n_fft
-                    resolved_sample_rate = first * expected_n_fft
-            if fft_length_used is None:
-                fft_length_used = fft_length or (2 * (tf.shape[-1] - 1))
-            if frequency_bins is None:
-                warnings.warn(
-                    "Missing frequency_bins; cannot compute IR from TF.",
-                    UserWarning,
-                )
-                ir, sample_rate = None, None
+            ir, sample_rate = calculate_ir_from_tf(
+                tf,
+                frequency_bins=frequency_bins,
+                tf_normalization=tf_normalization,
+                normalization_action="undo",
+            )
+            min_frequency_bin = float(np.min(frequency_bins))
+            if min_frequency_bin < 0.0:
+                fft_length_used = frequency_bins.size
             else:
-                ir, sample_rate = calculate_ir_from_tf(
-                    tf,
-                    frequency_bins=frequency_bins,
-                    fft_length=fft_length_used or fft_length,
-                    tf_normalization=tf_normalization,
-                    normalization_action="undo",
-                )
-            if resolved_sample_rate is None and sample_rate is not None:
-                resolved_sample_rate = sample_rate
+                fft_length_used = 2 * (frequency_bins.size - 1)
+            if fft_length is not None and fft_length != fft_length_used:
+                raise ValueError("FFT length does not match the provided frequency bins.")
+            resolved_sample_rate = sample_rate
             hrtf = cls(Sofa)
             hrtf.IR.values = ir
             hrtf.IR.sample_rate = resolved_sample_rate
             hrtf.TF.values = tf
             hrtf.TF.frequency_bins = frequency_bins
             hrtf.fft_length = fft_length_used
-            if ir is None:
-                message = "Unable to compute IR from TF with the provided frequency_bins."
-                warnings.warn(message, UserWarning)
-            if resolved_sample_rate is None:
-                warnings.warn("Unable to infer samplerate from frequency_bins.", UserWarning)
             hrtf.SOFAConventions = convention
             return hrtf
 
-        message = "Unable to determine HRTF domain from SOFA content."
-        warnings.warn(message, UserWarning)
-        hrtf = cls(Sofa)
-        hrtf.fft_length = fft_length
-        hrtf.SOFAConventions = convention
-        return hrtf
+        raise ValueError("Unable to determine HRTF domain from SOFA content.")
 
