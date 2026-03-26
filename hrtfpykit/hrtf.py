@@ -168,5 +168,5 @@ class HRTF:
             hrtf.SOFAConventions = convention
             return hrtf
 
-        raise ValueError("Unable to determine HRTF domain from SOFA content.")
+    
 
