@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fractions import Fraction
 from typing import TYPE_CHECKING
 
 import warnings
@@ -58,6 +59,150 @@ def undo_normalization(
         warnings.warn("Normalization value is zero; cannot undo normalization.", UserWarning)
         return None
     return signal * norm_value
+
+
+def signal_duration(
+    signal: np.ndarray | "IR",
+    sample_rate: float | None = None,
+) -> float:
+    if isinstance(signal, np.ndarray):
+        signal_values = signal
+        resolved_sample_rate = sample_rate
+    else:
+        if not hasattr(signal, "values") or not hasattr(signal, "sample_rate"):
+            raise ValueError("signal must be a NumPy array or an IR instance")
+        signal_values = signal.values
+        resolved_sample_rate = sample_rate if sample_rate is not None else signal.sample_rate
+
+    if signal_values is None:
+        raise ValueError("Signal data is not available")
+    if not isinstance(signal_values, np.ndarray):
+        raise ValueError("Signal data must be a NumPy array")
+    if signal_values.ndim == 0:
+        raise ValueError("Signal data must have at least one dimension")
+
+    if resolved_sample_rate is None:
+        raise ValueError("sample_rate is required")
+    if isinstance(resolved_sample_rate, bool):
+        raise ValueError("sample_rate must be a finite, positive value.")
+    try:
+        resolved_sample_rate = float(resolved_sample_rate)
+    except (TypeError, ValueError):
+        raise ValueError("sample_rate must be a finite, positive value.") from None
+    if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
+        raise ValueError("sample_rate must be a finite, positive value.")
+
+    return float(signal_values.shape[-1]) / resolved_sample_rate
+
+
+def upsampling(
+    ir: np.ndarray | "IR",
+    new_sample_rate: float,
+    sample_rate: float | None = None,
+) -> tuple[np.ndarray, float]:
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+        resolved_sample_rate = sample_rate
+    else:
+        if not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
+            raise ValueError("ir must be a NumPy array or an IR instance")
+        ir_values = ir.values
+        resolved_sample_rate = sample_rate if sample_rate is not None else ir.sample_rate
+
+    if ir_values is None:
+        raise ValueError("IR data is not available")
+    if not isinstance(ir_values, np.ndarray):
+        raise ValueError("IR data must be a NumPy array")
+    if ir_values.size == 0:
+        raise ValueError("IR data must be non-empty")
+    if ir_values.ndim == 0:
+        raise ValueError("IR data must have at least one dimension")
+
+    if resolved_sample_rate is None:
+        raise ValueError("sample_rate is required")
+    if isinstance(resolved_sample_rate, bool):
+        raise ValueError("sample_rate must be a finite, positive value.")
+    try:
+        resolved_sample_rate = float(resolved_sample_rate)
+    except (TypeError, ValueError):
+        raise ValueError("sample_rate must be a finite, positive value.") from None
+    if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
+        raise ValueError("sample_rate must be a finite, positive value.")
+
+    if isinstance(new_sample_rate, bool):
+        raise ValueError("new_sample_rate must be a finite, positive value.")
+    try:
+        new_sample_rate = float(new_sample_rate)
+    except (TypeError, ValueError):
+        raise ValueError("new_sample_rate must be a finite, positive value.") from None
+    if not np.isfinite(new_sample_rate) or new_sample_rate <= 0.0:
+        raise ValueError("new_sample_rate must be a finite, positive value.")
+    if new_sample_rate <= resolved_sample_rate:
+        raise ValueError("new_sample_rate must be greater than current sample_rate for upsampling")
+
+    ratio = Fraction(new_sample_rate / resolved_sample_rate).limit_denominator(10000)
+    resampled_ir = signal.resample_poly(
+        ir_values,
+        up=ratio.numerator,
+        down=ratio.denominator,
+        axis=-1,
+    )
+    return resampled_ir, new_sample_rate
+
+
+def downsampling(
+    ir: np.ndarray | "IR",
+    new_sample_rate: float,
+    sample_rate: float | None = None,
+) -> tuple[np.ndarray, float]:
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+        resolved_sample_rate = sample_rate
+    else:
+        if not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
+            raise ValueError("ir must be a NumPy array or an IR instance")
+        ir_values = ir.values
+        resolved_sample_rate = sample_rate if sample_rate is not None else ir.sample_rate
+
+    if ir_values is None:
+        raise ValueError("IR data is not available")
+    if not isinstance(ir_values, np.ndarray):
+        raise ValueError("IR data must be a NumPy array")
+    if ir_values.size == 0:
+        raise ValueError("IR data must be non-empty")
+    if ir_values.ndim == 0:
+        raise ValueError("IR data must have at least one dimension")
+
+    if resolved_sample_rate is None:
+        raise ValueError("sample_rate is required")
+    if isinstance(resolved_sample_rate, bool):
+        raise ValueError("sample_rate must be a finite, positive value.")
+    try:
+        resolved_sample_rate = float(resolved_sample_rate)
+    except (TypeError, ValueError):
+        raise ValueError("sample_rate must be a finite, positive value.") from None
+    if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
+        raise ValueError("sample_rate must be a finite, positive value.")
+
+    if isinstance(new_sample_rate, bool):
+        raise ValueError("new_sample_rate must be a finite, positive value.")
+    try:
+        new_sample_rate = float(new_sample_rate)
+    except (TypeError, ValueError):
+        raise ValueError("new_sample_rate must be a finite, positive value.") from None
+    if not np.isfinite(new_sample_rate) or new_sample_rate <= 0.0:
+        raise ValueError("new_sample_rate must be a finite, positive value.")
+    if new_sample_rate >= resolved_sample_rate:
+        raise ValueError("new_sample_rate must be lower than current sample_rate for downsampling")
+
+    ratio = Fraction(new_sample_rate / resolved_sample_rate).limit_denominator(10000)
+    resampled_ir = signal.resample_poly(
+        ir_values,
+        up=ratio.numerator,
+        down=ratio.denominator,
+        axis=-1,
+    )
+    return resampled_ir, new_sample_rate
 
 
 def apply_window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray | None:

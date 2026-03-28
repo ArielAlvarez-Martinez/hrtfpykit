@@ -5,7 +5,14 @@ from typing import TYPE_CHECKING
 import warnings
 import numpy as np
 
-from .dsp import apply_crop, apply_filter, apply_padding, apply_window, calculate_tf_from_ir
+from .dsp import (
+    apply_crop,
+    apply_filter,
+    apply_padding,
+    apply_window,
+    calculate_tf_from_ir,
+    signal_duration,
+)
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -26,15 +33,7 @@ class IR:
 
     @property
     def ir_duration(self) -> float:
-        values = self.values
-        sample_rate = self.sample_rate
-        if values is None:
-            raise ValueError("IR data is not available")
-        if sample_rate is None:
-            raise ValueError("IR sample_rate is not available")
-        if not np.isfinite(sample_rate) or sample_rate <= 0.0:
-            raise ValueError("IR sample_rate must be finite and positive")
-        return float(values.shape[-1]) / float(sample_rate)
+        return signal_duration(self)
 
     def apply_crop(self, start: int | None = None, end: int | None = None) -> None:
         values = self.values
