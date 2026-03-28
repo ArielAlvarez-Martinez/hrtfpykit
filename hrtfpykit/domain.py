@@ -6,11 +6,16 @@ import warnings
 import numpy as np
 
 from .dsp import (
-    apply_crop,
+    apply_ir_crop,
     apply_filter,
     apply_padding,
     apply_window,
     calculate_tf_from_ir,
+    get_imag,
+    get_magnitude,
+    get_magnitude_db,
+    get_phase,
+    get_real,
     signal_duration,
 )
 
@@ -35,11 +40,23 @@ class IR:
     def ir_duration(self) -> float:
         return signal_duration(self)
 
-    def apply_crop(self, start: int | None = None, end: int | None = None) -> None:
+    def apply_crop(
+        self,
+        start: int | None = None,
+        end: int | None = None,
+        start_seconds: float | None = None,
+        end_seconds: float | None = None,
+    ) -> None:
         values = self.values
         if values is None:
             raise ValueError("IR data is not available")
-        self.values = apply_crop(values, start=start, end=end)
+        self.values = apply_ir_crop(
+            self,
+            start=start,
+            end=end,
+            start_seconds=start_seconds,
+            end_seconds=end_seconds,
+        )
         self._recompute_tf()
 
     def apply_window(self, window_name: str) -> None:
@@ -98,12 +115,6 @@ class IR:
         )
         self._recompute_tf()
 
-    def modify_fft_length(self, new_fft_length: int) -> None:
-        if self.values is None:
-            raise ValueError("IR data is not available")
-        self._hrtf.fft_length = int(new_fft_length)
-        self._recompute_tf(fft_length=int(new_fft_length))
-
     def _recompute_tf(
         self,
         fft_length: int | None = None,
@@ -136,19 +147,12 @@ class TF:
         self.frequency_bins: np.ndarray | None = None
 
     @property
-    def tf_length(self) -> int | None:
-        values = self.values
-        if values is None:
-            return None
-        return int(values.shape[-1])
+    def tf_length(self) -> int:
+        return int(self.values.shape[-1])
 
     @property
     def frequency_bins_step(self) -> float | None:
         frequency_bins = self.frequency_bins
-        if frequency_bins is None:
-            return None
-        if frequency_bins.size < 2:
-            return None
         diffs = np.diff(frequency_bins)
         first = float(diffs[0])
         if np.allclose(diffs, first, rtol=1e-5, atol=1e-8):
@@ -157,59 +161,28 @@ class TF:
 
     @property
     def min_frequency_bin(self) -> float | None:
-        frequency_bins = self.frequency_bins
-        if frequency_bins is None:
-            return None
-        if frequency_bins.size == 0:
-            return None
-        return float(np.min(frequency_bins))
+        return float(np.min(self.frequency_bins))
 
     @property
     def max_frequency_bin(self) -> float | None:
-        frequency_bins = self.frequency_bins
-        if frequency_bins is None:
-            return None
-        if frequency_bins.size == 0:
-            return None
-        return float(np.max(frequency_bins))
+        return float(np.max(self.frequency_bins))
 
     @property
-    def magnitude(self) -> np.ndarray | None:
-        values = self.values
-        if values is None:
-            return None
-        return np.abs(values)
+    def magnitude(self) -> np.ndarray:
+        return get_magnitude(self)
 
     @property
-    def magnitude_db(self) -> np.ndarray | None:
-        magnitude = self.magnitude
-        if magnitude is None:
-            return None
-        return 20.0 * np.log10(magnitude + 1e-12)
+    def magnitude_db(self) -> np.ndarray:
+        return get_magnitude_db(self)
 
     @property
-    def phase(self) -> np.ndarray | None:
-        values = self.values
-        if values is None:
-            return None
-        return np.angle(values)
+    def phase(self) -> np.ndarray:
+        return get_phase(self)
 
     @property
-    def real(self) -> np.ndarray | None:
-        values = self.values
-        if values is None:
-            return None
-        return np.real(values)
+    def real(self) -> np.ndarray:
+        return get_real(self)
 
     @property
-    def imaginary(self) -> np.ndarray | None:
-        values = self.values
-        if values is None:
-            return None
-        return np.imag(values)
-
-    @property
-    def fft_length(self) -> int | None:
-        if self._hrtf.fft_length is None:
-            return None
-        return int(self._hrtf.fft_length)
+    def imag(self) -> np.ndarray:
+        return get_imag(self)

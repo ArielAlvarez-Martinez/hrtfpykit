@@ -95,6 +95,79 @@ def signal_duration(
     return float(signal_values.shape[-1]) / resolved_sample_rate
 
 
+def get_magnitude(tf: np.ndarray | "TF") -> np.ndarray:
+    if isinstance(tf, np.ndarray):
+        tf_values = tf
+    else:
+        if not hasattr(tf, "values"):
+            raise ValueError("tf must be a NumPy array or a TF instance")
+        tf_values = tf.values
+    if tf_values is None:
+        raise ValueError("TF data is not available")
+    if not isinstance(tf_values, np.ndarray):
+        raise ValueError("TF data must be a NumPy array")
+    return np.abs(tf_values)
+
+
+def magnitude_to_db(magnitude: np.ndarray) -> np.ndarray:
+    magnitude_values = np.asarray(magnitude, dtype=float)
+    if np.any(magnitude_values < 0.0):
+        raise ValueError("magnitude values must be non-negative")
+    return 20.0 * np.log10(magnitude_values)
+
+
+def db_to_magnitude(magnitude_db: np.ndarray) -> np.ndarray:
+    magnitude_db_values = np.asarray(magnitude_db, dtype=float)
+    return 10.0 ** (magnitude_db_values / 20.0)
+
+
+def get_magnitude_db(tf: np.ndarray | "TF") -> np.ndarray:
+    magnitude = get_magnitude(tf)
+    return magnitude_to_db(magnitude)
+
+
+def get_phase(tf: np.ndarray | "TF") -> np.ndarray:
+    if isinstance(tf, np.ndarray):
+        tf_values = tf
+    else:
+        if not hasattr(tf, "values"):
+            raise ValueError("tf must be a NumPy array or a TF instance")
+        tf_values = tf.values
+    if tf_values is None:
+        raise ValueError("TF data is not available")
+    if not isinstance(tf_values, np.ndarray):
+        raise ValueError("TF data must be a NumPy array")
+    return np.angle(tf_values)
+
+
+def get_real(tf: np.ndarray | "TF") -> np.ndarray:
+    if isinstance(tf, np.ndarray):
+        tf_values = tf
+    else:
+        if not hasattr(tf, "values"):
+            raise ValueError("tf must be a NumPy array or a TF instance")
+        tf_values = tf.values
+    if tf_values is None:
+        raise ValueError("TF data is not available")
+    if not isinstance(tf_values, np.ndarray):
+        raise ValueError("TF data must be a NumPy array")
+    return np.real(tf_values)
+
+
+def get_imag(tf: np.ndarray | "TF") -> np.ndarray:
+    if isinstance(tf, np.ndarray):
+        tf_values = tf
+    else:
+        if not hasattr(tf, "values"):
+            raise ValueError("tf must be a NumPy array or a TF instance")
+        tf_values = tf.values
+    if tf_values is None:
+        raise ValueError("TF data is not available")
+    if not isinstance(tf_values, np.ndarray):
+        raise ValueError("TF data must be a NumPy array")
+    return np.imag(tf_values)
+
+
 def upsampling(
     ir: np.ndarray | "IR",
     new_sample_rate: float,
@@ -235,20 +308,197 @@ def apply_window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray | None:
     return ir * window_values
 
 
+def apply_ir_crop(
+    ir: np.ndarray | "IR",
+    start: int | None = None,
+    end: int | None = None,
+    start_seconds: float | None = None,
+    end_seconds: float | None = None,
+    sample_rate: float | None = None,
+) -> np.ndarray:
+
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+        resolved_sample_rate = sample_rate
+    else:
+        if not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
+            raise ValueError("ir must be a NumPy array or an IR instance")
+        ir_values = ir.values
+        resolved_sample_rate = sample_rate if sample_rate is not None else ir.sample_rate
+
+    if ir_values is None:
+        raise ValueError("IR data is not available")
+    if not isinstance(ir_values, np.ndarray):
+        raise ValueError("IR data must be a NumPy array")
+    if ir_values.ndim == 0:
+        raise ValueError("IR data must have at least one dimension")
+
+    using_sample_indices = start is not None or end is not None
+    using_seconds = start_seconds is not None or end_seconds is not None
+    if using_sample_indices and using_seconds:
+        raise ValueError("Use either sample indices (start/end) or seconds (start_seconds/end_seconds)")
+
+    start_index = start
+    end_index = end
+    if using_seconds:
+        if resolved_sample_rate is None:
+            raise ValueError("sample_rate is required when using seconds crop")
+        if isinstance(resolved_sample_rate, bool):
+            raise ValueError("sample_rate must be a finite, positive value.")
+        try:
+            resolved_sample_rate = float(resolved_sample_rate)
+        except (TypeError, ValueError):
+            raise ValueError("sample_rate must be a finite, positive value.") from None
+        if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
+            raise ValueError("sample_rate must be a finite, positive value.")
+        if start_seconds is not None:
+            if isinstance(start_seconds, bool):
+                raise ValueError("start_seconds must be a finite, non-negative value.")
+            try:
+                start_seconds = float(start_seconds)
+            except (TypeError, ValueError):
+                raise ValueError("start_seconds must be a finite, non-negative value.") from None
+            if not np.isfinite(start_seconds) or start_seconds < 0.0:
+                raise ValueError("start_seconds must be a finite, non-negative value.")
+            start_index = int(round(start_seconds * resolved_sample_rate))
+        else:
+            start_index = None
+        if end_seconds is not None:
+            if isinstance(end_seconds, bool):
+                raise ValueError("end_seconds must be a finite, non-negative value.")
+            try:
+                end_seconds = float(end_seconds)
+            except (TypeError, ValueError):
+                raise ValueError("end_seconds must be a finite, non-negative value.") from None
+            if not np.isfinite(end_seconds) or end_seconds < 0.0:
+                raise ValueError("end_seconds must be a finite, non-negative value.")
+            end_index = int(round(end_seconds * resolved_sample_rate))
+        else:
+            end_index = None
+    else:
+        if start is not None:
+            if isinstance(start, bool) or not isinstance(start, int):
+                raise ValueError("start must be an integer")
+            if start < 0:
+                raise ValueError("start must be non-negative")
+        if end is not None:
+            if isinstance(end, bool) or not isinstance(end, int):
+                raise ValueError("end must be an integer")
+            if end < 0:
+                raise ValueError("end must be non-negative")
+
+    if start_index is not None and end_index is not None and start_index >= end_index:
+        raise ValueError("Crop end must be greater than crop start")
+
+    return ir_values[..., slice(start_index, end_index)]
+
+
+def apply_tf_crop(
+    tf: np.ndarray | "TF",
+    start: int | None = None,
+    end: int | None = None,
+    start_frequency: float | None = None,
+    end_frequency: float | None = None,
+    frequency_bins: np.ndarray | None = None,
+) -> np.ndarray:
+    if isinstance(tf, np.ndarray):
+        tf_values = tf
+        frequency_bins_array = frequency_bins
+    else:
+        if not hasattr(tf, "values") or not hasattr(tf, "frequency_bins"):
+            raise ValueError("tf must be a NumPy array or a TF instance")
+        tf_values = tf.values
+        if frequency_bins is not None:
+            frequency_bins_array = frequency_bins
+        else:
+            frequency_bins_array = tf.frequency_bins
+
+    if tf_values is None:
+        raise ValueError("TF data is not available")
+    if not isinstance(tf_values, np.ndarray):
+        raise ValueError("TF data must be a NumPy array")
+    if tf_values.ndim == 0:
+        raise ValueError("TF data must have at least one dimension")
+
+
+    using_indices = start is not None or end is not None
+    using_frequencies = start_frequency is not None or end_frequency is not None
+    if using_indices and using_frequencies:
+        raise ValueError(
+            "Use either index crop (start/end) or frequency crop (start_frequency/end_frequency)"
+        )
+
+    tf_cropped = np.array(tf_values, copy=True)
+
+    if using_indices:
+        if start is not None:
+            if isinstance(start, bool) or not isinstance(start, int):
+                raise ValueError("start must be an integer")
+            if start < 0:
+                raise ValueError("start must be non-negative")
+        if end is not None:
+            if isinstance(end, bool) or not isinstance(end, int):
+                raise ValueError("end must be an integer")
+            if end < 0:
+                raise ValueError("end must be non-negative")
+        if start is not None and end is not None and start >= end:
+            raise ValueError("Crop end must be greater than crop start")
+
+        mask = np.zeros(tf_values.shape[-1], dtype=bool)
+        mask[slice(start, end)] = True
+        tf_cropped[..., ~mask] = 0
+        return tf_cropped
+
+    if using_frequencies:
+        if frequency_bins_array is None:
+            raise ValueError("frequency_bins is required for frequency-domain crop")
+        frequency_bins_array = np.asarray(frequency_bins_array, dtype=float)
+        if frequency_bins_array.ndim != 1:
+            raise ValueError("frequency_bins must be a 1D array")
+        if frequency_bins_array.size != tf_values.shape[-1]:
+            raise ValueError("frequency_bins must match TF length")
+
+        if start_frequency is not None:
+            if isinstance(start_frequency, bool):
+                raise ValueError("start_frequency must be a finite, non-negative value.")
+            try:
+                start_frequency = float(start_frequency)
+            except (TypeError, ValueError):
+                raise ValueError("start_frequency must be a finite, non-negative value.") from None
+            if not np.isfinite(start_frequency) or start_frequency < 0.0:
+                raise ValueError("start_frequency must be a finite, non-negative value.")
+        else:
+            start_frequency = 0.0
+
+        if end_frequency is not None:
+            if isinstance(end_frequency, bool):
+                raise ValueError("end_frequency must be a finite, non-negative value.")
+            try:
+                end_frequency = float(end_frequency)
+            except (TypeError, ValueError):
+                raise ValueError("end_frequency must be a finite, non-negative value.") from None
+            if not np.isfinite(end_frequency) or end_frequency < 0.0:
+                raise ValueError("end_frequency must be a finite, non-negative value.")
+        else:
+            end_frequency = float(np.max(np.abs(frequency_bins_array)))
+
+        if start_frequency >= end_frequency:
+            raise ValueError("Crop end frequency must be greater than crop start frequency")
+
+        frequency_magnitude = np.abs(frequency_bins_array)
+        mask = (frequency_magnitude >= start_frequency) & (frequency_magnitude <= end_frequency)
+        tf_cropped[..., ~mask] = 0
+        return tf_cropped
+
+    return tf_cropped
+
+
 def apply_crop(
     ir: np.ndarray | "IR",
     start: int | None = None,
     end: int | None = None,
 ) -> np.ndarray:
-
-    if not isinstance(ir, np.ndarray):
-        if hasattr(ir, "values"):
-            ir = ir.values
-        else:
-            ir = None
-    if ir is None:
-        raise ValueError("IR data is not available")
-    return ir[..., slice(start, end)]
+    return apply_ir_crop(ir, start=start, end=end)
 
 
 def apply_padding(
