@@ -126,7 +126,7 @@ def get_magnitude_db(tf: np.ndarray | "TF") -> np.ndarray:
     return magnitude_to_db(magnitude)
 
 
-def get_phase(tf: np.ndarray | "TF") -> np.ndarray:
+def get_phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
     if isinstance(tf, np.ndarray):
         tf_values = tf
     else:
@@ -137,7 +137,12 @@ def get_phase(tf: np.ndarray | "TF") -> np.ndarray:
         raise ValueError("TF data is not available")
     if not isinstance(tf_values, np.ndarray):
         raise ValueError("TF data must be a NumPy array")
-    return np.angle(tf_values)
+    unit_key = str(unit).strip().lower()
+    if unit_key in {"degrees", "degree", "deg"}:
+        return np.angle(tf_values, deg=True)
+    if unit_key in {"radians", "radian", "rad"}:
+        return np.angle(tf_values, deg=False)
+    raise ValueError("unit must be one of: degrees, radians")
 
 
 def get_real(tf: np.ndarray | "TF") -> np.ndarray:
