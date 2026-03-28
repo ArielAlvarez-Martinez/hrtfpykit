@@ -24,6 +24,18 @@ class IR:
             return None
         return int(values.shape[-1])
 
+    @property
+    def ir_duration(self) -> float:
+        values = self.values
+        sample_rate = self.sample_rate
+        if values is None:
+            raise ValueError("IR data is not available")
+        if sample_rate is None:
+            raise ValueError("IR sample_rate is not available")
+        if not np.isfinite(sample_rate) or sample_rate <= 0.0:
+            raise ValueError("IR sample_rate must be finite and positive")
+        return float(values.shape[-1]) / float(sample_rate)
+
     def apply_crop(self, start: int | None = None, end: int | None = None) -> None:
         values = self.values
         if values is None:

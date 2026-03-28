@@ -107,25 +107,30 @@ def apply_crop(
 
 
 def apply_padding(
-    ir: np.ndarray | "IR",
+    data: np.ndarray | "IR" | "TF",
     padding_length: int,
     location: str = "end",
-    value: int = 0,
+    value: float | complex = 0,
 ) -> np.ndarray:
 
-    if not isinstance(ir, np.ndarray):
-        if hasattr(ir, "values"):
-            ir = ir.values
-        else:
-            ir = None
-    if ir is None:
-        raise ValueError("IR data is not available")
+    if isinstance(data, np.ndarray):
+        signal_values = data
+    elif hasattr(data, "values"):
+        signal_values = data.values
+    else:
+        signal_values = None
+    if signal_values is None:
+        raise ValueError("Signal data is not available")
+    if not isinstance(signal_values, np.ndarray):
+        raise ValueError("Signal data must be a NumPy array")
+    if signal_values.size == 0:
+        raise ValueError("Signal data must be non-empty")
     if isinstance(padding_length, bool) or not isinstance(padding_length, int):
         raise ValueError("Padding must be an integer")
     if padding_length < 0:
         raise ValueError("Padding must be non-negative")
     if padding_length == 0:
-        return ir
+        return signal_values
     location_key = location.strip().lower()
     if location_key == "start":
         before, after = padding_length, 0
@@ -133,9 +138,9 @@ def apply_padding(
         before, after = 0, padding_length
     else:
         raise ValueError("Padding location must be 'start' or 'end'")
-    pad_width = [(0, 0)] * (ir.ndim - 1) + [(before, after)]
+    pad_width = [(0, 0)] * (signal_values.ndim - 1) + [(before, after)]
     return np.pad(
-        ir,
+        signal_values,
         pad_width,
         mode="constant",
         constant_values=value,
