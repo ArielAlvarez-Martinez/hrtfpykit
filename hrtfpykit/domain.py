@@ -17,12 +17,14 @@ from .dsp import (
     apply_padding,
     apply_window,
     calculate_tf_from_ir,
+    downsampling as dsp_downsampling,
     get_imag,
     get_magnitude,
     get_magnitude_db,
     get_phase,
     get_real,
-    signal_duration,
+    get_signal_duration,
+    upsampling as dsp_upsampling,
 )
 
 if TYPE_CHECKING:
@@ -58,8 +60,7 @@ class IR:
         Returns:
             float.
         """
-
-        return signal_duration(self)
+        return get_signal_duration(self)
 
     def apply_crop(
         self,
@@ -191,6 +192,58 @@ class IR:
             num_taps=num_taps,
             window=window,
         )
+        self._recompute_tf()
+
+    def upsampling(self, new_sample_rate: float) -> None:
+        """General Description:
+        Upsample IR values to a higher sample rate and refresh TF.
+
+        Parameters:
+        - new_sample_rate: Target sample rate in Hz. It must be greater than current sample_rate.
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Increase temporal resolution for analysis or resynthesis pipelines.
+        - Prepare HRIR data for systems that require higher sample rates.
+
+        Best Practices:
+        - Use this method when current IR values and sample_rate are already initialized.
+        - Keep resampling operations centralized here to preserve IR/TF synchronization.
+        """
+        resampled_ir, resampled_sample_rate = dsp_upsampling(
+            self,
+            new_sample_rate=new_sample_rate,
+        )
+        self.values = resampled_ir
+        self.sample_rate = resampled_sample_rate
+        self._recompute_tf()
+
+    def downsampling(self, new_sample_rate: float) -> None:
+        """General Description:
+        Downsample IR values to a lower sample rate and refresh TF.
+
+        Parameters:
+        - new_sample_rate: Target sample rate in Hz. It must be lower than current sample_rate.
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Reduce processing/storage cost for downstream applications.
+        - Match HRIR data to lower-rate playback or modeling systems.
+
+        Best Practices:
+        - Ensure the chosen target rate preserves the useful bandwidth for your task.
+        - Prefer this method over manual resampling to keep IR and TF consistent.
+        """
+        resampled_ir, resampled_sample_rate = dsp_downsampling(
+            self,
+            new_sample_rate=new_sample_rate,
+        )
+        self.values = resampled_ir
+        self.sample_rate = resampled_sample_rate
         self._recompute_tf()
 
     def _recompute_tf(

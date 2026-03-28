@@ -61,7 +61,7 @@ def undo_normalization(
     return signal * norm_value
 
 
-def signal_duration(
+def get_signal_duration(
     signal: np.ndarray | "IR",
     sample_rate: float | None = None,
 ) -> float:

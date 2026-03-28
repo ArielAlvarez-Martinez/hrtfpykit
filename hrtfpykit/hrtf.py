@@ -6,8 +6,6 @@ from .analytics import Analytics
 from .dsp import (
     calculate_ir_from_tf,
     calculate_tf_from_ir,
-    downsampling as dsp_downsampling,
-    upsampling as dsp_upsampling,
 )
 from .sofa.core import SOFA
 from .spatial import Sources
@@ -38,34 +36,6 @@ class HRTF:
     @property
     def Analytics(self) -> "Analytics":
         return Analytics(self)
-
-    def upsampling(self, new_sample_rate: float) -> None:
-        ir_values = self.IR.values
-        if ir_values is None:
-            raise ValueError("IR data is not available")
-        if self.IR.sample_rate is None:
-            raise ValueError("IR sample_rate is not available")
-        resampled_ir, resampled_sample_rate = dsp_upsampling(
-            self.IR,
-            new_sample_rate=new_sample_rate,
-        )
-        self.IR.values = resampled_ir
-        self.IR.sample_rate = resampled_sample_rate
-        calculate_tf_from_ir(self.IR)
-
-    def downsampling(self, new_sample_rate: float) -> None:
-        ir_values = self.IR.values
-        if ir_values is None:
-            raise ValueError("IR data is not available")
-        if self.IR.sample_rate is None:
-            raise ValueError("IR sample_rate is not available")
-        resampled_ir, resampled_sample_rate = dsp_downsampling(
-            self.IR,
-            new_sample_rate=new_sample_rate,
-        )
-        self.IR.values = resampled_ir
-        self.IR.sample_rate = resampled_sample_rate
-        calculate_tf_from_ir(self.IR)
 
     def modify_fft_length(self, new_fft_length: int) -> None:
         if self.IR.values is None:
@@ -206,4 +176,3 @@ class HRTF:
             hrtf.fft_length = fft_length_used
             hrtf.SOFAConventions = convention
             return hrtf
-
