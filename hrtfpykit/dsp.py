@@ -239,65 +239,77 @@ def calculate_tf_from_ir(
     ir_normalization: float | None = None,
     normalization_action: str = "apply",
 ) -> tuple[np.ndarray, np.ndarray, int] | "TF":
-
     ir_object = None
-    values = ir
-    resolved_sample_rate = sample_rate
-
-    if (
-        hasattr(ir, "_hrtf")
-        and hasattr(ir, "values")
-        and hasattr(ir, "sample_rate")
-    ):
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+        if ir_values.size == 0 or np.all(ir_values == 0):
+            raise ValueError("NumPy ir array requires non empty values.")
+        resolved_sample_rate = sample_rate
+    else:
+        if not hasattr(ir, "_hrtf") or not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
+            raise ValueError("ir must be a NumPy array or an IR instance")
         ir_object = ir
-        values = ir.values
-        if resolved_sample_rate is None:
-            resolved_sample_rate = ir.sample_rate
-    elif not isinstance(ir, np.ndarray):
-        raise ValueError("IR data must be a NumPy array or an IR instance")
+        ir_values = ir.values
+        if ir_values is None:
+            raise ValueError("IR data is not available; cannot compute TF.")
+        if not isinstance(ir_values, np.ndarray):
+            raise ValueError("IR.values must be a NumPy array.")
+        if ir_values.size == 0 or np.all(ir_values == 0):
+            raise ValueError("IR requires non empty 'values'.")
+        resolved_sample_rate = sample_rate if sample_rate is not None else ir.sample_rate
 
-    if values is None:
-        raise ValueError("IR data is not available")
-    if not isinstance(values, np.ndarray):
-        raise ValueError("IR data must be a NumPy array")
-    if ir_object is None:
-        if resolved_sample_rate is None:
+    if resolved_sample_rate is None:
+        if ir_object is None:
             raise ValueError("sample_rate is required when ir is a NumPy array")
-        if fft_length is None:
-            raise ValueError("fft_length is required when ir is a NumPy array")
-    elif resolved_sample_rate is None:
         raise ValueError("sample_rate is required when IR.sample_rate is unavailable")
-    n_fft = fft_length if fft_length is not None else values.shape[-1]
+    try:
+        resolved_sample_rate = float(resolved_sample_rate)
+    except (TypeError, ValueError):
+        raise ValueError("sample_rate must be a finite, positive value.") from None
+    if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
+        raise ValueError("sample_rate must be a finite, positive value.")
 
-    signal = values
+    if fft_length is None:
+        fft_length_used = int(ir_values.shape[-1])
+    else:
+        if isinstance(fft_length, bool) or not isinstance(fft_length, int):
+            raise ValueError("fft_length must be an integer")
+        if fft_length <= 0:
+            raise ValueError("fft_length must be positive")
+        fft_length_used = int(fft_length)
+
+    if fft_length_used < 2:
+        raise ValueError("FFT length must contain at least two points.")
+
+    action = normalization_action.strip().lower()
+    if action not in {"apply", "undo"}:
+        raise ValueError("normalization_action must be 'apply' or 'undo'")
+
+    ir_used = ir_values
     if window_name:
-        windowed = apply_window(values, window_name)
+        windowed = apply_window(ir_values, window_name)
         if windowed is not None:
-            signal = windowed
+            ir_used = windowed
     if ir_normalization is not None:
         try:
             norm_value = float(ir_normalization)
         except (TypeError, ValueError):
             norm_value = None
         if norm_value is not None and not np.isclose(norm_value, 0.0):
-            action = normalization_action.strip().lower()
-            if action not in {"apply", "undo"}:
-                raise ValueError("normalization_action must be 'apply' or 'undo'")
             if action == "apply":
-                signal = signal / norm_value
+                ir_used = ir_used / norm_value
             else:
-                signal = signal * norm_value
+                ir_used = ir_used * norm_value
 
-    tf = np.fft.rfft(signal, n=n_fft, axis=-1)
-    frequency_bins = np.fft.rfftfreq(n_fft, d=1.0 / resolved_sample_rate)
-    fft_length = int(n_fft)
+    tf_values = np.fft.rfft(ir_used, n=fft_length_used, axis=-1)
+    frequency_bins = np.fft.rfftfreq(fft_length_used, d=1.0 / resolved_sample_rate)
     if ir_object is not None:
         tf_object = ir_object._hrtf.TF
-        tf_object.values = tf
+        tf_object.values = tf_values
         tf_object.frequency_bins = frequency_bins
-        ir_object._hrtf.fft_length = fft_length
+        ir_object._hrtf.fft_length = fft_length_used
         return tf_object
-    return tf, frequency_bins, fft_length
+    return tf_values, frequency_bins, fft_length_used
 
 
 def calculate_ir_from_tf(
@@ -417,4 +429,4 @@ def calculate_ir_from_tf(
         ir_object.sample_rate = sample_rate
         tf_object._hrtf.fft_length = fft_length_used
         return ir_object
-    return ir_values, sample_rate
+    return ir_values, sample_rate, fft_length_used

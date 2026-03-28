@@ -168,5 +168,4 @@ class HRTF:
             hrtf.SOFAConventions = convention
             return hrtf
 
-    
 
