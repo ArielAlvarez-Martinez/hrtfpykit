@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 from typing import TYPE_CHECKING
 
 from .dsp import (
-    apply_filter,
+    apply_fir_filter,
+    apply_iir_filter,
     apply_ir_crop,
     apply_padding,
     apply_tf_crop,
@@ -13,6 +14,9 @@ from .dsp import (
     calculate_ir_from_tf,
     calculate_tf_from_ir,
     downsampling,
+    minimum_phase,
+    modify_magnitude,
+    modify_phase,
     upsampling,
 )
 
@@ -177,7 +181,7 @@ class Transform:
 
         raise ValueError("domain must be 'ir' or 'tf'")
 
-    def apply_filter(
+    def apply_fir_filter(
         self,
         filter: str,
         cutoff: float | tuple[float, float] | None = None,
@@ -206,7 +210,7 @@ class Transform:
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        ir.values = apply_filter(
+        ir.values = apply_fir_filter(
             ir,
             filter=filter,
             sample_rate=ir.sample_rate,
@@ -217,6 +221,157 @@ class Transform:
         calculate_tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
+        )
+        return transformed_hrtf
+
+    def apply_iir_filter(
+        self,
+        filter: str,
+        cutoff: float | tuple[float, float] | None = None,
+        order: int = 10,
+    ) -> "HRTF":
+        """General Description:
+        Apply IIR filtering on IR values and resync TF.
+
+        Parameters:
+        - filter: Filter type (lowpass, highpass, bandpass aliases supported).
+        - cutoff: Cutoff frequency or cutoff pair for bandpass.
+        - order: IIR Butterworth filter order.
+
+        Returns:
+        - A new HRTF instance with transformed IR/TF values.
+
+        Use Cases:
+        - Reproduce legacy IIR-based preprocessing chains.
+        - Apply low-latency recursive filtering before analysis.
+
+        Best Practices:
+        - Keep order moderate to avoid unstable configurations.
+        - Keep cutoff values inside valid Nyquist limits.
+        """
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        ir.values = apply_iir_filter(
+            ir,
+            filter=filter,
+            sample_rate=ir.sample_rate,
+            cutoff=cutoff,
+            order=order,
+        )
+        calculate_tf_from_ir(
+            ir,
+            fft_length=transformed_hrtf.fft_length,
+        )
+        return transformed_hrtf
+
+    def minimum_phase(
+        self,
+        method: str = "homomorphic",
+        fft_length: int | None = None,
+        epsilon: float = 1e-12,
+    ) -> "HRTF":
+        """General Description:
+        Convert IR values to minimum-phase and resync TF.
+
+        Parameters:
+        - method: Minimum-phase method key.
+        - fft_length: Optional FFT length used in cepstral reconstruction.
+        - epsilon: Small positive floor for log-magnitude stability.
+
+        Returns:
+        - A new HRTF instance with transformed IR/TF values.
+
+        Use Cases:
+        - Build minimum-phase HRIR approximations for reduced-latency processing.
+        - Standardize phase behavior across datasets before analysis.
+
+        Best Practices:
+        - Ensure IR values are initialized before conversion.
+        - Keep method and fft_length explicit for reproducibility.
+        """
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        ir.values = minimum_phase(
+            ir,
+            method=method,
+            fft_length=fft_length,
+            epsilon=epsilon,
+        )
+        calculate_tf_from_ir(
+            ir,
+            fft_length=transformed_hrtf.fft_length,
+        )
+        return transformed_hrtf
+
+    def modify_phase(
+        self,
+        new_phase: np.ndarray,
+        unit: str = "degrees",
+    ) -> "HRTF":
+        """General Description:
+        Replace TF phase values and rebuild IR.
+
+        Parameters:
+        - new_phase: Phase array matching TF shape.
+        - unit: Phase unit (`degrees` or `radians`).
+
+        Returns:
+        - A new HRTF instance with transformed IR/TF values.
+
+        Use Cases:
+        - Apply target phase profiles while preserving measured magnitudes.
+        - Build controlled phase perturbation experiments.
+
+        Best Practices:
+        - Ensure TF values and frequency bins are initialized before applying.
+        - Keep unit explicit for reproducibility.
+        """
+        transformed_hrtf = self._hrtf.clone()
+        tf = transformed_hrtf.TF
+        tf.values = modify_phase(
+            tf,
+            new_phase=new_phase,
+            unit=unit,
+        )
+        calculate_ir_from_tf(
+            tf,
+            frequency_bins=tf.frequency_bins,
+        )
+        return transformed_hrtf
+
+    def modify_magnitude(
+        self,
+        new_magnitude: np.ndarray,
+        scale: str = "linear",
+    ) -> "HRTF":
+        """General Description:
+        Replace TF magnitude values and rebuild IR.
+
+        Parameters:
+        - new_magnitude: Magnitude array matching TF shape.
+        - scale: Magnitude scale (`linear`, `lineal`, or `db`).
+
+        Returns:
+        - A new HRTF instance with transformed IR/TF values.
+
+        Use Cases:
+        - Apply target magnitude responses while preserving phase.
+        - Evaluate perceptual effects of magnitude-only modifications.
+
+        Best Practices:
+        - Ensure TF values and frequency bins are initialized before applying.
+        - Use explicit scale selection to avoid ambiguous magnitude units.
+        """
+        transformed_hrtf = self._hrtf.clone()
+        tf = transformed_hrtf.TF
+        tf.values = modify_magnitude(
+            tf,
+            new_magnitude=new_magnitude,
+            scale=scale,
+        )
+        calculate_ir_from_tf(
+            tf,
+            frequency_bins=tf.frequency_bins,
         )
         return transformed_hrtf
 
