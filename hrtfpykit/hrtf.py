@@ -37,12 +37,6 @@ class HRTF:
     def Analytics(self) -> "Analytics":
         return Analytics(self)
 
-    def modify_fft_length(self, new_fft_length: int) -> None:
-        if self.IR.values is None:
-            raise ValueError("IR data is not available")
-        self.fft_length = int(new_fft_length)
-        self.IR._recompute_tf(fft_length=int(new_fft_length))
-
     @classmethod
     def load_hrtf(
         cls,
