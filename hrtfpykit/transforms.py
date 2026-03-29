@@ -2,6 +2,367 @@ import numpy as np
 from scipy.special import sph_harm
 import math
 import matplotlib.pyplot as plt
+from typing import TYPE_CHECKING
+
+from .dsp import (
+    apply_filter as dsp_apply_filter,
+    apply_ir_crop as dsp_apply_ir_crop,
+    apply_padding as dsp_apply_padding,
+    apply_tf_crop as dsp_apply_tf_crop,
+    apply_window as dsp_apply_window,
+    calculate_ir_from_tf,
+    calculate_tf_from_ir,
+    downsampling as dsp_downsampling,
+    upsampling as dsp_upsampling,
+)
+
+if TYPE_CHECKING:
+    from .domain import IR, TF
+    from .spatial import Sources
+
+
+class _Transform:
+    def __init__(self, domain: "IR | TF | Sources") -> None:
+        self._domain = domain
+        self._hrtf = domain._hrtf
+
+
+class TransformIR(_Transform):
+    """IR-domain transform operations."""
+
+    def __init__(self, ir: "IR") -> None:
+        super().__init__(ir)
+
+    def apply_ir_crop(
+        self,
+        start: int | None = None,
+        end: int | None = None,
+        start_seconds: float | None = None,
+        end_seconds: float | None = None,
+    ) -> None:
+        """General Description:
+        Crop IR values in time by sample indices or seconds and resync TF.
+
+        Parameters:
+        - start: Start sample index (inclusive).
+        - end: End sample index (exclusive).
+        - start_seconds: Start time in seconds.
+        - end_seconds: End time in seconds.
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Trim early reflections or isolate a time segment.
+        - Apply sample-rate-aware cropping using seconds.
+
+        Best Practices:
+        - Use either sample indices or seconds in a single call.
+        - Let this method handle IR/TF synchronization.
+        """
+        self._domain.values = dsp_apply_ir_crop(
+            self._domain,
+            start=start,
+            end=end,
+            start_seconds=start_seconds,
+            end_seconds=end_seconds,
+        )
+        calculate_tf_from_ir(
+            self._domain,
+            fft_length=self._hrtf.fft_length,
+        )
+
+    def apply_window(self, window_name: str) -> None:
+        """General Description:
+        Apply a time-domain window to IR values and resync TF.
+
+        Parameters:
+        - window_name: Window identifier (for example hann, hamming, blackman).
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Reduce spectral leakage before FFT conversion.
+
+        Best Practices:
+        - Use supported window names only.
+        - Apply windowing intentionally because it changes signal energy distribution.
+        """
+        windowed = dsp_apply_window(self._domain, window_name)
+        if windowed is None:
+            raise ValueError(f"Unsupported window '{window_name}'")
+        self._domain.values = windowed
+        calculate_tf_from_ir(
+            self._domain,
+            fft_length=self._hrtf.fft_length,
+        )
+
+    def apply_padding(
+        self,
+        padding_length: int,
+        location: str = "end",
+        value: float | complex = 0,
+    ) -> None:
+        """General Description:
+        Pad IR values in time domain and resync TF.
+
+        Parameters:
+        - padding_length: Number of samples to add.
+        - location: Padding side, start or end.
+        - value: Constant pad value.
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Increase IR length before FFT-based workflows.
+        - Align impulse responses for downstream comparisons.
+
+        Best Practices:
+        - Prefer end padding for most HRIR workflows.
+        - Keep padding length explicit for reproducibility.
+        """
+        self._domain.values = dsp_apply_padding(
+            self._domain,
+            padding_length=padding_length,
+            location=location,
+            value=value,
+        )
+        calculate_tf_from_ir(
+            self._domain,
+            fft_length=self._hrtf.fft_length,
+        )
+
+    def apply_filter(
+        self,
+        filter: str,
+        cutoff: float | tuple[float, float] | None = None,
+        num_taps: int = 101,
+        window: str | None = None,
+    ) -> None:
+        """General Description:
+        Apply FIR filtering on IR values and resync TF.
+
+        Parameters:
+        - filter: Filter type (lowpass, highpass, bandpass aliases supported).
+        - cutoff: Cutoff frequency or cutoff pair for bandpass.
+        - num_taps: FIR filter length.
+        - window: Optional FIR design window.
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Remove undesired frequency content from HRIR data.
+        - Isolate a band before feature extraction.
+
+        Best Practices:
+        - Use odd `num_taps` for linear-phase behavior.
+        - Keep cutoff values inside valid Nyquist limits.
+        """
+        self._domain.values = dsp_apply_filter(
+            self._domain,
+            filter=filter,
+            sample_rate=self._domain.sample_rate,
+            cutoff=cutoff,
+            num_taps=num_taps,
+            window=window,
+        )
+        calculate_tf_from_ir(
+            self._domain,
+            fft_length=self._hrtf.fft_length,
+        )
+
+    def upsampling(self, new_sample_rate: float) -> None:
+        """General Description:
+        Upsample IR values to a higher sample rate and resync TF.
+
+        Parameters:
+        - new_sample_rate: Target sample rate in Hz, higher than current IR sample rate.
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Increase temporal resolution for analysis or rendering.
+
+        Best Practices:
+        - Use only when IR values and sample rate are initialized.
+        - Centralize resampling here to keep IR and TF synchronized.
+        """
+        resampled_ir, resampled_sample_rate = dsp_upsampling(
+            self._domain,
+            new_sample_rate=new_sample_rate,
+        )
+        self._domain.values = resampled_ir
+        self._domain.sample_rate = resampled_sample_rate
+        calculate_tf_from_ir(
+            self._domain,
+            fft_length=self._hrtf.fft_length,
+        )
+
+    def downsampling(self, new_sample_rate: float) -> None:
+        """General Description:
+        Downsample IR values to a lower sample rate and resync TF.
+
+        Parameters:
+        - new_sample_rate: Target sample rate in Hz, lower than current IR sample rate.
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Reduce processing and storage footprint.
+        - Match external systems that require lower sample rates.
+
+        Best Practices:
+        - Ensure target rate preserves the required frequency bandwidth.
+        - Use this method instead of manual resampling to preserve IR/TF consistency.
+        """
+        resampled_ir, resampled_sample_rate = dsp_downsampling(
+            self._domain,
+            new_sample_rate=new_sample_rate,
+        )
+        self._domain.values = resampled_ir
+        self._domain.sample_rate = resampled_sample_rate
+        calculate_tf_from_ir(
+            self._domain,
+            fft_length=self._hrtf.fft_length,
+        )
+
+    def modify_fft_length(self, new_fft_length: int) -> None:
+        """General Description:
+        Set HRTF FFT length and recompute TF from current IR.
+
+        Parameters:
+        - new_fft_length: FFT size used for IR-to-TF conversion.
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Adjust spectral resolution for analysis or interpolation pipelines.
+
+        Best Practices:
+        - Ensure IR values exist before changing FFT length.
+        - Keep FFT-length changes centralized to maintain consistent metadata.
+        """
+        if self._domain.values is None:
+            raise ValueError("IR data is not available")
+        self._hrtf.fft_length = int(new_fft_length)
+        calculate_tf_from_ir(
+            self._domain,
+            fft_length=self._hrtf.fft_length,
+        )
+
+
+class TransformTF(_Transform):
+    def __init__(self, tf: "TF") -> None:
+        super().__init__(tf)
+
+    def apply_padding(
+        self,
+        padding_length: int,
+        location: str = "end",
+        value: float | complex = 0,
+    ) -> None:
+        """General Description:
+        Pad TF values in frequency domain and rebuild IR.
+
+        Parameters:
+        - padding_length: Number of bins to add.
+        - location: Padding side, start or end.
+        - value: Constant pad value.
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Extend TF length for FFT-size exploration.
+        - Create controlled spectral-domain zero regions at boundaries.
+
+        Best Practices:
+        - Ensure frequency bins are available and uniformly spaced.
+        - Use with awareness that IR will be recomputed after TF changes.
+        """
+        self._domain.values = dsp_apply_padding(
+            self._domain,
+            padding_length=padding_length,
+            location=location,
+            value=value,
+        )
+        frequency_bins = self._domain.frequency_bins
+        if frequency_bins is None:
+            raise ValueError("TF frequency bins are required for TF padding")
+        frequency_bins = np.asarray(frequency_bins, dtype=float)
+        if frequency_bins.ndim != 1 or frequency_bins.size < 2:
+            raise ValueError("TF frequency bins must be 1D with at least two values")
+        diffs = np.diff(frequency_bins)
+        step = float(diffs[0])
+        if not np.allclose(diffs, step, rtol=1e-5, atol=1e-8):
+            raise ValueError("TF frequency bins must be uniformly spaced for TF padding")
+        location_key = str(location).strip().lower()
+        if location_key == "start":
+            new_bins = frequency_bins[0] - step * np.arange(padding_length, 0, -1)
+            self._domain.frequency_bins = np.concatenate((new_bins, frequency_bins))
+        elif location_key == "end":
+            new_bins = frequency_bins[-1] + step * np.arange(1, padding_length + 1)
+            self._domain.frequency_bins = np.concatenate((frequency_bins, new_bins))
+        else:
+            raise ValueError("Padding location must be 'start' or 'end'")
+        calculate_ir_from_tf(
+            self._domain,
+            frequency_bins=self._domain.frequency_bins,
+        )
+
+    def apply_tf_crop(
+        self,
+        start: int | None = None,
+        end: int | None = None,
+        start_frequency: float | None = None,
+        end_frequency: float | None = None,
+    ) -> None:
+        """General Description:
+        Crop TF bins by indices or frequency range and rebuild IR.
+
+        Parameters:
+        - start: Start TF bin index (inclusive) for index crop.
+        - end: End TF bin index (exclusive) for index crop.
+        - start_frequency: Lower frequency bound in Hz for frequency crop.
+        - end_frequency: Upper frequency bound in Hz for frequency crop.
+
+        Returns:
+        None.
+
+        Use Cases:
+        - Keep only a selected spectral band.
+        - Build brickwall-like masks for controlled experiments.
+
+        Best Practices:
+        - Use either index crop or frequency crop in one call.
+        - Verify resulting IR behavior because hard spectral boundaries can introduce ringing.
+        """
+        self._domain.values = dsp_apply_tf_crop(
+            self._domain,
+            start=start,
+            end=end,
+            start_frequency=start_frequency,
+            end_frequency=end_frequency,
+        )
+        calculate_ir_from_tf(
+            self._domain,
+            frequency_bins=self._domain.frequency_bins,
+        )
+
+
+class TransformSources(_Transform):
+
+    def __init__(self, sources: "Sources") -> None:
+        super().__init__(sources)
+
+    
+
 
 '''
 

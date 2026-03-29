@@ -29,7 +29,7 @@ class HRTF:
     def TF(self) -> "TF":
         return TF(self)
 
-    @property
+    @cached_property
     def Sources(self) -> "Sources":
         return Sources(self)
 
