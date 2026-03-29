@@ -5,41 +5,35 @@ import matplotlib.pyplot as plt
 from typing import TYPE_CHECKING
 
 from .dsp import (
-    apply_filter as dsp_apply_filter,
-    apply_ir_crop as dsp_apply_ir_crop,
-    apply_padding as dsp_apply_padding,
-    apply_tf_crop as dsp_apply_tf_crop,
-    apply_window as dsp_apply_window,
+    apply_filter,
+    apply_ir_crop,
+    apply_padding,
+    apply_tf_crop,
+    apply_window,
     calculate_ir_from_tf,
     calculate_tf_from_ir,
-    downsampling as dsp_downsampling,
-    upsampling as dsp_upsampling,
+    downsampling,
+    upsampling,
 )
 
 if TYPE_CHECKING:
-    from .domain import IR, TF
-    from .spatial import Sources
+    from .hrtf import HRTF
 
 
-class _Transform:
-    def __init__(self, domain: "IR | TF | Sources") -> None:
-        self._domain = domain
-        self._hrtf = domain._hrtf
+class Transform:
+    """HRTF transform operations."""
 
+    def __init__(self, hrtf: "HRTF") -> None:
+        self._hrtf = hrtf
 
-class TransformIR(_Transform):
-    """IR-domain transform operations."""
-
-    def __init__(self, ir: "IR") -> None:
-        super().__init__(ir)
-
+   
     def apply_ir_crop(
         self,
         start: int | None = None,
         end: int | None = None,
         start_seconds: float | None = None,
         end_seconds: float | None = None,
-    ) -> None:
+    ) -> "HRTF":
         """General Description:
         Crop IR values in time by sample indices or seconds and resync TF.
 
@@ -50,7 +44,7 @@ class TransformIR(_Transform):
         - end_seconds: End time in seconds.
 
         Returns:
-        None.
+        - A new HRTF instance with transformed IR/TF values.
 
         Use Cases:
         - Trim early reflections or isolate a time segment.
@@ -60,19 +54,22 @@ class TransformIR(_Transform):
         - Use either sample indices or seconds in a single call.
         - Let this method handle IR/TF synchronization.
         """
-        self._domain.values = dsp_apply_ir_crop(
-            self._domain,
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        ir.values = apply_ir_crop(
+            ir,
             start=start,
             end=end,
             start_seconds=start_seconds,
             end_seconds=end_seconds,
         )
         calculate_tf_from_ir(
-            self._domain,
-            fft_length=self._hrtf.fft_length,
+            ir,
+            fft_length=transformed_hrtf.fft_length,
         )
+        return transformed_hrtf
 
-    def apply_window(self, window_name: str) -> None:
+    def apply_window(self, window_name: str) -> "HRTF":
         """General Description:
         Apply a time-domain window to IR values and resync TF.
 
@@ -80,7 +77,7 @@ class TransformIR(_Transform):
         - window_name: Window identifier (for example hann, hamming, blackman).
 
         Returns:
-        None.
+        - A new HRTF instance with transformed IR/TF values.
 
         Use Cases:
         - Reduce spectral leakage before FFT conversion.
@@ -89,50 +86,96 @@ class TransformIR(_Transform):
         - Use supported window names only.
         - Apply windowing intentionally because it changes signal energy distribution.
         """
-        windowed = dsp_apply_window(self._domain, window_name)
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        windowed = apply_window(ir, window_name)
         if windowed is None:
             raise ValueError(f"Unsupported window '{window_name}'")
-        self._domain.values = windowed
+        ir.values = windowed
         calculate_tf_from_ir(
-            self._domain,
-            fft_length=self._hrtf.fft_length,
+            ir,
+            fft_length=transformed_hrtf.fft_length,
         )
+        return transformed_hrtf
 
     def apply_padding(
         self,
         padding_length: int,
         location: str = "end",
         value: float | complex = 0,
-    ) -> None:
+        domain: str = "ir",
+    ) -> "HRTF":
         """General Description:
-        Pad IR values in time domain and resync TF.
+        Pad IR or TF values and resync the paired domain.
 
         Parameters:
-        - padding_length: Number of samples to add.
+        - padding_length: Number of samples or bins to add.
         - location: Padding side, start or end.
         - value: Constant pad value.
+        - domain: Domain to apply padding, ir or tf.
 
         Returns:
-        None.
+        - A new HRTF instance with transformed IR/TF values.
 
         Use Cases:
         - Increase IR length before FFT-based workflows.
-        - Align impulse responses for downstream comparisons.
+        - Extend TF length for FFT-size exploration.
 
         Best Practices:
-        - Prefer end padding for most HRIR workflows.
+        - Prefer end padding for most workflows.
         - Keep padding length explicit for reproducibility.
         """
-        self._domain.values = dsp_apply_padding(
-            self._domain,
-            padding_length=padding_length,
-            location=location,
-            value=value,
-        )
-        calculate_tf_from_ir(
-            self._domain,
-            fft_length=self._hrtf.fft_length,
-        )
+        transformed_hrtf = self._hrtf.clone()
+        domain_key = str(domain).strip().lower()
+        if domain_key == "ir":
+            ir = transformed_hrtf.IR
+            ir.values = apply_padding(
+                ir,
+                padding_length=padding_length,
+                location=location,
+                value=value,
+            )
+            calculate_tf_from_ir(
+                ir,
+                fft_length=transformed_hrtf.fft_length,
+            )
+            return transformed_hrtf
+
+        if domain_key == "tf":
+            tf = transformed_hrtf.TF
+            tf_values = apply_padding(
+                tf,
+                padding_length=padding_length,
+                location=location,
+                value=value,
+            )
+            frequency_bins = tf.frequency_bins
+            if frequency_bins is None:
+                raise ValueError("TF frequency bins are required for TF padding")
+            frequency_bins = np.asarray(frequency_bins, dtype=float)
+            if frequency_bins.ndim != 1 or frequency_bins.size < 2:
+                raise ValueError("TF frequency bins must be 1D with at least two values")
+            diffs = np.diff(frequency_bins)
+            step = float(diffs[0])
+            if not np.allclose(diffs, step, rtol=1e-5, atol=1e-8):
+                raise ValueError("TF frequency bins must be uniformly spaced for TF padding")
+            location_key = str(location).strip().lower()
+            if location_key == "start":
+                new_bins = frequency_bins[0] - step * np.arange(padding_length, 0, -1)
+                tf.frequency_bins = np.concatenate((new_bins, frequency_bins))
+            elif location_key == "end":
+                new_bins = frequency_bins[-1] + step * np.arange(1, padding_length + 1)
+                tf.frequency_bins = np.concatenate((frequency_bins, new_bins))
+            else:
+                raise ValueError("Padding location must be 'start' or 'end'")
+            tf.values = tf_values
+            calculate_ir_from_tf(
+                tf,
+                frequency_bins=tf.frequency_bins,
+            )
+            return transformed_hrtf
+
+        raise ValueError("domain must be 'ir' or 'tf'")
 
     def apply_filter(
         self,
@@ -140,7 +183,7 @@ class TransformIR(_Transform):
         cutoff: float | tuple[float, float] | None = None,
         num_taps: int = 101,
         window: str | None = None,
-    ) -> None:
+    ) -> "HRTF":
         """General Description:
         Apply FIR filtering on IR values and resync TF.
 
@@ -151,7 +194,7 @@ class TransformIR(_Transform):
         - window: Optional FIR design window.
 
         Returns:
-        None.
+        - A new HRTF instance with transformed IR/TF values.
 
         Use Cases:
         - Remove undesired frequency content from HRIR data.
@@ -161,20 +204,23 @@ class TransformIR(_Transform):
         - Use odd `num_taps` for linear-phase behavior.
         - Keep cutoff values inside valid Nyquist limits.
         """
-        self._domain.values = dsp_apply_filter(
-            self._domain,
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        ir.values = apply_filter(
+            ir,
             filter=filter,
-            sample_rate=self._domain.sample_rate,
+            sample_rate=ir.sample_rate,
             cutoff=cutoff,
             num_taps=num_taps,
             window=window,
         )
         calculate_tf_from_ir(
-            self._domain,
-            fft_length=self._hrtf.fft_length,
+            ir,
+            fft_length=transformed_hrtf.fft_length,
         )
+        return transformed_hrtf
 
-    def upsampling(self, new_sample_rate: float) -> None:
+    def upsampling(self, new_sample_rate: float) -> "HRTF":
         """General Description:
         Upsample IR values to a higher sample rate and resync TF.
 
@@ -182,7 +228,7 @@ class TransformIR(_Transform):
         - new_sample_rate: Target sample rate in Hz, higher than current IR sample rate.
 
         Returns:
-        None.
+        - A new HRTF instance with transformed IR/TF values.
 
         Use Cases:
         - Increase temporal resolution for analysis or rendering.
@@ -191,18 +237,21 @@ class TransformIR(_Transform):
         - Use only when IR values and sample rate are initialized.
         - Centralize resampling here to keep IR and TF synchronized.
         """
-        resampled_ir, resampled_sample_rate = dsp_upsampling(
-            self._domain,
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        resampled_ir, resampled_sample_rate = upsampling(
+            ir,
             new_sample_rate=new_sample_rate,
         )
-        self._domain.values = resampled_ir
-        self._domain.sample_rate = resampled_sample_rate
+        ir.values = resampled_ir
+        ir.sample_rate = resampled_sample_rate
         calculate_tf_from_ir(
-            self._domain,
-            fft_length=self._hrtf.fft_length,
+            ir,
+            fft_length=transformed_hrtf.fft_length,
         )
+        return transformed_hrtf
 
-    def downsampling(self, new_sample_rate: float) -> None:
+    def downsampling(self, new_sample_rate: float) -> "HRTF":
         """General Description:
         Downsample IR values to a lower sample rate and resync TF.
 
@@ -210,7 +259,7 @@ class TransformIR(_Transform):
         - new_sample_rate: Target sample rate in Hz, lower than current IR sample rate.
 
         Returns:
-        None.
+        - A new HRTF instance with transformed IR/TF values.
 
         Use Cases:
         - Reduce processing and storage footprint.
@@ -220,18 +269,21 @@ class TransformIR(_Transform):
         - Ensure target rate preserves the required frequency bandwidth.
         - Use this method instead of manual resampling to preserve IR/TF consistency.
         """
-        resampled_ir, resampled_sample_rate = dsp_downsampling(
-            self._domain,
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        resampled_ir, resampled_sample_rate = downsampling(
+            ir,
             new_sample_rate=new_sample_rate,
         )
-        self._domain.values = resampled_ir
-        self._domain.sample_rate = resampled_sample_rate
+        ir.values = resampled_ir
+        ir.sample_rate = resampled_sample_rate
         calculate_tf_from_ir(
-            self._domain,
-            fft_length=self._hrtf.fft_length,
+            ir,
+            fft_length=transformed_hrtf.fft_length,
         )
+        return transformed_hrtf
 
-    def modify_fft_length(self, new_fft_length: int) -> None:
+    def modify_fft_length(self, new_fft_length: int) -> "HRTF":
         """General Description:
         Set HRTF FFT length and recompute TF from current IR.
 
@@ -239,7 +291,7 @@ class TransformIR(_Transform):
         - new_fft_length: FFT size used for IR-to-TF conversion.
 
         Returns:
-        None.
+        - A new HRTF instance with transformed IR/TF values.
 
         Use Cases:
         - Adjust spectral resolution for analysis or interpolation pipelines.
@@ -248,73 +300,16 @@ class TransformIR(_Transform):
         - Ensure IR values exist before changing FFT length.
         - Keep FFT-length changes centralized to maintain consistent metadata.
         """
-        if self._domain.values is None:
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        if ir.values is None:
             raise ValueError("IR data is not available")
-        self._hrtf.fft_length = int(new_fft_length)
+        transformed_hrtf.fft_length = int(new_fft_length)
         calculate_tf_from_ir(
-            self._domain,
-            fft_length=self._hrtf.fft_length,
+            ir,
+            fft_length=transformed_hrtf.fft_length,
         )
-
-
-class TransformTF(_Transform):
-    def __init__(self, tf: "TF") -> None:
-        super().__init__(tf)
-
-    def apply_padding(
-        self,
-        padding_length: int,
-        location: str = "end",
-        value: float | complex = 0,
-    ) -> None:
-        """General Description:
-        Pad TF values in frequency domain and rebuild IR.
-
-        Parameters:
-        - padding_length: Number of bins to add.
-        - location: Padding side, start or end.
-        - value: Constant pad value.
-
-        Returns:
-        None.
-
-        Use Cases:
-        - Extend TF length for FFT-size exploration.
-        - Create controlled spectral-domain zero regions at boundaries.
-
-        Best Practices:
-        - Ensure frequency bins are available and uniformly spaced.
-        - Use with awareness that IR will be recomputed after TF changes.
-        """
-        self._domain.values = dsp_apply_padding(
-            self._domain,
-            padding_length=padding_length,
-            location=location,
-            value=value,
-        )
-        frequency_bins = self._domain.frequency_bins
-        if frequency_bins is None:
-            raise ValueError("TF frequency bins are required for TF padding")
-        frequency_bins = np.asarray(frequency_bins, dtype=float)
-        if frequency_bins.ndim != 1 or frequency_bins.size < 2:
-            raise ValueError("TF frequency bins must be 1D with at least two values")
-        diffs = np.diff(frequency_bins)
-        step = float(diffs[0])
-        if not np.allclose(diffs, step, rtol=1e-5, atol=1e-8):
-            raise ValueError("TF frequency bins must be uniformly spaced for TF padding")
-        location_key = str(location).strip().lower()
-        if location_key == "start":
-            new_bins = frequency_bins[0] - step * np.arange(padding_length, 0, -1)
-            self._domain.frequency_bins = np.concatenate((new_bins, frequency_bins))
-        elif location_key == "end":
-            new_bins = frequency_bins[-1] + step * np.arange(1, padding_length + 1)
-            self._domain.frequency_bins = np.concatenate((frequency_bins, new_bins))
-        else:
-            raise ValueError("Padding location must be 'start' or 'end'")
-        calculate_ir_from_tf(
-            self._domain,
-            frequency_bins=self._domain.frequency_bins,
-        )
+        return transformed_hrtf
 
     def apply_tf_crop(
         self,
@@ -322,7 +317,7 @@ class TransformTF(_Transform):
         end: int | None = None,
         start_frequency: float | None = None,
         end_frequency: float | None = None,
-    ) -> None:
+    ) -> "HRTF":
         """General Description:
         Crop TF bins by indices or frequency range and rebuild IR.
 
@@ -333,7 +328,7 @@ class TransformTF(_Transform):
         - end_frequency: Upper frequency bound in Hz for frequency crop.
 
         Returns:
-        None.
+        - A new HRTF instance with transformed IR/TF values.
 
         Use Cases:
         - Keep only a selected spectral band.
@@ -343,25 +338,20 @@ class TransformTF(_Transform):
         - Use either index crop or frequency crop in one call.
         - Verify resulting IR behavior because hard spectral boundaries can introduce ringing.
         """
-        self._domain.values = dsp_apply_tf_crop(
-            self._domain,
+        transformed_hrtf = self._hrtf.clone()
+        tf = transformed_hrtf.TF
+        tf.values = apply_tf_crop(
+            tf,
             start=start,
             end=end,
             start_frequency=start_frequency,
             end_frequency=end_frequency,
         )
         calculate_ir_from_tf(
-            self._domain,
-            frequency_bins=self._domain.frequency_bins,
+            tf,
+            frequency_bins=tf.frequency_bins,
         )
-
-
-class TransformSources(_Transform):
-
-    def __init__(self, sources: "Sources") -> None:
-        super().__init__(sources)
-
-    
+        return transformed_hrtf
 
 
 '''

@@ -1,8 +1,6 @@
-from functools import cached_property
 from typing import TYPE_CHECKING
 
 import numpy as np
-from .transforms import TransformSources
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -14,10 +12,6 @@ class Sources:
         hrtf: "HRTF | None" = None,
     ) -> None:
         self._hrtf = hrtf
-
-    @cached_property
-    def transform(self) -> "TransformSources":
-        return TransformSources(self)
 
     #TODO :Convert properties to methods .
 

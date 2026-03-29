@@ -10,6 +10,7 @@ from .dsp import (
 from .sofa.core import SOFA
 from .spatial import Sources
 from .domain import IR, TF
+from .transforms import Transform
 
 
 class HRTF:
@@ -33,9 +34,33 @@ class HRTF:
     def Sources(self) -> "Sources":
         return Sources(self)
 
+    @cached_property
+    def transform(self) -> "Transform":
+        return Transform(self)
+
     @property
     def Analytics(self) -> "Analytics":
         return Analytics(self)
+
+    def clone(self) -> "HRTF":
+        sofa_clone = self.Sofa
+        if self.Sofa is not None:
+            try:
+                sofa_clone = self.Sofa.clone()
+            except ValueError:
+                sofa_clone = self.Sofa
+        hrtf = HRTF(Sofa=sofa_clone)
+        hrtf.SOFAConventions = self.SOFAConventions
+        hrtf.fft_length = self.fft_length
+        if self.IR.values is not None:
+            hrtf.IR.values = np.array(self.IR.values, copy=True)
+        if self.IR.sample_rate is not None:
+            hrtf.IR.sample_rate = float(self.IR.sample_rate)
+        if self.TF.values is not None:
+            hrtf.TF.values = np.array(self.TF.values, copy=True)
+        if self.TF.frequency_bins is not None:
+            hrtf.TF.frequency_bins = np.array(self.TF.frequency_bins, copy=True)
+        return hrtf
 
     @classmethod
     def load_hrtf(
@@ -170,3 +195,7 @@ class HRTF:
             hrtf.fft_length = fft_length_used
             hrtf.SOFAConventions = convention
             return hrtf
+
+
+
+

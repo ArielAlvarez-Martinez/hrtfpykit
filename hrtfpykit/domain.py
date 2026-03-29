@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import cached_property
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -13,7 +12,6 @@ from .dsp import (
     get_real,
     get_signal_duration,
 )
-from .transforms import TransformIR, TransformTF
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -36,11 +34,6 @@ class IR:
     def ir_duration(self) -> float:
         """Return the IR duration in seconds."""
         return get_signal_duration(self)
-
-    @cached_property
-    def transform(self) -> "TransformIR":
-        """Return IR-domain transform operations."""
-        return TransformIR(self)
 
 
 class TF:
@@ -100,8 +93,3 @@ class TF:
     def imag(self) -> np.ndarray:
         """Return the imaginary part of TF values."""
         return get_imag(self)
-
-    @cached_property
-    def transform(self) -> "TransformTF":
-        """Return TF-domain transform operations."""
-        return TransformTF(self)
