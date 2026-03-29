@@ -1017,33 +1017,6 @@ def apply_tf_crop(
     return tf_cropped
 
 
-def apply_crop(
-    ir: np.ndarray | "IR",
-    start: int | None = None,
-    end: int | None = None,
-) -> np.ndarray:
-    """General Description:
-    Convenience wrapper for IR index-based cropping.
-
-    Parameters:
-    - ir: Time-domain array or `IR` object with `.values`.
-    - start: Start sample index (inclusive).
-    - end: End sample index (exclusive).
-
-    Returns:
-    - Cropped IR values.
-
-    Use Cases:
-    - Legacy API compatibility.
-    - Quick index-only crop operations.
-
-    Best Practices:
-    - Prefer `apply_ir_crop` when second-based cropping is needed.
-    - Keep index bounds explicit to avoid ambiguous slices.
-    """
-    return apply_ir_crop(ir, start=start, end=end)
-
-
 def apply_padding(
     data: np.ndarray | "IR" | "TF",
     padding_length: int,

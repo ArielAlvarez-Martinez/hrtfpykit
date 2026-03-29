@@ -31,47 +31,77 @@ class Transform:
         self._hrtf = hrtf
 
    
-    def apply_ir_crop(
+    def apply_crop(
         self,
+        domain: str = "time",
         start: int | None = None,
         end: int | None = None,
         start_seconds: float | None = None,
         end_seconds: float | None = None,
+        start_frequency: float | None = None,
+        end_frequency: float | None = None,
     ) -> "HRTF":
         """General Description:
-        Crop IR values in time by sample indices or seconds and resync TF.
+        Crop IR or TF values and resync the paired domain.
 
         Parameters:
-        - start: Start sample index (inclusive).
-        - end: End sample index (exclusive).
-        - start_seconds: Start time in seconds.
-        - end_seconds: End time in seconds.
+        - domain: Crop domain (`time` or `frequency`).
+        - start: Start sample/bin index (inclusive).
+        - end: End sample/bin index (exclusive).
+        - start_seconds: Start time in seconds for time-domain crop.
+        - end_seconds: End time in seconds for time-domain crop.
+        - start_frequency: Lower frequency bound in Hz for frequency-domain crop.
+        - end_frequency: Upper frequency bound in Hz for frequency-domain crop.
 
         Returns:
         - A new HRTF instance with transformed IR/TF values.
 
         Use Cases:
-        - Trim early reflections or isolate a time segment.
-        - Apply sample-rate-aware cropping using seconds.
+        - Trim IR segments in time domain.
+        - Keep selected TF bands by indices or frequency range.
 
         Best Practices:
-        - Use either sample indices or seconds in a single call.
-        - Let this method handle IR/TF synchronization.
+        - Use time parameters only with `domain="time"`.
+        - Use frequency parameters only with `domain="frequency"`.
         """
         transformed_hrtf = self._hrtf.clone()
-        ir = transformed_hrtf.IR
-        ir.values = apply_ir_crop(
-            ir,
-            start=start,
-            end=end,
-            start_seconds=start_seconds,
-            end_seconds=end_seconds,
-        )
-        calculate_tf_from_ir(
-            ir,
-            fft_length=transformed_hrtf.fft_length,
-        )
-        return transformed_hrtf
+        domain_key = str(domain).strip().lower()
+
+        if domain_key == "time":
+            if start_frequency is not None or end_frequency is not None:
+                raise ValueError("start_frequency and end_frequency are only valid for frequency domain")
+            ir = transformed_hrtf.IR
+            ir.values = apply_ir_crop(
+                ir,
+                start=start,
+                end=end,
+                start_seconds=start_seconds,
+                end_seconds=end_seconds,
+            )
+            calculate_tf_from_ir(
+                ir,
+                fft_length=transformed_hrtf.fft_length,
+            )
+            return transformed_hrtf
+
+        if domain_key == "frequency":
+            if start_seconds is not None or end_seconds is not None:
+                raise ValueError("start_seconds and end_seconds are only valid for time domain")
+            tf = transformed_hrtf.TF
+            tf.values = apply_tf_crop(
+                tf,
+                start=start,
+                end=end,
+                start_frequency=start_frequency,
+                end_frequency=end_frequency,
+            )
+            calculate_ir_from_tf(
+                tf,
+                frequency_bins=tf.frequency_bins,
+            )
+            return transformed_hrtf
+
+        raise ValueError("domain must be 'time' or 'frequency'")
 
     def apply_window(self, window_name: str) -> "HRTF":
         """General Description:
@@ -107,7 +137,7 @@ class Transform:
         padding_length: int,
         location: str = "end",
         value: float | complex = 0,
-        domain: str = "ir",
+        domain: str = "time",
     ) -> "HRTF":
         """General Description:
         Pad IR or TF values and resync the paired domain.
@@ -116,7 +146,7 @@ class Transform:
         - padding_length: Number of samples or bins to add.
         - location: Padding side, start or end.
         - value: Constant pad value.
-        - domain: Domain to apply padding, ir or tf.
+        - domain: Domain to apply padding, time or frequency.
 
         Returns:
         - A new HRTF instance with transformed IR/TF values.
@@ -131,7 +161,7 @@ class Transform:
         """
         transformed_hrtf = self._hrtf.clone()
         domain_key = str(domain).strip().lower()
-        if domain_key == "ir":
+        if domain_key == "time":
             ir = transformed_hrtf.IR
             ir.values = apply_padding(
                 ir,
@@ -145,7 +175,7 @@ class Transform:
             )
             return transformed_hrtf
 
-        if domain_key == "tf":
+        if domain_key == "frequency":
             tf = transformed_hrtf.TF
             tf_values = apply_padding(
                 tf,
@@ -179,7 +209,7 @@ class Transform:
             )
             return transformed_hrtf
 
-        raise ValueError("domain must be 'ir' or 'tf'")
+        raise ValueError("domain must be 'time' or 'frequency'")
 
     def apply_fir_filter(
         self,
@@ -465,49 +495,6 @@ class Transform:
             fft_length=transformed_hrtf.fft_length,
         )
         return transformed_hrtf
-
-    def apply_tf_crop(
-        self,
-        start: int | None = None,
-        end: int | None = None,
-        start_frequency: float | None = None,
-        end_frequency: float | None = None,
-    ) -> "HRTF":
-        """General Description:
-        Crop TF bins by indices or frequency range and rebuild IR.
-
-        Parameters:
-        - start: Start TF bin index (inclusive) for index crop.
-        - end: End TF bin index (exclusive) for index crop.
-        - start_frequency: Lower frequency bound in Hz for frequency crop.
-        - end_frequency: Upper frequency bound in Hz for frequency crop.
-
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
-
-        Use Cases:
-        - Keep only a selected spectral band.
-        - Build brickwall-like masks for controlled experiments.
-
-        Best Practices:
-        - Use either index crop or frequency crop in one call.
-        - Verify resulting IR behavior because hard spectral boundaries can introduce ringing.
-        """
-        transformed_hrtf = self._hrtf.clone()
-        tf = transformed_hrtf.TF
-        tf.values = apply_tf_crop(
-            tf,
-            start=start,
-            end=end,
-            start_frequency=start_frequency,
-            end_frequency=end_frequency,
-        )
-        calculate_ir_from_tf(
-            tf,
-            frequency_bins=tf.frequency_bins,
-        )
-        return transformed_hrtf
-
 
 '''
 

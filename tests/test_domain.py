@@ -43,12 +43,16 @@ def test_transform_apply_window_supported_updates_values_and_tf() -> None:
     assert transformed_hrtf.TF.frequency_bins is not None
 
 
-def test_transform_apply_ir_crop_by_seconds_updates_ir_and_tf() -> None:
+def test_transform_apply_crop_time_by_seconds_updates_ir_and_tf() -> None:
     hrtf = HRTF()
     hrtf.IR.values = np.arange(8, dtype=float).reshape(1, -1)
     hrtf.IR.sample_rate = 4.0
 
-    transformed_hrtf = hrtf.transform.apply_ir_crop(start_seconds=0.5, end_seconds=1.5)
+    transformed_hrtf = hrtf.transform.apply_crop(
+        domain="time",
+        start_seconds=0.5,
+        end_seconds=1.5,
+    )
 
     assert hrtf.IR.values.shape[-1] == 8
     assert np.array_equal(hrtf.IR.values, np.arange(8, dtype=float).reshape(1, -1))
@@ -419,14 +423,18 @@ def test_transform_modify_magnitude_updates_tf_and_ir_immutably() -> None:
     assert np.allclose(np.abs(transformed_db.TF.values), 10.0 ** (new_magnitude_db / 20.0))
 
 
-def test_transform_apply_tf_crop_updates_ir() -> None:
+def test_transform_apply_crop_frequency_updates_ir() -> None:
     hrtf = HRTF()
     hrtf.IR.values = np.array([[1.0, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=float)
     hrtf.IR.sample_rate = 48_000.0
     hrtf_with_fft = hrtf.transform.modify_fft_length(8)
 
     original_ir = np.array(hrtf_with_fft.IR.values, copy=True)
-    cropped_hrtf = hrtf_with_fft.transform.apply_tf_crop(start=1, end=3)
+    cropped_hrtf = hrtf_with_fft.transform.apply_crop(
+        domain="frequency",
+        start=1,
+        end=3,
+    )
 
     assert hrtf.fft_length is None
     assert hrtf.TF.values is None
@@ -496,7 +504,7 @@ def test_transform_apply_padding_in_tf_domain_updates_ir_and_tf() -> None:
     padded_hrtf = hrtf_with_tf.transform.apply_padding(
         padding_length=2,
         location="end",
-        domain="tf",
+        domain="frequency",
     )
 
     assert padded_hrtf is not hrtf_with_tf
@@ -523,7 +531,7 @@ def test_transform_apply_padding_invalid_domain_raises() -> None:
     hrtf.IR.values = np.array([[1.0, 0.5, 0.25, 0.0]], dtype=float)
     hrtf.IR.sample_rate = 48_000.0
 
-    with pytest.raises(ValueError, match="domain must be 'ir' or 'tf'"):
+    with pytest.raises(ValueError, match="domain must be 'time' or 'frequency'"):
         hrtf.transform.apply_padding(
             padding_length=2,
             location="end",
