@@ -289,6 +289,142 @@ def calculate_itd(
     return itd_values.reshape(output_shape)
 
 
+def calculate_ild(
+    data: np.ndarray | "IR" | "TF",
+    domain: str = "auto",
+    sample_rate: float | None = None,
+    fft_length: int | None = None,
+    mode: str = "broad-band",
+    output: str = "db",
+    epsilon: float = 1e-12,
+) -> np.ndarray:
+    """General Description:
+    Compute interaural level differences (ILD) from binaural IR or TF data.
+
+    Parameters:
+    - data: Binaural signal container. Accepts:
+      - `np.ndarray` with layout `[..., ear, samples_or_bins]`
+      - `IR` object with `.values`
+      - `TF` object with `.values`
+      Ear convention is `0=left`, `1=right`.
+    - domain: Input domain (`auto`, `ir`, `tf`). In `auto` mode:
+      - `IR` objects are treated as `ir`
+      - `TF` objects are treated as `tf`
+      - NumPy arrays are treated as `tf` when complex, otherwise `ir`
+    - sample_rate: Sample rate in Hz used only when `domain='ir'` and `data` is a NumPy array.
+    - fft_length: Optional FFT length used only for IR-domain inputs.
+    - mode: ILD computation mode (`broad-band` or `frequency-dependent`).
+    - output: ILD output representation (`db` or `linear`).
+    - epsilon: Positive floor used to avoid division by zero in magnitude ratios.
+
+    Returns:
+    - ILD array in selected mode:
+      - `mode='broad-band'`: shape `[...]` (one ILD value per position).
+      - `mode='frequency-dependent'`: shape `[..., frequency_bins]`.
+      For `output='db'`: `20*log10(ratio)`. For `output='linear'`: `ratio`.
+
+    Use Cases:
+    - Extract broadband or frequency-dependent binaural level cues from HRIR/HRTF data.
+    - Compare left-right spectral imbalance across source positions.
+
+    Best Practices:
+    - Keep ear ordering in HRTF convention (`0=left`, `1=right`).
+    - Prefer `output='db'` for analysis and reporting.
+    - Use IR-domain inputs when you need ILD derived from current time-domain edits.
+    """
+    data_object = None
+    if isinstance(data, np.ndarray):
+        data_values = data
+    elif hasattr(data, "values"):
+        data_object = data
+        data_values = data.values
+    else:
+        raise ValueError("data must be a NumPy array, IR, or TF instance")
+
+    if data_values is None:
+        raise ValueError("Signal data is not available")
+    if not isinstance(data_values, np.ndarray):
+        raise ValueError("Signal data must be a NumPy array")
+    if data_values.size == 0:
+        raise ValueError("Signal data must be non-empty")
+    if data_values.ndim < 2:
+        raise ValueError("Signal data must include at least ear and time/frequency axes")
+
+    domain_key = str(domain).strip().lower()
+    if domain_key not in {"auto", "ir", "tf"}:
+        raise ValueError("domain must be one of: auto, ir, tf")
+
+    if domain_key == "auto":
+        if data_object is not None and hasattr(data_object, "sample_rate"):
+            domain_key = "ir"
+        elif data_object is not None and hasattr(data_object, "frequency_bins"):
+            domain_key = "tf"
+        else:
+            domain_key = "tf" if np.iscomplexobj(data_values) else "ir"
+
+    output_key = str(output).strip().lower()
+    if output_key not in {"db", "linear"}:
+        raise ValueError("output must be one of: db, linear")
+
+    mode_key = str(mode).strip().lower()
+    if mode_key not in {"broad-band", "frequency-dependent"}:
+        raise ValueError("mode must be one of: broad-band, frequency-dependent")
+
+    if isinstance(epsilon, bool):
+        raise ValueError("epsilon must be a finite, positive value.")
+    try:
+        epsilon = float(epsilon)
+    except (TypeError, ValueError):
+        raise ValueError("epsilon must be a finite, positive value.") from None
+    if not np.isfinite(epsilon) or epsilon <= 0.0:
+        raise ValueError("epsilon must be a finite, positive value.")
+
+    if domain_key == "ir":
+        if data_object is not None and hasattr(data_object, "sample_rate"):
+            resolved_sample_rate = sample_rate if sample_rate is not None else data_object.sample_rate
+        else:
+            resolved_sample_rate = sample_rate
+        if resolved_sample_rate is None:
+            raise ValueError("sample_rate is required for IR NumPy inputs")
+        if mode_key == "frequency-dependent":
+            tf_values, _, _ = calculate_tf_from_ir(
+                data_values,
+                sample_rate=resolved_sample_rate,
+                fft_length=fft_length,
+            )
+        else:
+            tf_values = None
+    else:
+        tf_values = np.asarray(data_values)
+
+    if data_values.shape[-2] < 2:
+        raise ValueError("Ear axis must contain at least two channels (0=left, 1=right)")
+
+    if mode_key == "broad-band":
+        if domain_key == "ir":
+            left_values = np.asarray(data_values[..., 0, :], dtype=float)
+            right_values = np.asarray(data_values[..., 1, :], dtype=float)
+            left_rms = np.sqrt(np.mean(np.square(left_values), axis=-1))
+            right_rms = np.sqrt(np.mean(np.square(right_values), axis=-1))
+        else:
+            left_values = np.abs(np.asarray(data_values[..., 0, :]))
+            right_values = np.abs(np.asarray(data_values[..., 1, :]))
+            left_rms = np.sqrt(np.mean(np.square(left_values), axis=-1))
+            right_rms = np.sqrt(np.mean(np.square(right_values), axis=-1))
+        ild_linear = (left_rms + epsilon) / (right_rms + epsilon)
+        if output_key == "linear":
+            return ild_linear
+        return magnitude_to_db(ild_linear)
+
+    left_magnitude = np.abs(tf_values[..., 0, :])
+    right_magnitude = np.abs(tf_values[..., 1, :])
+    ild_linear = (left_magnitude + epsilon) / (right_magnitude + epsilon)
+
+    if output_key == "linear":
+        return ild_linear
+    return magnitude_to_db(ild_linear)
+
+
 def get_magnitude(tf: np.ndarray | "TF") -> np.ndarray:
     """General Description:
     Return the magnitude spectrum of transfer-function values.

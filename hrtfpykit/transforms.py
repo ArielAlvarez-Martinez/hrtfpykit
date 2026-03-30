@@ -537,16 +537,28 @@ class Transform:
         filter_order: int = 10,
     ) -> "HRTF":
         """General Description:
-        Estimate and remove ITD from current IR values and resync TF.
+        Estimate and remove ITD from current IR values by deducting delay on the delayed ear, then resync TF.
+        The ITD sign convention follows `calculate_itd`: positive ITD means left-ear delay relative to right-ear
+        (`ear axis: 0=left, 1=right`), negative ITD means right-ear delay relative to left-ear.
 
         Parameters:
-        - method: ITD estimator (`threshold` or `maxiacce`).
+        - method: ITD estimator (`threshold` or `maxiacce`) used to compute per-position ITD.
         - thresh_level: Threshold offset in dB for `threshold` mode.
         - upper_cut_freq: Low-pass cutoff in Hz applied before ITD estimation.
         - filter_order: Positive IIR Butterworth order for low-pass preprocessing.
 
         Returns:
         - A new HRTF instance with ITD-compensated IR/TF values.
+        - Compensation is performed per IR position.
+
+        Use Cases:
+        - Align binaural arrival times while avoiding additional latency.
+        - Remove measured interaural delay before comparative analysis.
+        - Standardize onset alignment before ML feature extraction or metric computation.
+
+        Best Practices:
+        - This method advances the delayed ear (delay deduction), not delay-addition of the earlier ear.
+        - If ITD > 0, left channel is advanced. If ITD < 0, right channel is advanced.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
