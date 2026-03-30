@@ -31,6 +31,7 @@ class Transform:
     def __init__(self, hrtf: "HRTF") -> None:
         self._hrtf = hrtf
 
+<<<<<<< HEAD
    
     def apply_crop(
         self,
@@ -104,6 +105,8 @@ class Transform:
 
         raise ValueError("domain must be 'time' or 'frequency'")
 
+=======
+>>>>>>> dev
     def apply_window(self, window_name: str) -> "HRTF":
         """General Description:
         Apply a time-domain window to IR values and resync TF.
