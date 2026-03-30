@@ -8,7 +8,7 @@ from .dsp import (
     calculate_tf_from_ir,
 )
 from .sofa.core import SOFA
-from .spatial import Sources
+from .spatial import Planes, Sources
 from .domain import IR, TF
 from .transforms import Transform
 
@@ -33,6 +33,10 @@ class HRTF:
     @cached_property
     def Sources(self) -> "Sources":
         return Sources(self)
+
+    @cached_property
+    def Planes(self) -> "Planes":
+        return Planes(self)
 
     @cached_property
     def transform(self) -> "Transform":
@@ -195,7 +199,3 @@ class HRTF:
             hrtf.fft_length = fft_length_used
             hrtf.SOFAConventions = convention
             return hrtf
-
-
-
-

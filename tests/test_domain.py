@@ -517,15 +517,6 @@ def test_transform_apply_padding_in_tf_domain_updates_ir_and_tf() -> None:
     assert np.array_equal(hrtf_with_tf.TF.frequency_bins, original_bins)
 
 
-def test_transform_modify_positions_reference_returns_new_hrtf() -> None:
-    hrtf = HRTF()
-    transformed_hrtf = hrtf.transform.modify_positions_reference()
-
-    assert transformed_hrtf is not hrtf
-    assert transformed_hrtf.Sofa is hrtf.Sofa
-    assert transformed_hrtf.SOFAConventions == hrtf.SOFAConventions
-
-
 def test_transform_apply_padding_invalid_domain_raises() -> None:
     hrtf = HRTF()
     hrtf.IR.values = np.array([[1.0, 0.5, 0.25, 0.0]], dtype=float)

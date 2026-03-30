@@ -496,6 +496,7 @@ class Transform:
         )
         return transformed_hrtf
 
+    
 '''
 
 Spherical Harmonic Transformation
