@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from .dsp import (
+    calculate_itd,
     get_imag,
     get_magnitude,
     get_magnitude_db,
@@ -34,6 +35,37 @@ class IR:
     def ir_duration(self) -> float:
         """Return the IR duration in seconds."""
         return get_signal_duration(self)
+
+    def get_itd(
+        self,
+        method: str = "threshold",
+        output: str = "seconds",
+        thresh_level: float = -10.0,
+        upper_cut_freq: float = 3000.0,
+        filter_order: int = 10,
+    ) -> np.ndarray:
+        """General Description:
+        Compute interaural time difference (ITD) from current IR data.
+
+        Parameters:
+        - method: ITD estimator (`threshold` or `maxiacce`).
+        - output: Output unit (`seconds` or `samples`).
+        - thresh_level: Threshold offset in dB for `threshold` method.
+        - upper_cut_freq: Low-pass cutoff in Hz applied before ITD estimation.
+        - filter_order: Positive IIR Butterworth order for preprocessing.
+
+        Returns:
+        - Array of ITD values in selected `output` units. Positive means left-ear delay relative to right-ear.
+
+        """
+        return calculate_itd(
+            self,
+            method=method,
+            output=output,
+            thresh_level=thresh_level,
+            upper_cut_freq=upper_cut_freq,
+            filter_order=filter_order,
+        )
 
 
 class TF:

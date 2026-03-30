@@ -11,6 +11,7 @@ from .dsp import (
     apply_padding,
     apply_tf_crop,
     apply_window,
+    calculate_itd,
     calculate_ir_from_tf,
     calculate_tf_from_ir,
     downsampling,
@@ -527,6 +528,147 @@ class Transform:
         transformed_hrtf = self._hrtf.clone()
         transformed_hrtf.Sources.source_coordinate_system = coordinate_system
         transformed_hrtf.Sources._positions = transformed_hrtf.Sources.get_positions()
+        return transformed_hrtf
+
+    def add_itd(
+        self,
+        itd: float,
+        unit: str = "seconds",
+    ) -> "HRTF":
+        """General Description:
+        Add a fixed ITD to current IR values and resync TF.
+
+        Parameters:
+        - itd: ITD value to apply. Positive delays left ear; negative delays right ear.
+        - unit: ITD unit (`seconds` or `samples`).
+
+        Returns:
+        - A new HRTF instance with ITD-modified IR/TF values.
+        """
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        if ir.values is None:
+            raise ValueError("IR data is not available")
+        if ir.values.ndim < 2:
+            raise ValueError("IR data must include ear and time axes")
+        if ir.values.shape[-2] < 2:
+            raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
+
+        unit_key = str(unit).strip().lower()
+        if unit_key not in {"seconds", "samples"}:
+            raise ValueError("unit must be one of: seconds, samples")
+
+        if isinstance(itd, bool):
+            raise ValueError("itd must be a finite value")
+        itd_value = float(itd)
+        if not np.isfinite(itd_value):
+            raise ValueError("itd must be a finite value")
+
+        if unit_key == "seconds":
+            if ir.sample_rate is None:
+                raise ValueError("IR sample_rate is required when unit='seconds'")
+            itd_samples = int(np.round(itd_value * float(ir.sample_rate)))
+        else:
+            itd_samples = int(np.round(itd_value))
+
+        if itd_samples == 0:
+            calculate_tf_from_ir(
+                ir,
+                fft_length=transformed_hrtf.fft_length,
+            )
+            return transformed_hrtf
+
+        ir_values = np.asarray(ir.values, dtype=float)
+        sample_count = ir_values.shape[-1]
+        delay = abs(itd_samples)
+        if delay >= sample_count:
+            raise ValueError("Absolute ITD in samples must be smaller than IR length")
+
+        if itd_samples > 0:
+            left = np.array(ir_values[..., 0, :], copy=True)
+            delayed_left = np.zeros_like(left)
+            delayed_left[..., delay:] = left[..., :-delay]
+            ir_values[..., 0, :] = delayed_left
+        else:
+            right = np.array(ir_values[..., 1, :], copy=True)
+            delayed_right = np.zeros_like(right)
+            delayed_right[..., delay:] = right[..., :-delay]
+            ir_values[..., 1, :] = delayed_right
+
+        ir.values = ir_values
+        calculate_tf_from_ir(
+            ir,
+            fft_length=transformed_hrtf.fft_length,
+        )
+        return transformed_hrtf
+
+    def delete_itd(
+        self,
+        method: str = "threshold",
+        thresh_level: float = -10.0,
+        upper_cut_freq: float = 3000.0,
+        filter_order: int = 10,
+    ) -> "HRTF":
+        """General Description:
+        Estimate and remove ITD from current IR values and resync TF.
+
+        Parameters:
+        - method: ITD estimator (`threshold` or `maxiacce`).
+        - thresh_level: Threshold offset in dB for `threshold` mode.
+        - upper_cut_freq: Low-pass cutoff in Hz applied before ITD estimation.
+        - filter_order: Positive IIR Butterworth order for low-pass preprocessing.
+
+        Returns:
+        - A new HRTF instance with ITD-compensated IR/TF values.
+        """
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        if ir.values is None:
+            raise ValueError("IR data is not available")
+        if ir.values.ndim < 2:
+            raise ValueError("IR data must include ear and time axes")
+        if ir.values.shape[-2] < 2:
+            raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
+
+        itd_samples = calculate_itd(
+            ir,
+            method=method,
+            output="samples",
+            thresh_level=thresh_level,
+            upper_cut_freq=upper_cut_freq,
+            filter_order=filter_order,
+        )
+        itd_samples = np.asarray(itd_samples, dtype=int)
+
+        ir_values = np.asarray(ir.values, dtype=float)
+        leading_shape = ir_values.shape[:-2]
+        channel_count = ir_values.shape[-2]
+        sample_count = ir_values.shape[-1]
+        flattened = ir_values.reshape(-1, channel_count, sample_count)
+        flattened_itd = itd_samples.reshape(-1)
+
+        for index in range(flattened.shape[0]):
+            delay = int(abs(flattened_itd[index]))
+            if delay == 0:
+                continue
+            if delay >= sample_count:
+                raise ValueError("Estimated ITD in samples must be smaller than IR length")
+            if flattened_itd[index] > 0:
+                left = np.array(flattened[index, 0, :], copy=True)
+                advanced_left = np.zeros_like(left)
+                advanced_left[:-delay] = left[delay:]
+                flattened[index, 0, :] = advanced_left
+            else:
+                right = np.array(flattened[index, 1, :], copy=True)
+                advanced_right = np.zeros_like(right)
+                advanced_right[:-delay] = right[delay:]
+                flattened[index, 1, :] = advanced_right
+
+        ir.values = flattened.reshape(*leading_shape, channel_count, sample_count)
+        calculate_tf_from_ir(
+            ir,
+            fft_length=transformed_hrtf.fft_length,
+        )
         return transformed_hrtf
 
     
