@@ -35,10 +35,6 @@ class HRTF:
         return Sources(self)
 
     @cached_property
-    def Planes(self) -> "Planes":
-        return Planes(self)
-
-    @cached_property
     def transform(self) -> "Transform":
         return Transform(self)
 
