@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 from .analytics import Analytics
 from .dsp import (
+    apply_ir_crop,
     calculate_ir_from_tf,
     calculate_tf_from_ir,
 )
@@ -35,6 +36,10 @@ class HRTF:
         return Sources(self)
 
     @cached_property
+    def Planes(self) -> "Planes":
+        return Planes(self)
+
+    @cached_property
     def transform(self) -> "Transform":
         return Transform(self)
 
@@ -61,6 +66,139 @@ class HRTF:
         if self.TF.frequency_bins is not None:
             hrtf.TF.frequency_bins = np.array(self.TF.frequency_bins, copy=True)
         return hrtf
+
+    def select(
+        self,
+        positions: np.ndarray | list[list[float]] | list[float] | None = None,
+        position_coordinate_system: str = "spherical",
+        plane: str | None = None,
+        plane_angle: float = 0.0,
+        ear: str = "both",
+        angle_unit: str = "degrees",
+        start: int | None = None,
+        end: int | None = None,
+        start_seconds: float | None = None,
+        end_seconds: float | None = None,
+    ) -> "HRTF":
+        transformed_hrtf = self.clone()
+        selected_indices: np.ndarray | None = None
+        ear_key = str(ear).strip().lower()
+        if ear_key not in {"both", "left", "right"}:
+            raise ValueError("ear must be one of: both, left, right")
+
+        selecting_spatial = positions is not None or plane is not None
+        if selecting_spatial:
+            if transformed_hrtf.Sofa is None:
+                raise ValueError("Spatial selection requires a loaded SOFA dataset")
+            source_positions = transformed_hrtf.Sources.get_positions(angle_unit=angle_unit)
+            if source_positions.ndim != 2 or source_positions.shape[-1] != 3:
+                raise ValueError("Source positions grid must have shape (N, 3)")
+            source_count = int(source_positions.shape[0])
+
+            if positions is not None:
+                positions_array = np.asarray(positions, dtype=float)
+                if positions_array.ndim == 1:
+                    positions_array = positions_array.reshape(1, -1)
+                if positions_array.ndim != 2 or positions_array.shape[-1] not in {2, 3}:
+                    raise ValueError("positions must have shape (K, 2) or (K, 3)")
+                position_indices: list[int] = []
+                for position in positions_array:
+                    idx, _ = transformed_hrtf.Sources.get_position_index(
+                        position=position,
+                        coordinate_system=position_coordinate_system,
+                        angle_unit=angle_unit,
+                    )
+                    if idx not in position_indices:
+                        position_indices.append(int(idx))
+                selected_indices = np.asarray(position_indices, dtype=int)
+
+            if plane is not None:
+                plane_key = str(plane).strip().lower()
+                if plane_key == "horizontal":
+                    plane_indices, _ = transformed_hrtf.Planes.get_horizontal_plane_indices(
+                        elevation=plane_angle,
+                        angle_unit=angle_unit,
+                    )
+                elif plane_key == "median":
+                    plane_indices, _ = transformed_hrtf.Planes.get_median_plane_indices(
+                        azimuth=plane_angle,
+                        angle_unit=angle_unit,
+                    )
+                elif plane_key == "frontal":
+                    plane_indices, _ = transformed_hrtf.Planes.get_frontal_plane_indices(
+                        azimuth=plane_angle,
+                        angle_unit=angle_unit,
+                    )
+                else:
+                    raise ValueError("plane must be one of: horizontal, median, frontal")
+                plane_indices = np.asarray(plane_indices, dtype=int)
+                if selected_indices is None:
+                    selected_indices = plane_indices
+                else:
+                    selected_indices = np.intersect1d(selected_indices, plane_indices)
+
+            if selected_indices is None:
+                selected_indices = np.arange(source_count, dtype=int)
+            if selected_indices.size == 0:
+                raise ValueError("Selection produced no source positions")
+
+            if transformed_hrtf.IR.values is not None:
+                transformed_hrtf.IR.values = np.take(
+                    transformed_hrtf.IR.values,
+                    selected_indices,
+                    axis=0,
+                )
+            if transformed_hrtf.TF.values is not None:
+                transformed_hrtf.TF.values = np.take(
+                    transformed_hrtf.TF.values,
+                    selected_indices,
+                    axis=0,
+                )
+
+        cropping_ir = (
+            start is not None
+            or end is not None
+            or start_seconds is not None
+            or end_seconds is not None
+        )
+        if cropping_ir:
+            if transformed_hrtf.IR.values is None:
+                raise ValueError("IR data is not available")
+            transformed_hrtf.IR.values = apply_ir_crop(
+                transformed_hrtf.IR,
+                start=start,
+                end=end,
+                start_seconds=start_seconds,
+                end_seconds=end_seconds,
+            )
+            calculate_tf_from_ir(
+                transformed_hrtf.IR,
+                fft_length=transformed_hrtf.fft_length,
+            )
+
+        if ear_key != "both":
+            ear_index = 0 if ear_key == "left" else 1
+            if transformed_hrtf.IR.values is not None:
+                if transformed_hrtf.IR.values.shape[-2] <= ear_index:
+                    raise ValueError(f"Requested ear '{ear_key}' is not available in IR data")
+                transformed_hrtf.IR.values = np.take(
+                    transformed_hrtf.IR.values,
+                    indices=[ear_index],
+                    axis=-2,
+                )
+            if transformed_hrtf.TF.values is not None:
+                if transformed_hrtf.TF.values.shape[-2] <= ear_index:
+                    raise ValueError(f"Requested ear '{ear_key}' is not available in TF data")
+                transformed_hrtf.TF.values = np.take(
+                    transformed_hrtf.TF.values,
+                    indices=[ear_index],
+                    axis=-2,
+                )
+
+        transformed_hrtf.Sources._positions = transformed_hrtf.Sources.get_positions(
+            angle_unit=angle_unit
+        )
+        return transformed_hrtf
 
     @classmethod
     def load_hrtf(
@@ -195,3 +333,4 @@ class HRTF:
             hrtf.fft_length = fft_length_used
             hrtf.SOFAConventions = convention
             return hrtf
+

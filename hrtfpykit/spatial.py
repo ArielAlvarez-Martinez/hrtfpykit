@@ -7,6 +7,24 @@ if TYPE_CHECKING:
 
 
 class Sources:
+    """Spatial-source view and coordinate-conversion utilities.
+
+    Notes
+    -----
+    Conventions implemented by this class:
+
+    - Spherical (SOFA-style): ``(azimuth, elevation, radius)`` with azimuth in
+      ``[0, 360)`` degrees (anticlockwise in horizontal plane), elevation in
+      ``[-90, 90]`` degrees (positive up), and non-negative radius.
+    - Lateral-polar (modified interaural-polar): ``(lateral, polar, radius)``
+      with lateral in ``[-90, 90]`` degrees (positive left), polar normalized to
+      ``[-90, 270)`` degrees, and non-negative radius.
+    - Cartesian: ``(x, y, z)`` with ``+y`` as left and ``+z`` as up.
+
+    At lateral poles (``|lateral| = 90``) and at zero radius, polar is singular.
+    This implementation uses a deterministic placeholder ``polar = 0``.
+    """
+
     def __init__(
         self,
         hrtf: "HRTF | None" = None,
@@ -16,51 +34,41 @@ class Sources:
         self._positions = self.get_positions()
 
     def get_source_coordinate_system(self) -> str:
+        """Return the currently selected source coordinate system.
+
+        Returns
+        -------
+        str
+            Coordinate-system name used as target by :meth:`get_positions`.
+        """
         return str(self.source_coordinate_system)
    
-    def get_azimuth_angles(
-        self,
-        angle_unit: str = "degrees",
-    ) -> np.ndarray:
-        target_system = str(self.source_coordinate_system).strip().lower()
-        positions = self.get_positions(angle_unit=angle_unit)
-        if target_system == "spherical":
-            azimuth = positions[..., 0]
-        elif target_system == "cartesian":
-            spherical = self.cartesian_to_spherical(positions, angle_unit=angle_unit)
-            azimuth = spherical[..., 0]
-        elif target_system == "lateral-polar":
-            cartesian = self.lateral_polar_to_cartesian(positions, angle_unit=angle_unit)
-            spherical = self.cartesian_to_spherical(cartesian, angle_unit=angle_unit)
-            azimuth = spherical[..., 0]
-        else:
-            raise ValueError(f"Unsupported target coordinate system: {target_system!r}")
-        return np.unique(np.round(np.asarray(azimuth, dtype=float), 2))
-
-    def get_elevation_angles(
-        self,
-        angle_unit: str = "degrees",
-    ) -> np.ndarray:
-        target_system = str(self.source_coordinate_system).strip().lower()
-        positions = self.get_positions(angle_unit=angle_unit)
-        if target_system == "spherical":
-            elevation = positions[..., 1]
-        elif target_system == "cartesian":
-            spherical = self.cartesian_to_spherical(positions, angle_unit=angle_unit)
-            elevation = spherical[..., 1]
-        elif target_system == "lateral-polar":
-            cartesian = self.lateral_polar_to_cartesian(positions, angle_unit=angle_unit)
-            spherical = self.cartesian_to_spherical(cartesian, angle_unit=angle_unit)
-            elevation = spherical[..., 1]
-        else:
-            raise ValueError(f"Unsupported target coordinate system: {target_system!r}")
-        return np.unique(np.round(np.asarray(elevation, dtype=float), 2))
-
     @staticmethod
     def spherical_to_cartesian(
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
+        """Convert spherical coordinates to cartesian coordinates.
+
+        Parameters
+        ----------
+        coordinates : np.ndarray
+            Input array with shape ``(..., 3)`` containing
+            ``(azimuth, elevation, radius)``.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Unit for angular inputs.
+
+        Returns
+        -------
+        np.ndarray
+            Array with shape ``(..., 3)`` containing ``(x, y, z)``.
+
+        Notes
+        -----
+        Spherical azimuth is normalized to canonical positive range.
+        Spherical elevation must lie in median-plane interval.
+        Radius must be non-negative.
+        """
         spherical = np.asarray(coordinates, dtype=float)
         if spherical.shape[-1] != 3:
             raise ValueError("Spherical coordinates must have shape (..., 3)")
@@ -97,6 +105,21 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
+        """Convert cartesian coordinates to spherical coordinates.
+
+        Parameters
+        ----------
+        coordinates : np.ndarray
+            Input array with shape ``(..., 3)`` containing ``(x, y, z)``.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Unit for angular outputs.
+
+        Returns
+        -------
+        np.ndarray
+            Array with shape ``(..., 3)`` containing
+            ``(azimuth, elevation, radius)``.
+        """
         cartesian = np.asarray(coordinates, dtype=float)
         if cartesian.shape[-1] != 3:
             raise ValueError("Cartesian coordinates must have shape (..., 3)")
@@ -123,6 +146,27 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
+        """Convert cartesian coordinates to modified lateral-polar coordinates.
+
+        Parameters
+        ----------
+        coordinates : np.ndarray
+            Input array with shape ``(..., 3)`` containing ``(x, y, z)``.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Unit for angular outputs.
+
+        Returns
+        -------
+        np.ndarray
+            Array with shape ``(..., 3)`` containing
+            ``(lateral, polar, radius)``.
+
+        Notes
+        -----
+        Lateral is positive left, negative right.
+        Polar is normalized to modified interaural range.
+        At lateral poles and zero radius, polar is set to deterministic ``0``.
+        """
         cartesian = np.asarray(coordinates, dtype=float)
         if cartesian.shape[-1] != 3:
             raise ValueError("Cartesian coordinates must have shape (..., 3)")
@@ -153,6 +197,21 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
+        """Convert modified lateral-polar coordinates to cartesian coordinates.
+
+        Parameters
+        ----------
+        coordinates : np.ndarray
+            Input array with shape ``(..., 3)`` containing
+            ``(lateral, polar, radius)``.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Unit for angular inputs.
+
+        Returns
+        -------
+        np.ndarray
+            Array with shape ``(..., 3)`` containing ``(x, y, z)``.
+        """
         lateral_polar = np.asarray(coordinates, dtype=float)
         if lateral_polar.shape[-1] != 3:
             raise ValueError("Lateral-polar coordinates must have shape (..., 3)")
@@ -189,6 +248,22 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
+        """Convert spherical coordinates to modified lateral-polar coordinates.
+
+        Parameters
+        ----------
+        coordinates : np.ndarray
+            Input array with shape ``(..., 3)`` containing
+            ``(azimuth, elevation, radius)``.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Unit for angular values.
+
+        Returns
+        -------
+        np.ndarray
+            Array with shape ``(..., 3)`` containing
+            ``(lateral, polar, radius)``.
+        """
         cartesian = Sources.spherical_to_cartesian(coordinates, angle_unit=angle_unit)
         return Sources.cartesian_to_lateral_polar(cartesian, angle_unit=angle_unit)
 
@@ -197,6 +272,22 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
+        """Convert modified lateral-polar coordinates to spherical coordinates.
+
+        Parameters
+        ----------
+        coordinates : np.ndarray
+            Input array with shape ``(..., 3)`` containing
+            ``(lateral, polar, radius)``.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Unit for angular values.
+
+        Returns
+        -------
+        np.ndarray
+            Array with shape ``(..., 3)`` containing
+            ``(azimuth, elevation, radius)``.
+        """
         cartesian = Sources.lateral_polar_to_cartesian(coordinates, angle_unit=angle_unit)
         return Sources.cartesian_to_spherical(cartesian, angle_unit=angle_unit)
 
@@ -204,6 +295,23 @@ class Sources:
         self,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
+        """Return source positions in the currently selected coordinate system.
+
+        Parameters
+        ----------
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Angular unit for angular coordinate systems.
+
+        Returns
+        -------
+        np.ndarray
+            Source grid with shape ``(N, 3)`` as float values rounded to two decimals.
+
+        Notes
+        -----
+        Source data are read from SOFA ``SourcePosition`` and converted to
+        ``self.source_coordinate_system``.
+        """
         def _round(values: np.ndarray) -> np.ndarray:
             return np.round(np.asarray(values, dtype=float), 2)
 
@@ -323,6 +431,30 @@ class Sources:
         coordinate_system: str = "cartesian",
         angle_unit: str = "degrees",
     ) -> int:
+        """Return index of exact-or-nearest query match in a coordinate grid.
+
+        Parameters
+        ----------
+        query_position : np.ndarray | list[float] | tuple[float, ...]
+            Query coordinates. For spherical/lateral-polar, accepts ``(2,)`` angle-only
+            or ``(3,)`` full coordinates. For cartesian, requires ``(3,)``.
+        grid_positions : np.ndarray
+            Candidate grid in ``coordinate_system`` with shape ``(N, 3)``.
+        coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="cartesian"
+            Coordinate system used by both query and grid.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Angular unit for spherical/lateral-polar cases.
+
+        Returns
+        -------
+        int
+            Exact-match index when available; otherwise nearest-match index.
+
+        Notes
+        -----
+        Wrap-aware angle distance is applied in angle-only mode for spherical azimuth
+        and lateral-polar polar angle.
+        """
         system = str(coordinate_system).strip().lower()
         if system not in {"spherical", "cartesian", "lateral-polar"}:
             raise ValueError(
@@ -382,6 +514,23 @@ class Sources:
         coordinate_system: str = "spherical",
         angle_unit: str = "degrees",
     ) -> tuple[int, np.ndarray]:
+        """Return matched source index and matched real position.
+
+        Parameters
+        ----------
+        position : np.ndarray | list[float] | tuple[float, float, float]
+            Query position in ``coordinate_system``.
+        coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
+            Coordinate system of ``position`` and returned ``real_position``.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Angular unit for spherical/lateral-polar inputs and outputs.
+
+        Returns
+        -------
+        tuple[int, np.ndarray]
+            ``(idx, real_position)`` where ``idx`` is the selected grid index and
+            ``real_position`` is the selected grid coordinate rounded to two decimals.
+        """
         system = str(coordinate_system).strip().lower()
         if system not in {"spherical", "cartesian", "lateral-polar"}:
             raise ValueError(
@@ -446,12 +595,140 @@ class Sources:
 
 
 class Planes:
-    """Plane-selection helper """
+    """Plane-selection API for source grids."""
 
     def __init__(
         self,
         hrtf: "HRTF | None" = None,
     ) -> None:
         self._hrtf = hrtf
+
+    def get_plane_indices(
+        self,
+        plane: str,
+        angle: float = 0.0,
+        angle_unit: str = "degrees",
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return source indices for a requested plane and selected plane angles.
+
+        Parameters
+        ----------
+        plane : {"horizontal", "median", "frontal"}
+            Plane type to select.
+        angle : float, default=0.0
+            Target plane angle. For horizontal this is elevation. For
+            median/frontal this is azimuth reference.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Angular unit for ``angle`` and returned plane angles.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            ``(indices, real_plane_angles)`` where:
+            - ``indices`` are source-grid indices in the selected plane.
+            - ``real_plane_angles`` are the actual angle(s) present in the grid
+              used for selection.
+
+        Notes
+        -----
+        If exact plane angles are not present in the grid, nearest available
+        angle(s) are selected.
+        """
+        plane_key = str(plane).strip().lower()
+        if plane_key not in {"horizontal", "median", "frontal"}:
+            raise ValueError("plane must be one of: horizontal, median, frontal")
+        unit = str(angle_unit).strip().lower()
+        if unit not in {"degrees", "radians"}:
+            raise ValueError("angle_unit must be 'degrees' or 'radians'")
+        if isinstance(angle, bool):
+            raise ValueError("angle must be a finite value")
+        angle = float(angle)
+        if not np.isfinite(angle):
+            raise ValueError("angle must be a finite value")
+
+        grid_system = str(self._hrtf.Sources.get_source_coordinate_system()).strip().lower()
+        grid_positions = self._hrtf.Sources.get_positions(angle_unit=unit)
+        if grid_positions.ndim != 2 or grid_positions.shape[-1] != 3:
+            raise ValueError("Source positions grid must have shape (N, 3)")
+
+        if grid_system == "spherical":
+            spherical_positions = grid_positions
+        elif grid_system == "cartesian":
+            spherical_positions = self._hrtf.Sources.cartesian_to_spherical(
+                grid_positions,
+                angle_unit=unit,
+            )
+        elif grid_system == "lateral-polar":
+            spherical_positions = self._hrtf.Sources.lateral_polar_to_spherical(
+                grid_positions,
+                angle_unit=unit,
+            )
+        else:
+            raise ValueError(f"Unsupported source coordinate system: {grid_system!r}")
+
+        azimuth = np.asarray(spherical_positions[..., 0], dtype=float)
+        elevation = np.asarray(spherical_positions[..., 1], dtype=float)
+        full = 360.0 if unit == "degrees" else 2.0 * np.pi
+        half = full / 2.0
+
+        if plane_key == "horizontal":
+            available_elevations = np.unique(elevation)
+            elevation_deltas = np.abs(available_elevations - angle)
+            real_elevation = float(available_elevations[int(np.argmin(elevation_deltas))])
+            indices = np.where(np.isclose(elevation, real_elevation, atol=1e-8, rtol=0.0))[0]
+            real_plane_angles = np.round(np.array([real_elevation], dtype=float), 2)
+            return indices.astype(int), real_plane_angles
+
+        available_azimuths = np.unique(azimuth)
+        azimuth_deltas = np.mod(available_azimuths - angle + half, full) - half
+        real_primary = float(available_azimuths[int(np.argmin(np.abs(azimuth_deltas)))])
+        opposite_target = np.mod(real_primary + half, full)
+        opposite_deltas = np.mod(available_azimuths - opposite_target + half, full) - half
+        real_opposite = float(available_azimuths[int(np.argmin(np.abs(opposite_deltas)))])
+
+        delta_primary = np.mod(azimuth - real_primary + half, full) - half
+        delta_opposite = np.mod(azimuth - real_opposite + half, full) - half
+        primary_indices = np.where(np.isclose(delta_primary, 0.0, atol=1e-8, rtol=0.0))[0]
+        opposite_indices = np.where(np.isclose(delta_opposite, 0.0, atol=1e-8, rtol=0.0))[0]
+        indices = np.unique(np.concatenate((primary_indices, opposite_indices))).astype(int)
+        real_plane_angles = np.round(np.array([real_primary, real_opposite], dtype=float), 2)
+        return indices, real_plane_angles
+
+    def get_horizontal_plane_indices(
+        self,
+        elevation: float = 0.0,
+        angle_unit: str = "degrees",
+    ) -> tuple[np.ndarray, float]:
+        """Return indices of the horizontal plane nearest to requested elevation."""
+        indices, real_plane_angles = self.get_plane_indices(
+            plane="horizontal",
+            angle=elevation,
+            angle_unit=angle_unit,
+        )
+        return indices, float(real_plane_angles[0])
+
+    def get_median_plane_indices(
+        self,
+        azimuth: float = 0.0,
+        angle_unit: str = "degrees",
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return indices of the median (sagittal) plane nearest to requested azimuth."""
+        return self.get_plane_indices(
+            plane="median",
+            angle=azimuth,
+            angle_unit=angle_unit,
+        )
+
+    def get_frontal_plane_indices(
+        self,
+        azimuth: float = 90.0,
+        angle_unit: str = "degrees",
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return indices of the frontal plane nearest to requested azimuth."""
+        return self.get_plane_indices(
+            plane="frontal",
+            angle=azimuth,
+            angle_unit=angle_unit,
+        )
 
     

@@ -496,6 +496,39 @@ class Transform:
         )
         return transformed_hrtf
 
+    def modify_source_coordinate_system(
+        self,
+        coordinate_system: str,
+    ) -> "HRTF":
+        """General Description:
+        Update Sources target coordinate system and refresh source positions.
+
+        Parameters:
+        - coordinate_system: Target source coordinate system (`spherical`, `cartesian`, or `lateral-polar`).
+
+        Returns:
+        - A new HRTF instance with updated `Sources.source_coordinate_system` and refreshed `Sources._positions`.
+
+        Use Cases:
+        - Switch source representation without modifying underlying SOFA stored coordinates.
+        - Prepare source grids for coordinate-specific analysis workflows.
+
+        Best Practices:
+        - Use supported coordinate-system names only.
+        - Treat this as a view-level change over source representation.
+        """
+        coordinate_system = str(coordinate_system).strip().lower()
+        allowed_coordinate_systems = {"spherical", "cartesian", "lateral-polar"}
+        if coordinate_system not in allowed_coordinate_systems:
+            raise ValueError(
+                "coordinate_system must be one of: spherical, cartesian, lateral-polar"
+            )
+
+        transformed_hrtf = self._hrtf.clone()
+        transformed_hrtf.Sources.source_coordinate_system = coordinate_system
+        transformed_hrtf.Sources._positions = transformed_hrtf.Sources.get_positions()
+        return transformed_hrtf
+
     
 '''
 
