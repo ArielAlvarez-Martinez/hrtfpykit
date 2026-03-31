@@ -258,6 +258,60 @@ def test_dsp_modify_magnitude_accepts_ndarray_and_tf() -> None:
     assert np.array_equal(hrtf.TF.values, tf_values)
 
 
+def test_getitem_invalid_key_raises_key_error() -> None:
+    hrtf = HRTF()
+    with pytest.raises(KeyError, match="ear must be one of"):
+        _ = hrtf["center"]
+
+
+def test_hrtf_getitem_returns_ear_selected_copy() -> None:
+    hrtf = HRTF()
+    ir_values = np.arange(3 * 2 * 4, dtype=float).reshape(3, 2, 4)
+    tf_values = (np.arange(3 * 2 * 3, dtype=float).reshape(3, 2, 3) + 1j).astype(complex)
+    hrtf.IR.values = ir_values.copy()
+    hrtf.IR.sample_rate = 48_000.0
+    hrtf.TF.values = tf_values.copy()
+    hrtf.TF.frequency_bins = np.array([0.0, 1000.0, 2000.0], dtype=float)
+
+    left_hrtf = hrtf["left"]
+    right_hrtf = hrtf["right"]
+    both_hrtf = hrtf["both"]
+
+    assert left_hrtf is not hrtf
+    assert right_hrtf is not hrtf
+    assert both_hrtf is hrtf
+    assert left_hrtf.IR.values.shape == (3, 4)
+    assert right_hrtf.IR.values.shape == (3, 4)
+    assert left_hrtf.TF.values.shape == (3, 3)
+    assert right_hrtf.TF.values.shape == (3, 3)
+    assert np.array_equal(left_hrtf.IR.values, ir_values[:, 0, :])
+    assert np.array_equal(right_hrtf.IR.values, ir_values[:, 1, :])
+    assert np.array_equal(left_hrtf.TF.values, tf_values[:, 0, :])
+    assert np.array_equal(right_hrtf.TF.values, tf_values[:, 1, :])
+
+
+def test_select_with_ear_squeezes_ear_axis() -> None:
+    hrtf = HRTF()
+    ir_values = np.arange(2 * 2 * 5, dtype=float).reshape(2, 2, 5)
+    tf_values = (np.arange(2 * 2 * 4, dtype=float).reshape(2, 2, 4) + 1j).astype(complex)
+    hrtf.IR.values = ir_values.copy()
+    hrtf.IR.sample_rate = 48_000.0
+    hrtf.TF.values = tf_values.copy()
+    hrtf.TF.frequency_bins = np.array([0.0, 1_000.0, 2_000.0, 3_000.0], dtype=float)
+
+    left_selected = hrtf.select(ear="left")
+    right_selected = hrtf.select(ear="right")
+
+    assert left_selected.IR.values.shape == (2, 5)
+    assert right_selected.IR.values.shape == (2, 5)
+    assert left_selected.TF.values.shape == (2, 4)
+    assert right_selected.TF.values.shape == (2, 4)
+    assert np.array_equal(left_selected.IR.values, ir_values[:, 0, :])
+    assert np.array_equal(right_selected.IR.values, ir_values[:, 1, :])
+    assert np.array_equal(left_selected.TF.values, tf_values[:, 0, :])
+    assert np.array_equal(right_selected.TF.values, tf_values[:, 1, :])
+
+
 def test_dsp_modify_phase_and_magnitude_validation() -> None:
     tf_values = np.array([[1.0 + 0.0j, 0.5 + 0.0j]], dtype=complex)
     wrong_shape = np.array([[1.0]], dtype=float)

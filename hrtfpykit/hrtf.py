@@ -8,13 +8,14 @@ from .dsp import (
     calculate_ir_from_tf,
     calculate_tf_from_ir,
 )
+from .plots import Plots
 from .sofa.core import SOFA
 from .spatial import Planes, Sources
 from .domain import IR, TF
 from .transforms import Transform
 
 
-class HRTF:
+class HRTF(Plots):
     def __init__(
         self,
         Sofa: SOFA | None = None,
@@ -46,6 +47,15 @@ class HRTF:
     @property
     def Analytics(self) -> "Analytics":
         return Analytics(self)
+
+    def __getitem__(self, ear: str) -> "HRTF":
+        """Return an ear-selected HRTF view (`left`, `right`, or `both`)."""
+        ear_key = str(ear).strip().lower()
+        if ear_key not in {"both", "left", "right"}:
+            raise KeyError("ear must be one of: left, right, both")
+        if ear_key == "both":
+            return self
+        return self.select(ear=ear_key)
 
     def clone(self) -> "HRTF":
         sofa_clone = self.Sofa
@@ -183,7 +193,7 @@ class HRTF:
                     raise ValueError(f"Requested ear '{ear_key}' is not available in IR data")
                 transformed_hrtf.IR.values = np.take(
                     transformed_hrtf.IR.values,
-                    indices=[ear_index],
+                    indices=ear_index,
                     axis=-2,
                 )
             if transformed_hrtf.TF.values is not None:
@@ -191,7 +201,7 @@ class HRTF:
                     raise ValueError(f"Requested ear '{ear_key}' is not available in TF data")
                 transformed_hrtf.TF.values = np.take(
                     transformed_hrtf.TF.values,
-                    indices=[ear_index],
+                    indices=ear_index,
                     axis=-2,
                 )
 
@@ -311,17 +321,12 @@ class HRTF:
                 norm_data = np.asarray(variables.get("Normalization").value, dtype=float)
                 if norm_data.size > 0:
                     tf_normalization = float(norm_data.flat[0])
-            ir, sample_rate = calculate_ir_from_tf(
+            ir, sample_rate, fft_length_used = calculate_ir_from_tf(
                 tf,
                 frequency_bins=frequency_bins,
                 tf_normalization=tf_normalization,
                 normalization_action="undo",
             )
-            min_frequency_bin = float(np.min(frequency_bins))
-            if min_frequency_bin < 0.0:
-                fft_length_used = frequency_bins.size
-            else:
-                fft_length_used = 2 * (frequency_bins.size - 1)
             if fft_length is not None and fft_length != fft_length_used:
                 raise ValueError("FFT length does not match the provided frequency bins.")
             resolved_sample_rate = sample_rate

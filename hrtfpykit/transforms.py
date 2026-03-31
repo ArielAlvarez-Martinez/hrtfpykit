@@ -7,9 +7,7 @@ from typing import TYPE_CHECKING
 from .dsp import (
     apply_fir_filter,
     apply_iir_filter,
-    apply_ir_crop,
     apply_padding,
-    apply_tf_crop,
     apply_window,
     calculate_itd,
     calculate_ir_from_tf,
