@@ -757,7 +757,6 @@ class Plots:
             raise AttributeError(
                 f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
             )
-        hrtf = self[ear]
         plot_options = PlotOptions() if options is None else options
         figure_options = (
             plot_options.figure if plot_options.figure is not None else FigureOptions()
@@ -766,7 +765,7 @@ class Plots:
             plot_options.axis if plot_options.axis is not None else AxisOptions()
         )
 
-        if hrtf.TF.values is None or hrtf.TF.frequency_bins is None:
+        if self.TF.values is None or self.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
 
         positions = np.asarray(positions, dtype=float)
@@ -789,10 +788,10 @@ class Plots:
         )
         panel_axis_options = self.get_panel_axis_options(layout, plot_options)
 
-        frequency_bins_hz = np.asarray(hrtf.TF.frequency_bins, dtype=float)
+        frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
             raise ValueError("TF frequency bins must be a non-empty 1D array")
-        tf_values = hrtf.TF.magnitude_db if unit == "db" else hrtf.TF.magnitude
+        tf_values = self.TF.magnitude_db if unit == "db" else self.TF.magnitude
         labels = Labels()
 
         for index, selected_position_query in enumerate(positions):
@@ -819,17 +818,26 @@ class Plots:
                 if resolved_axis_options.xlabel is None
                 else resolved_axis_options.xlabel
             )
-            idxs, selected_positions = hrtf.Sources.get_position_index(
+            idxs, selected_positions = self.Sources.get_position_index(
                 selected_position_query,
                 coordinate_system="spherical",
             )
             y_values = np.asarray(tf_values[idxs][..., frequency_mask], dtype=float)
 
             if ear == "both":
+                if y_values.ndim < 2 or y_values.shape[0] < 2:
+                    raise ValueError("Both ears requested but TF data does not contain two ear channels")
                 ax.plot(frequency_khz, y_values[0, :], color='blue')
                 ax.plot(frequency_khz, y_values[1, :], linestyle="dashed", color='red')
             else:
-                ax.plot(frequency_khz, y_values.reshape(-1), color='blue')
+                if y_values.ndim == 1:
+                    selected_y_values = y_values.reshape(-1)
+                else:
+                    ear_index = 0 if ear == "left" else 1
+                    if y_values.shape[0] <= ear_index:
+                        raise ValueError(f"Requested ear '{ear}' is not available in TF data")
+                    selected_y_values = np.asarray(y_values[ear_index], dtype=float).reshape(-1)
+                ax.plot(frequency_khz, selected_y_values, color='blue')
 
             Axis.create_frequency_axis(
                 ax=ax,
@@ -873,7 +881,6 @@ class Plots:
             raise AttributeError(
                 f"x_axis accepts : {accepted_parameters.x_axes[0]} or {accepted_parameters.x_axes[1]}"
             )
-        hrtf = self[ear]
         plot_options = PlotOptions() if options is None else options
         figure_options = (
             plot_options.figure if plot_options.figure is not None else FigureOptions()
@@ -882,9 +889,9 @@ class Plots:
             plot_options.axis if plot_options.axis is not None else AxisOptions()
         )
 
-        if hrtf.IR.values is None:
+        if self.IR.values is None:
             raise ValueError("IR data is not available")
-        if x_axis == "time" and hrtf.IR.sample_rate is None:
+        if x_axis == "time" and self.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required when x_axis='time'")
 
         positions = np.asarray(positions, dtype=float)
@@ -907,29 +914,38 @@ class Plots:
         )
         panel_axis_options = self.get_panel_axis_options(layout, plot_options)
 
-        ir_values = np.asarray(hrtf.IR.values, dtype=float)
+        ir_values = np.asarray(self.IR.values, dtype=float)
         if ir_values.ndim < 2 or ir_values.shape[-1] == 0:
             raise ValueError("IR values must contain at least one sample")
         sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
         if x_axis == "time":
-            x_values = sample_indexes / float(hrtf.IR.sample_rate)
+            x_values = sample_indexes / float(self.IR.sample_rate)
         else:
             x_values = sample_indexes
 
         for index, selected_position_query in enumerate(positions):
             ax = layout.get_axis(index)
             resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
-            idxs, selected_positions = hrtf.Sources.get_position_index(
+            idxs, selected_positions = self.Sources.get_position_index(
                 selected_position_query,
                 coordinate_system="spherical",
             )
             y_values = np.asarray(ir_values[idxs], dtype=float)
 
             if ear == "both":
+                if y_values.ndim < 2 or y_values.shape[0] < 2:
+                    raise ValueError("Both ears requested but IR data does not contain two ear channels")
                 ax.plot(x_values, y_values[0, :], color="blue")
                 ax.plot(x_values, y_values[1, :], color="red")
             else:
-                ax.plot(x_values, y_values.reshape(-1), color="blue")
+                if y_values.ndim == 1:
+                    selected_y_values = y_values.reshape(-1)
+                else:
+                    ear_index = 0 if ear == "left" else 1
+                    if y_values.shape[0] <= ear_index:
+                        raise ValueError(f"Requested ear '{ear}' is not available in IR data")
+                    selected_y_values = np.asarray(y_values[ear_index], dtype=float).reshape(-1)
+                ax.plot(x_values, selected_y_values, color="blue")
 
             if x_axis == "time":
                 Axis.create_time_axis(
