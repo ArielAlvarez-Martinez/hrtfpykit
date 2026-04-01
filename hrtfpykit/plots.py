@@ -39,74 +39,6 @@ class Rc:
 
 
 @dataclass(frozen=True)
-class AcceptedParameters:
-    unit: tuple[str, str] = ("db", "linear")
-    ear: tuple[str, str, str] = ("left", "right", "both")
-
-
-@dataclass(frozen=True)
-class FrequencyAxis:
-    ticks: tuple[float, ...] = (250, 500, 1000, 2000, 4000, 8000, 16000, 20000)
-    labels: tuple[str, ...] = ("0.25", "0.5", "1", "2", "4", "8", "16", "20")
-    freq_min: float | None = None
-    freq_max: float | None = None
-    margin_ratio: float = 0.03
-
-    @staticmethod
-    def set_ticks(
-        ax: plt.Axes,
-        unit: str,
-        freq_min: float | None = None,
-        freq_max: float | None = None,
-    ) -> None:
-        frequency_axis = FrequencyAxis()
-        resolved_freq_min = (
-            frequency_axis.freq_min if freq_min is None else float(freq_min)
-        )
-        resolved_freq_max = (
-            frequency_axis.freq_max if freq_max is None else float(freq_max)
-        )
-        margin_ratio = float(frequency_axis.margin_ratio)
-        if resolved_freq_min is None or resolved_freq_max is None:
-            raise ValueError("freq_min and freq_max are required for frequency axis formatting")
-        if not np.isfinite(resolved_freq_min) or not np.isfinite(resolved_freq_max):
-            raise ValueError("freq_min and freq_max must be finite values")
-        if resolved_freq_min >= resolved_freq_max:
-            raise ValueError("freq_min must be smaller than freq_max")
-        if unit == "db" and resolved_freq_min <= 0.0:
-            raise ValueError("freq_min must be positive for logarithmic frequency axis")
-
-        ticks = []
-        labels = []
-        for tick, label in zip(frequency_axis.ticks, frequency_axis.labels):
-            if resolved_freq_min <= tick <= resolved_freq_max:
-                ticks.append(tick)
-                labels.append(label)
-
-        ticks_khz = [tick / 1000.0 for tick in ticks]
-        resolved_freq_min_khz = resolved_freq_min / 1000.0
-        resolved_freq_max_khz = resolved_freq_max / 1000.0
-        if unit == "db":
-            ax.set_xscale("log")
-            log_min = np.log10(resolved_freq_min_khz)
-            log_max = np.log10(resolved_freq_max_khz)
-            margin_log = (log_max - log_min) * margin_ratio
-            x_min = 10 ** (log_min - margin_log)
-            x_max = 10 ** (log_max + margin_log)
-        else:
-            ax.set_xscale("linear")
-            margin_linear = (resolved_freq_max_khz - resolved_freq_min_khz) * margin_ratio
-            x_min = resolved_freq_min_khz - margin_linear
-            x_max = resolved_freq_max_khz + margin_linear
-        ax.set_xlim(x_min, x_max)
-        ax.xaxis.set_major_locator(FixedLocator(ticks_khz))
-        ax.xaxis.set_major_formatter(FixedFormatter(labels))
-        ax.xaxis.set_minor_locator(NullLocator())
-        ax.xaxis.set_minor_formatter(NullFormatter())
-        ax.xaxis.offsetText.set_visible(False)
-
-
-@dataclass(frozen=True)
 class Labels:
     frequency: str = "Frequency(kHz)"
     magnitude_db: str = "Magnitude (dB)"
@@ -115,32 +47,147 @@ class Labels:
 
 @dataclass(frozen=True)
 class Titles:
-    position: str = "Position : [az.: {az}, el.: {el}]"
+    position: str = "Position : [Azimuth= {az}°, Elevation= {el}°]"
 
 
 @dataclass(frozen=True)
-class Legends:
-    location: str = "upper left"
-    left: str = "Left Ear"
-    right: str = "Right Ear"
+class AcceptedParameters:
+    units: tuple[str, str] = ("db", "linear")
+    ears: tuple[str, str, str] = ("left", "right", "both")
 
 
 @dataclass(frozen=True)
-class TickLabels:
-    shared_x_visible: bool = True
+class FigureOptions:
+    figsize: tuple[float, float] | None = None
+    margins: Margins | None = None
+    title: str | None = None
 
 
 @dataclass(frozen=True)
-class AxisStyle:
-    xlabel: str
-    ylabel: str
-    title: str
-    use_frequency_axis: bool = False
+class LegendOptions:
+    enabled: bool | None = None
+    labels: tuple[str, ...] | list[str] | None = None
+    location: str | None = None
+
+    def merge(self, options: LegendOptions | None = None) -> LegendOptions:
+        if options is None:
+            return self
+        return LegendOptions(
+            enabled=self.enabled if options.enabled is None else options.enabled,
+            labels=self.labels if options.labels is None else options.labels,
+            location=self.location if options.location is None else options.location,
+        )
+
+
+@dataclass(frozen=True)
+class FrequencyAxisOptions:
     freq_min: float | None = None
     freq_max: float | None = None
-    shared_x_visible: bool = False
-    use_grid: bool = True
-    use_ear_legend: bool = True
+    ticks: tuple[float, ...] | list[float] | None = None
+    labels: tuple[str, ...] | list[str] | None = None
+    margin_ratio: float | None = None
+
+    def merge(
+        self,
+        options: FrequencyAxisOptions | None = None,
+    ) -> FrequencyAxisOptions:
+        if options is None:
+            return self
+        return FrequencyAxisOptions(
+            freq_min=self.freq_min if options.freq_min is None else options.freq_min,
+            freq_max=self.freq_max if options.freq_max is None else options.freq_max,
+            ticks=self.ticks if options.ticks is None else options.ticks,
+            labels=self.labels if options.labels is None else options.labels,
+            margin_ratio=(
+                self.margin_ratio
+                if options.margin_ratio is None
+                else options.margin_ratio
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class AxisOptions:
+    xlabel: str | None = None
+    ylabel: str | None = None
+    title: str | None = None
+    shared_x_visible: bool | None = None
+    grid: bool | None = None
+    legend: LegendOptions | None = None
+    frequency_axis: FrequencyAxisOptions | None = None
+
+    def merge(self, options: AxisOptions | None = None) -> AxisOptions:
+        if options is None:
+            return self
+        base_legend = LegendOptions() if self.legend is None else self.legend
+        base_frequency_axis = (
+            FrequencyAxisOptions()
+            if self.frequency_axis is None
+            else self.frequency_axis
+        )
+        return AxisOptions(
+            xlabel=self.xlabel if options.xlabel is None else options.xlabel,
+            ylabel=self.ylabel if options.ylabel is None else options.ylabel,
+            title=self.title if options.title is None else options.title,
+            shared_x_visible=(
+                self.shared_x_visible
+                if options.shared_x_visible is None
+                else options.shared_x_visible
+            ),
+            grid=self.grid if options.grid is None else options.grid,
+            legend=base_legend.merge(options.legend),
+            frequency_axis=base_frequency_axis.merge(options.frequency_axis),
+        )
+
+
+@dataclass(frozen=True)
+class PlotOptions:
+    figure: FigureOptions | None = None
+    axis: AxisOptions | None = None
+    panels: dict[int | str, AxisOptions] | None = None
+    show: bool = True
+
+
+class Legends:
+    locations: dict[str, str] = {"default": "upper left"}
+
+    @staticmethod
+    def apply(
+        ax: plt.Axes,
+        labels: list[str],
+        location: str | None = None,
+    ) -> None:
+        if len(labels) == 0:
+            raise ValueError("labels must contain at least one entry")
+        resolved_location = (
+            Legends.locations["default"] if location is None else location
+        )
+        ax.legend(labels=labels, loc=resolved_location)
+
+    @staticmethod
+    def ears_legend(
+        ax: plt.Axes,
+        ear: str,
+        location: str | None = None,
+        labels: tuple[str, ...] | list[str] | None = None,
+    ) -> None:
+        default_labels_by_ear = {
+            "both": ["Left Ear", "Right Ear"],
+            "left": ["Left Ear"],
+            "right": ["Right Ear"],
+        }
+        if ear not in default_labels_by_ear:
+            raise ValueError("ear accepts left, right, or both")
+        default_labels = default_labels_by_ear[ear]
+        expected_label_count = len(default_labels)
+        resolved_labels = (
+            default_labels if labels is None else [str(label) for label in labels]
+        )
+        if len(resolved_labels) != expected_label_count:
+            raise ValueError(
+                f"legend labels must contain {expected_label_count} entries for ear='{ear}'"
+            )
+        Legends.apply(ax=ax, labels=resolved_labels, location=location)
 
 
 @dataclass
@@ -177,6 +224,7 @@ def configure_rc() -> None:
             "ytick.labelsize": rc.ticks,
             "legend.fontsize": rc.legend,
             "legend.title_fontsize": rc.legend_title,
+            "figure.titlesize": rc.fig_title,
         }
     )
 
@@ -287,10 +335,6 @@ def figure(
     layout = LayoutFactory.create(layout=1, figsize=figsize)
     return layout.fig, layout.get_axis(0)
 
-
-layouts = tuple(LayoutFactory.registry)
-
-
 def create_layout(
     layout: int,
     figsize: tuple[float, float] | None = None,
@@ -299,88 +343,255 @@ def create_layout(
     return LayoutFactory.create(layout=layout, figsize=figsize, margins=margins)
 
 
-def grid(ax: plt.Axes | np.ndarray | list[plt.Axes]) -> None:
-    axes = np.asarray(ax, dtype=object).reshape(-1)
-    for axis in axes:
-        axis.grid(True)
+class Axis:
+    shared_x_visible: bool = True
+    frequency_ticks_log: tuple[float, ...] = (
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000,
+        16000,
+        20000,
+    )
+    frequency_tick_labels_log: tuple[str, ...] = (
+        "0.25",
+        "0.5",
+        "1",
+        "2",
+        "4",
+        "8",
+        "16",
+        "20",
+    )
+    frequency_ticks_linear: tuple[float, ...] = (
+        0,
+        5000,
+        10000,
+        15000,
+        20000,
+    )
+    frequency_tick_labels_linear: tuple[str, ...] = (
+        "0",
+        "5",
+        "10",
+        "15",
+        "20",
+    )
+    frequency_margin_ratio: float = 0.03
 
-
-class Ear:
     @staticmethod
-    def ears_legend(ax: plt.Axes, ear: str) -> None:
-        legends = Legends()
-        if ear == "both":
-            ax.legend(
-                labels=[legends.left, legends.right],
-                loc=legends.location,
-            )
-        elif ear == "left":
-            ax.legend(labels=[legends.left], loc=legends.location)
-        elif ear == "right":
-            ax.legend(labels=[legends.right], loc=legends.location)
-
-
-def apply_axis_style(
-    ax: plt.Axes,
-    style: AxisStyle,
-    unit: str | None = None,
-    ear: str | None = None,
-) -> None:
-    ax.set_xlabel(style.xlabel)
-    ax.set_ylabel(style.ylabel)
-    ax.set_title(style.title)
-    if style.use_frequency_axis:
-        if unit is None:
-            raise ValueError("unit is required when frequency axis formatting is enabled")
-        FrequencyAxis.set_ticks(
-            ax,
-            unit,
-            freq_min=style.freq_min,
-            freq_max=style.freq_max,
+    def create_frequency_axis(
+        ax: plt.Axes | None,
+        axis: str,
+        unit: str,
+        frequency_bins: np.ndarray | None = None,
+        freq_min: float | None = None,
+        freq_max: float | None = None,
+        label: str | None = None,
+        options: FrequencyAxisOptions | None = None,
+    ) -> FrequencyAxisOptions:
+        frequency_axis_options = FrequencyAxisOptions() if options is None else options
+        resolved_frequency_bins = None
+        if frequency_bins is not None:
+            resolved_frequency_bins = np.asarray(frequency_bins, dtype=float)
+            if resolved_frequency_bins.ndim != 1 or resolved_frequency_bins.size == 0:
+                raise ValueError("frequency_bins must be a non-empty 1D array")
+        if axis not in {"x", "y", "z"}:
+            raise ValueError("axis accepts 'x', 'y', or 'z'")
+        requested_freq_min = (
+            frequency_axis_options.freq_min if freq_min is None else freq_min
         )
-    if style.shared_x_visible:
-        ax.tick_params(axis="x", which="both", labelbottom=True)
-    if style.use_ear_legend:
-        if ear is None:
-            raise ValueError("ear is required when legend formatting is enabled")
-        Ear.ears_legend(ax, ear)
-    if style.use_grid:
-        grid(ax)
+        if requested_freq_min is None:
+            if resolved_frequency_bins is None:
+                raise ValueError("freq_min is required when frequency_bins are not provided")
+            if unit == "db":
+                positive_frequency_bins = resolved_frequency_bins[
+                    resolved_frequency_bins > 0.0
+                ]
+                if positive_frequency_bins.size == 0:
+                    raise ValueError(
+                        "frequency_bins must include a positive value for logarithmic frequency axis"
+                    )
+                resolved_freq_min = float(np.min(positive_frequency_bins))
+            else:
+                resolved_freq_min = float(np.min(resolved_frequency_bins))
+        else:
+            resolved_freq_min = float(requested_freq_min)
+        requested_freq_max = (
+            frequency_axis_options.freq_max if freq_max is None else freq_max
+        )
+        if requested_freq_max is None:
+            if resolved_frequency_bins is None:
+                raise ValueError("freq_max is required when frequency_bins are not provided")
+            resolved_freq_max = float(np.max(resolved_frequency_bins))
+        else:
+            resolved_freq_max = float(requested_freq_max)
+        resolved_margin_ratio = (
+            float(Axis.frequency_margin_ratio)
+            if frequency_axis_options.margin_ratio is None
+            else float(frequency_axis_options.margin_ratio)
+        )
+        if not np.isfinite(resolved_freq_min) or not np.isfinite(resolved_freq_max):
+            raise ValueError("freq_min and freq_max must be finite values")
+        if resolved_freq_min >= resolved_freq_max:
+            raise ValueError("freq_min must be smaller than freq_max")
+        if unit == "db" and resolved_freq_min <= 0.0:
+            raise ValueError("freq_min must be positive for logarithmic frequency axis")
+        if resolved_margin_ratio < 0.0:
+            raise ValueError("margin_ratio must be non-negative")
 
+        default_ticks = Axis.frequency_ticks_log if unit == "db" else Axis.frequency_ticks_linear
+        default_labels = (
+            Axis.frequency_tick_labels_log
+            if unit == "db"
+            else Axis.frequency_tick_labels_linear
+        )
+        resolved_ticks = (
+            tuple(float(tick) for tick in default_ticks)
+            if frequency_axis_options.ticks is None
+            else tuple(float(tick) for tick in frequency_axis_options.ticks)
+        )
+        resolved_labels = (
+            tuple(str(label) for label in default_labels)
+            if frequency_axis_options.labels is None
+            and frequency_axis_options.ticks is None
+            else (
+                tuple(f"{tick / 1000.0:g}" for tick in resolved_ticks)
+                if frequency_axis_options.labels is None
+                else tuple(str(label) for label in frequency_axis_options.labels)
+            )
+        )
+        if len(resolved_ticks) != len(resolved_labels):
+            raise ValueError("frequency axis ticks and labels must have the same length")
+        if unit == "db" and any(tick <= 0.0 for tick in resolved_ticks):
+            raise ValueError("frequency axis ticks must be positive for logarithmic axis")
 
-def create_magnitude_axis_style(
-    unit: str,
-    selected_positions: np.ndarray,
-    freq_min: float | None = None,
-    freq_max: float | None = None,
-    shared_x_visible: bool | None = None,
-) -> AxisStyle:
-    labels = Labels()
-    titles = Titles()
-    tick_labels = TickLabels()
-    if shared_x_visible is None:
-        shared_x_visible = tick_labels.shared_x_visible
-    return AxisStyle(
-        xlabel=labels.frequency,
-        ylabel=(
-            labels.magnitude_db if unit == "db" else labels.magnitude_linear
-        ),
-        title=titles.position.format(
+        visible_pairs = tuple(
+            (tick, tick_label)
+            for tick, tick_label in zip(resolved_ticks, resolved_labels)
+            if resolved_freq_min <= tick <= resolved_freq_max
+        )
+
+        resolved_frequency_axis = FrequencyAxisOptions(
+            ticks=tuple(tick for tick, _ in visible_pairs),
+            labels=tuple(tick_label for _, tick_label in visible_pairs),
+            freq_min=resolved_freq_min,
+            freq_max=resolved_freq_max,
+            margin_ratio=resolved_margin_ratio,
+        )
+        if ax is None:
+            return resolved_frequency_axis
+
+        ticks_khz = [tick / 1000.0 for tick in resolved_frequency_axis.ticks or ()]
+        resolved_freq_min_khz = float(resolved_frequency_axis.freq_min) / 1000.0
+        resolved_freq_max_khz = float(resolved_frequency_axis.freq_max) / 1000.0
+        margin_ratio = float(resolved_frequency_axis.margin_ratio)
+
+        if axis == "x":
+            axis_object = ax.xaxis
+            set_scale = ax.set_xscale
+            set_limits = ax.set_xlim
+            set_label = ax.set_xlabel
+        elif axis == "y":
+            axis_object = ax.yaxis
+            set_scale = ax.set_yscale
+            set_limits = ax.set_ylim
+            set_label = ax.set_ylabel
+        else:
+            axis_object = getattr(ax, "zaxis", None)
+            set_scale = getattr(ax, "set_zscale", None)
+            set_limits = getattr(ax, "set_zlim", None)
+            set_label = getattr(ax, "set_zlabel", None)
+            if axis_object is None or set_scale is None or set_limits is None:
+                raise ValueError("z-axis formatting requires a matplotlib 3D axis")
+            if set_label is None:
+                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
+        if label is not None:
+            set_label(label)
+
+        if unit == "db":
+            set_scale("log")
+            log_min = np.log10(resolved_freq_min_khz)
+            log_max = np.log10(resolved_freq_max_khz)
+            margin_log = (log_max - log_min) * margin_ratio
+            axis_min = 10 ** (log_min - margin_log)
+            axis_max = 10 ** (log_max + margin_log)
+        else:
+            set_scale("linear")
+            margin_linear = (resolved_freq_max_khz - resolved_freq_min_khz) * margin_ratio
+            axis_min = resolved_freq_min_khz - margin_linear
+            axis_max = resolved_freq_max_khz + margin_linear
+        set_limits(axis_min, axis_max)
+        axis_object.set_major_locator(FixedLocator(ticks_khz))
+        axis_object.set_major_formatter(FixedFormatter(resolved_frequency_axis.labels or ()))
+        axis_object.set_minor_locator(NullLocator())
+        axis_object.set_minor_formatter(NullFormatter())
+        if hasattr(axis_object, "offsetText"):
+            axis_object.offsetText.set_visible(False)
+        return resolved_frequency_axis
+
+    @staticmethod
+    def create_magnitude_axis(
+        ax: plt.Axes,
+        axis: str,
+        unit: str,
+        selected_positions: np.ndarray,
+        ear: str,
+        options: AxisOptions | None = None,
+    ) -> None:
+        axis_options = AxisOptions() if options is None else options
+        legend_options = LegendOptions() if axis_options.legend is None else axis_options.legend
+        shared_x_visible = (
+            Axis.shared_x_visible
+            if axis_options.shared_x_visible is None
+            else axis_options.shared_x_visible
+        )
+        labels = Labels()
+        titles = Titles()
+        if axis not in {"x", "y", "z"}:
+            raise ValueError("axis accepts 'x', 'y', or 'z'")
+        default_label = labels.magnitude_db if unit == "db" else labels.magnitude_linear
+        default_title = titles.position.format(
             az=float(selected_positions[0]),
             el=float(selected_positions[1]),
-        ),
-        use_frequency_axis=True,
-        freq_min=None if freq_min is None else float(freq_min),
-        freq_max=None if freq_max is None else float(freq_max),
-        shared_x_visible=shared_x_visible,
-        use_grid=True,
-        use_ear_legend=True,
-    )
+        )
+        if axis == "x":
+            set_label = ax.set_xlabel
+            resolved_label = (
+                default_label if axis_options.xlabel is None else axis_options.xlabel
+            )
+        elif axis == "y":
+            set_label = ax.set_ylabel
+            resolved_label = (
+                default_label if axis_options.ylabel is None else axis_options.ylabel
+            )
+        else:
+            set_label = getattr(ax, "set_zlabel", None)
+            if set_label is None:
+                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
+            resolved_label = default_label
+        set_label(resolved_label)
+        resolved_title = default_title if axis_options.title is None else axis_options.title
+        ax.set_title(resolved_title)
+        if shared_x_visible:
+            ax.tick_params(axis="x", which="both", labelbottom=True)
+        legend_enabled = True if legend_options.enabled is None else legend_options.enabled
+        if legend_enabled:
+            Legends.ears_legend(
+                ax=ax,
+                ear=ear,
+                location=legend_options.location,
+                labels=legend_options.labels,
+            )
+        grid_enabled = True if axis_options.grid is None else axis_options.grid
+        if grid_enabled:
+            ax.grid(True)
 
 
 class Plots:
-    # Lets work in Inheritance. All methods will accept a instance of HRTF , then HRTF will inherit from Plots
-
+    #  Inheritance. All methods will accept a instance of HRTF , then HRTF will inherit from Plots
     def plot_magnitude(
         self: "HRTF",
         position: list | np.ndarray,
@@ -388,17 +599,25 @@ class Plots:
         ear: str = "both",
         freq_min: float | None = None,
         freq_max: float | None = None,
-    ) -> None:
+        options: PlotOptions | None = None,
+    ) -> LayoutFigure:
         accepted_parameters = AcceptedParameters()
-        if unit not in accepted_parameters.unit:
+        if unit not in accepted_parameters.units:
             raise AttributeError(
-                f"unit accepts : {accepted_parameters.unit[0]} or {accepted_parameters.unit[1]}"
+                f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
             )
-        if ear not in accepted_parameters.ear:
+        if ear not in accepted_parameters.ears:
             raise AttributeError(
-                f"ear accepts {accepted_parameters.ear[0]}, {accepted_parameters.ear[1]} or {accepted_parameters.ear[2]}"
+                f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
             )
         hrtf = self[ear]
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        axis_options = (
+            plot_options.axis if plot_options.axis is not None else AxisOptions()
+        )
 
         if hrtf.TF.values is None or hrtf.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
@@ -409,76 +628,103 @@ class Plots:
         if positions.ndim != 2 or positions.shape[-1] not in {2, 3}:
             raise ValueError("position must have shape (2,), (3,), (K, 2), or (K, 3)")
 
-        position_count = int(positions.shape[0])
+        position_count = positions.shape[0]
         if position_count == 0:
             raise ValueError("At least one position is required")
         if position_count > 4:
             raise ValueError("plot_magnitude accepts up to 4 positions")
 
         layout_number = 1 if position_count == 1 else 2 if position_count == 2 else 4
-        layout = (
-            create_layout(layout=1, figsize=(8, 6))
-            if layout_number == 1
-            else create_layout(layout=layout_number)
+        layout = create_layout(
+            layout=layout_number,
+            figsize=figure_options.figsize,
+            margins=figure_options.margins,
         )
+        panel_axis_options: dict[int, AxisOptions] = {}
+        if plot_options.panels is not None:
+            for panel, panel_options in plot_options.panels.items():
+                if isinstance(panel, str):
+                    if panel not in layout.positions:
+                        raise ValueError(
+                            f"panel accepts: {', '.join(layout.positions)}"
+                        )
+                    panel_index = layout.positions.index(panel)
+                else:
+                    panel_index = int(panel)
+                    if panel_index < 0 or panel_index >= layout.axes.size:
+                        raise ValueError(
+                            f"panel index must be between 0 and {layout.axes.size - 1}"
+                        )
+                if panel_index in panel_axis_options:
+                    raise ValueError(
+                        f"panel override for subplot {panel_index} is duplicated"
+                    )
+                panel_axis_options[panel_index] = panel_options
+
         frequency_bins_hz = np.asarray(hrtf.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
             raise ValueError("TF frequency bins must be a non-empty 1D array")
-        if freq_min is None:
-            if unit == "db":
-                positive_frequency_bins = frequency_bins_hz[frequency_bins_hz > 0.0]
-                if positive_frequency_bins.size == 0:
-                    raise ValueError(
-                        "TF frequency bins must include a positive value for logarithmic frequency axis"
-                    )
-                resolved_freq_min = float(np.min(positive_frequency_bins))
-            else:
-                resolved_freq_min = float(np.min(frequency_bins_hz))
-        else:
-            resolved_freq_min = float(freq_min)
-        resolved_freq_max = (
-            float(np.max(frequency_bins_hz)) if freq_max is None else float(freq_max)
-        )
-        frequency_mask = (
-            (frequency_bins_hz >= resolved_freq_min)
-            & (frequency_bins_hz <= resolved_freq_max)
-        )
-        if not np.any(frequency_mask):
-            raise ValueError("Selected frequency range produced no TF bins")
-        x_khz = frequency_bins_hz[frequency_mask] / 1000.0
         tf_values = hrtf.TF.magnitude_db if unit == "db" else hrtf.TF.magnitude
+        labels = Labels()
 
         for index, selected_position_query in enumerate(positions):
             ax = layout.get_axis(index)
+            resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
+            resolved_frequency_axis = Axis.create_frequency_axis(
+                ax=None,
+                axis="x",
+                unit=unit,
+                frequency_bins=frequency_bins_hz,
+                freq_min=freq_min,
+                freq_max=freq_max,
+                options=resolved_axis_options.frequency_axis,
+            )
+            frequency_mask = (
+                (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
+                & (frequency_bins_hz <= float(resolved_frequency_axis.freq_max))
+            )
+            if not np.any(frequency_mask):
+                raise ValueError("Selected frequency range produced no TF bins")
+            frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
+            frequency_label = (
+                labels.frequency
+                if resolved_axis_options.xlabel is None
+                else resolved_axis_options.xlabel
+            )
             idxs, selected_positions = hrtf.Sources.get_position_index(
                 selected_position_query,
                 coordinate_system="spherical",
             )
-            y = tf_values[idxs][..., frequency_mask]
+            y_values = np.asarray(tf_values[idxs][..., frequency_mask], dtype=float)
 
             if ear == "both":
-                y_left = y[0, :]
-                y_right = y[1, :]
-                ax.plot(x_khz, y_left)
-                ax.plot(x_khz, y_right, linestyle="dashed")
+                ax.plot(frequency_khz, y_values[0, :], color='blue')
+                ax.plot(frequency_khz, y_values[1, :], linestyle="dashed", color='red')
             else:
-                ax.plot(x_khz, y)
+                ax.plot(frequency_khz, y_values.reshape(-1), color='blue')
 
-            axis_style = create_magnitude_axis_style(
+            Axis.create_frequency_axis(
+                ax=ax,
+                axis="x",
+                unit=unit,
+                label=frequency_label,
+                options=resolved_frequency_axis,
+            )
+            Axis.create_magnitude_axis(
+                ax=ax,
+                axis="y",
                 unit=unit,
                 selected_positions=selected_positions,
-                freq_min=resolved_freq_min,
-                freq_max=resolved_freq_max,
-            )
-            apply_axis_style(
-                ax=ax,
-                style=axis_style,
-                unit=unit,
                 ear=ear,
+                options=resolved_axis_options,
             )
 
         if position_count < layout.axes.size:
             for ax in layout.axes[position_count:]:
                 ax.set_visible(False)
 
-        plt.show()
+        if figure_options.title is not None:
+            layout.fig.suptitle(figure_options.title)
+        if plot_options.show:
+            plt.show()
+        return layout
