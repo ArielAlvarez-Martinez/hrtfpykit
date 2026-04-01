@@ -43,6 +43,9 @@ class Labels:
     frequency: str = "Frequency(kHz)"
     magnitude_db: str = "Magnitude (dB)"
     magnitude_linear: str = "Magnitude"
+    time: str = "Time (s)"
+    samples: str = "Samples"
+    impulse_response: str = "Amplitude"
 
 
 @dataclass(frozen=True)
@@ -54,6 +57,7 @@ class Titles:
 class AcceptedParameters:
     units: tuple[str, str] = ("db", "linear")
     ears: tuple[str, str, str] = ("left", "right", "both")
+    x_axes: tuple[str, str] = ("time", "samples")
 
 
 @dataclass(frozen=True)
@@ -579,22 +583,165 @@ class Axis:
             ax.tick_params(axis="x", which="both", labelbottom=True)
         legend_enabled = True if legend_options.enabled is None else legend_options.enabled
         if legend_enabled:
+            legend_location = (
+                "upper right"
+                if legend_options.location is None
+                else legend_options.location
+            )
             Legends.ears_legend(
                 ax=ax,
                 ear=ear,
-                location=legend_options.location,
+                location=legend_location,
                 labels=legend_options.labels,
             )
         grid_enabled = True if axis_options.grid is None else axis_options.grid
         if grid_enabled:
             ax.grid(True)
 
+    @staticmethod
+    def create_amplitude_axis(
+        ax: plt.Axes,
+        axis: str,
+        selected_positions: np.ndarray,
+        ear: str,
+        options: AxisOptions | None = None,
+    ) -> None:
+        axis_options = AxisOptions() if options is None else options
+        legend_options = LegendOptions() if axis_options.legend is None else axis_options.legend
+        shared_x_visible = (
+            Axis.shared_x_visible
+            if axis_options.shared_x_visible is None
+            else axis_options.shared_x_visible
+        )
+        labels = Labels()
+        titles = Titles()
+        if axis not in {"x", "y", "z"}:
+            raise ValueError("axis accepts 'x', 'y', or 'z'")
+        default_title = titles.position.format(
+            az=float(selected_positions[0]),
+            el=float(selected_positions[1]),
+        )
+        if axis == "x":
+            set_label = ax.set_xlabel
+            resolved_label = (
+                labels.impulse_response
+                if axis_options.xlabel is None
+                else axis_options.xlabel
+            )
+        elif axis == "y":
+            set_label = ax.set_ylabel
+            resolved_label = (
+                labels.impulse_response
+                if axis_options.ylabel is None
+                else axis_options.ylabel
+            )
+        else:
+            set_label = getattr(ax, "set_zlabel", None)
+            if set_label is None:
+                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
+            resolved_label = labels.impulse_response
+        resolved_title = default_title if axis_options.title is None else axis_options.title
+        set_label(resolved_label)
+        ax.set_title(resolved_title)
+        if shared_x_visible:
+            ax.tick_params(axis="x", which="both", labelbottom=True)
+        legend_enabled = True if legend_options.enabled is None else legend_options.enabled
+        if legend_enabled:
+            legend_location = (
+                "upper right"
+                if legend_options.location is None
+                else legend_options.location
+            )
+            Legends.ears_legend(
+                ax=ax,
+                ear=ear,
+                location=legend_location,
+                labels=legend_options.labels,
+            )
+        grid_enabled = True if axis_options.grid is None else axis_options.grid
+        if grid_enabled:
+            ax.grid(True)
+
+    @staticmethod
+    def create_time_axis(
+        ax: plt.Axes,
+        axis: str,
+        options: AxisOptions | None = None,
+    ) -> None:
+        axis_options = AxisOptions() if options is None else options
+        labels = Labels()
+        if axis not in {"x", "y", "z"}:
+            raise ValueError("axis accepts 'x', 'y', or 'z'")
+        if axis == "x":
+            set_label = ax.set_xlabel
+            resolved_label = labels.time if axis_options.xlabel is None else axis_options.xlabel
+        elif axis == "y":
+            set_label = ax.set_ylabel
+            resolved_label = labels.time if axis_options.ylabel is None else axis_options.ylabel
+        else:
+            set_label = getattr(ax, "set_zlabel", None)
+            if set_label is None:
+                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
+            resolved_label = labels.time
+        set_label(resolved_label)
+
+    @staticmethod
+    def create_samples_axis(
+        ax: plt.Axes,
+        axis: str,
+        options: AxisOptions | None = None,
+    ) -> None:
+        axis_options = AxisOptions() if options is None else options
+        labels = Labels()
+        if axis not in {"x", "y", "z"}:
+            raise ValueError("axis accepts 'x', 'y', or 'z'")
+        if axis == "x":
+            set_label = ax.set_xlabel
+            resolved_label = labels.samples if axis_options.xlabel is None else axis_options.xlabel
+        elif axis == "y":
+            set_label = ax.set_ylabel
+            resolved_label = labels.samples if axis_options.ylabel is None else axis_options.ylabel
+        else:
+            set_label = getattr(ax, "set_zlabel", None)
+            if set_label is None:
+                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
+            resolved_label = labels.samples
+        set_label(resolved_label)
+
 
 class Plots:
     #  Inheritance. All methods will accept a instance of HRTF , then HRTF will inherit from Plots
+    @staticmethod
+    def get_panel_axis_options(
+        layout: LayoutFigure,
+        plot_options: PlotOptions,
+    ) -> dict[int, AxisOptions]:
+        panel_axis_options: dict[int, AxisOptions] = {}
+        if plot_options.panels is None:
+            return panel_axis_options
+        for panel, panel_options in plot_options.panels.items():
+            if isinstance(panel, str):
+                if panel not in layout.positions:
+                    raise ValueError(
+                        f"panel accepts: {', '.join(layout.positions)}"
+                    )
+                panel_index = layout.positions.index(panel)
+            else:
+                panel_index = int(panel)
+                if panel_index < 0 or panel_index >= layout.axes.size:
+                    raise ValueError(
+                        f"panel index must be between 0 and {layout.axes.size - 1}"
+                    )
+            if panel_index in panel_axis_options:
+                raise ValueError(
+                    f"panel override for subplot {panel_index} is duplicated"
+                )
+            panel_axis_options[panel_index] = panel_options
+        return panel_axis_options
+
     def plot_magnitude(
         self: "HRTF",
-        position: list | np.ndarray,
+        positions: list | np.ndarray,
         unit: str = "db",
         ear: str = "both",
         freq_min: float | None = None,
@@ -622,7 +769,7 @@ class Plots:
         if hrtf.TF.values is None or hrtf.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
 
-        positions = np.asarray(position, dtype=float)
+        positions = np.asarray(positions, dtype=float)
         if positions.ndim == 1:
             positions = positions.reshape(1, -1)
         if positions.ndim != 2 or positions.shape[-1] not in {2, 3}:
@@ -640,26 +787,7 @@ class Plots:
             figsize=figure_options.figsize,
             margins=figure_options.margins,
         )
-        panel_axis_options: dict[int, AxisOptions] = {}
-        if plot_options.panels is not None:
-            for panel, panel_options in plot_options.panels.items():
-                if isinstance(panel, str):
-                    if panel not in layout.positions:
-                        raise ValueError(
-                            f"panel accepts: {', '.join(layout.positions)}"
-                        )
-                    panel_index = layout.positions.index(panel)
-                else:
-                    panel_index = int(panel)
-                    if panel_index < 0 or panel_index >= layout.axes.size:
-                        raise ValueError(
-                            f"panel index must be between 0 and {layout.axes.size - 1}"
-                        )
-                if panel_index in panel_axis_options:
-                    raise ValueError(
-                        f"panel override for subplot {panel_index} is duplicated"
-                    )
-                panel_axis_options[panel_index] = panel_options
+        panel_axis_options = self.get_panel_axis_options(layout, plot_options)
 
         frequency_bins_hz = np.asarray(hrtf.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
@@ -714,6 +842,110 @@ class Plots:
                 ax=ax,
                 axis="y",
                 unit=unit,
+                selected_positions=selected_positions,
+                ear=ear,
+                options=resolved_axis_options,
+            )
+
+        if position_count < layout.axes.size:
+            for ax in layout.axes[position_count:]:
+                ax.set_visible(False)
+
+        if figure_options.title is not None:
+            layout.fig.suptitle(figure_options.title)
+        if plot_options.show:
+            plt.show()
+        return layout
+
+    def plot_impulse_response(
+        self: "HRTF",
+        positions: list | np.ndarray,
+        ear: str = "both",
+        x_axis: str = "time",
+        options: PlotOptions | None = None,
+    ) -> LayoutFigure:
+        accepted_parameters = AcceptedParameters()
+        if ear not in accepted_parameters.ears:
+            raise AttributeError(
+                f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
+            )
+        if x_axis not in accepted_parameters.x_axes:
+            raise AttributeError(
+                f"x_axis accepts : {accepted_parameters.x_axes[0]} or {accepted_parameters.x_axes[1]}"
+            )
+        hrtf = self[ear]
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        axis_options = (
+            plot_options.axis if plot_options.axis is not None else AxisOptions()
+        )
+
+        if hrtf.IR.values is None:
+            raise ValueError("IR data is not available")
+        if x_axis == "time" and hrtf.IR.sample_rate is None:
+            raise ValueError("IR sample_rate is required when x_axis='time'")
+
+        positions = np.asarray(positions, dtype=float)
+        if positions.ndim == 1:
+            positions = positions.reshape(1, -1)
+        if positions.ndim != 2 or positions.shape[-1] not in {2, 3}:
+            raise ValueError("positions must have shape (2,), (3,), (K, 2), or (K, 3)")
+
+        position_count = positions.shape[0]
+        if position_count == 0:
+            raise ValueError("At least one position is required")
+        if position_count > 4:
+            raise ValueError("plot_impulse_response accepts up to 4 positions")
+
+        layout_number = 1 if position_count == 1 else 2 if position_count == 2 else 4
+        layout = create_layout(
+            layout=layout_number,
+            figsize=figure_options.figsize,
+            margins=figure_options.margins,
+        )
+        panel_axis_options = self.get_panel_axis_options(layout, plot_options)
+
+        ir_values = np.asarray(hrtf.IR.values, dtype=float)
+        if ir_values.ndim < 2 or ir_values.shape[-1] == 0:
+            raise ValueError("IR values must contain at least one sample")
+        sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
+        if x_axis == "time":
+            x_values = sample_indexes / float(hrtf.IR.sample_rate)
+        else:
+            x_values = sample_indexes
+
+        for index, selected_position_query in enumerate(positions):
+            ax = layout.get_axis(index)
+            resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
+            idxs, selected_positions = hrtf.Sources.get_position_index(
+                selected_position_query,
+                coordinate_system="spherical",
+            )
+            y_values = np.asarray(ir_values[idxs], dtype=float)
+
+            if ear == "both":
+                ax.plot(x_values, y_values[0, :], color="blue")
+                ax.plot(x_values, y_values[1, :], color="red")
+            else:
+                ax.plot(x_values, y_values.reshape(-1), color="blue")
+
+            if x_axis == "time":
+                Axis.create_time_axis(
+                    ax=ax,
+                    axis="x",
+                    options=resolved_axis_options,
+                )
+            else:
+                Axis.create_samples_axis(
+                    ax=ax,
+                    axis="x",
+                    options=resolved_axis_options,
+                )
+            Axis.create_amplitude_axis(
+                ax=ax,
+                axis="y",
                 selected_positions=selected_positions,
                 ear=ear,
                 options=resolved_axis_options,
