@@ -512,6 +512,142 @@ class Sources:
             raise ValueError(f"Unsupported target coordinate system: {target_system!r}")
         return np.unique(np.round(np.asarray(elevation, dtype=float), 2))
 
+    def get_elevation_angles_for_azimuth(
+        self,
+        azimuth: float,
+        angle_unit: str = "degrees",
+    ) -> tuple[np.ndarray, float]:
+        """Return available elevation angles for the nearest azimuth in the grid.
+
+        Parameters
+        ----------
+        azimuth : float
+            Requested azimuth angle used to query the source grid.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Angular unit for ``azimuth`` and returned elevation values.
+
+        Returns
+        -------
+        tuple[np.ndarray, float]
+            ``(elevation_angles, real_azimuth)`` where ``elevation_angles`` is a
+            one-dimensional array of unique elevations available at the matched
+            azimuth, and ``real_azimuth`` is the actual azimuth selected from the grid.
+
+        Use Cases
+        ---------
+        - Inspect vertical sampling for a requested azimuth slice.
+        - Build elevation selectors for plotting or interactive tools.
+        - Query the real grid coverage before extracting directional data.
+
+        Best Practices
+        --------------
+        - Treat ``real_azimuth`` as the true grid value used for the query.
+        - Use the same ``angle_unit`` as the rest of the spatial workflow.
+        - Expect nearest-match behavior when the requested azimuth is not present exactly.
+        """
+        if isinstance(azimuth, bool):
+            raise ValueError("azimuth must be a finite value")
+        azimuth = float(azimuth)
+        if not np.isfinite(azimuth):
+            raise ValueError("azimuth must be a finite value")
+
+        target_system = str(self.source_coordinate_system).strip().lower()
+        positions = self.get_positions(angle_unit=angle_unit)
+        if target_system == "spherical":
+            spherical = positions
+        elif target_system == "cartesian":
+            spherical = self.cartesian_to_spherical(positions, angle_unit=angle_unit)
+        elif target_system == "lateral-polar":
+            cartesian = self.lateral_polar_to_cartesian(positions, angle_unit=angle_unit)
+            spherical = self.cartesian_to_spherical(cartesian, angle_unit=angle_unit)
+        else:
+            raise ValueError(f"Unsupported target coordinate system: {target_system!r}")
+
+        unit = str(angle_unit).strip().lower()
+        if unit not in {"degrees", "radians"}:
+            raise ValueError("angle_unit must be 'degrees' or 'radians'")
+
+        azimuth_angles = np.round(np.asarray(spherical[..., 0], dtype=float), 2)
+        elevation_angles = np.round(np.asarray(spherical[..., 1], dtype=float), 2)
+        available_azimuths = np.unique(azimuth_angles)
+        full = 360.0 if unit == "degrees" else 2.0 * np.pi
+        half = full / 2.0
+        azimuth_deltas = np.mod(available_azimuths - azimuth + half, full) - half
+        real_azimuth = float(available_azimuths[int(np.argmin(np.abs(azimuth_deltas)))])
+        selected = np.isclose(
+            np.mod(azimuth_angles - real_azimuth + half, full) - half,
+            0.0,
+            atol=1e-8,
+            rtol=0.0,
+        )
+        return np.unique(elevation_angles[selected]), real_azimuth
+
+    def get_azimuth_angles_for_elevation(
+        self,
+        elevation: float,
+        angle_unit: str = "degrees",
+    ) -> tuple[np.ndarray, float]:
+        """Return available azimuth angles for the nearest elevation in the grid.
+
+        Parameters
+        ----------
+        elevation : float
+            Requested elevation angle used to query the source grid.
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Angular unit for ``elevation`` and returned azimuth values.
+
+        Returns
+        -------
+        tuple[np.ndarray, float]
+            ``(azimuth_angles, real_elevation)`` where ``azimuth_angles`` is a
+            one-dimensional array of unique azimuths available at the matched
+            elevation, and ``real_elevation`` is the actual elevation selected
+            from the grid.
+
+        Use Cases
+        ---------
+        - Inspect horizontal sampling for a requested elevation slice.
+        - Build azimuth selectors for plotting or interactive tools.
+        - Query the real grid coverage before extracting directional data.
+
+        Best Practices
+        --------------
+        - Treat ``real_elevation`` as the true grid value used for the query.
+        - Use the same ``angle_unit`` as the rest of the spatial workflow.
+        - Expect nearest-match behavior when the requested elevation is not present exactly.
+        """
+        if isinstance(elevation, bool):
+            raise ValueError("elevation must be a finite value")
+        elevation = float(elevation)
+        if not np.isfinite(elevation):
+            raise ValueError("elevation must be a finite value")
+
+        target_system = str(self.source_coordinate_system).strip().lower()
+        positions = self.get_positions(angle_unit=angle_unit)
+        if target_system == "spherical":
+            spherical = positions
+        elif target_system == "cartesian":
+            spherical = self.cartesian_to_spherical(positions, angle_unit=angle_unit)
+        elif target_system == "lateral-polar":
+            cartesian = self.lateral_polar_to_cartesian(positions, angle_unit=angle_unit)
+            spherical = self.cartesian_to_spherical(cartesian, angle_unit=angle_unit)
+        else:
+            raise ValueError(f"Unsupported target coordinate system: {target_system!r}")
+
+        elevation_angles = np.round(np.asarray(spherical[..., 1], dtype=float), 2)
+        azimuth_angles = np.round(np.asarray(spherical[..., 0], dtype=float), 2)
+        available_elevations = np.unique(elevation_angles)
+        real_elevation = float(
+            available_elevations[int(np.argmin(np.abs(available_elevations - elevation)))]
+        )
+        selected = np.isclose(
+            elevation_angles,
+            real_elevation,
+            atol=1e-8,
+            rtol=0.0,
+        )
+        return np.unique(azimuth_angles[selected]), real_elevation
+
     @staticmethod
     def get_closest_position_index(
         query_position: np.ndarray | list[float] | tuple[float, ...],
