@@ -424,6 +424,94 @@ class Sources:
             f"Unsupported conversion from {source_system!r} to {target_system!r}"
         )
 
+    def get_azimuth_angles(
+        self,
+        angle_unit: str = "degrees",
+    ) -> np.ndarray:
+        """Return unique source-grid azimuth angles.
+
+        Parameters
+        ----------
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Angular unit used when reading positions and returning azimuth values.
+
+        Returns
+        -------
+        np.ndarray
+            One-dimensional array of unique azimuth angles rounded to two decimals.
+
+        Use Cases
+        ---------
+        - Inspect the available azimuth sampling of a source grid.
+        - Build plane or panel selections from the source layout.
+        - Validate angular coverage before plotting or interpolation.
+
+        Best Practices
+        --------------
+        - Use the same ``angle_unit`` that will be used by downstream queries.
+        - Treat the returned values as the real grid angles available in the data.
+        - When the stored source system is not spherical, this method converts
+          positions to spherical coordinates before extracting azimuth.
+        """
+        target_system = str(self.source_coordinate_system).strip().lower()
+        positions = self.get_positions(angle_unit=angle_unit)
+        if target_system == "spherical":
+            azimuth = positions[..., 0]
+        elif target_system == "cartesian":
+            spherical = self.cartesian_to_spherical(positions, angle_unit=angle_unit)
+            azimuth = spherical[..., 0]
+        elif target_system == "lateral-polar":
+            cartesian = self.lateral_polar_to_cartesian(positions, angle_unit=angle_unit)
+            spherical = self.cartesian_to_spherical(cartesian, angle_unit=angle_unit)
+            azimuth = spherical[..., 0]
+        else:
+            raise ValueError(f"Unsupported target coordinate system: {target_system!r}")
+        return np.unique(np.round(np.asarray(azimuth, dtype=float), 2))
+
+    def get_elevation_angles(
+        self,
+        angle_unit: str = "degrees",
+    ) -> np.ndarray:
+        """Return unique source-grid elevation angles.
+
+        Parameters
+        ----------
+        angle_unit : {"degrees", "radians"}, default="degrees"
+            Angular unit used when reading positions and returning elevation values.
+
+        Returns
+        -------
+        np.ndarray
+            One-dimensional array of unique elevation angles rounded to two decimals.
+
+        Use Cases
+        ---------
+        - Inspect the available elevation sampling of a source grid.
+        - Select horizontal slices from the source layout.
+        - Validate vertical coverage before plotting or spatial selection.
+
+        Best Practices
+        --------------
+        - Use the same ``angle_unit`` that will be used by downstream queries.
+        - Treat the returned values as the real grid angles available in the data.
+        - When the stored source system is not spherical, this method converts
+          positions to spherical coordinates before extracting elevation.
+        """
+        target_system = str(self.source_coordinate_system).strip().lower()
+        positions = self.get_positions(angle_unit=angle_unit)
+        if target_system == "spherical":
+            elevation = positions[..., 1]
+        elif target_system == "cartesian":
+            spherical = self.cartesian_to_spherical(positions, angle_unit=angle_unit)
+            elevation = spherical[..., 1]
+        elif target_system == "lateral-polar":
+            cartesian = self.lateral_polar_to_cartesian(positions, angle_unit=angle_unit)
+            spherical = self.cartesian_to_spherical(cartesian, angle_unit=angle_unit)
+            elevation = spherical[..., 1]
+        else:
+            raise ValueError(f"Unsupported target coordinate system: {target_system!r}")
+        return np.unique(np.round(np.asarray(elevation, dtype=float), 2))
+
     @staticmethod
     def get_closest_position_index(
         query_position: np.ndarray | list[float] | tuple[float, ...],
