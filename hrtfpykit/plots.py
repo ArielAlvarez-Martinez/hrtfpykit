@@ -744,6 +744,7 @@ class Plots:
         positions: list | np.ndarray,
         unit: str = "db",
         ear: str = "both",
+        reference: float = 1.0,
         freq_min: float | None = None,
         freq_max: float | None = None,
         options: PlotOptions | None = None,
@@ -791,7 +792,11 @@ class Plots:
         frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
             raise ValueError("TF frequency bins must be a non-empty 1D array")
-        tf_values = self.TF.magnitude_db if unit == "db" else self.TF.magnitude
+        tf_values = (
+            self.TF.get_magnitude_db(reference=reference)
+            if unit == "db"
+            else self.TF.magnitude
+        )
         labels = Labels()
 
         for index, selected_position_query in enumerate(positions):

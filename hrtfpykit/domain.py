@@ -106,10 +106,8 @@ class TF:
         """Return TF magnitude."""
         return get_magnitude(self)
 
-    @property
-    def magnitude_db(self) -> np.ndarray:
-        """Return TF magnitude in decibels."""
-        return get_magnitude_db(self)
+    def get_magnitude_db(self, reference: float = 1.0) -> np.ndarray:
+        return get_magnitude_db(self, reference=reference)
 
     @property
     def phase(self) -> np.ndarray:

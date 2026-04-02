@@ -32,9 +32,14 @@ class DummyTF:
         frequency_bins: np.ndarray,
     ) -> None:
         self.values = np.asarray(magnitude, dtype=float)
-        self.magnitude_db = np.asarray(magnitude_db, dtype=float)
+        self._magnitude_db = np.asarray(magnitude_db, dtype=float)
         self.magnitude = np.asarray(magnitude, dtype=float)
         self.frequency_bins = np.asarray(frequency_bins, dtype=float)
+
+    def get_magnitude_db(self, reference: float = 1.0) -> np.ndarray:
+        if reference != 1.0:
+            raise ValueError("DummyTF only supports reference=1.0 in tests")
+        return self._magnitude_db
 
 
 class DummyPlotHRTF(Plots):
@@ -52,13 +57,13 @@ class DummyPlotHRTF(Plots):
             return self
         if ear == "left":
             return DummyPlotHRTF(
-                self.TF.magnitude_db[:, :1, :],
+                self.TF.get_magnitude_db()[:, :1, :],
                 self.TF.magnitude[:, :1, :],
                 self.TF.frequency_bins,
             )
         if ear == "right":
             return DummyPlotHRTF(
-                self.TF.magnitude_db[:, 1:, :],
+                self.TF.get_magnitude_db()[:, 1:, :],
                 self.TF.magnitude[:, 1:, :],
                 self.TF.frequency_bins,
             )

@@ -456,7 +456,7 @@ def get_magnitude(tf: np.ndarray | "TF") -> np.ndarray:
     return np.abs(tf_values)
 
 
-def magnitude_to_db(magnitude: np.ndarray) -> np.ndarray:
+def magnitude_to_db(magnitude: np.ndarray, reference: float = 1.0) -> np.ndarray:
     """General Description:
     Convert linear magnitude values to decibels.
 
@@ -477,10 +477,13 @@ def magnitude_to_db(magnitude: np.ndarray) -> np.ndarray:
     magnitude_values = np.asarray(magnitude, dtype=float)
     if np.any(magnitude_values < 0.0):
         raise ValueError("magnitude values must be non-negative")
-    return 20.0 * np.log10(magnitude_values)
+    reference_value = float(reference)
+    if not np.isfinite(reference_value) or reference_value <= 0.0:
+        raise ValueError("reference must be a finite, positive float")
+    return 20.0 * np.log10(magnitude_values / reference_value)
 
 
-def db_to_magnitude(magnitude_db: np.ndarray) -> np.ndarray:
+def db_to_magnitude(magnitude_db: np.ndarray, reference: float = 1.0) -> np.ndarray:
     """General Description:
     Convert decibel magnitudes to linear scale.
 
@@ -499,10 +502,13 @@ def db_to_magnitude(magnitude_db: np.ndarray) -> np.ndarray:
     - Prefer float arrays for numerical stability.
     """
     magnitude_db_values = np.asarray(magnitude_db, dtype=float)
-    return 10.0 ** (magnitude_db_values / 20.0)
+    reference_value = float(reference)
+    if not np.isfinite(reference_value) or reference_value <= 0.0:
+        raise ValueError("reference must be a finite, positive float")
+    return reference_value * (10.0 ** (magnitude_db_values / 20.0))
 
 
-def get_magnitude_db(tf: np.ndarray | "TF") -> np.ndarray:
+def get_magnitude_db(tf: np.ndarray | "TF", reference: float = 1.0) -> np.ndarray:
     """General Description:
     Return TF magnitudes directly in decibels.
 
@@ -521,7 +527,7 @@ def get_magnitude_db(tf: np.ndarray | "TF") -> np.ndarray:
     - Use together with consistent dB reference assumptions.
     """
     magnitude = get_magnitude(tf)
-    return magnitude_to_db(magnitude)
+    return magnitude_to_db(magnitude, reference=reference)
 
 
 def get_phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
