@@ -16,7 +16,7 @@ class Sources:
     - Spherical (SOFA-style): ``(azimuth, elevation, radius)`` with azimuth in
       ``[0, 360)`` degrees (anticlockwise in horizontal plane), elevation in
       ``[-90, 90]`` degrees (positive up), and non-negative radius.
-    - Lateral-polar (modified interaural-polar): ``(lateral, polar, radius)``
+    - Lateral-polar: ``(lateral, polar, radius)``
       with lateral in ``[-90, 90]`` degrees (positive left), polar normalized to
       ``[-90, 270)`` degrees, and non-negative radius.
     - Cartesian: ``(x, y, z)`` with ``+y`` as left and ``+z`` as up.
@@ -174,9 +174,9 @@ class Sources:
         angle_unit: str = "degrees",
     ) -> np.ndarray:
         """General Description:
-        Convert cartesian source coordinates into modified lateral-polar coordinates.
+        Convert cartesian source coordinates into lateral-polar coordinates.
 
-        The modified lateral-polar convention used here is
+        The lateral-polar convention used here is
         ``(lateral, polar, radius)``:
 
         - ``lateral`` is positive to the left and negative to the right
@@ -192,7 +192,7 @@ class Sources:
         - angle_unit: Angular unit used for ``lateral`` and ``polar``.
 
         Returns:
-        - Array with shape ``(..., 3)`` containing modified lateral-polar
+        - Array with shape ``(..., 3)`` containing lateral-polar
           ``(lateral, polar, radius)`` coordinates.
 
         Use Cases:
@@ -238,11 +238,11 @@ class Sources:
         angle_unit: str = "degrees",
     ) -> np.ndarray:
         """General Description:
-        Convert modified lateral-polar coordinates into cartesian coordinates.
+        Convert lateral-polar coordinates into cartesian coordinates.
 
         The input convention is ``(lateral, polar, radius)`` and the output is
         cartesian ``(x, y, z)``. Lateral is limited to the interaural interval
-        and polar is normalized internally to the modified range used by this library.
+        and polar is normalized internally to the range used by this library.
 
         Parameters:
         - coordinates: Array with shape ``(..., 3)`` containing
@@ -302,12 +302,12 @@ class Sources:
         angle_unit: str = "degrees",
     ) -> np.ndarray:
         """General Description:
-        Convert spherical coordinates into modified lateral-polar coordinates.
+        Convert spherical coordinates into lateral-polar coordinates.
 
         This conversion follows the library's full coordinate chain:
         spherical ``(azimuth, elevation, radius)``
         -> cartesian ``(x, y, z)``
-        -> modified lateral-polar ``(lateral, polar, radius)``.
+        -> lateral-polar ``(lateral, polar, radius)``.
 
         Parameters:
         - coordinates: Array with shape ``(..., 3)`` containing
@@ -315,7 +315,7 @@ class Sources:
         - angle_unit: Angular unit used for both the input and output angles.
 
         Returns:
-        - Array with shape ``(..., 3)`` containing modified lateral-polar
+        - Array with shape ``(..., 3)`` containing lateral-polar
           ``(lateral, polar, radius)`` coordinates.
 
         Use Cases:
@@ -337,16 +337,16 @@ class Sources:
         angle_unit: str = "degrees",
     ) -> np.ndarray:
         """General Description:
-        Convert modified lateral-polar coordinates into spherical coordinates.
+        Convert lateral-polar coordinates into spherical coordinates.
 
         This conversion follows the inverse chain:
-        modified lateral-polar ``(lateral, polar, radius)``
+        lateral-polar ``(lateral, polar, radius)``
         -> cartesian ``(x, y, z)``
         -> spherical ``(azimuth, elevation, radius)``.
 
         Parameters:
         - coordinates: Array with shape ``(..., 3)`` containing
-          modified lateral-polar ``(lateral, polar, radius)`` values.
+          lateral-polar ``(lateral, polar, radius)`` values.
         - angle_unit: Angular unit used for both the input and output angles.
 
         Returns:
