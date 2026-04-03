@@ -258,13 +258,7 @@ def test_dsp_modify_magnitude_accepts_ndarray_and_tf() -> None:
     assert np.array_equal(hrtf.TF.values, tf_values)
 
 
-def test_getitem_invalid_key_raises_key_error() -> None:
-    hrtf = HRTF()
-    with pytest.raises(KeyError, match="ear must be one of"):
-        _ = hrtf["center"]
-
-
-def test_hrtf_getitem_returns_ear_selected_copy() -> None:
+def test_select_with_ear_returns_ear_selected_copy() -> None:
     hrtf = HRTF()
     ir_values = np.arange(3 * 2 * 4, dtype=float).reshape(3, 2, 4)
     tf_values = (np.arange(3 * 2 * 3, dtype=float).reshape(3, 2, 3) + 1j).astype(complex)
@@ -273,9 +267,9 @@ def test_hrtf_getitem_returns_ear_selected_copy() -> None:
     hrtf.TF.values = tf_values.copy()
     hrtf.TF.frequency_bins = np.array([0.0, 1000.0, 2000.0], dtype=float)
 
-    left_hrtf = hrtf["left"]
-    right_hrtf = hrtf["right"]
-    both_hrtf = hrtf["both"]
+    left_hrtf = hrtf.select(ear="left")
+    right_hrtf = hrtf.select(ear="right")
+    both_hrtf = hrtf.select(ear="both")
 
     assert left_hrtf is not hrtf
     assert right_hrtf is not hrtf

@@ -31,7 +31,7 @@ class Sources:
     ) -> None:
         self._hrtf = hrtf
         self.source_coordinate_system = self._hrtf.Sofa.VariableAttributes.get("SourcePosition:Type").value
-        self._positions = self.get_positions()
+        self._selected_indices: np.ndarray | None = None
 
     def get_source_coordinate_system(self) -> str:
         """Return the currently selected source coordinate system.
@@ -418,6 +418,12 @@ class Sources:
                 )
 
         source_positions = np.asarray(source_positions, dtype=float)
+        if self._selected_indices is not None:
+            source_positions = np.take(
+                source_positions,
+                np.asarray(self._selected_indices, dtype=int),
+                axis=0,
+            )
 
         if source_system == target_system:
             if target_system == "cartesian" or source_angle_unit == requested_angle_unit:

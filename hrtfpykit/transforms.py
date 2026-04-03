@@ -403,7 +403,7 @@ class Transform:
         - coordinate_system: Target source coordinate system (`spherical`, `cartesian`, or `lateral-polar`).
 
         Returns:
-        - A new HRTF instance with updated `Sources.source_coordinate_system` and refreshed `Sources._positions`.
+        - A new HRTF instance with updated `Sources.source_coordinate_system`.
 
         Use Cases:
         - Switch source representation without modifying underlying SOFA stored coordinates.
@@ -419,7 +419,6 @@ class Transform:
 
         transformed_hrtf = self._hrtf.clone()
         transformed_hrtf.Sources.source_coordinate_system = coordinate_system
-        transformed_hrtf.Sources._positions = transformed_hrtf.Sources.get_positions()
         return transformed_hrtf
 
     def add_itd(

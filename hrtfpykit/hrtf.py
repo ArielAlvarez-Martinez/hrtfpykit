@@ -48,15 +48,6 @@ class HRTF(Plots):
     def Analytics(self) -> "Analytics":
         return Analytics(self)
 
-    def __getitem__(self, ear: str) -> "HRTF":
-        """Return an ear-selected HRTF view (`left`, `right`, or `both`)."""
-        ear_key = str(ear).strip().lower()
-        if ear_key not in {"both", "left", "right"}:
-            raise KeyError("ear must be one of: left, right, both")
-        if ear_key == "both":
-            return self
-        return self.select(ear=ear_key)
-
     def clone(self) -> "HRTF":
         sofa_clone = self.Sofa
         if self.Sofa is not None:
@@ -75,6 +66,14 @@ class HRTF(Plots):
             hrtf.TF.values = np.array(self.TF.values, copy=True)
         if self.TF.frequency_bins is not None:
             hrtf.TF.frequency_bins = np.array(self.TF.frequency_bins, copy=True)
+        if "Sources" in self.__dict__:
+            hrtf.Sources.source_coordinate_system = self.Sources.source_coordinate_system
+            if self.Sources._selected_indices is not None:
+                hrtf.Sources._selected_indices = np.array(
+                    self.Sources._selected_indices,
+                    dtype=int,
+                    copy=True,
+                )
         return hrtf
 
     def select(
@@ -100,6 +99,7 @@ class HRTF(Plots):
         if selecting_spatial:
             if transformed_hrtf.Sofa is None:
                 raise ValueError("Spatial selection requires a loaded SOFA dataset")
+            current_source_indices = transformed_hrtf.Sources._selected_indices
             source_positions = transformed_hrtf.Sources.get_positions(angle_unit=angle_unit)
             if source_positions.ndim != 2 or source_positions.shape[-1] != 3:
                 raise ValueError("Source positions grid must have shape (N, 3)")
@@ -151,6 +151,16 @@ class HRTF(Plots):
                 selected_indices = np.arange(source_count, dtype=int)
             if selected_indices.size == 0:
                 raise ValueError("Selection produced no source positions")
+
+            if current_source_indices is None:
+                source_selected_indices = np.asarray(selected_indices, dtype=int)
+            else:
+                source_selected_indices = np.take(
+                    np.asarray(current_source_indices, dtype=int),
+                    np.asarray(selected_indices, dtype=int),
+                    axis=0,
+                )
+            transformed_hrtf.Sources._selected_indices = source_selected_indices
 
             if transformed_hrtf.IR.values is not None:
                 transformed_hrtf.IR.values = np.take(
@@ -205,9 +215,6 @@ class HRTF(Plots):
                     axis=-2,
                 )
 
-        transformed_hrtf.Sources._positions = transformed_hrtf.Sources.get_positions(
-            angle_unit=angle_unit
-        )
         return transformed_hrtf
 
     @classmethod

@@ -52,23 +52,6 @@ class DummyPlotHRTF(Plots):
         self.TF = DummyTF(magnitude_db, magnitude, frequency_bins)
         self.Sources = DummySources()
 
-    def __getitem__(self, ear: str) -> "DummyPlotHRTF":
-        if ear == "both":
-            return self
-        if ear == "left":
-            return DummyPlotHRTF(
-                self.TF.get_magnitude_db()[:, :1, :],
-                self.TF.magnitude[:, :1, :],
-                self.TF.frequency_bins,
-            )
-        if ear == "right":
-            return DummyPlotHRTF(
-                self.TF.get_magnitude_db()[:, 1:, :],
-                self.TF.magnitude[:, 1:, :],
-                self.TF.frequency_bins,
-            )
-        raise KeyError("ear must be one of: left, right, both")
-
 
 @pytest.fixture(autouse=True)
 def close_figures() -> None:
