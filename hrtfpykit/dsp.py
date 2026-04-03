@@ -11,100 +11,6 @@ if TYPE_CHECKING:
     from .domain import IR, TF
 
 
-def apply_normalization(
-    data: np.ndarray | "IR" | "TF",
-    value: float,
-) -> np.ndarray | None:
-    """General Description:
-    Apply amplitude normalization to signal values by dividing them by a scalar.
-
-    Parameters:
-    - data: Signal container (`np.ndarray`, `IR`, or `TF`) holding `.values`.
-    - value: Non-zero normalization factor used as the divisor.
-
-    Returns:
-    - Normalized signal values with the same shape as the input signal, or `None`
-      when the input signal or normalization factor is invalid.
-
-    Use Cases:
-    - Standardize levels before comparing HRIR or HRTF data.
-    - Prepare time-domain or frequency-domain values for consistent plotting.
-
-    Examples:
-    >>> apply_normalization(np.array([2.0, 4.0]), value=2.0)
-    array([1., 2.])
-    >>> apply_normalization(np.array([[1.0, 2.0], [3.0, 4.0]]), value=4.0)
-    array([[0.25, 0.5 ],
-           [0.75, 1.  ]])
-    """
-
-    if isinstance(data, np.ndarray):
-        signal = data
-    elif hasattr(data, "values"):
-        signal = data.values
-    else:
-        signal = None
-    if signal is None:
-        warnings.warn("Signal data is not available; cannot apply normalization.", UserWarning)
-        return None
-    try:
-        norm_value = float(value)
-    except (TypeError, ValueError):
-        warnings.warn("Normalization value is invalid; cannot apply normalization.", UserWarning)
-        return None
-    if np.isclose(norm_value, 0.0):
-        warnings.warn("Normalization value is zero; cannot apply normalization.", UserWarning)
-        return None
-    return signal / norm_value
-
-
-def undo_normalization(
-    data: np.ndarray | "IR" | "TF",
-    value: float,
-) -> np.ndarray | None:
-    """General Description:
-    Undo a previously applied amplitude normalization by multiplying values by a scalar.
-
-    Parameters:
-    - data: Signal container (`np.ndarray`, `IR`, or `TF`) holding `.values`.
-    - value: Non-zero normalization factor used previously during normalization.
-
-    Returns:
-    - Denormalized signal values with the same shape as the input signal, or `None`
-      when the input signal or normalization factor is invalid.
-
-    Use Cases:
-    - Restore physical amplitude after normalized-domain processing.
-    - Reconstruct original scale before export or listening tests.
-
-    Examples:
-    >>> undo_normalization(np.array([1.0, 2.0]), value=2.0)
-    array([2., 4.])
-    >>> undo_normalization(np.array([[0.25, 0.5], [0.75, 1.0]]), value=4.0)
-    array([[1., 2.],
-           [3., 4.]])
-    """
-
-    if isinstance(data, np.ndarray):
-        signal = data
-    elif hasattr(data, "values"):
-        signal = data.values
-    else:
-        signal = None
-    if signal is None:
-        warnings.warn("Signal data is not available; cannot undo normalization.", UserWarning)
-        return None
-    try:
-        norm_value = float(value)
-    except (TypeError, ValueError):
-        warnings.warn("Normalization value is invalid; cannot undo normalization.", UserWarning)
-        return None
-    if np.isclose(norm_value, 0.0):
-        warnings.warn("Normalization value is zero; cannot undo normalization.", UserWarning)
-        return None
-    return signal * norm_value
-
-
 def get_signal_duration(
     signal: np.ndarray | "IR",
     sample_rate: float | None = None,
@@ -1602,8 +1508,6 @@ def calculate_tf_from_ir(
     sample_rate: float | None = None,
     fft_length: int | None = None,
     window_name: str | None = None,
-    ir_normalization: float | None = None,
-    normalization_action: str = "apply",
 ) -> tuple[np.ndarray, np.ndarray, int] | "TF":
     """General Description:
     Compute transfer-function values from IR values using an FFT.
@@ -1613,8 +1517,6 @@ def calculate_tf_from_ir(
     - sample_rate: Sample rate in Hz for NumPy input. Optional for `IR` input.
     - fft_length: Optional FFT size. If omitted, the IR length is used.
     - window_name: Optional time-domain window applied before the FFT.
-    - ir_normalization: Optional normalization factor to apply or undo before the FFT.
-    - normalization_action: Normalization mode, either `apply` or `undo`.
 
     Returns:
     - For NumPy input: `(tf_values, frequency_bins, fft_length_used)`.
@@ -1672,25 +1574,11 @@ def calculate_tf_from_ir(
     if fft_length_used < 2:
         raise ValueError("FFT length must contain at least two points.")
 
-    action = normalization_action.strip().lower()
-    if action not in {"apply", "undo"}:
-        raise ValueError("normalization_action must be 'apply' or 'undo'")
-
     ir_used = ir_values
     if window_name:
         windowed = apply_window(ir_values, window_name)
         if windowed is not None:
             ir_used = windowed
-    if ir_normalization is not None:
-        try:
-            norm_value = float(ir_normalization)
-        except (TypeError, ValueError):
-            norm_value = None
-        if norm_value is not None and not np.isclose(norm_value, 0.0):
-            if action == "apply":
-                ir_used = ir_used / norm_value
-            else:
-                ir_used = ir_used * norm_value
 
     tf_values = np.fft.rfft(ir_used, n=fft_length_used, axis=-1)
     frequency_bins = np.fft.rfftfreq(fft_length_used, d=1.0 / resolved_sample_rate)
@@ -1706,8 +1594,6 @@ def calculate_tf_from_ir(
 def calculate_ir_from_tf(
     tf: np.ndarray | "TF",
     frequency_bins: np.ndarray | None = None,
-    tf_normalization: float | None = None,
-    normalization_action: str = "undo",
     sample_rate: float | None = None,
     spectrum_type: str | None = None,
 ) -> tuple[np.ndarray, float] | "IR":
@@ -1717,8 +1603,6 @@ def calculate_ir_from_tf(
     Parameters:
     - tf: TF array or `TF` object.
     - frequency_bins: Optional frequency-bin vector matching the TF length.
-    - tf_normalization: Optional normalization factor to apply or undo before the inverse FFT.
-    - normalization_action: Normalization mode, either `apply` or `undo`.
     - sample_rate: Optional sample rate used when inferring bins for NumPy TF input.
     - spectrum_type: Required when inferring bins. Supported values are `positive`
       for one-sided spectra and `complete` for full complex spectra.
@@ -1755,21 +1639,7 @@ def calculate_ir_from_tf(
         if tf_values.size == 0 or np.all(tf_values == 0):
             raise ValueError("TF requires non empty 'values'.")
 
-    action = normalization_action.strip().lower()
-    if action not in {"apply", "undo"}:
-        raise ValueError("normalization_action must be 'apply' or 'undo'")
-
     tf_used = tf_values
-    if tf_normalization is not None:
-        try:
-            norm_value = float(tf_normalization)
-        except (TypeError, ValueError):
-            norm_value = None
-        if norm_value is not None and not np.isclose(norm_value, 0.0):
-            if action == "apply":
-                tf_used = tf_values / norm_value
-            else:
-                tf_used = tf_values * norm_value
 
     if tf_used.shape[-1] < 2:
         raise ValueError("TF length must contain at least two points.")

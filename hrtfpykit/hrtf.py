@@ -316,16 +316,9 @@ class HRTF(Plots):
                 )
 
             tf = real + 1j * imag
-            tf_normalization = None
-            if "Normalization" in variable_names:
-                norm_data = np.asarray(variables.get("Normalization").value, dtype=float)
-                if norm_data.size > 0:
-                    tf_normalization = float(norm_data.flat[0])
             ir, sample_rate, fft_length_used = calculate_ir_from_tf(
                 tf,
                 frequency_bins=frequency_bins,
-                tf_normalization=tf_normalization,
-                normalization_action="undo",
             )
             if fft_length is not None and fft_length != fft_length_used:
                 raise ValueError("FFT length does not match the provided frequency bins.")
