@@ -48,26 +48,39 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
-        """Convert spherical coordinates to cartesian coordinates.
+        """General Description:
+        Convert spherical source coordinates into cartesian coordinates.
 
-        Parameters
-        ----------
-        coordinates : np.ndarray
-            Input array with shape ``(..., 3)`` containing
-            ``(azimuth, elevation, radius)``.
-        angle_unit : {"degrees", "radians"}, default="degrees"
-            Unit for angular inputs.
+        The spherical convention used by this library is
+        ``(azimuth, elevation, radius)``:
 
-        Returns
-        -------
-        np.ndarray
-            Array with shape ``(..., 3)`` containing ``(x, y, z)``.
+        - ``azimuth`` rotates in the horizontal plane from ``+x`` toward ``+y``
+        - ``elevation`` measures vertical angle from the horizontal plane toward ``+z``
+        - ``radius`` is the source distance from the origin
 
-        Notes
-        -----
-        Spherical azimuth is normalized to canonical positive range.
-        Spherical elevation must lie in median-plane interval.
-        Radius must be non-negative.
+        The returned cartesian convention is ``(x, y, z)``, where ``+y`` points
+        to the listener's left and ``+z`` points upward.
+
+        Parameters:
+        - coordinates: Array with shape ``(..., 3)`` containing
+          ``(azimuth, elevation, radius)`` values.
+        - angle_unit: Angular unit of ``azimuth`` and ``elevation``.
+
+        Returns:
+        - Array with shape ``(..., 3)`` containing cartesian
+          ``(x, y, z)`` coordinates.
+
+        Use Cases:
+        - Convert SOFA spherical source grids into cartesian coordinates for 3D plotting.
+        - Prepare spherical source positions for algorithms that operate in ``(x, y, z)``.
+
+        Examples:
+        >>> Sources.spherical_to_cartesian(np.array([[0.0, 0.0, 1.0]]))
+        array([[1., 0., 0.]])
+        >>> Sources.spherical_to_cartesian(np.array([[90.0, 0.0, 1.0]]))
+        array([[0., 1., 0.]])
+        >>> Sources.spherical_to_cartesian(np.array([[0.0, 90.0, 1.0]]))
+        array([[0., 0., 1.]])
         """
         spherical = np.asarray(coordinates, dtype=float)
         if spherical.shape[-1] != 3:
@@ -105,20 +118,34 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
-        """Convert cartesian coordinates to spherical coordinates.
+        """General Description:
+        Convert cartesian source coordinates into spherical coordinates.
 
-        Parameters
-        ----------
-        coordinates : np.ndarray
-            Input array with shape ``(..., 3)`` containing ``(x, y, z)``.
-        angle_unit : {"degrees", "radians"}, default="degrees"
-            Unit for angular outputs.
+        The input cartesian convention is ``(x, y, z)``. The returned spherical
+        convention is ``(azimuth, elevation, radius)``, where azimuth is
+        normalized to the canonical positive range and elevation stays in the
+        vertical interval supported by the SOFA-style spherical definition.
 
-        Returns
-        -------
-        np.ndarray
-            Array with shape ``(..., 3)`` containing
-            ``(azimuth, elevation, radius)``.
+        Parameters:
+        - coordinates: Array with shape ``(..., 3)`` containing cartesian
+          ``(x, y, z)`` values.
+        - angle_unit: Angular unit used for the returned azimuth and elevation.
+
+        Returns:
+        - Array with shape ``(..., 3)`` containing spherical
+          ``(azimuth, elevation, radius)`` coordinates.
+
+        Use Cases:
+        - Inspect a cartesian source grid in SOFA-style azimuth and elevation.
+        - Convert cartesian data before selecting horizontal, median, or frontal planes.
+
+        Examples:
+        >>> Sources.cartesian_to_spherical(np.array([[1.0, 0.0, 0.0]]))
+        array([[0., 0., 1.]])
+        >>> Sources.cartesian_to_spherical(np.array([[0.0, 1.0, 0.0]]))
+        array([[90., 0., 1.]])
+        >>> Sources.cartesian_to_spherical(np.array([[0.0, 0.0, 1.0]]))
+        array([[0., 90., 1.]])
         """
         cartesian = np.asarray(coordinates, dtype=float)
         if cartesian.shape[-1] != 3:
@@ -146,26 +173,39 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
-        """Convert cartesian coordinates to modified lateral-polar coordinates.
+        """General Description:
+        Convert cartesian source coordinates into modified lateral-polar coordinates.
 
-        Parameters
-        ----------
-        coordinates : np.ndarray
-            Input array with shape ``(..., 3)`` containing ``(x, y, z)``.
-        angle_unit : {"degrees", "radians"}, default="degrees"
-            Unit for angular outputs.
+        The modified lateral-polar convention used here is
+        ``(lateral, polar, radius)``:
 
-        Returns
-        -------
-        np.ndarray
-            Array with shape ``(..., 3)`` containing
-            ``(lateral, polar, radius)``.
+        - ``lateral`` is positive to the left and negative to the right
+        - ``polar`` describes the position around the interaural axis
+        - ``radius`` is the distance from the origin
 
-        Notes
-        -----
-        Lateral is positive left, negative right.
-        Polar is normalized to modified interaural range.
-        At lateral poles and zero radius, polar is set to deterministic ``0``.
+        This is useful when working with median-plane and interaural-style
+        spatial representations instead of SOFA spherical coordinates.
+
+        Parameters:
+        - coordinates: Array with shape ``(..., 3)`` containing cartesian
+          ``(x, y, z)`` values.
+        - angle_unit: Angular unit used for ``lateral`` and ``polar``.
+
+        Returns:
+        - Array with shape ``(..., 3)`` containing modified lateral-polar
+          ``(lateral, polar, radius)`` coordinates.
+
+        Use Cases:
+        - Convert cartesian source grids into interaural-style coordinates.
+        - Prepare data for median-plane analyses where lateral angle is the primary descriptor.
+
+        Examples:
+        >>> Sources.cartesian_to_lateral_polar(np.array([[1.0, 0.0, 0.0]]))
+        array([[0., 0., 1.]])
+        >>> Sources.cartesian_to_lateral_polar(np.array([[0.0, 0.0, 1.0]]))
+        array([[0., 90., 1.]])
+        >>> Sources.cartesian_to_lateral_polar(np.array([[0.0, 1.0, 0.0]]))
+        array([[90., 0., 1.]])
         """
         cartesian = np.asarray(coordinates, dtype=float)
         if cartesian.shape[-1] != 3:
@@ -197,20 +237,33 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
-        """Convert modified lateral-polar coordinates to cartesian coordinates.
+        """General Description:
+        Convert modified lateral-polar coordinates into cartesian coordinates.
 
-        Parameters
-        ----------
-        coordinates : np.ndarray
-            Input array with shape ``(..., 3)`` containing
-            ``(lateral, polar, radius)``.
-        angle_unit : {"degrees", "radians"}, default="degrees"
-            Unit for angular inputs.
+        The input convention is ``(lateral, polar, radius)`` and the output is
+        cartesian ``(x, y, z)``. Lateral is limited to the interaural interval
+        and polar is normalized internally to the modified range used by this library.
 
-        Returns
-        -------
-        np.ndarray
-            Array with shape ``(..., 3)`` containing ``(x, y, z)``.
+        Parameters:
+        - coordinates: Array with shape ``(..., 3)`` containing
+          ``(lateral, polar, radius)`` values.
+        - angle_unit: Angular unit of ``lateral`` and ``polar``.
+
+        Returns:
+        - Array with shape ``(..., 3)`` containing cartesian
+          ``(x, y, z)`` coordinates.
+
+        Use Cases:
+        - Convert interaural-style source definitions into a cartesian grid.
+        - Feed lateral-polar datasets into 3D plotting or geometric processing code.
+
+        Examples:
+        >>> Sources.lateral_polar_to_cartesian(np.array([[0.0, 0.0, 1.0]]))
+        array([[1., 0., 0.]])
+        >>> Sources.lateral_polar_to_cartesian(np.array([[0.0, 90.0, 1.0]]))
+        array([[0., 0., 1.]])
+        >>> Sources.lateral_polar_to_cartesian(np.array([[90.0, 0.0, 1.0]]))
+        array([[0., 1., 0.]])
         """
         lateral_polar = np.asarray(coordinates, dtype=float)
         if lateral_polar.shape[-1] != 3:
@@ -248,21 +301,32 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
-        """Convert spherical coordinates to modified lateral-polar coordinates.
+        """General Description:
+        Convert spherical coordinates into modified lateral-polar coordinates.
 
-        Parameters
-        ----------
-        coordinates : np.ndarray
-            Input array with shape ``(..., 3)`` containing
-            ``(azimuth, elevation, radius)``.
-        angle_unit : {"degrees", "radians"}, default="degrees"
-            Unit for angular values.
+        This conversion follows the library's full coordinate chain:
+        spherical ``(azimuth, elevation, radius)``
+        -> cartesian ``(x, y, z)``
+        -> modified lateral-polar ``(lateral, polar, radius)``.
 
-        Returns
-        -------
-        np.ndarray
-            Array with shape ``(..., 3)`` containing
-            ``(lateral, polar, radius)``.
+        Parameters:
+        - coordinates: Array with shape ``(..., 3)`` containing
+          spherical ``(azimuth, elevation, radius)`` values.
+        - angle_unit: Angular unit used for both the input and output angles.
+
+        Returns:
+        - Array with shape ``(..., 3)`` containing modified lateral-polar
+          ``(lateral, polar, radius)`` coordinates.
+
+        Use Cases:
+        - Compare SOFA spherical datasets against interaural-style spatial analyses.
+        - Prepare spherical grids for median-plane or lateral-angle workflows.
+
+        Examples:
+        >>> Sources.spherical_to_lateral_polar(np.array([[0.0, 0.0, 1.0]]))
+        array([[0., 0., 1.]])
+        >>> Sources.spherical_to_lateral_polar(np.array([[90.0, 0.0, 1.0]]))
+        array([[90., 0., 1.]])
         """
         cartesian = Sources.spherical_to_cartesian(coordinates, angle_unit=angle_unit)
         return Sources.cartesian_to_lateral_polar(cartesian, angle_unit=angle_unit)
@@ -272,21 +336,32 @@ class Sources:
         coordinates: np.ndarray,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
-        """Convert modified lateral-polar coordinates to spherical coordinates.
+        """General Description:
+        Convert modified lateral-polar coordinates into spherical coordinates.
 
-        Parameters
-        ----------
-        coordinates : np.ndarray
-            Input array with shape ``(..., 3)`` containing
-            ``(lateral, polar, radius)``.
-        angle_unit : {"degrees", "radians"}, default="degrees"
-            Unit for angular values.
+        This conversion follows the inverse chain:
+        modified lateral-polar ``(lateral, polar, radius)``
+        -> cartesian ``(x, y, z)``
+        -> spherical ``(azimuth, elevation, radius)``.
 
-        Returns
-        -------
-        np.ndarray
-            Array with shape ``(..., 3)`` containing
-            ``(azimuth, elevation, radius)``.
+        Parameters:
+        - coordinates: Array with shape ``(..., 3)`` containing
+          modified lateral-polar ``(lateral, polar, radius)`` values.
+        - angle_unit: Angular unit used for both the input and output angles.
+
+        Returns:
+        - Array with shape ``(..., 3)`` containing spherical
+          ``(azimuth, elevation, radius)`` coordinates.
+
+        Use Cases:
+        - Convert interaural-style coordinates back into SOFA-style azimuth and elevation.
+        - Compare median-plane datasets with spherical source grids.
+
+        Examples:
+        >>> Sources.lateral_polar_to_spherical(np.array([[0.0, 0.0, 1.0]]))
+        array([[0., 0., 1.]])
+        >>> Sources.lateral_polar_to_spherical(np.array([[0.0, 90.0, 1.0]]))
+        array([[0., 90., 1.]])
         """
         cartesian = Sources.lateral_polar_to_cartesian(coordinates, angle_unit=angle_unit)
         return Sources.cartesian_to_spherical(cartesian, angle_unit=angle_unit)

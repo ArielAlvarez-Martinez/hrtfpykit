@@ -42,9 +42,6 @@ class Transform:
         Use Cases:
         - Reduce spectral leakage before FFT conversion.
 
-        Best Practices:
-        - Use supported window names only.
-        - Apply windowing intentionally because it changes signal energy distribution.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -81,9 +78,6 @@ class Transform:
         - Increase IR length before FFT-based workflows.
         - Extend TF length for FFT-size exploration.
 
-        Best Practices:
-        - Prefer end padding for most workflows.
-        - Keep padding length explicit for reproducibility.
         """
         transformed_hrtf = self._hrtf.clone()
         domain_key = str(domain).strip().lower()
@@ -160,9 +154,6 @@ class Transform:
         - Remove undesired frequency content from HRIR data.
         - Isolate a band before feature extraction.
 
-        Best Practices:
-        - Use odd `num_taps` for linear-phase behavior.
-        - Keep cutoff values inside valid Nyquist limits.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -201,9 +192,6 @@ class Transform:
         - Reproduce legacy IIR-based preprocessing chains.
         - Apply low-latency recursive filtering before analysis.
 
-        Best Practices:
-        - Keep order moderate to avoid unstable configurations.
-        - Keep cutoff values inside valid Nyquist limits.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -241,9 +229,6 @@ class Transform:
         - Build minimum-phase HRIR approximations for reduced-latency processing.
         - Standardize phase behavior across datasets before analysis.
 
-        Best Practices:
-        - Ensure IR values are initialized before conversion.
-        - Keep method and fft_length explicit for reproducibility.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -278,9 +263,6 @@ class Transform:
         - Apply target phase profiles while preserving measured magnitudes.
         - Build controlled phase perturbation experiments.
 
-        Best Practices:
-        - Ensure TF values and frequency bins are initialized before applying.
-        - Keep unit explicit for reproducibility.
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -314,9 +296,6 @@ class Transform:
         - Apply target magnitude responses while preserving phase.
         - Evaluate perceptual effects of magnitude-only modifications.
 
-        Best Practices:
-        - Ensure TF values and frequency bins are initialized before applying.
-        - Use explicit scale selection to avoid ambiguous magnitude units.
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -344,9 +323,6 @@ class Transform:
         Use Cases:
         - Increase temporal resolution for analysis or rendering.
 
-        Best Practices:
-        - Use only when IR values and sample rate are initialized.
-        - Centralize resampling here to keep IR and TF synchronized.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -376,9 +352,6 @@ class Transform:
         - Reduce processing and storage footprint.
         - Match external systems that require lower sample rates.
 
-        Best Practices:
-        - Ensure target rate preserves the required frequency bandwidth.
-        - Use this method instead of manual resampling to preserve IR/TF consistency.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -407,9 +380,6 @@ class Transform:
         Use Cases:
         - Adjust spectral resolution for analysis or interpolation pipelines.
 
-        Best Practices:
-        - Ensure IR values exist before changing FFT length.
-        - Keep FFT-length changes centralized to maintain consistent metadata.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -439,9 +409,6 @@ class Transform:
         - Switch source representation without modifying underlying SOFA stored coordinates.
         - Prepare source grids for coordinate-specific analysis workflows.
 
-        Best Practices:
-        - Use supported coordinate-system names only.
-        - Treat this as a view-level change over source representation.
         """
         coordinate_system = str(coordinate_system).strip().lower()
         allowed_coordinate_systems = {"spherical", "cartesian", "lateral-polar"}
@@ -554,9 +521,6 @@ class Transform:
         - Remove measured interaural delay before comparative analysis.
         - Standardize onset alignment before ML feature extraction or metric computation.
 
-        Best Practices:
-        - This method advances the delayed ear (delay deduction), not delay-addition of the earlier ear.
-        - If ITD > 0, left channel is advanced. If ITD < 0, right channel is advanced.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
