@@ -300,16 +300,27 @@ class Layout1(Layout):
     )
 
 
-class Layout2(Layout):
+class Layout2Vertical(Layout):
     layout = 2
     rows = 2
     cols = 1
     positions = ("top", "bottom")
     figsize = (
         FigSizeDefault().width,
-        FigSizeDefault().height + 2,
+        FigSizeDefault().height,
     )
     sharex = True
+
+
+class Layout2VerticalIndependent(Layout):
+    layout = 22
+    rows = 2
+    cols = 1
+    positions = ("top", "bottom")
+    figsize = (
+        FigSizeDefault().width,
+        FigSizeDefault().height,
+    )
 
 
 class Layout4(Layout):
@@ -323,11 +334,21 @@ class Layout4(Layout):
     )
 
 
+class Layout2Horizontal(Layout):
+    layout = 12
+    rows = 1
+    cols = 2
+    positions = ("left", "right")
+    figsize = (12, 6)
+
+
 class LayoutFactory:
     registry: dict[int, type[Layout]] = {
         1: Layout1,
-        2: Layout2,
+        2: Layout2Vertical,
+        22: Layout2VerticalIndependent,
         4: Layout4,
+        12: Layout2Horizontal,
     }
 
     @classmethod
@@ -434,6 +455,42 @@ class Axis:
             if axis_options.shared_x_visible is None
             else axis_options.shared_x_visible
         )
+        default_title = Axis.create_position_title(
+            selected_positions=selected_positions,
+            position_coordinate_system=position_coordinate_system,
+        )
+        Axis.create_label_axis(
+            ax=ax,
+            axis=axis,
+            default_label=default_label,
+            options=axis_options,
+        )
+        resolved_title = default_title if axis_options.title is None else axis_options.title
+        ax.set_title(resolved_title)
+        if shared_x_visible:
+            ax.tick_params(axis="x", which="both", labelbottom=True)
+        legend_enabled = True if legend_options.enabled is None else legend_options.enabled
+        if legend_enabled:
+            resolved_legend_location = (
+                legend_location
+                if legend_options.location is None
+                else legend_options.location
+            )
+            Legends.ears_legend(
+                ax=ax,
+                ear=ear,
+                location=resolved_legend_location,
+                labels=legend_options.labels,
+            )
+        grid_enabled = True if axis_options.grid is None else axis_options.grid
+        if grid_enabled:
+            ax.grid(True)
+
+    @staticmethod
+    def create_position_title(
+        selected_positions: np.ndarray,
+        position_coordinate_system: str,
+    ) -> str:
         titles = Titles()
         position_alias = Sources.get_position_alias(
             selected_positions,
@@ -467,12 +524,12 @@ class Axis:
                 )
         elif position_coordinate_system == "lateral-polar":
             if position_alias is None:
-                default_title = titles.lateral_polar_position.format(
+                return titles.lateral_polar_position.format(
                     lateral=float(selected_positions[0]),
                     polar=float(selected_positions[1]),
                 )
             else:
-                default_title = titles.lateral_polar_alias.format(
+                return titles.lateral_polar_alias.format(
                     name=position_alias.capitalize(),
                     lateral=float(selected_positions[0]),
                     polar=float(selected_positions[1]),
@@ -481,32 +538,7 @@ class Axis:
             raise ValueError(
                 "position_coordinate_system accepts spherical, cartesian, or lateral-polar"
             )
-        Axis.create_label_axis(
-            ax=ax,
-            axis=axis,
-            default_label=default_label,
-            options=axis_options,
-        )
-        resolved_title = default_title if axis_options.title is None else axis_options.title
-        ax.set_title(resolved_title)
-        if shared_x_visible:
-            ax.tick_params(axis="x", which="both", labelbottom=True)
-        legend_enabled = True if legend_options.enabled is None else legend_options.enabled
-        if legend_enabled:
-            resolved_legend_location = (
-                legend_location
-                if legend_options.location is None
-                else legend_options.location
-            )
-            Legends.ears_legend(
-                ax=ax,
-                ear=ear,
-                location=resolved_legend_location,
-                labels=legend_options.labels,
-            )
-        grid_enabled = True if axis_options.grid is None else axis_options.grid
-        if grid_enabled:
-            ax.grid(True)
+        return default_title
 
     @staticmethod
     def create_frequency_axis(
@@ -679,6 +711,7 @@ class Axis:
             position_coordinate_system=position_coordinate_system,
             ear=ear,
             options=options,
+            legend_location="upper left",
         )
 
     @staticmethod
@@ -791,6 +824,9 @@ class Plots:
         figure_options = (
             plot_options.figure if plot_options.figure is not None else FigureOptions()
         )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
         axis_options = (
             plot_options.axis if plot_options.axis is not None else AxisOptions()
         )
@@ -809,7 +845,7 @@ class Plots:
         layout = create_layout(
             layout=layout_number,
             figsize=figure_options.figsize,
-            margins=figure_options.margins,
+            margins=resolved_margins,
         )
         panel_axis_options = self.get_panel_axis_options(layout, plot_options)
 
@@ -858,7 +894,7 @@ class Plots:
                 if y_values.ndim < 2 or y_values.shape[0] < 2:
                     raise ValueError("Both ears requested but TF data does not contain two ear channels")
                 ax.plot(frequency_khz, y_values[0, :], color='blue')
-                ax.plot(frequency_khz, y_values[1, :], linestyle="dashed", color='red')
+                ax.plot(frequency_khz, y_values[1, :], color='red')
             else:
                 if y_values.ndim == 1:
                     selected_y_values = y_values.reshape(-1)
@@ -891,12 +927,15 @@ class Plots:
                 ax.set_visible(False)
 
         if figure_options.title is not None:
-            layout.fig.suptitle(figure_options.title)
+            layout.fig.suptitle(
+                figure_options.title,
+                y=min(resolved_margins.top + 0.05, 0.98),
+            )
         if plot_options.show:
             plt.show()
         return layout
 
-    def plot_impulse_response(
+    def plot_amplitude(
         self: "HRTF",
         positions: list | np.ndarray,
         position_coordinate_system: str = "spherical",
@@ -924,6 +963,9 @@ class Plots:
         figure_options = (
             plot_options.figure if plot_options.figure is not None else FigureOptions()
         )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
         axis_options = (
             plot_options.axis if plot_options.axis is not None else AxisOptions()
         )
@@ -938,13 +980,13 @@ class Plots:
         if position_count == 0:
             raise ValueError("At least one position is required")
         if position_count > 4:
-            raise ValueError("plot_impulse_response accepts up to 4 positions")
+            raise ValueError("plot_amplitude accepts up to 4 positions")
 
         layout_number = 1 if position_count == 1 else 2 if position_count == 2 else 4
         layout = create_layout(
             layout=layout_number,
             figsize=figure_options.figsize,
-            margins=figure_options.margins,
+            margins=resolved_margins,
         )
         panel_axis_options = self.get_panel_axis_options(layout, plot_options)
 
@@ -1008,7 +1050,228 @@ class Plots:
                 ax.set_visible(False)
 
         if figure_options.title is not None:
-            layout.fig.suptitle(figure_options.title)
+            layout.fig.suptitle(
+                figure_options.title,
+                y=min(resolved_margins.top + 0.05, 0.98),
+            )
+        if plot_options.show:
+            plt.show()
+        return layout
+
+    def plot_amplitude_and_magnitude(
+        self: "HRTF",
+        positions: list | np.ndarray,
+        position_coordinate_system: str = "spherical",
+        ear: str = "both",
+        x_axis: str = "time",
+        unit: str = "db",
+        reference: float = 1.0,
+        freq_min: float | None = None,
+        freq_max: float | None = None,
+        options: PlotOptions | None = None,
+    ) -> LayoutFigure:
+        accepted_parameters = AcceptedParameters()
+        if ear not in accepted_parameters.ears:
+            raise AttributeError(
+                f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
+            )
+        if x_axis not in accepted_parameters.x_axes:
+            raise AttributeError(
+                f"x_axis accepts : {accepted_parameters.x_axes[0]} or {accepted_parameters.x_axes[1]}"
+            )
+        if unit not in accepted_parameters.units:
+            raise AttributeError(
+                f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
+            )
+        if position_coordinate_system not in accepted_parameters.coordinate_systems:
+            raise AttributeError(
+                "position_coordinate_system accepts "
+                f"{accepted_parameters.coordinate_systems[0]}, "
+                f"{accepted_parameters.coordinate_systems[1]} or "
+                f"{accepted_parameters.coordinate_systems[2]}"
+            )
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
+        axis_options = (
+            plot_options.axis if plot_options.axis is not None else AxisOptions()
+        )
+
+        if self.IR.values is None:
+            raise ValueError("IR data is not available")
+        if self.TF.values is None or self.TF.frequency_bins is None:
+            raise ValueError("TF data is not available")
+        if x_axis == "time" and self.IR.sample_rate is None:
+            raise ValueError("IR sample_rate is required when x_axis='time'")
+
+        position_queries = self.Sources.get_position_queries(positions)
+        if len(position_queries) != 1:
+            raise ValueError(
+                "plot_amplitude_and_magnitude accepts exactly one position"
+            )
+        selected_position_query = position_queries[0]
+
+        layout = create_layout(
+            layout=12,
+            figsize=figure_options.figsize,
+            margins=resolved_margins,
+        )
+        panel_axis_options = self.get_panel_axis_options(layout, plot_options)
+
+        left_axis_options = axis_options.merge(panel_axis_options.get(0))
+        right_axis_options = axis_options.merge(panel_axis_options.get(1))
+        left_axis_panel_options = left_axis_options.merge(AxisOptions(title=""))
+        right_axis_panel_options = right_axis_options.merge(AxisOptions(title=""))
+
+        idxs, selected_positions = self.Sources.get_position_index(
+            selected_position_query,
+            coordinate_system=position_coordinate_system,
+        )
+        selected_positions = np.asarray(selected_positions, dtype=float)
+
+        ir_values = np.asarray(self.IR.values, dtype=float)
+        if ir_values.ndim < 2 or ir_values.shape[-1] == 0:
+            raise ValueError("IR values must contain at least one sample")
+        sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
+        x_values = (
+            sample_indexes / float(self.IR.sample_rate)
+            if x_axis == "time"
+            else sample_indexes
+        )
+        ir_y_values = np.asarray(ir_values[idxs], dtype=float)
+
+        ir_ax = layout.get_axis("left")
+        if ear == "both":
+            if ir_y_values.ndim < 2 or ir_y_values.shape[0] < 2:
+                raise ValueError(
+                    "Both ears requested but IR data does not contain two ear channels"
+                )
+            ir_ax.plot(x_values, ir_y_values[0, :], color="blue")
+            ir_ax.plot(x_values, ir_y_values[1, :], color="red")
+        else:
+            if ir_y_values.ndim == 1:
+                selected_ir_y_values = ir_y_values.reshape(-1)
+            else:
+                ear_index = 0 if ear == "left" else 1
+                if ir_y_values.shape[0] <= ear_index:
+                    raise ValueError(
+                        f"Requested ear '{ear}' is not available in IR data"
+                    )
+                selected_ir_y_values = np.asarray(
+                    ir_y_values[ear_index],
+                    dtype=float,
+                ).reshape(-1)
+            ir_ax.plot(x_values, selected_ir_y_values, color="blue")
+
+        if x_axis == "time":
+            Axis.create_time_axis(
+                ax=ir_ax,
+                axis="x",
+                options=left_axis_options,
+            )
+        else:
+            Axis.create_samples_axis(
+                ax=ir_ax,
+                axis="x",
+                options=left_axis_options,
+            )
+        Axis.create_amplitude_axis(
+            ax=ir_ax,
+            axis="y",
+            selected_positions=selected_positions,
+            position_coordinate_system=position_coordinate_system,
+            ear=ear,
+            options=left_axis_panel_options,
+        )
+
+        frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
+        if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
+            raise ValueError("TF frequency bins must be a non-empty 1D array")
+        resolved_frequency_axis = Axis.create_frequency_axis(
+            ax=None,
+            axis="x",
+            unit=unit,
+            frequency_bins=frequency_bins_hz,
+            freq_min=freq_min,
+            freq_max=freq_max,
+            options=right_axis_options.frequency_axis,
+        )
+        frequency_mask = (
+            (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
+            & (frequency_bins_hz <= float(resolved_frequency_axis.freq_max))
+        )
+        if not np.any(frequency_mask):
+            raise ValueError("Selected frequency range produced no TF bins")
+        frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
+        tf_values = (
+            self.TF.get_magnitude_db(reference=reference)
+            if unit == "db"
+            else self.TF.magnitude
+        )
+        magnitude_y_values = np.asarray(tf_values[idxs][..., frequency_mask], dtype=float)
+
+        magnitude_ax = layout.get_axis("right")
+        if ear == "both":
+            if magnitude_y_values.ndim < 2 or magnitude_y_values.shape[0] < 2:
+                raise ValueError(
+                    "Both ears requested but TF data does not contain two ear channels"
+                )
+            magnitude_ax.plot(frequency_khz, magnitude_y_values[0, :], color="blue")
+            magnitude_ax.plot(frequency_khz, magnitude_y_values[1, :], color="red")
+        else:
+            if magnitude_y_values.ndim == 1:
+                selected_magnitude_y_values = magnitude_y_values.reshape(-1)
+            else:
+                ear_index = 0 if ear == "left" else 1
+                if magnitude_y_values.shape[0] <= ear_index:
+                    raise ValueError(
+                        f"Requested ear '{ear}' is not available in TF data"
+                    )
+                selected_magnitude_y_values = np.asarray(
+                    magnitude_y_values[ear_index],
+                    dtype=float,
+                ).reshape(-1)
+            magnitude_ax.plot(frequency_khz, selected_magnitude_y_values, color="blue")
+
+        labels = Labels()
+        frequency_label = (
+            labels.frequency
+            if right_axis_options.xlabel is None
+            else right_axis_options.xlabel
+        )
+        Axis.create_frequency_axis(
+            ax=magnitude_ax,
+            axis="x",
+            unit=unit,
+            label=frequency_label,
+            options=resolved_frequency_axis,
+        )
+        Axis.create_magnitude_axis(
+            ax=magnitude_ax,
+            axis="y",
+            unit=unit,
+            selected_positions=selected_positions,
+            position_coordinate_system=position_coordinate_system,
+            ear=ear,
+            options=right_axis_panel_options,
+        )
+
+        resolved_figure_title = (
+            Axis.create_position_title(
+                selected_positions=selected_positions,
+                position_coordinate_system=position_coordinate_system,
+            )
+            if figure_options.title is None
+            else figure_options.title
+        )
+        layout.fig.suptitle(
+            resolved_figure_title,
+            y=min(resolved_margins.top + 0.05, 0.98),
+        )
         if plot_options.show:
             plt.show()
         return layout
