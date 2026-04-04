@@ -51,8 +51,12 @@ class Labels:
 
 @dataclass(frozen=True)
 class Titles:
-    alias: str = "{name} : [Azimuth= {az}°, Elevation= {el}°]"
-    position: str = "Position : [Azimuth= {az}°, Elevation= {el}°]"
+    spherical_alias: str = "{name} : [Azimuth= {az}°, Elevation= {el}°]"
+    spherical_position: str = "Position : [Azimuth= {az}°, Elevation= {el}°]"
+    cartesian_alias: str = "{name} : [x= {x}, y= {y}, z= {z}]"
+    cartesian_position: str = "Position : [x= {x}, y= {y}, z= {z}]"
+    lateral_polar_alias: str = "{name} : [Lateral= {lateral}°, Polar= {polar}°]"
+    lateral_polar_position: str = "Position : [Lateral= {lateral}°, Polar= {polar}°]"
 
 
 @dataclass(frozen=True)
@@ -60,6 +64,11 @@ class AcceptedParameters:
     units: tuple[str, str] = ("db", "linear")
     ears: tuple[str, str, str] = ("left", "right", "both")
     x_axes: tuple[str, str] = ("time", "samples")
+    coordinate_systems: tuple[str, str, str] = (
+        "spherical",
+        "cartesian",
+        "lateral-polar",
+    )
 
 
 @dataclass(frozen=True)
@@ -413,6 +422,7 @@ class Axis:
         axis: str,
         default_label: str,
         selected_positions: np.ndarray,
+        position_coordinate_system: str,
         ear: str,
         options: AxisOptions | None = None,
         legend_location: str = "upper right",
@@ -427,18 +437,49 @@ class Axis:
         titles = Titles()
         position_alias = Sources.get_position_alias(
             selected_positions,
-            coordinate_system="spherical",
+            coordinate_system=position_coordinate_system,
         )
-        if position_alias is None:
-            default_title = titles.position.format(
-                az=float(selected_positions[0]),
-                el=float(selected_positions[1]),
-            )
+        if position_coordinate_system == "spherical":
+            if position_alias is None:
+                default_title = titles.spherical_position.format(
+                    az=float(selected_positions[0]),
+                    el=float(selected_positions[1]),
+                )
+            else:
+                default_title = titles.spherical_alias.format(
+                    name=position_alias.capitalize(),
+                    az=float(selected_positions[0]),
+                    el=float(selected_positions[1]),
+                )
+        elif position_coordinate_system == "cartesian":
+            if position_alias is None:
+                default_title = titles.cartesian_position.format(
+                    x=float(selected_positions[0]),
+                    y=float(selected_positions[1]),
+                    z=float(selected_positions[2]),
+                )
+            else:
+                default_title = titles.cartesian_alias.format(
+                    name=position_alias.capitalize(),
+                    x=float(selected_positions[0]),
+                    y=float(selected_positions[1]),
+                    z=float(selected_positions[2]),
+                )
+        elif position_coordinate_system == "lateral-polar":
+            if position_alias is None:
+                default_title = titles.lateral_polar_position.format(
+                    lateral=float(selected_positions[0]),
+                    polar=float(selected_positions[1]),
+                )
+            else:
+                default_title = titles.lateral_polar_alias.format(
+                    name=position_alias.capitalize(),
+                    lateral=float(selected_positions[0]),
+                    polar=float(selected_positions[1]),
+                )
         else:
-            default_title = titles.alias.format(
-                name=position_alias.capitalize(),
-                az=float(selected_positions[0]),
-                el=float(selected_positions[1]),
+            raise ValueError(
+                "position_coordinate_system accepts spherical, cartesian, or lateral-polar"
             )
         Axis.create_label_axis(
             ax=ax,
@@ -624,6 +665,7 @@ class Axis:
         axis: str,
         unit: str,
         selected_positions: np.ndarray,
+        position_coordinate_system: str,
         ear: str,
         options: AxisOptions | None = None,
     ) -> None:
@@ -634,6 +676,7 @@ class Axis:
             axis=axis,
             default_label=default_label,
             selected_positions=selected_positions,
+            position_coordinate_system=position_coordinate_system,
             ear=ear,
             options=options,
         )
@@ -643,6 +686,7 @@ class Axis:
         ax: plt.Axes,
         axis: str,
         selected_positions: np.ndarray,
+        position_coordinate_system: str,
         ear: str,
         options: AxisOptions | None = None,
     ) -> None:
@@ -652,6 +696,7 @@ class Axis:
             axis=axis,
             default_label=labels.impulse_response,
             selected_positions=selected_positions,
+            position_coordinate_system=position_coordinate_system,
             ear=ear,
             options=options,
         )
@@ -718,6 +763,7 @@ class Plots:
     def plot_magnitude(
         self: "HRTF",
         positions: list | np.ndarray,
+        position_coordinate_system: str = "spherical",
         unit: str = "db",
         ear: str = "both",
         reference: float = 1.0,
@@ -733,6 +779,13 @@ class Plots:
         if ear not in accepted_parameters.ears:
             raise AttributeError(
                 f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
+            )
+        if position_coordinate_system not in accepted_parameters.coordinate_systems:
+            raise AttributeError(
+                "position_coordinate_system accepts "
+                f"{accepted_parameters.coordinate_systems[0]}, "
+                f"{accepted_parameters.coordinate_systems[1]} or "
+                f"{accepted_parameters.coordinate_systems[2]}"
             )
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -796,8 +849,9 @@ class Plots:
             )
             idxs, selected_positions = self.Sources.get_position_index(
                 selected_position_query,
-                coordinate_system="spherical",
+                coordinate_system=position_coordinate_system,
             )
+            selected_positions = np.asarray(selected_positions, dtype=float)
             y_values = np.asarray(tf_values[idxs][..., frequency_mask], dtype=float)
 
             if ear == "both":
@@ -827,6 +881,7 @@ class Plots:
                 axis="y",
                 unit=unit,
                 selected_positions=selected_positions,
+                position_coordinate_system=position_coordinate_system,
                 ear=ear,
                 options=resolved_axis_options,
             )
@@ -844,6 +899,7 @@ class Plots:
     def plot_impulse_response(
         self: "HRTF",
         positions: list | np.ndarray,
+        position_coordinate_system: str = "spherical",
         ear: str = "both",
         x_axis: str = "time",
         options: PlotOptions | None = None,
@@ -856,6 +912,13 @@ class Plots:
         if x_axis not in accepted_parameters.x_axes:
             raise AttributeError(
                 f"x_axis accepts : {accepted_parameters.x_axes[0]} or {accepted_parameters.x_axes[1]}"
+            )
+        if position_coordinate_system not in accepted_parameters.coordinate_systems:
+            raise AttributeError(
+                "position_coordinate_system accepts "
+                f"{accepted_parameters.coordinate_systems[0]}, "
+                f"{accepted_parameters.coordinate_systems[1]} or "
+                f"{accepted_parameters.coordinate_systems[2]}"
             )
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -899,8 +962,9 @@ class Plots:
             resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
             idxs, selected_positions = self.Sources.get_position_index(
                 selected_position_query,
-                coordinate_system="spherical",
+                coordinate_system=position_coordinate_system,
             )
+            selected_positions = np.asarray(selected_positions, dtype=float)
             y_values = np.asarray(ir_values[idxs], dtype=float)
 
             if ear == "both":
@@ -934,6 +998,7 @@ class Plots:
                 ax=ax,
                 axis="y",
                 selected_positions=selected_positions,
+                position_coordinate_system=position_coordinate_system,
                 ear=ear,
                 options=resolved_axis_options,
             )
