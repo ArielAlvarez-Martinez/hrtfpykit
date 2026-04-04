@@ -2,7 +2,6 @@ from functools import cached_property
 from pathlib import Path
 
 import numpy as np
-from .analytics import Analytics
 from .dsp import (
     apply_ir_crop,
     calculate_ir_from_tf,
@@ -43,10 +42,6 @@ class HRTF(Plots):
     @cached_property
     def transform(self) -> "Transform":
         return Transform(self)
-
-    @property
-    def Analytics(self) -> "Analytics":
-        return Analytics(self)
 
     def clone(self) -> "HRTF":
         sofa_clone = self.Sofa
@@ -106,13 +101,8 @@ class HRTF(Plots):
             source_count = int(source_positions.shape[0])
 
             if positions is not None:
-                positions_array = np.asarray(positions, dtype=float)
-                if positions_array.ndim == 1:
-                    positions_array = positions_array.reshape(1, -1)
-                if positions_array.ndim != 2 or positions_array.shape[-1] not in {2, 3}:
-                    raise ValueError("positions must have shape (K, 2) or (K, 3)")
                 position_indices: list[int] = []
-                for position in positions_array:
+                for position in Sources.get_position_queries(positions):
                     idx, _ = transformed_hrtf.Sources.get_position_index(
                         position=position,
                         coordinate_system=position_coordinate_system,

@@ -42,6 +42,155 @@ class Sources:
             Coordinate-system name used as target by :meth:`get_positions`.
         """
         return str(self.source_coordinate_system)
+
+    @staticmethod
+    def get_position_queries(
+        positions: np.ndarray | list | tuple | str,
+    ) -> list[np.ndarray | str]:
+        if isinstance(positions, str):
+            return [str(positions).strip().lower()]
+
+        if isinstance(positions, np.ndarray) and positions.dtype != object:
+            numeric_positions = np.asarray(positions, dtype=float)
+            if numeric_positions.ndim == 1:
+                if numeric_positions.shape[0] not in {2, 3}:
+                    raise ValueError(
+                        "positions must have shape (2,), (3,), (K, 2), or (K, 3)"
+                    )
+                return [numeric_positions]
+            if numeric_positions.ndim == 2 and numeric_positions.shape[-1] in {2, 3}:
+                return [
+                    np.asarray(position, dtype=float)
+                    for position in numeric_positions
+                ]
+
+        raw_positions = np.asarray(positions, dtype=object)
+        if raw_positions.ndim == 0:
+            value = raw_positions.item()
+            if isinstance(value, str):
+                return [str(value).strip().lower()]
+            position = np.asarray(value, dtype=float)
+            if position.ndim != 1 or position.shape[0] not in {2, 3}:
+                raise ValueError(
+                    "positions must have shape (2,), (3,), (K, 2), or (K, 3)"
+                )
+            return [position]
+
+        if raw_positions.ndim == 1:
+            values = raw_positions.tolist()
+            if len(values) == 0:
+                raise ValueError("At least one position is required")
+            if all(isinstance(value, str) for value in values):
+                return [str(value).strip().lower() for value in values]
+            if all(np.isscalar(value) and not isinstance(value, str) for value in values):
+                if raw_positions.shape[0] not in {2, 3}:
+                    raise ValueError(
+                        "positions must have shape (2,), (3,), (K, 2), or (K, 3)"
+                    )
+                return [np.asarray(raw_positions, dtype=float)]
+            position_queries: list[np.ndarray | str] = []
+            for value in values:
+                if isinstance(value, str):
+                    position_queries.append(str(value).strip().lower())
+                    continue
+                position = np.asarray(value, dtype=float)
+                if position.ndim != 1 or position.shape[0] not in {2, 3}:
+                    raise ValueError(
+                        "positions must have shape (2,), (3,), (K, 2), or (K, 3)"
+                    )
+                position_queries.append(position)
+            return position_queries
+
+        if raw_positions.ndim == 2 and raw_positions.shape[-1] in {2, 3}:
+            numeric_positions = np.asarray(raw_positions, dtype=float)
+            return [
+                np.asarray(position, dtype=float)
+                for position in numeric_positions
+            ]
+
+        raise ValueError(
+            "positions must have shape (2,), (3,), (K, 2), or (K, 3)"
+        )
+
+    @staticmethod
+    def get_named_positions(
+        angle_unit: str = "degrees",
+    ) -> dict[str, np.ndarray]:
+        unit = str(angle_unit).strip().lower()
+        if unit not in {"degrees", "radians"}:
+            raise ValueError("angle_unit must be 'degrees' or 'radians'")
+        named_positions = {
+            "front": np.array([0.0, 0.0], dtype=float),
+            "left": np.array([90.0, 0.0], dtype=float),
+            "back": np.array([180.0, 0.0], dtype=float),
+            "right": np.array([270.0, 0.0], dtype=float),
+        }
+        if unit == "radians":
+            return {
+                name: np.deg2rad(position)
+                for name, position in named_positions.items()
+            }
+        return named_positions
+
+    @staticmethod
+    def get_position_alias(
+        position: np.ndarray | list[float] | tuple[float, ...],
+        coordinate_system: str = "spherical",
+        angle_unit: str = "degrees",
+    ) -> str | None:
+        system = str(coordinate_system).strip().lower()
+        if system not in {"spherical", "cartesian", "lateral-polar"}:
+            raise ValueError(
+                "coordinate_system must be one of: spherical, cartesian, lateral-polar"
+            )
+        unit = str(angle_unit).strip().lower()
+        if unit not in {"degrees", "radians"}:
+            raise ValueError("angle_unit must be 'degrees' or 'radians'")
+
+        resolved_position = np.asarray(position, dtype=float)
+        if system == "cartesian":
+            if resolved_position.shape != (3,):
+                raise ValueError("For cartesian, position must have shape (3,)")
+            spherical_position = Sources.cartesian_to_spherical(
+                resolved_position,
+                angle_unit=unit,
+            )
+        elif system == "lateral-polar":
+            if resolved_position.shape not in {(2,), (3,)}:
+                raise ValueError(
+                    "For lateral-polar, position must have shape (2,) or (3,)"
+                )
+            spherical_position = Sources.lateral_polar_to_spherical(
+                resolved_position,
+                angle_unit=unit,
+            )
+        else:
+            if resolved_position.shape not in {(2,), (3,)}:
+                raise ValueError(
+                    "For spherical, position must have shape (2,) or (3,)"
+                )
+            spherical_position = resolved_position
+
+        azimuth = float(np.asarray(spherical_position, dtype=float)[0])
+        elevation = float(np.asarray(spherical_position, dtype=float)[1])
+        if not np.isfinite(azimuth) or not np.isfinite(elevation):
+            raise ValueError("position must contain finite values")
+
+        full = 360.0 if unit == "degrees" else 2.0 * np.pi
+        half = full / 2.0
+        if not np.isclose(elevation, 0.0, atol=1e-6, rtol=0.0):
+            return None
+        for name, named_position in Sources.get_named_positions(angle_unit=unit).items():
+            azimuth_delta = np.mod(azimuth - float(named_position[0]) + half, full) - half
+            elevation_delta = elevation - float(named_position[1])
+            if np.isclose(azimuth_delta, 0.0, atol=1e-6, rtol=0.0) and np.isclose(
+                elevation_delta,
+                0.0,
+                atol=1e-6,
+                rtol=0.0,
+            ):
+                return name
+        return None
    
     @staticmethod
     def spherical_to_cartesian(
@@ -380,16 +529,13 @@ class Sources:
         Returns
         -------
         np.ndarray
-            Source grid with shape ``(N, 3)`` as float values rounded to two decimals.
+            Source grid with shape ``(N, 3)`` as float values.
 
         Notes
         -----
         Source data are read from SOFA ``SourcePosition`` and converted to
         ``self.source_coordinate_system``.
         """
-        def _round(values: np.ndarray) -> np.ndarray:
-            return np.round(np.asarray(values, dtype=float), 2)
-
         source_positions = self._hrtf.Sofa.Variables.get("SourcePosition").value
         source_system = self._hrtf.Sofa.VariableAttributes.get("SourcePosition:Type").value
         source_units = self._hrtf.Sofa.VariableAttributes.get("SourcePosition:Units").value
@@ -427,78 +573,86 @@ class Sources:
 
         if source_system == target_system:
             if target_system == "cartesian" or source_angle_unit == requested_angle_unit:
-                return _round(source_positions)
+                return np.asarray(source_positions, dtype=float)
             if target_system == "spherical":
                 cartesian = self.spherical_to_cartesian(
                     source_positions,
                     angle_unit=source_angle_unit,
                 )
-                return _round(
+                return np.asarray(
                     self.cartesian_to_spherical(
                         cartesian,
                         angle_unit=requested_angle_unit,
-                    )
+                    ),
+                    dtype=float,
                 )
             cartesian = self.lateral_polar_to_cartesian(
                 source_positions,
                 angle_unit=source_angle_unit,
             )
-            return _round(
+            return np.asarray(
                 self.cartesian_to_lateral_polar(
                     cartesian,
                     angle_unit=requested_angle_unit,
-                )
+                ),
+                dtype=float,
             )
 
         if source_system == "spherical" and target_system == "cartesian":
-            return _round(
+            return np.asarray(
                 self.spherical_to_cartesian(
                     source_positions,
                     angle_unit=source_angle_unit,
-                )
+                ),
+                dtype=float,
             )
         if source_system == "cartesian" and target_system == "spherical":
-            return _round(
+            return np.asarray(
                 self.cartesian_to_spherical(
                     source_positions,
                     angle_unit=requested_angle_unit,
-                )
+                ),
+                dtype=float,
             )
         if source_system == "cartesian" and target_system == "lateral-polar":
-            return _round(
+            return np.asarray(
                 self.cartesian_to_lateral_polar(
                     source_positions,
                     angle_unit=requested_angle_unit,
-                )
+                ),
+                dtype=float,
             )
         if source_system == "lateral-polar" and target_system == "cartesian":
-            return _round(
+            return np.asarray(
                 self.lateral_polar_to_cartesian(
                     source_positions,
                     angle_unit=source_angle_unit,
-                )
+                ),
+                dtype=float,
             )
         if source_system == "spherical" and target_system == "lateral-polar":
             cartesian = self.spherical_to_cartesian(
                 source_positions,
                 angle_unit=source_angle_unit,
             )
-            return _round(
+            return np.asarray(
                 self.cartesian_to_lateral_polar(
                     cartesian,
                     angle_unit=requested_angle_unit,
-                )
+                ),
+                dtype=float,
             )
         if source_system == "lateral-polar" and target_system == "spherical":
             cartesian = self.lateral_polar_to_cartesian(
                 source_positions,
                 angle_unit=source_angle_unit,
             )
-            return _round(
+            return np.asarray(
                 self.cartesian_to_spherical(
                     cartesian,
                     angle_unit=requested_angle_unit,
-                )
+                ),
+                dtype=float,
             )
 
         raise ValueError(
@@ -648,8 +802,8 @@ class Sources:
         if unit not in {"degrees", "radians"}:
             raise ValueError("angle_unit must be 'degrees' or 'radians'")
 
-        azimuth_angles = np.round(np.asarray(spherical[..., 0], dtype=float), 2)
-        elevation_angles = np.round(np.asarray(spherical[..., 1], dtype=float), 2)
+        azimuth_angles = np.asarray(spherical[..., 0], dtype=float)
+        elevation_angles = np.asarray(spherical[..., 1], dtype=float)
         available_azimuths = np.unique(azimuth_angles)
         full = 360.0 if unit == "degrees" else 2.0 * np.pi
         half = full / 2.0
@@ -661,7 +815,7 @@ class Sources:
             atol=1e-8,
             rtol=0.0,
         )
-        return np.unique(elevation_angles[selected]), real_azimuth
+        return np.unique(np.round(elevation_angles[selected], 2)), round(real_azimuth, 2)
 
     def get_azimuth_angles_for_elevation(
         self,
@@ -715,8 +869,8 @@ class Sources:
         else:
             raise ValueError(f"Unsupported target coordinate system: {target_system!r}")
 
-        elevation_angles = np.round(np.asarray(spherical[..., 1], dtype=float), 2)
-        azimuth_angles = np.round(np.asarray(spherical[..., 0], dtype=float), 2)
+        elevation_angles = np.asarray(spherical[..., 1], dtype=float)
+        azimuth_angles = np.asarray(spherical[..., 0], dtype=float)
         available_elevations = np.unique(elevation_angles)
         real_elevation = float(
             available_elevations[int(np.argmin(np.abs(available_elevations - elevation)))]
@@ -727,7 +881,7 @@ class Sources:
             atol=1e-8,
             rtol=0.0,
         )
-        return np.unique(azimuth_angles[selected]), real_elevation
+        return np.unique(np.round(azimuth_angles[selected], 2)), round(real_elevation, 2)
 
     @staticmethod
     def get_closest_position_index(
@@ -815,7 +969,7 @@ class Sources:
 
     def get_position_index(
         self,
-        position: np.ndarray | list[float] | tuple[float, float, float],
+        position: np.ndarray | list[float] | tuple[float, float, float] | str,
         coordinate_system: str = "spherical",
         angle_unit: str = "degrees",
     ) -> tuple[int, np.ndarray]:
@@ -845,7 +999,6 @@ class Sources:
         if unit not in {"degrees", "radians"}:
             raise ValueError("angle_unit must be 'degrees' or 'radians'")
 
-        query_position = np.asarray(position, dtype=float)
         grid_system = str(self.source_coordinate_system).strip().lower()
         grid_positions = self.get_positions(angle_unit=unit)
         if grid_positions.ndim != 2 or grid_positions.shape[-1] != 3:
@@ -888,6 +1041,39 @@ class Sources:
                 f"Unsupported conversion from {grid_system!r} to {system!r}"
             )
 
+        if isinstance(position, str):
+            named_position = str(position).strip().lower()
+            named_positions = Sources.get_named_positions(angle_unit=unit)
+            if named_position not in named_positions:
+                raise ValueError(
+                    "named position accepts: front, back, left, or right"
+                )
+            if grid_system == "spherical":
+                grid_in_spherical = grid_positions
+            elif grid_system == "cartesian":
+                grid_in_spherical = self.cartesian_to_spherical(
+                    grid_positions,
+                    angle_unit=unit,
+                )
+            elif grid_system == "lateral-polar":
+                grid_in_spherical = self.lateral_polar_to_spherical(
+                    grid_positions,
+                    angle_unit=unit,
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported conversion from {grid_system!r} to 'spherical'"
+                )
+            query_position = np.asarray(named_positions[named_position], dtype=float)
+            idx = Sources.get_closest_position_index(
+                query_position=query_position,
+                grid_positions=grid_in_spherical,
+                coordinate_system="spherical",
+                angle_unit=unit,
+            )
+            return idx, np.round(np.asarray(grid_in_query_system[idx], dtype=float), 2)
+
+        query_position = np.asarray(position, dtype=float)
         idx = Sources.get_closest_position_index(
             query_position=query_position,
             grid_positions=grid_in_query_system,

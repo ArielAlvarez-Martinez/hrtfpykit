@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
+from .spatial import Sources
 
 
 if TYPE_CHECKING:
@@ -50,6 +51,7 @@ class Labels:
 
 @dataclass(frozen=True)
 class Titles:
+    alias: str = "{name} : [Azimuth= {az}°, Elevation= {el}°]"
     position: str = "Position : [Azimuth= {az}°, Elevation= {el}°]"
 
 
@@ -332,13 +334,6 @@ class LayoutFactory:
             )
         return cls.registry[layout].create(figsize=figsize, margins=margins)
 
-
-def figure(
-    figsize: tuple[float, float] = (FigSizeDefault().width, FigSizeDefault().height),
-) -> tuple[plt.Figure, plt.Axes]:
-    layout = LayoutFactory.create(layout=1, figsize=figsize)
-    return layout.fig, layout.get_axis(0)
-
 def create_layout(
     layout: int,
     figsize: tuple[float, float] | None = None,
@@ -384,6 +379,93 @@ class Axis:
         "20",
     )
     frequency_margin_ratio: float = 0.03
+
+    @staticmethod
+    def create_label_axis(
+        ax: plt.Axes,
+        axis: str,
+        default_label: str,
+        options: AxisOptions | None = None,
+    ) -> None:
+        axis_options = AxisOptions() if options is None else options
+        if axis not in {"x", "y", "z"}:
+            raise ValueError("axis accepts 'x', 'y', or 'z'")
+        if axis == "x":
+            set_label = ax.set_xlabel
+            resolved_label = (
+                default_label if axis_options.xlabel is None else axis_options.xlabel
+            )
+        elif axis == "y":
+            set_label = ax.set_ylabel
+            resolved_label = (
+                default_label if axis_options.ylabel is None else axis_options.ylabel
+            )
+        else:
+            set_label = getattr(ax, "set_zlabel", None)
+            if set_label is None:
+                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
+            resolved_label = default_label
+        set_label(resolved_label)
+
+    @staticmethod
+    def create_panel_axis(
+        ax: plt.Axes,
+        axis: str,
+        default_label: str,
+        selected_positions: np.ndarray,
+        ear: str,
+        options: AxisOptions | None = None,
+        legend_location: str = "upper right",
+    ) -> None:
+        axis_options = AxisOptions() if options is None else options
+        legend_options = LegendOptions() if axis_options.legend is None else axis_options.legend
+        shared_x_visible = (
+            Axis.shared_x_visible
+            if axis_options.shared_x_visible is None
+            else axis_options.shared_x_visible
+        )
+        titles = Titles()
+        position_alias = Sources.get_position_alias(
+            selected_positions,
+            coordinate_system="spherical",
+        )
+        if position_alias is None:
+            default_title = titles.position.format(
+                az=float(selected_positions[0]),
+                el=float(selected_positions[1]),
+            )
+        else:
+            default_title = titles.alias.format(
+                name=position_alias.capitalize(),
+                az=float(selected_positions[0]),
+                el=float(selected_positions[1]),
+            )
+        Axis.create_label_axis(
+            ax=ax,
+            axis=axis,
+            default_label=default_label,
+            options=axis_options,
+        )
+        resolved_title = default_title if axis_options.title is None else axis_options.title
+        ax.set_title(resolved_title)
+        if shared_x_visible:
+            ax.tick_params(axis="x", which="both", labelbottom=True)
+        legend_enabled = True if legend_options.enabled is None else legend_options.enabled
+        if legend_enabled:
+            resolved_legend_location = (
+                legend_location
+                if legend_options.location is None
+                else legend_options.location
+            )
+            Legends.ears_legend(
+                ax=ax,
+                ear=ear,
+                location=resolved_legend_location,
+                labels=legend_options.labels,
+            )
+        grid_enabled = True if axis_options.grid is None else axis_options.grid
+        if grid_enabled:
+            ax.grid(True)
 
     @staticmethod
     def create_frequency_axis(
@@ -545,58 +627,16 @@ class Axis:
         ear: str,
         options: AxisOptions | None = None,
     ) -> None:
-        axis_options = AxisOptions() if options is None else options
-        legend_options = LegendOptions() if axis_options.legend is None else axis_options.legend
-        shared_x_visible = (
-            Axis.shared_x_visible
-            if axis_options.shared_x_visible is None
-            else axis_options.shared_x_visible
-        )
         labels = Labels()
-        titles = Titles()
-        if axis not in {"x", "y", "z"}:
-            raise ValueError("axis accepts 'x', 'y', or 'z'")
         default_label = labels.magnitude_db if unit == "db" else labels.magnitude_linear
-        default_title = titles.position.format(
-            az=float(selected_positions[0]),
-            el=float(selected_positions[1]),
+        Axis.create_panel_axis(
+            ax=ax,
+            axis=axis,
+            default_label=default_label,
+            selected_positions=selected_positions,
+            ear=ear,
+            options=options,
         )
-        if axis == "x":
-            set_label = ax.set_xlabel
-            resolved_label = (
-                default_label if axis_options.xlabel is None else axis_options.xlabel
-            )
-        elif axis == "y":
-            set_label = ax.set_ylabel
-            resolved_label = (
-                default_label if axis_options.ylabel is None else axis_options.ylabel
-            )
-        else:
-            set_label = getattr(ax, "set_zlabel", None)
-            if set_label is None:
-                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
-            resolved_label = default_label
-        set_label(resolved_label)
-        resolved_title = default_title if axis_options.title is None else axis_options.title
-        ax.set_title(resolved_title)
-        if shared_x_visible:
-            ax.tick_params(axis="x", which="both", labelbottom=True)
-        legend_enabled = True if legend_options.enabled is None else legend_options.enabled
-        if legend_enabled:
-            legend_location = (
-                "upper right"
-                if legend_options.location is None
-                else legend_options.location
-            )
-            Legends.ears_legend(
-                ax=ax,
-                ear=ear,
-                location=legend_location,
-                labels=legend_options.labels,
-            )
-        grid_enabled = True if axis_options.grid is None else axis_options.grid
-        if grid_enabled:
-            ax.grid(True)
 
     @staticmethod
     def create_amplitude_axis(
@@ -606,61 +646,15 @@ class Axis:
         ear: str,
         options: AxisOptions | None = None,
     ) -> None:
-        axis_options = AxisOptions() if options is None else options
-        legend_options = LegendOptions() if axis_options.legend is None else axis_options.legend
-        shared_x_visible = (
-            Axis.shared_x_visible
-            if axis_options.shared_x_visible is None
-            else axis_options.shared_x_visible
-        )
         labels = Labels()
-        titles = Titles()
-        if axis not in {"x", "y", "z"}:
-            raise ValueError("axis accepts 'x', 'y', or 'z'")
-        default_title = titles.position.format(
-            az=float(selected_positions[0]),
-            el=float(selected_positions[1]),
+        Axis.create_panel_axis(
+            ax=ax,
+            axis=axis,
+            default_label=labels.impulse_response,
+            selected_positions=selected_positions,
+            ear=ear,
+            options=options,
         )
-        if axis == "x":
-            set_label = ax.set_xlabel
-            resolved_label = (
-                labels.impulse_response
-                if axis_options.xlabel is None
-                else axis_options.xlabel
-            )
-        elif axis == "y":
-            set_label = ax.set_ylabel
-            resolved_label = (
-                labels.impulse_response
-                if axis_options.ylabel is None
-                else axis_options.ylabel
-            )
-        else:
-            set_label = getattr(ax, "set_zlabel", None)
-            if set_label is None:
-                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
-            resolved_label = labels.impulse_response
-        resolved_title = default_title if axis_options.title is None else axis_options.title
-        set_label(resolved_label)
-        ax.set_title(resolved_title)
-        if shared_x_visible:
-            ax.tick_params(axis="x", which="both", labelbottom=True)
-        legend_enabled = True if legend_options.enabled is None else legend_options.enabled
-        if legend_enabled:
-            legend_location = (
-                "upper right"
-                if legend_options.location is None
-                else legend_options.location
-            )
-            Legends.ears_legend(
-                ax=ax,
-                ear=ear,
-                location=legend_location,
-                labels=legend_options.labels,
-            )
-        grid_enabled = True if axis_options.grid is None else axis_options.grid
-        if grid_enabled:
-            ax.grid(True)
 
     @staticmethod
     def create_time_axis(
@@ -668,22 +662,13 @@ class Axis:
         axis: str,
         options: AxisOptions | None = None,
     ) -> None:
-        axis_options = AxisOptions() if options is None else options
         labels = Labels()
-        if axis not in {"x", "y", "z"}:
-            raise ValueError("axis accepts 'x', 'y', or 'z'")
-        if axis == "x":
-            set_label = ax.set_xlabel
-            resolved_label = labels.time if axis_options.xlabel is None else axis_options.xlabel
-        elif axis == "y":
-            set_label = ax.set_ylabel
-            resolved_label = labels.time if axis_options.ylabel is None else axis_options.ylabel
-        else:
-            set_label = getattr(ax, "set_zlabel", None)
-            if set_label is None:
-                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
-            resolved_label = labels.time
-        set_label(resolved_label)
+        Axis.create_label_axis(
+            ax=ax,
+            axis=axis,
+            default_label=labels.time,
+            options=options,
+        )
 
     @staticmethod
     def create_samples_axis(
@@ -691,22 +676,13 @@ class Axis:
         axis: str,
         options: AxisOptions | None = None,
     ) -> None:
-        axis_options = AxisOptions() if options is None else options
         labels = Labels()
-        if axis not in {"x", "y", "z"}:
-            raise ValueError("axis accepts 'x', 'y', or 'z'")
-        if axis == "x":
-            set_label = ax.set_xlabel
-            resolved_label = labels.samples if axis_options.xlabel is None else axis_options.xlabel
-        elif axis == "y":
-            set_label = ax.set_ylabel
-            resolved_label = labels.samples if axis_options.ylabel is None else axis_options.ylabel
-        else:
-            set_label = getattr(ax, "set_zlabel", None)
-            if set_label is None:
-                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
-            resolved_label = labels.samples
-        set_label(resolved_label)
+        Axis.create_label_axis(
+            ax=ax,
+            axis=axis,
+            default_label=labels.samples,
+            options=options,
+        )
 
 
 class Plots:
@@ -769,13 +745,8 @@ class Plots:
         if self.TF.values is None or self.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
 
-        positions = np.asarray(positions, dtype=float)
-        if positions.ndim == 1:
-            positions = positions.reshape(1, -1)
-        if positions.ndim != 2 or positions.shape[-1] not in {2, 3}:
-            raise ValueError("position must have shape (2,), (3,), (K, 2), or (K, 3)")
-
-        position_count = positions.shape[0]
+        position_queries = self.Sources.get_position_queries(positions)
+        position_count = len(position_queries)
         if position_count == 0:
             raise ValueError("At least one position is required")
         if position_count > 4:
@@ -799,7 +770,7 @@ class Plots:
         )
         labels = Labels()
 
-        for index, selected_position_query in enumerate(positions):
+        for index, selected_position_query in enumerate(position_queries):
             ax = layout.get_axis(index)
             resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
             resolved_frequency_axis = Axis.create_frequency_axis(
@@ -899,13 +870,8 @@ class Plots:
         if x_axis == "time" and self.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required when x_axis='time'")
 
-        positions = np.asarray(positions, dtype=float)
-        if positions.ndim == 1:
-            positions = positions.reshape(1, -1)
-        if positions.ndim != 2 or positions.shape[-1] not in {2, 3}:
-            raise ValueError("positions must have shape (2,), (3,), (K, 2), or (K, 3)")
-
-        position_count = positions.shape[0]
+        position_queries = self.Sources.get_position_queries(positions)
+        position_count = len(position_queries)
         if position_count == 0:
             raise ValueError("At least one position is required")
         if position_count > 4:
@@ -928,7 +894,7 @@ class Plots:
         else:
             x_values = sample_indexes
 
-        for index, selected_position_query in enumerate(positions):
+        for index, selected_position_query in enumerate(position_queries):
             ax = layout.get_axis(index)
             resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
             idxs, selected_positions = self.Sources.get_position_index(
