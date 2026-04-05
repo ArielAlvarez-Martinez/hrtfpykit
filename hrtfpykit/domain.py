@@ -106,7 +106,7 @@ class TF:
         """Return TF magnitude."""
         return get_magnitude(self)
 
-    def get_magnitude_db(self, reference: float = 1.0) -> np.ndarray:
+    def get_magnitude_db(self, reference: float | str = 1.0) -> np.ndarray:
         return get_magnitude_db(self, reference=reference)
 
     @property

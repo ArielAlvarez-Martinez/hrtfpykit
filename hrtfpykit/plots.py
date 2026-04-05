@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from .dsp import magnitude_to_db
 from .spatial import Sources
 
 
@@ -65,6 +67,7 @@ class Titles:
     horizontal_plane: str = "Horizontal Plane : [Elevation= {angle}°]"
     median_plane: str = "Median Plane : [Azimuths= {primary}°, {opposite}°]"
     frontal_plane: str = "Frontal Plane : [Azimuths= {primary}°, {opposite}°]"
+    vertical_slice: str = "Vertical Slice : [Azimuth= {angle}°]"
 
 
 @dataclass(frozen=True)
@@ -72,6 +75,7 @@ class AcceptedParameters:
     units: tuple[str, str] = ("db", "linear")
     ears: tuple[str, str, str] = ("left", "right", "both")
     x_axes: tuple[str, str] = ("time", "samples")
+    frequency_x_axes: tuple[str, str] = ("log", "linear")
     planes: tuple[str, str, str] = ("horizontal", "median", "frontal")
     coordinate_systems: tuple[str, str, str] = (
         "spherical",
@@ -168,8 +172,120 @@ class AxisOptions:
 class PlotOptions:
     figure: FigureOptions | None = None
     axis: AxisOptions | None = None
+    heatmap: HeatmapOptions | None = None
     panels: dict[int | str, AxisOptions] | None = None
     show: bool = True
+
+
+@dataclass(frozen=True)
+class HeatmapOptions:
+    cmap: str | None = None
+    colorbar: bool | None = None
+    colorbar_label: str | None = None
+    colorbar_location: str | None = None
+    colorbar_fraction: float | None = None
+    colorbar_pad: float | None = None
+
+    def merge(self, options: HeatmapOptions | None = None) -> HeatmapOptions:
+        if options is None:
+            return self
+        return HeatmapOptions(
+            cmap=self.cmap if options.cmap is None else options.cmap,
+            colorbar=self.colorbar if options.colorbar is None else options.colorbar,
+            colorbar_label=(
+                self.colorbar_label
+                if options.colorbar_label is None
+                else options.colorbar_label
+            ),
+            colorbar_location=(
+                self.colorbar_location
+                if options.colorbar_location is None
+                else options.colorbar_location
+            ),
+            colorbar_fraction=(
+                self.colorbar_fraction
+                if options.colorbar_fraction is None
+                else options.colorbar_fraction
+            ),
+            colorbar_pad=(
+                self.colorbar_pad
+                if options.colorbar_pad is None
+                else options.colorbar_pad
+            ),
+        )
+
+
+class Heatmap:
+    colormaps: dict[str, str] = {
+        "default": "viridis",
+        "magma": "magma",
+        "cividis": "cividis",
+    }
+    colorbar_location: str = "right"
+    colorbar_fraction: float = 0.03
+    colorbar_pad: float = 0.2
+    axis_margin_ratio: float = 0.0
+
+    @staticmethod
+    def create_colormap(
+        options: HeatmapOptions | None = None,
+    ) -> str:
+        heatmap_options = HeatmapOptions() if options is None else options
+        color_key = (
+            "default" if heatmap_options.cmap is None else str(heatmap_options.cmap)
+        )
+        if color_key not in Heatmap.colormaps:
+            raise ValueError(
+                f"heatmap cmap accepts: {', '.join(Heatmap.colormaps)}"
+            )
+        return Heatmap.colormaps[color_key]
+
+    @staticmethod
+    def create_colorbar(
+        fig: plt.Figure,
+        ax: plt.Axes,
+        mesh,
+        label: str,
+        options: HeatmapOptions | None = None,
+    ) -> None:
+        heatmap_options = HeatmapOptions() if options is None else options
+        colorbar_enabled = (
+            True if heatmap_options.colorbar is None else heatmap_options.colorbar
+        )
+        if not colorbar_enabled:
+            return
+        resolved_location = (
+            Heatmap.colorbar_location
+            if heatmap_options.colorbar_location is None
+            else heatmap_options.colorbar_location
+        )
+        resolved_fraction = (
+            Heatmap.colorbar_fraction
+            if heatmap_options.colorbar_fraction is None
+            else heatmap_options.colorbar_fraction
+        )
+        resolved_pad = (
+            Heatmap.colorbar_pad
+            if heatmap_options.colorbar_pad is None
+            else heatmap_options.colorbar_pad
+        )
+        resolved_label = (
+            label
+            if heatmap_options.colorbar_label is None
+            else heatmap_options.colorbar_label
+        )
+        divider = make_axes_locatable(ax)
+        colorbar_size = f"{float(resolved_fraction) * 100.0:.1f}%"
+        cax = divider.append_axes(
+            resolved_location,
+            size=colorbar_size,
+            pad=resolved_pad,
+        )
+        fig.colorbar(
+            mesh,
+            cax=cax,
+            label=resolved_label,
+        )
 
 
 class Legends:
@@ -245,6 +361,14 @@ class LayoutFigure:
             left = min(ax.get_position().x0 for ax in visible_axes)
             right = max(ax.get_position().x1 for ax in visible_axes)
             figure_title_x = (left + right) / 2.0
+            for ax in visible_axes:
+                subplot_title_y = getattr(
+                    ax,
+                    "hrtfpykit_subplot_title_y_with_figure_title",
+                    None,
+                )
+                if subplot_title_y is not None:
+                    ax.title.set_y(float(subplot_title_y))
         self.fig.suptitle(title, x=figure_title_x, y=self.figure_title_y)
 
 
@@ -307,7 +431,12 @@ class Layout:
         figure_title_y = min(resolved_margins.top + cls.figure_title_offset, 0.98)
         reshaped_axes = np.asarray(axes, dtype=object).reshape(-1)
         for ax in reshaped_axes:
-            setattr(ax, "hrtfpykit_subplot_title_y", cls.subplot_title_y)
+            setattr(ax, "hrtfpykit_subplot_title_y", 1.0)
+            setattr(
+                ax,
+                "hrtfpykit_subplot_title_y_with_figure_title",
+                cls.subplot_title_y,
+            )
         return LayoutFigure(
             fig=fig,
             axes=reshaped_axes,
@@ -409,6 +538,12 @@ def create_layout(
 
 class Axis:
     shared_x_visible: bool = True
+    direction_tick_step: float = 20.0
+    elevation_tick_step: float = 10.0
+    lateral_limits: tuple[float, float] = (-90.0, 90.0)
+    lateral_ticks: tuple[float, ...] = (-90.0, -45.0, 0.0, 45.0, 90.0)
+    polar_limits: tuple[float, float] = (-90.0, 270.0)
+    polar_ticks: tuple[float, ...] = (-90.0, 0.0, 90.0, 180.0, 270.0)
     frequency_ticks_log: tuple[float, ...] = (
         250,
         500,
@@ -430,17 +565,27 @@ class Axis:
         "20",
     )
     frequency_ticks_linear: tuple[float, ...] = (
-        0,
-        5000,
+        2000,
+        4000,
+        6000,
+        8000,
         10000,
-        15000,
+        12000,
+        14000,
+        16000,
+        18000,
         20000,
     )
     frequency_tick_labels_linear: tuple[str, ...] = (
-        "0",
-        "5",
+        "2",
+        "4",
+        "6",
+        "8",
         "10",
-        "15",
+        "12",
+        "14",
+        "16",
+        "18",
         "20",
     )
     frequency_margin_ratio: float = 0.03
@@ -471,6 +616,109 @@ class Axis:
                 raise ValueError("z-axis labeling requires a matplotlib 3D axis")
             resolved_label = default_label
         set_label(resolved_label)
+
+    @staticmethod
+    def create_direction_axis(
+        ax: plt.Axes,
+        axis: str,
+        default_label: str,
+        values: np.ndarray | None = None,
+        tick_step: float | None = None,
+        default_limits: tuple[float, float] | None = None,
+        default_ticks: tuple[float, ...] | None = None,
+        options: AxisOptions | None = None,
+    ) -> None:
+        resolved_tick_step = (
+            float(Axis.direction_tick_step) if tick_step is None else float(tick_step)
+        )
+        if resolved_tick_step <= 0.0:
+            raise ValueError("tick_step must be positive")
+        Axis.create_label_axis(
+            ax=ax,
+            axis=axis,
+            default_label=default_label,
+            options=options,
+        )
+        if axis == "x":
+            set_limits = ax.set_xlim
+            axis_object = ax.xaxis
+        elif axis == "y":
+            set_limits = ax.set_ylim
+            axis_object = ax.yaxis
+        elif axis == "z":
+            set_limits = getattr(ax, "set_zlim", None)
+            axis_object = getattr(ax, "zaxis", None)
+            if set_limits is None or axis_object is None:
+                raise ValueError("z-axis directional formatting requires a matplotlib 3D axis")
+        else:
+            raise ValueError("axis accepts 'x', 'y', or 'z'")
+
+        if values is None:
+            if default_limits is not None:
+                set_limits(*default_limits)
+                tick_start = np.floor(float(default_limits[0]) / resolved_tick_step) + 1.0
+                tick_stop = np.ceil(float(default_limits[1]) / resolved_tick_step) - 1.0
+                if tick_start <= tick_stop:
+                    tick_values = tuple(
+                        float(value)
+                        for value in np.arange(
+                            tick_start * resolved_tick_step,
+                            (tick_stop + 1.0) * resolved_tick_step,
+                            resolved_tick_step,
+                        )
+                    )
+                else:
+                    tick_values = ()
+            elif default_ticks is not None:
+                tick_values = tuple(float(value) for value in default_ticks)
+            else:
+                tick_values = ()
+            tick_labels = tuple(f"{int(np.rint(value))}" for value in tick_values)
+            axis_object.set_major_locator(FixedLocator(tick_values))
+            axis_object.set_major_formatter(FixedFormatter(tick_labels))
+            return
+
+        resolved_values = np.unique(np.asarray(values, dtype=float).reshape(-1))
+        if resolved_values.size == 0:
+            raise ValueError("direction axis values must contain at least one value")
+        if not np.all(np.isfinite(resolved_values)):
+            raise ValueError("direction axis values must be finite")
+
+        if resolved_values.size == 1:
+            axis_limits = (
+                float(resolved_values[0]),
+                float(resolved_values[0]),
+            )
+            tick_values = np.array([], dtype=float)
+        else:
+            axis_limits = (
+                float(resolved_values[0]),
+                float(resolved_values[-1]),
+            )
+            tick_start = np.floor(axis_limits[0] / resolved_tick_step) + 1.0
+            tick_stop = np.ceil(axis_limits[1] / resolved_tick_step) - 1.0
+            if tick_start <= tick_stop:
+                tick_values = np.arange(
+                    tick_start * resolved_tick_step,
+                    (tick_stop + 1.0) * resolved_tick_step,
+                    resolved_tick_step,
+                    dtype=float,
+                )
+            else:
+                tick_values = np.array([], dtype=float)
+
+        if tick_values.size > 0:
+            lower_label = int(np.rint(axis_limits[0]))
+            upper_label = int(np.rint(axis_limits[1]))
+            tick_labels_int = np.rint(tick_values).astype(int)
+            keep_mask = (tick_labels_int != lower_label) & (tick_labels_int != upper_label)
+            tick_values = tick_values[keep_mask]
+
+        set_limits(*axis_limits)
+        tick_positions = tuple(float(value) for value in tick_values)
+        tick_labels = tuple(f"{int(np.rint(value))}" for value in tick_values)
+        axis_object.set_major_locator(FixedLocator(tick_positions))
+        axis_object.set_major_formatter(FixedFormatter(tick_labels))
 
     @staticmethod
     def create_panel_axis(
@@ -583,7 +831,7 @@ class Axis:
     def create_frequency_axis(
         ax: plt.Axes | None,
         axis: str,
-        unit: str,
+        x_axis: str,
         frequency_bins: np.ndarray | None = None,
         freq_min: float | None = None,
         freq_max: float | None = None,
@@ -598,13 +846,16 @@ class Axis:
                 raise ValueError("frequency_bins must be a non-empty 1D array")
         if axis not in {"x", "y", "z"}:
             raise ValueError("axis accepts 'x', 'y', or 'z'")
+        x_axis_key = str(x_axis).strip().lower()
+        if x_axis_key not in AcceptedParameters().frequency_x_axes:
+            raise ValueError("x_axis accepts log or linear")
         requested_freq_min = (
             frequency_axis_options.freq_min if freq_min is None else freq_min
         )
         if requested_freq_min is None:
             if resolved_frequency_bins is None:
                 raise ValueError("freq_min is required when frequency_bins are not provided")
-            if unit == "db":
+            if x_axis_key == "log":
                 positive_frequency_bins = resolved_frequency_bins[
                     resolved_frequency_bins > 0.0
                 ]
@@ -635,15 +886,19 @@ class Axis:
             raise ValueError("freq_min and freq_max must be finite values")
         if resolved_freq_min >= resolved_freq_max:
             raise ValueError("freq_min must be smaller than freq_max")
-        if unit == "db" and resolved_freq_min <= 0.0:
+        if x_axis_key == "log" and resolved_freq_min <= 0.0:
             raise ValueError("freq_min must be positive for logarithmic frequency axis")
         if resolved_margin_ratio < 0.0:
             raise ValueError("margin_ratio must be non-negative")
 
-        default_ticks = Axis.frequency_ticks_log if unit == "db" else Axis.frequency_ticks_linear
+        default_ticks = (
+            Axis.frequency_ticks_log
+            if x_axis_key == "log"
+            else Axis.frequency_ticks_linear
+        )
         default_labels = (
             Axis.frequency_tick_labels_log
-            if unit == "db"
+            if x_axis_key == "log"
             else Axis.frequency_tick_labels_linear
         )
         resolved_ticks = (
@@ -663,7 +918,7 @@ class Axis:
         )
         if len(resolved_ticks) != len(resolved_labels):
             raise ValueError("frequency axis ticks and labels must have the same length")
-        if unit == "db" and any(tick <= 0.0 for tick in resolved_ticks):
+        if x_axis_key == "log" and any(tick <= 0.0 for tick in resolved_ticks):
             raise ValueError("frequency axis ticks must be positive for logarithmic axis")
 
         visible_pairs = tuple(
@@ -709,7 +964,7 @@ class Axis:
         if label is not None:
             set_label(label)
 
-        if unit == "db":
+        if x_axis_key == "log":
             set_scale("log")
             log_min = np.log10(resolved_freq_min_khz)
             log_max = np.log10(resolved_freq_max_khz)
@@ -805,13 +1060,16 @@ class Axis:
     def create_azimuth_axis(
         ax: plt.Axes,
         axis: str,
+        values: np.ndarray | None = None,
         options: AxisOptions | None = None,
     ) -> None:
         labels = Labels()
-        Axis.create_label_axis(
+        Axis.create_direction_axis(
             ax=ax,
             axis=axis,
             default_label=labels.azimuth,
+            values=values,
+            tick_step=Axis.direction_tick_step,
             options=options,
         )
 
@@ -819,13 +1077,16 @@ class Axis:
     def create_elevation_axis(
         ax: plt.Axes,
         axis: str,
+        values: np.ndarray | None = None,
         options: AxisOptions | None = None,
     ) -> None:
         labels = Labels()
-        Axis.create_label_axis(
+        Axis.create_direction_axis(
             ax=ax,
             axis=axis,
             default_label=labels.elevation,
+            values=values,
+            tick_step=Axis.elevation_tick_step,
             options=options,
         )
 
@@ -833,13 +1094,18 @@ class Axis:
     def create_lateral_axis(
         ax: plt.Axes,
         axis: str,
+        values: np.ndarray | None = None,
         options: AxisOptions | None = None,
     ) -> None:
         labels = Labels()
-        Axis.create_label_axis(
+        Axis.create_direction_axis(
             ax=ax,
             axis=axis,
             default_label=labels.lateral,
+            values=values,
+            tick_step=Axis.elevation_tick_step,
+            default_limits=Axis.lateral_limits,
+            default_ticks=Axis.lateral_ticks,
             options=options,
         )
 
@@ -847,13 +1113,18 @@ class Axis:
     def create_polar_axis(
         ax: plt.Axes,
         axis: str,
+        values: np.ndarray | None = None,
         options: AxisOptions | None = None,
     ) -> None:
         labels = Labels()
-        Axis.create_label_axis(
+        Axis.create_direction_axis(
             ax=ax,
             axis=axis,
             default_label=labels.polar,
+            values=values,
+            tick_step=Axis.direction_tick_step,
+            default_limits=Axis.polar_limits,
+            default_ticks=Axis.polar_ticks,
             options=options,
         )
 
@@ -862,19 +1133,17 @@ class Axis:
         ax: plt.Axes,
         axis: str,
         plane: str,
+        values: np.ndarray | None = None,
         options: AxisOptions | None = None,
     ) -> None:
         plane_key = str(plane).strip().lower()
         if plane_key == "horizontal":
-            Axis.create_azimuth_axis(ax=ax, axis=axis, options=options)
+            Axis.create_azimuth_axis(ax=ax, axis=axis, values=values, options=options)
             return
         if plane_key == "median":
-            Axis.create_polar_axis(ax=ax, axis=axis, options=options)
+            Axis.create_polar_axis(ax=ax, axis=axis, values=values, options=options)
             return
-        if plane_key == "frontal":
-            Axis.create_lateral_axis(ax=ax, axis=axis, options=options)
-            return
-        raise ValueError("plane accepts horizontal, median, or frontal")
+        raise ValueError("plane accepts horizontal or median")
 
     @staticmethod
     def create_plane_title(
@@ -890,11 +1159,7 @@ class Axis:
             return Axis.create_median_plane_title(
                 real_plane_angles=real_plane_angles,
             )
-        if plane_key == "frontal":
-            return Axis.create_frontal_plane_title(
-                real_plane_angles=real_plane_angles,
-            )
-        raise ValueError("plane accepts horizontal, median, or frontal")
+        raise ValueError("plane accepts horizontal or median")
 
     @staticmethod
     def create_horizontal_plane_title(
@@ -934,6 +1199,13 @@ class Axis:
             opposite=float(resolved_plane_angles[1]),
         )
 
+    @staticmethod
+    def create_vertical_slice_title(
+        real_azimuth: float,
+    ) -> str:
+        titles = Titles()
+        return titles.vertical_slice.format(angle=float(real_azimuth))
+
 
 class Plots:
     #  Inheritance. All methods will accept a instance of HRTF , then HRTF will inherit from Plots
@@ -969,17 +1241,25 @@ class Plots:
         self: "HRTF",
         positions: str | list | np.ndarray = "front",
         position_coordinate_system: str = "spherical",
+        x_axis: str = "log",
         unit: str = "db",
         ear: str = "both",
-        reference: float = 1.0,
+        reference: float | str = 1.0,
         freq_min: float | None = None,
         freq_max: float | None = None,
         options: PlotOptions | None = None,
+        show: bool = True,
     ) -> LayoutFigure:
         accepted_parameters = AcceptedParameters()
         if unit not in accepted_parameters.units:
             raise AttributeError(
                 f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
+            )
+        if x_axis not in accepted_parameters.frequency_x_axes:
+            raise AttributeError(
+                "x_axis accepts "
+                f"{accepted_parameters.frequency_x_axes[0]} or "
+                f"{accepted_parameters.frequency_x_axes[1]}"
             )
         if ear not in accepted_parameters.ears:
             raise AttributeError(
@@ -1024,20 +1304,38 @@ class Plots:
         frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
             raise ValueError("TF frequency bins must be a non-empty 1D array")
-        tf_values = (
-            self.TF.get_magnitude_db(reference=reference)
-            if unit == "db"
-            else self.TF.magnitude
-        )
+        selected_position_info = [
+            self.Sources.get_position_index(
+                selected_position_query,
+                coordinate_system=position_coordinate_system,
+            )
+            for selected_position_query in position_queries
+        ]
+        tf_magnitude = self.TF.magnitude
+        if unit == "db":
+            if isinstance(reference, str) and str(reference).strip().lower() == "max":
+                selected_indices = [selected_index for selected_index, _ in selected_position_info]
+                reference_values = np.asarray(tf_magnitude[selected_indices], dtype=float)
+                if ear != "both" and reference_values.ndim >= 3:
+                    ear_index = 0 if ear == "left" else 1
+                    if reference_values.shape[1] <= ear_index:
+                        raise ValueError(f"Requested ear '{ear}' is not available in TF data")
+                    reference_values = reference_values[:, ear_index, :]
+                plot_reference = float(np.max(reference_values))
+                tf_values = magnitude_to_db(tf_magnitude, reference=plot_reference)
+            else:
+                tf_values = magnitude_to_db(tf_magnitude, reference=reference)
+        else:
+            tf_values = tf_magnitude
         labels = Labels()
 
-        for index, selected_position_query in enumerate(position_queries):
+        for index, (_, selected_positions) in enumerate(selected_position_info):
             ax = layout.get_axis(index)
             resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
             resolved_frequency_axis = Axis.create_frequency_axis(
                 ax=None,
                 axis="x",
-                unit=unit,
+                x_axis=x_axis,
                 frequency_bins=frequency_bins_hz,
                 freq_min=freq_min,
                 freq_max=freq_max,
@@ -1055,10 +1353,7 @@ class Plots:
                 if resolved_axis_options.xlabel is None
                 else resolved_axis_options.xlabel
             )
-            idxs, selected_positions = self.Sources.get_position_index(
-                selected_position_query,
-                coordinate_system=position_coordinate_system,
-            )
+            idxs = int(selected_position_info[index][0])
             selected_positions = np.asarray(selected_positions, dtype=float)
             y_values = np.asarray(tf_values[idxs][..., frequency_mask], dtype=float)
 
@@ -1080,7 +1375,7 @@ class Plots:
             Axis.create_frequency_axis(
                 ax=ax,
                 axis="x",
-                unit=unit,
+                x_axis=x_axis,
                 label=frequency_label,
                 options=resolved_frequency_axis,
             )
@@ -1100,7 +1395,7 @@ class Plots:
 
         if figure_options.title is not None:
             layout.set_figure_title(figure_options.title)
-        if plot_options.show:
+        if show and plot_options.show:
             plt.show()
         return layout
 
@@ -1111,6 +1406,7 @@ class Plots:
         ear: str = "both",
         x_axis: str = "time",
         options: PlotOptions | None = None,
+        show: bool = True,
     ) -> LayoutFigure:
         accepted_parameters = AcceptedParameters()
         if ear not in accepted_parameters.ears:
@@ -1220,7 +1516,7 @@ class Plots:
 
         if figure_options.title is not None:
             layout.set_figure_title(figure_options.title)
-        if plot_options.show:
+        if show and plot_options.show:
             plt.show()
         return layout
 
@@ -1230,11 +1526,13 @@ class Plots:
         position_coordinate_system: str = "spherical",
         ear: str = "both",
         x_axis: str = "time",
+        frequency_x_axis: str = "log",
         unit: str = "db",
-        reference: float = 1.0,
+        reference: float | str = 1.0,
         freq_min: float | None = None,
         freq_max: float | None = None,
         options: PlotOptions | None = None,
+        show: bool = True,
     ) -> LayoutFigure:
         accepted_parameters = AcceptedParameters()
         if ear not in accepted_parameters.ears:
@@ -1244,6 +1542,12 @@ class Plots:
         if x_axis not in accepted_parameters.x_axes:
             raise AttributeError(
                 f"x_axis accepts : {accepted_parameters.x_axes[0]} or {accepted_parameters.x_axes[1]}"
+            )
+        if frequency_x_axis not in accepted_parameters.frequency_x_axes:
+            raise AttributeError(
+                "frequency_x_axis accepts "
+                f"{accepted_parameters.frequency_x_axes[0]} or "
+                f"{accepted_parameters.frequency_x_axes[1]}"
             )
         if unit not in accepted_parameters.units:
             raise AttributeError(
@@ -1360,7 +1664,7 @@ class Plots:
         resolved_frequency_axis = Axis.create_frequency_axis(
             ax=None,
             axis="x",
-            unit=unit,
+            x_axis=frequency_x_axis,
             frequency_bins=frequency_bins_hz,
             freq_min=freq_min,
             freq_max=freq_max,
@@ -1373,11 +1677,23 @@ class Plots:
         if not np.any(frequency_mask):
             raise ValueError("Selected frequency range produced no TF bins")
         frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
-        tf_values = (
-            self.TF.get_magnitude_db(reference=reference)
-            if unit == "db"
-            else self.TF.magnitude
-        )
+        tf_magnitude = self.TF.magnitude
+        if unit == "db":
+            if isinstance(reference, str) and str(reference).strip().lower() == "max":
+                reference_values = np.asarray(tf_magnitude[idxs], dtype=float)
+                if ear != "both" and reference_values.ndim >= 2:
+                    ear_index = 0 if ear == "left" else 1
+                    if reference_values.shape[0] <= ear_index:
+                        raise ValueError(
+                            f"Requested ear '{ear}' is not available in TF data"
+                        )
+                    reference_values = reference_values[ear_index]
+                plot_reference = float(np.max(reference_values))
+                tf_values = magnitude_to_db(tf_magnitude, reference=plot_reference)
+            else:
+                tf_values = magnitude_to_db(tf_magnitude, reference=reference)
+        else:
+            tf_values = tf_magnitude
         magnitude_y_values = np.asarray(tf_values[idxs][..., frequency_mask], dtype=float)
 
         magnitude_ax = layout.get_axis("right")
@@ -1412,7 +1728,7 @@ class Plots:
         Axis.create_frequency_axis(
             ax=magnitude_ax,
             axis="x",
-            unit=unit,
+            x_axis=frequency_x_axis,
             label=frequency_label,
             options=resolved_frequency_axis,
         )
@@ -1435,32 +1751,37 @@ class Plots:
             else figure_options.title
         )
         layout.set_figure_title(resolved_figure_title)
-        if plot_options.show:
+        if show and plot_options.show:
             plt.show()
         return layout
 
     def plot_spectrum(
         self: "HRTF",
-        plane: str = "horizontal",
+        plane: str = "median",
         plane_angle: float | None = None,
+        x_axis: str = "log",
         unit: str = "db",
         ear: str = "both",
-        reference: float = 1.0,
+        reference: float | str = "max",
         freq_min: float | None = None,
         freq_max: float | None = None,
         options: PlotOptions | None = None,
+        show: bool = True,
     ) -> LayoutFigure:
         accepted_parameters = AcceptedParameters()
-        if plane not in accepted_parameters.planes:
+        if plane not in ("horizontal", "median"):
             raise AttributeError(
-                "plane accepts "
-                f"{accepted_parameters.planes[0]}, "
-                f"{accepted_parameters.planes[1]} or "
-                f"{accepted_parameters.planes[2]}"
+                "plot_spectrum plane accepts horizontal or median"
             )
         if unit not in accepted_parameters.units:
             raise AttributeError(
                 f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
+            )
+        if x_axis not in accepted_parameters.frequency_x_axes:
+            raise AttributeError(
+                "x_axis accepts "
+                f"{accepted_parameters.frequency_x_axes[0]} or "
+                f"{accepted_parameters.frequency_x_axes[1]}"
             )
         if ear not in accepted_parameters.ears:
             raise AttributeError(
@@ -1476,18 +1797,18 @@ class Plots:
         axis_options = (
             plot_options.axis if plot_options.axis is not None else AxisOptions()
         )
+        heatmap_options = HeatmapOptions(cmap="magma").merge(plot_options.heatmap)
+        heatmap_frequency_axis_options = (
+            FrequencyAxisOptions()
+            if axis_options.frequency_axis is None
+            else axis_options.frequency_axis
+        ).merge(FrequencyAxisOptions(margin_ratio=Heatmap.axis_margin_ratio))
 
         if self.TF.values is None or self.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
 
         plane_key = str(plane).strip().lower()
-        resolved_plane_angle = (
-            90.0
-            if plane_key == "frontal" and plane_angle is None
-            else 0.0
-            if plane_angle is None
-            else float(plane_angle)
-        )
+        resolved_plane_angle = 0.0 if plane_angle is None else float(plane_angle)
         if not np.isfinite(resolved_plane_angle):
             raise ValueError("plane_angle must be a finite value")
 
@@ -1512,41 +1833,29 @@ class Plots:
             dtype=float,
         )
         source_system = str(self.Sources.get_source_coordinate_system()).strip().lower()
+        if source_system == "spherical":
+            spherical_positions = source_positions
+        elif source_system == "cartesian":
+            spherical_positions = self.Sources.cartesian_to_spherical(
+                source_positions,
+                angle_unit="degrees",
+            )
+        elif source_system == "lateral-polar":
+            spherical_positions = self.Sources.lateral_polar_to_spherical(
+                source_positions,
+                angle_unit="degrees",
+            )
+        else:
+            raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
+
         if plane_key == "horizontal":
-            if source_system == "spherical":
-                spherical_positions = source_positions
-            elif source_system == "cartesian":
-                spherical_positions = self.Sources.cartesian_to_spherical(
-                    source_positions,
-                    angle_unit="degrees",
-                )
-            elif source_system == "lateral-polar":
-                spherical_positions = self.Sources.lateral_polar_to_spherical(
-                    source_positions,
-                    angle_unit="degrees",
-                )
-            else:
-                raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
             plane_axis_values = np.asarray(spherical_positions[:, 0], dtype=float)
         else:
-            if source_system == "lateral-polar":
-                lateral_polar_positions = source_positions
-            elif source_system == "cartesian":
-                lateral_polar_positions = self.Sources.cartesian_to_lateral_polar(
-                    source_positions,
-                    angle_unit="degrees",
-                )
-            elif source_system == "spherical":
-                lateral_polar_positions = self.Sources.spherical_to_lateral_polar(
-                    source_positions,
-                    angle_unit="degrees",
-                )
-            else:
-                raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
-            plane_axis_values = np.asarray(
-                lateral_polar_positions[:, 1 if plane_key == "median" else 0],
-                dtype=float,
+            lateral_polar_positions = self.Sources.spherical_to_lateral_polar(
+                spherical_positions,
+                angle_unit="degrees",
             )
+            plane_axis_values = np.asarray(lateral_polar_positions[:, 1], dtype=float)
 
         sort_indices = np.argsort(plane_axis_values)
         sorted_plane_axis_values = plane_axis_values[sort_indices]
@@ -1557,11 +1866,11 @@ class Plots:
         resolved_frequency_axis = Axis.create_frequency_axis(
             ax=None,
             axis="x",
-            unit=unit,
+            x_axis=x_axis,
             frequency_bins=frequency_bins_hz,
             freq_min=freq_min,
             freq_max=freq_max,
-            options=axis_options.frequency_axis,
+            options=heatmap_frequency_axis_options,
         )
         frequency_mask = (
             (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
@@ -1571,16 +1880,26 @@ class Plots:
             raise ValueError("Selected frequency range produced no TF bins")
         frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
 
-        tf_values = (
-            self.TF.get_magnitude_db(reference=reference)
-            if unit == "db"
-            else self.TF.magnitude
-        )
-        plane_values = np.asarray(tf_values[indices][..., frequency_mask], dtype=float)
+        tf_magnitude = self.TF.magnitude
+        plane_values = np.asarray(tf_magnitude[indices][..., frequency_mask], dtype=float)
         if plane_values.ndim == 2:
             plane_values = plane_values[:, np.newaxis, :]
         if plane_values.ndim != 3:
             raise ValueError("TF values for spectrum must have shape (M, E, F)")
+        if unit == "db":
+            if isinstance(reference, str) and str(reference).strip().lower() == "max":
+                reference_values = plane_values
+                if ear != "both":
+                    ear_index = 0 if ear == "left" else 1
+                    if reference_values.shape[1] <= ear_index:
+                        raise ValueError(
+                            f"Requested ear '{ear}' is not available in TF data"
+                        )
+                    reference_values = reference_values[:, ear_index, :]
+                plot_reference = float(np.max(reference_values))
+                plane_values = magnitude_to_db(plane_values, reference=plot_reference)
+            else:
+                plane_values = magnitude_to_db(plane_values, reference=reference)
         plane_values = plane_values[sort_indices]
 
         if ear == "both":
@@ -1608,25 +1927,23 @@ class Plots:
         vmax = max(float(np.max(matrix)) for matrix in spectrum_matrices)
         labels = Labels()
         colorbar_label = labels.magnitude_db if unit == "db" else labels.magnitude_linear
-        used_axes: list[plt.Axes] = []
-        meshes = []
+        heatmap_colormap = Heatmap.create_colormap(options=heatmap_options)
 
         for panel_index, (panel_position, spectrum_matrix, default_panel_title) in enumerate(
             zip(panel_positions, spectrum_matrices, default_panel_titles)
         ):
             ax = layout.get_axis(panel_position)
-            used_axes.append(ax)
             resolved_axis_options = axis_options.merge(panel_axis_options.get(panel_index))
             mesh = ax.pcolormesh(
                 frequency_khz,
                 sorted_plane_axis_values,
                 spectrum_matrix,
                 shading="auto",
-                cmap="viridis",
+                cmap=heatmap_colormap,
                 vmin=vmin,
                 vmax=vmax,
             )
-            meshes.append(mesh)
+            ax.margins(x=0.0, y=0.0)
             frequency_label = (
                 labels.frequency
                 if resolved_axis_options.xlabel is None
@@ -1635,7 +1952,7 @@ class Plots:
             Axis.create_frequency_axis(
                 ax=ax,
                 axis="x",
-                unit=unit,
+                x_axis=x_axis,
                 label=frequency_label,
                 options=resolved_frequency_axis,
             )
@@ -1643,6 +1960,7 @@ class Plots:
                 ax=ax,
                 axis="y",
                 plane=plane_key,
+                values=sorted_plane_axis_values,
                 options=resolved_axis_options,
             )
             resolved_title = (
@@ -1656,8 +1974,13 @@ class Plots:
             )
             if grid_enabled:
                 ax.grid(True)
-
-        layout.fig.colorbar(meshes[0], ax=used_axes, label=colorbar_label)
+            Heatmap.create_colorbar(
+                fig=layout.fig,
+                ax=ax,
+                mesh=mesh,
+                label=colorbar_label,
+                options=heatmap_options,
+            )
         resolved_figure_title = (
             Axis.create_plane_title(
                 plane=plane_key,
@@ -1667,6 +1990,243 @@ class Plots:
             else figure_options.title
         )
         layout.set_figure_title(resolved_figure_title)
-        if plot_options.show:
+        if show and plot_options.show:
+            plt.show()
+        return layout
+
+    def plot_vertical_slice_spectrum(
+        self: "HRTF",
+        azimuth: float | str = 0.0,
+        x_axis: str = "log",
+        unit: str = "db",
+        ear: str = "both",
+        reference: float | str = "max",
+        freq_min: float | None = None,
+        freq_max: float | None = None,
+        options: PlotOptions | None = None,
+        show: bool = True,
+    ) -> LayoutFigure:
+        accepted_parameters = AcceptedParameters()
+        if unit not in accepted_parameters.units:
+            raise AttributeError(
+                f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
+            )
+        if x_axis not in accepted_parameters.frequency_x_axes:
+            raise AttributeError(
+                "x_axis accepts "
+                f"{accepted_parameters.frequency_x_axes[0]} or "
+                f"{accepted_parameters.frequency_x_axes[1]}"
+            )
+        if ear not in accepted_parameters.ears:
+            raise AttributeError(
+                f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
+            )
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
+        axis_options = (
+            plot_options.axis if plot_options.axis is not None else AxisOptions()
+        )
+        heatmap_options = HeatmapOptions(cmap="magma").merge(plot_options.heatmap)
+        heatmap_frequency_axis_options = (
+            FrequencyAxisOptions()
+            if axis_options.frequency_axis is None
+            else axis_options.frequency_axis
+        ).merge(FrequencyAxisOptions(margin_ratio=Heatmap.axis_margin_ratio))
+
+        if self.TF.values is None or self.TF.frequency_bins is None:
+            raise ValueError("TF data is not available")
+
+        if isinstance(azimuth, str):
+            azimuth_key = str(azimuth).strip().lower()
+            named_positions = Sources.get_named_positions(angle_unit="degrees")
+            if azimuth_key not in named_positions:
+                raise ValueError("azimuth accepts a finite value or: front, back, left, right")
+            resolved_azimuth = float(named_positions[azimuth_key][0])
+        else:
+            if isinstance(azimuth, bool):
+                raise ValueError("azimuth must be a finite value")
+            resolved_azimuth = float(azimuth)
+            if not np.isfinite(resolved_azimuth):
+                raise ValueError("azimuth must be a finite value")
+
+        layout_number = 22 if ear == "both" else 1
+        layout = create_layout(
+            layout=layout_number,
+            figsize=figure_options.figsize,
+            margins=resolved_margins,
+        )
+        panel_axis_options = self.get_panel_axis_options(layout, plot_options)
+
+        source_positions = np.asarray(
+            self.Sources.get_positions(angle_unit="degrees"),
+            dtype=float,
+        )
+        source_system = str(self.Sources.get_source_coordinate_system()).strip().lower()
+        if source_system == "spherical":
+            spherical_positions = source_positions
+        elif source_system == "cartesian":
+            spherical_positions = self.Sources.cartesian_to_spherical(
+                source_positions,
+                angle_unit="degrees",
+            )
+        elif source_system == "lateral-polar":
+            spherical_positions = self.Sources.lateral_polar_to_spherical(
+                source_positions,
+                angle_unit="degrees",
+            )
+        else:
+            raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
+
+        azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
+        elevation_values = np.asarray(spherical_positions[:, 1], dtype=float)
+        available_azimuths = np.unique(azimuth_values)
+        azimuth_deltas = np.mod(available_azimuths - resolved_azimuth + 180.0, 360.0) - 180.0
+        real_azimuth = float(available_azimuths[int(np.argmin(np.abs(azimuth_deltas)))])
+        selected = np.isclose(
+            np.mod(azimuth_values - real_azimuth + 180.0, 360.0) - 180.0,
+            0.0,
+            atol=1e-8,
+            rtol=0.0,
+        )
+        indices = np.where(selected)[0]
+        if indices.size == 0:
+            raise ValueError("Selected vertical slice does not contain any source positions")
+
+        slice_elevation_values = elevation_values[indices]
+        sort_indices = np.argsort(slice_elevation_values)
+        sorted_elevation_values = slice_elevation_values[sort_indices]
+
+        frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
+        if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
+            raise ValueError("TF frequency bins must be a non-empty 1D array")
+        resolved_frequency_axis = Axis.create_frequency_axis(
+            ax=None,
+            axis="x",
+            x_axis=x_axis,
+            frequency_bins=frequency_bins_hz,
+            freq_min=freq_min,
+            freq_max=freq_max,
+            options=heatmap_frequency_axis_options,
+        )
+        frequency_mask = (
+            (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
+            & (frequency_bins_hz <= float(resolved_frequency_axis.freq_max))
+        )
+        if not np.any(frequency_mask):
+            raise ValueError("Selected frequency range produced no TF bins")
+        frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
+
+        tf_magnitude = self.TF.magnitude
+        slice_values = np.asarray(tf_magnitude[indices][..., frequency_mask], dtype=float)
+        if slice_values.ndim == 2:
+            slice_values = slice_values[:, np.newaxis, :]
+        if slice_values.ndim != 3:
+            raise ValueError("TF values for vertical slice spectrum must have shape (M, E, F)")
+        if unit == "db":
+            if isinstance(reference, str) and str(reference).strip().lower() == "max":
+                reference_values = slice_values
+                if ear != "both":
+                    ear_index = 0 if ear == "left" else 1
+                    if reference_values.shape[1] <= ear_index:
+                        raise ValueError(
+                            f"Requested ear '{ear}' is not available in TF data"
+                        )
+                    reference_values = reference_values[:, ear_index, :]
+                plot_reference = float(np.max(reference_values))
+                slice_values = magnitude_to_db(slice_values, reference=plot_reference)
+            else:
+                slice_values = magnitude_to_db(slice_values, reference=reference)
+        slice_values = slice_values[sort_indices]
+
+        if ear == "both":
+            if slice_values.shape[1] < 2:
+                raise ValueError(
+                    "Both ears requested but TF data does not contain two ear channels"
+                )
+            spectrum_matrices = [slice_values[:, 0, :], slice_values[:, 1, :]]
+            panel_positions = ["left", "right"]
+            default_panel_titles = ["Left Ear", "Right Ear"]
+        else:
+            if slice_values.shape[1] == 1:
+                ear_index = 0
+            else:
+                ear_index = 0 if ear == "left" else 1
+                if slice_values.shape[1] <= ear_index:
+                    raise ValueError(
+                        f"Requested ear '{ear}' is not available in TF data"
+                    )
+            spectrum_matrices = [slice_values[:, ear_index, :]]
+            panel_positions = ["main"]
+            default_panel_titles = [f"{ear.capitalize()} Ear"]
+
+        vmin = min(float(np.min(matrix)) for matrix in spectrum_matrices)
+        vmax = max(float(np.max(matrix)) for matrix in spectrum_matrices)
+        labels = Labels()
+        colorbar_label = labels.magnitude_db if unit == "db" else labels.magnitude_linear
+        heatmap_colormap = Heatmap.create_colormap(options=heatmap_options)
+
+        for panel_index, (panel_position, spectrum_matrix, default_panel_title) in enumerate(
+            zip(panel_positions, spectrum_matrices, default_panel_titles)
+        ):
+            ax = layout.get_axis(panel_position)
+            resolved_axis_options = axis_options.merge(panel_axis_options.get(panel_index))
+            mesh = ax.pcolormesh(
+                frequency_khz,
+                sorted_elevation_values,
+                spectrum_matrix,
+                shading="auto",
+                cmap=heatmap_colormap,
+                vmin=vmin,
+                vmax=vmax,
+            )
+            ax.margins(x=0.0, y=0.0)
+            frequency_label = (
+                labels.frequency
+                if resolved_axis_options.xlabel is None
+                else resolved_axis_options.xlabel
+            )
+            Axis.create_frequency_axis(
+                ax=ax,
+                axis="x",
+                x_axis=x_axis,
+                label=frequency_label,
+                options=resolved_frequency_axis,
+            )
+            Axis.create_elevation_axis(
+                ax=ax,
+                axis="y",
+                values=sorted_elevation_values,
+                options=resolved_axis_options,
+            )
+            resolved_title = (
+                default_panel_title
+                if resolved_axis_options.title is None
+                else resolved_axis_options.title
+            )
+            ax.set_title(resolved_title)
+            grid_enabled = (
+                False if resolved_axis_options.grid is None else resolved_axis_options.grid
+            )
+            if grid_enabled:
+                ax.grid(True)
+            Heatmap.create_colorbar(
+                fig=layout.fig,
+                ax=ax,
+                mesh=mesh,
+                label=colorbar_label,
+                options=heatmap_options,
+            )
+        resolved_figure_title = (
+            Axis.create_vertical_slice_title(real_azimuth=real_azimuth)
+            if figure_options.title is None
+            else figure_options.title
+        )
+        layout.set_figure_title(resolved_figure_title)
+        if show and plot_options.show:
             plt.show()
         return layout
