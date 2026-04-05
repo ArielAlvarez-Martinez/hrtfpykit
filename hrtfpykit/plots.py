@@ -1615,6 +1615,11 @@ class Plots:
     ) -> None:
         """Plot HRTF magnitude responses for up to four source positions.
 
+        This method draws one to four magnitude-response panels selected from
+        the current source grid. Positions are always resolved in spherical
+        coordinates and may be provided numerically or through the supported
+        aliases such as ``"front"`` and ``"left"``.
+
         Parameters
         ----------
         positions : str | list | np.ndarray, default="front"
@@ -1648,7 +1653,7 @@ class Plots:
         ---------
         - Compare magnitude responses across several source positions.
         - Inspect left, right, or binaural magnitude structure at one location.
-        - Create figures without showing them immediately.
+        - Generate figures for later display with ``show=False``.
 
         Examples
         --------
@@ -1822,6 +1827,11 @@ class Plots:
     ) -> None:
         """Plot HRIR amplitude responses for up to four source positions.
 
+        This method displays time-domain HRIR waveforms for one to four source
+        positions from the current grid. Positions are resolved in spherical
+        coordinates and may be provided numerically or through the supported
+        aliases such as ``"front"`` and ``"right"``.
+
         Parameters
         ----------
         positions : str | list | np.ndarray, default="front"
@@ -1846,7 +1856,7 @@ class Plots:
         ---------
         - Inspect HRIR waveform shape for one or several directions.
         - Compare left and right ear impulse responses at the same position.
-        - Create waveform figures without showing them immediately.
+        - Generate waveform figures for later display with ``show=False``.
 
         Examples
         --------
@@ -1983,6 +1993,10 @@ class Plots:
         show: bool = True,
     ) -> None:
         """Plot amplitude and magnitude views for a single source position.
+
+        This method creates a two-panel summary for one source direction. The
+        top panel shows the HRIR amplitude response and the bottom panel shows
+        the corresponding HRTF magnitude response for the same position.
 
         Parameters
         ----------
@@ -2273,14 +2287,19 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> None:
-        """Plot a frequency-angle spectrum heatmap for a canonical HRTF plane.
+        """Plot a frequency-angle spectrum heatmap for an HRTF plane.
+
+        This method plots a heatmap where frequency is shown on the horizontal
+        axis and the plane angle is shown on the vertical axis. The horizontal
+        plane may be selected at another elevation through ``elevation_angle``.
+        The median plane remains the canonical sagittal path.
 
         Parameters
         ----------
         plane : {"horizontal", "median"}, default="median"
-            Canonical plane to visualize. ``"horizontal"`` uses the horizontal
-            plane at ``0`` degrees elevation. ``"median"`` uses the canonical
-            median plane defined by the front-back sagittal path.
+            Plane to visualize. ``"horizontal"`` uses a horizontal plane
+            selected by elevation. ``"median"`` uses the canonical median
+            plane defined by the front-back sagittal path.
         elevation_angle : float, default=0.0
             Target elevation used when ``plane="horizontal"``. The nearest
             available horizontal plane in the grid is selected. This parameter
@@ -2313,8 +2332,8 @@ class Plots:
 
         Use Cases
         ---------
-        - Inspect the canonical horizontal-plane spectrum over azimuth.
-        - Inspect the canonical median-plane spectrum over polar angle.
+        - Inspect a horizontal-plane spectrum over azimuth.
+        - Inspect the median-plane spectrum over polar angle.
         - Compare left and right ear spectral structure in the same plane.
         - Create plane-based HRTF heatmaps without showing them immediately.
 
@@ -2327,6 +2346,10 @@ class Plots:
         Plot the horizontal plane for the left ear only:
 
         >>> hrtf.plot_plane_spectrum(plane="horizontal", ear="left")
+
+        Plot a non-canonical horizontal plane selected by elevation:
+
+        >>> hrtf.plot_plane_spectrum(plane="horizontal", elevation_angle=10.0)
 
         Plot the horizontal plane using signed azimuth values:
 
@@ -2590,6 +2613,10 @@ class Plots:
         show: bool = True,
     ) -> None:
         """Plot a fixed-azimuth elevation spectrum heatmap.
+
+        This method selects the nearest azimuth slice in the current source
+        grid and displays a frequency-versus-elevation heatmap for that slice.
+        Numeric azimuths and the standard position aliases are accepted.
 
         Parameters
         ----------
@@ -2861,27 +2888,22 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> None:
-        """
-        Plot absolute ITD over the canonical horizontal plane in polar coordinates.
+        """Plot absolute ITD over a horizontal plane in polar coordinates.
 
-        The horizontal plane at ``0`` degrees elevation is selected from the
-        current source grid, absolute interaural time differences are computed
-        in seconds, and the result is displayed in a polar plot. Azimuth is
-        represented on the angular axis and absolute ITD is represented on the
-        radial axis.
+        This method selects the nearest horizontal plane to the requested
+        elevation, computes absolute interaural time differences in seconds,
+        and displays the result in a polar plot. Azimuth is represented on the
+        angular axis and absolute ITD is represented on the radial axis.
 
         Parameters
         ----------
-        elevation_angle : float, optional
+        elevation_angle : float, default=0.0
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
-        options : PlotOptions or None, optional
-            Plot configuration used to control the figure settings, subplot
-            title, margins, and grid behavior. If ``None``, default plotting
-            options are used.
-        show : bool, optional
-            If ``True``, call ``plt.show()`` before finishing the method. If
-            ``False``, the figure is created without showing it.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, and margin overrides.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
 
         Returns
         -------
@@ -2889,9 +2911,9 @@ class Plots:
 
         Use Cases
         ---------
-        - Inspect the azimuth-dependent ITD pattern in the horizontal plane.
+        - Inspect the azimuth-dependent ITD pattern in a horizontal plane.
         - Visualize binaural timing cues using a compact polar representation.
-        - Create an ITD figure without showing it immediately.
+        - Generate an ITD figure for later display with ``show=False``.
 
         Examples
         --------
@@ -2944,7 +2966,7 @@ class Plots:
         layout = Projection.create_layout(
             layout=1,
             projection="polar",
-            figsize=figure_options.figsize,
+            figsize=(6, 7) if figure_options.figsize is None else figure_options.figsize,
             margins=resolved_margins,
         )
         ax = layout.get_axis("main")
@@ -2979,18 +3001,19 @@ class Plots:
             [f"{tick:0.4f}".replace(".", ",") for tick in radial_ticks]
         )
         ax.set_rlabel_position(350.0)
-        resolved_title = (
-            (
-                Labels().itd_seconds
-                if np.isclose(real_elevation, 0.0, atol=1e-8, rtol=0.0)
-                else f"{Labels().itd_seconds} : [Elevation= {real_elevation}°]"
+        resolved_title = Labels().itd_seconds
+        if axis_options.title is not None:
+            resolved_title = axis_options.title
+        ax.set_title(resolved_title)
+        resolved_figure_title = (
+            Axis.create_plane_title(
+                plane="horizontal",
+                elevation_angle=real_elevation,
             )
             if figure_options.title is None
             else figure_options.title
         )
-        if axis_options.title is not None:
-            resolved_title = axis_options.title
-        ax.set_title(resolved_title)
+        layout.set_figure_title(resolved_figure_title)
         grid_enabled = True if axis_options.grid is None else axis_options.grid
         ax.grid(grid_enabled)
         if show and plot_options.show:
@@ -3003,27 +3026,22 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> None:
-        """
-        Plot absolute ILD over the canonical horizontal plane in polar coordinates.
+        """Plot absolute ILD over a horizontal plane in polar coordinates.
 
-        The horizontal plane at ``0`` degrees elevation is selected from the
-        current source grid, absolute interaural level differences are computed
-        in decibels, and the result is displayed in a polar plot. Azimuth is
-        represented on the angular axis and absolute ILD is represented on the
-        radial axis.
+        This method selects the nearest horizontal plane to the requested
+        elevation, computes absolute interaural level differences in decibels,
+        and displays the result in a polar plot. Azimuth is represented on the
+        angular axis and absolute ILD is represented on the radial axis.
 
         Parameters
         ----------
-        elevation_angle : float, optional
+        elevation_angle : float, default=0.0
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
-        options : PlotOptions or None, optional
-            Plot configuration used to control the figure settings, subplot
-            title, margins, and grid behavior. If ``None``, default plotting
-            options are used.
-        show : bool, optional
-            If ``True``, call ``plt.show()`` before finishing the method. If
-            ``False``, the figure is created without showing it.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, and margin overrides.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
 
         Returns
         -------
@@ -3031,9 +3049,9 @@ class Plots:
 
         Use Cases
         ---------
-        - Inspect the azimuth-dependent ILD pattern in the horizontal plane.
+        - Inspect the azimuth-dependent ILD pattern in a horizontal plane.
         - Visualize binaural level cues using a compact polar representation.
-        - Create an ILD figure without showing it immediately.
+        - Generate an ILD figure for later display with ``show=False``.
 
         Examples
         --------
@@ -3088,7 +3106,7 @@ class Plots:
         layout = Projection.create_layout(
             layout=1,
             projection="polar",
-            figsize=figure_options.figsize,
+            figsize=(6, 7) if figure_options.figsize is None else figure_options.figsize,
             margins=resolved_margins,
         )
         ax = layout.get_axis("main")
@@ -3123,18 +3141,19 @@ class Plots:
             [f"{int(np.rint(tick))}" for tick in radial_ticks]
         )
         ax.set_rlabel_position(350.0)
-        resolved_title = (
-            (
-                Labels().ild_db
-                if np.isclose(real_elevation, 0.0, atol=1e-8, rtol=0.0)
-                else f"{Labels().ild_db} : [Elevation= {real_elevation}°]"
+        resolved_title = Labels().ild_db
+        if axis_options.title is not None:
+            resolved_title = axis_options.title
+        ax.set_title(resolved_title)
+        resolved_figure_title = (
+            Axis.create_plane_title(
+                plane="horizontal",
+                elevation_angle=real_elevation,
             )
             if figure_options.title is None
             else figure_options.title
         )
-        if axis_options.title is not None:
-            resolved_title = axis_options.title
-        ax.set_title(resolved_title)
+        layout.set_figure_title(resolved_figure_title)
         grid_enabled = True if axis_options.grid is None else axis_options.grid
         ax.grid(grid_enabled)
         if show and plot_options.show:
@@ -3146,8 +3165,7 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> None:
-        """
-        Plot the source grid as an interactive three-dimensional scatter figure.
+        """Plot the source grid as an interactive three-dimensional scatter.
 
         The method reads the current source positions from the HRTF instance,
         converts them to Cartesian coordinates when necessary, and renders the
@@ -3157,13 +3175,10 @@ class Plots:
 
         Parameters
         ----------
-        options : PlotOptions or None, optional
-            Plot configuration used to control the figure settings, axis grid,
-            margins, and title behavior. If ``None``, default plotting options
-            are used.
-        show : bool, optional
-            If ``True``, call ``plt.show()`` before finishing the method. If
-            ``False``, the figure is created without showing it.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, and margin overrides.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
 
         Returns
         -------
@@ -3242,8 +3257,7 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> None:
-        """
-        Plot the source grid and highlight canonical spatial planes in 3D.
+        """Plot the source grid and highlight canonical spatial planes in 3D.
 
         The full source grid is displayed as a light background scatter, while
         the selected canonical plane or planes are overlaid with stronger
@@ -3253,18 +3267,15 @@ class Plots:
 
         Parameters
         ----------
-        plane : str or list[str] or tuple[str, ...], optional
+        plane : str | list[str] | tuple[str, ...], default="horizontal"
             Plane or planes to highlight. Accepted values are ``"horizontal"``,
             ``"median"``, and ``"frontal"``. A single string highlights one
             plane, while a list or tuple highlights multiple planes in the same
             figure.
-        options : PlotOptions or None, optional
-            Plot configuration used to control the figure settings, axis grid,
-            legend behavior, margins, and title behavior. If ``None``, default
-            plotting options are used.
-        show : bool, optional
-            If ``True``, call ``plt.show()`` before finishing the method. If
-            ``False``, the figure is created without showing it.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, legend, and margin overrides.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
 
         Returns
         -------

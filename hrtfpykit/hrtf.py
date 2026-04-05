@@ -329,4 +329,3 @@ class HRTF(Plots):
             hrtf.SOFAConventions = convention
             return hrtf
 
-
