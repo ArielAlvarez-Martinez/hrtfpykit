@@ -2517,3 +2517,116 @@ class Plots:
         if show and plot_options.show:
             plt.show()
         return layout
+
+    def plot_source_grid(
+        self: "HRTF",
+        options: PlotOptions | None = None,
+        show: bool = True,
+    ) -> LayoutFigure:
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
+        axis_options = (
+            plot_options.axis if plot_options.axis is not None else AxisOptions()
+        )
+
+        source_positions = np.asarray(
+            self.Sources.get_positions(angle_unit="degrees"),
+            dtype=float,
+        )
+        if source_positions.ndim != 2 or source_positions.shape[0] == 0 or source_positions.shape[1] != 3:
+            raise ValueError("Source positions must have shape (M, 3)")
+
+        source_system = str(self.Sources.get_source_coordinate_system()).strip().lower()
+        if source_system == "cartesian":
+            cartesian_positions = source_positions
+        elif source_system == "spherical":
+            cartesian_positions = self.Sources.spherical_to_cartesian(
+                source_positions,
+                angle_unit="degrees",
+            )
+        elif source_system == "lateral-polar":
+            cartesian_positions = self.Sources.lateral_polar_to_cartesian(
+                source_positions,
+                angle_unit="degrees",
+            )
+        else:
+            raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
+
+        resolved_figsize = (
+            (FigSizeDefault().width, FigSizeDefault().height)
+            if figure_options.figsize is None
+            else figure_options.figsize
+        )
+        configure_rc()
+        fig = plt.figure(figsize=resolved_figsize)
+        fig.subplots_adjust(
+            left=resolved_margins.left,
+            bottom=resolved_margins.bottom,
+            right=resolved_margins.right,
+            top=resolved_margins.top,
+            wspace=resolved_margins.wspace,
+            hspace=resolved_margins.hspace,
+        )
+        ax = fig.add_subplot(111, projection="3d")
+        setattr(ax, "hrtfpykit_subplot_title_y", 1.0)
+        setattr(
+            ax,
+            "hrtfpykit_subplot_title_y_with_figure_title",
+            Layout1.subplot_title_y,
+        )
+        layout = LayoutFigure(
+            fig=fig,
+            axes=np.asarray([ax], dtype=object),
+            layout=1,
+            positions=("main",),
+            figure_title_y=min(resolved_margins.top + Layout1.figure_title_offset, 0.98),
+        )
+
+        x_values = np.asarray(cartesian_positions[:, 0], dtype=float)
+        y_values = np.asarray(cartesian_positions[:, 1], dtype=float)
+        z_values = np.asarray(cartesian_positions[:, 2], dtype=float)
+        ax.scatter(
+            x_values,
+            y_values,
+            z_values,
+            s=28.0,
+            color="steelblue",
+            edgecolors="black",
+            linewidths=0.4,
+            depthshade=True,
+        )
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_zlabel("z")
+        ax.view_init(elev=25.0, azim=-60.0)
+
+        x_center = (float(np.min(x_values)) + float(np.max(x_values))) / 2.0
+        y_center = (float(np.min(y_values)) + float(np.max(y_values))) / 2.0
+        z_center = (float(np.min(z_values)) + float(np.max(z_values))) / 2.0
+        axis_span = max(
+            float(np.max(x_values) - np.min(x_values)),
+            float(np.max(y_values) - np.min(y_values)),
+            float(np.max(z_values) - np.min(z_values)),
+            1.0,
+        )
+        axis_half_span = axis_span / 2.0
+        ax.set_xlim(x_center - axis_half_span, x_center + axis_half_span)
+        ax.set_ylim(y_center - axis_half_span, y_center + axis_half_span)
+        ax.set_zlim(z_center - axis_half_span, z_center + axis_half_span)
+        ax.set_box_aspect((1.0, 1.0, 1.0))
+
+        grid_enabled = True if axis_options.grid is None else axis_options.grid
+        ax.grid(grid_enabled)
+
+        resolved_figure_title = (
+            "Source Grid" if figure_options.title is None else figure_options.title
+        )
+        layout.set_figure_title(resolved_figure_title)
+        if show and plot_options.show:
+            plt.show()
+        return layout
