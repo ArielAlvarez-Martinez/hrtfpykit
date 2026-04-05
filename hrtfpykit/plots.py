@@ -2744,6 +2744,45 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> None:
+        """
+        Plot absolute ITD over the canonical horizontal plane in polar coordinates.
+
+        The horizontal plane at ``0`` degrees elevation is selected from the
+        current source grid, absolute interaural time differences are computed
+        in seconds, and the result is displayed in a polar plot. Azimuth is
+        represented on the angular axis and absolute ITD is represented on the
+        radial axis.
+
+        Parameters
+        ----------
+        options : PlotOptions or None, optional
+            Plot configuration used to control the figure settings, subplot
+            title, margins, and grid behavior. If ``None``, default plotting
+            options are used.
+        show : bool, optional
+            If ``True``, call ``plt.show()`` before finishing the method. If
+            ``False``, the figure is created without showing it.
+
+        Returns
+        -------
+        None
+
+        Use Cases
+        ---------
+        - Inspect the azimuth-dependent ITD pattern in the horizontal plane.
+        - Visualize binaural timing cues using a compact polar representation.
+        - Create an ITD figure without showing it immediately.
+
+        Examples
+        --------
+        >>> hrtf.plot_itd_horizontal_plane()
+        >>> hrtf.plot_itd_horizontal_plane(show=False)
+        >>> hrtf.plot_itd_horizontal_plane(
+        ...     options=PlotOptions(
+        ...         figure=FigureOptions(title="Horizontal Plane ITD")
+        ...     )
+        ... )
+        """
         plot_options = PlotOptions() if options is None else options
         figure_options = (
             plot_options.figure if plot_options.figure is not None else FigureOptions()
