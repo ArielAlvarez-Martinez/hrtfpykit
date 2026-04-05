@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from .dsp import magnitude_to_db
+from .dsp import calculate_itd, magnitude_to_db
 from .spatial import Sources
 
 
@@ -50,6 +50,7 @@ class Labels:
     time: str = "Time (s)"
     samples: str = "Samples"
     impulse_response: str = "Amplitude"
+    itd_seconds: str = "Absolute ITD (s)"
     azimuth: str = "Azimuth (degrees)"
     elevation: str = "Elevation (degrees)"
     lateral: str = "Lateral (degrees)"
@@ -67,6 +68,7 @@ class Titles:
     horizontal_plane: str = "Horizontal Plane"
     median_plane: str = "Median Plane"
     elevation_spectrum: str = "Elevation Spectrum : [Azimuth= {angle}°]"
+    itd: str = "Absolute ITD"
 
 
 @dataclass(frozen=True)
@@ -2733,6 +2735,148 @@ class Plots:
             else figure_options.title
         )
         layout.set_figure_title(resolved_figure_title)
+        if show and plot_options.show:
+            plt.show()
+        return None
+
+    def plot_itd_horizontal_plane(
+        self: "HRTF",
+        options: PlotOptions | None = None,
+        show: bool = True,
+    ) -> None:
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
+        axis_options = (
+            plot_options.axis if plot_options.axis is not None else AxisOptions()
+        )
+
+        if self.IR.values is None:
+            raise ValueError("IR data is not available")
+        if self.IR.sample_rate is None:
+            raise ValueError("IR sample_rate is required")
+
+        indices, _ = self.Planes.get_horizontal_plane_indices(
+            elevation=0.0,
+            angle_unit="degrees",
+        )
+        if indices.size == 0:
+            raise ValueError("Horizontal plane does not contain any source positions")
+
+        source_positions = np.asarray(
+            self.Sources.get_positions(angle_unit="degrees")[indices],
+            dtype=float,
+        )
+        source_system = str(self.Sources.get_source_coordinate_system()).strip().lower()
+        if source_system == "spherical":
+            spherical_positions = source_positions
+        elif source_system == "cartesian":
+            spherical_positions = self.Sources.cartesian_to_spherical(
+                source_positions,
+                angle_unit="degrees",
+            )
+        elif source_system == "lateral-polar":
+            spherical_positions = self.Sources.lateral_polar_to_spherical(
+                source_positions,
+                angle_unit="degrees",
+            )
+        else:
+            raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
+
+        azimuth_values = np.mod(np.asarray(spherical_positions[:, 0], dtype=float), 360.0)
+        itd_values = np.abs(
+            np.asarray(
+                calculate_itd(
+                    self.IR,
+                    output="seconds",
+                ),
+                dtype=float,
+            )[indices]
+        )
+        if itd_values.ndim != 1:
+            itd_values = np.asarray(itd_values, dtype=float).reshape(-1)
+
+        sort_indices = np.argsort(azimuth_values)
+        sorted_azimuth_values = azimuth_values[sort_indices]
+        sorted_itd_values = itd_values[sort_indices]
+        if sorted_azimuth_values.size > 1:
+            theta_values = np.deg2rad(
+                np.concatenate(
+                    (
+                        sorted_azimuth_values,
+                        np.array([sorted_azimuth_values[0] + 360.0], dtype=float),
+                    )
+                )
+            )
+            radial_values = np.concatenate(
+                (
+                    sorted_itd_values,
+                    np.array([sorted_itd_values[0]], dtype=float),
+                )
+            )
+        else:
+            theta_values = np.deg2rad(sorted_azimuth_values)
+            radial_values = sorted_itd_values
+
+        resolved_figsize = (
+            (FigSizeDefault().width, FigSizeDefault().height)
+            if figure_options.figsize is None
+            else figure_options.figsize
+        )
+        configure_rc()
+        fig = plt.figure(figsize=resolved_figsize)
+        fig.subplots_adjust(
+            left=resolved_margins.left,
+            bottom=resolved_margins.bottom,
+            right=resolved_margins.right,
+            top=resolved_margins.top,
+            wspace=resolved_margins.wspace,
+            hspace=resolved_margins.hspace,
+        )
+        ax = fig.add_subplot(111, projection="polar")
+
+        ax.plot(
+            theta_values,
+            radial_values,
+            color="steelblue",
+            linewidth=2.0,
+        )
+        ax.set_theta_zero_location("N")
+        theta_ticks = np.arange(0.0, 360.0, 30.0, dtype=float)
+        ax.set_xticks(np.deg2rad(theta_ticks))
+        ax.set_xticklabels([f"{int(tick)}°" for tick in theta_ticks])
+        radial_max = float(np.max(sorted_itd_values)) if sorted_itd_values.size > 0 else 0.0
+        radial_tick_step = 2e-4
+        if np.isclose(radial_max, 0.0):
+            resolved_radial_max = radial_tick_step
+        else:
+            resolved_radial_max = (
+                np.ceil((radial_max * 1.1) / radial_tick_step) * radial_tick_step
+            )
+        radial_ticks = np.arange(
+            radial_tick_step,
+            resolved_radial_max + (0.5 * radial_tick_step),
+            radial_tick_step,
+            dtype=float,
+        )
+        ax.set_ylim(0.0, resolved_radial_max)
+        ax.set_yticks(radial_ticks)
+        ax.set_yticklabels(
+            [f"{tick:0.4f}".replace(".", ",") for tick in radial_ticks]
+        )
+        ax.set_rlabel_position(350.0)
+        resolved_title = (
+            Labels().itd_seconds if figure_options.title is None else figure_options.title
+        )
+        if axis_options.title is not None:
+            resolved_title = axis_options.title
+        ax.set_title(resolved_title)
+        grid_enabled = True if axis_options.grid is None else axis_options.grid
+        ax.grid(grid_enabled)
         if show and plot_options.show:
             plt.show()
         return None
