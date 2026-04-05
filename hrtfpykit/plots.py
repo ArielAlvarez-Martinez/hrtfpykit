@@ -66,7 +66,6 @@ class Titles:
     lateral_polar_position: str = "Position : [Lateral= {lateral}°, Polar= {polar}°]"
     horizontal_plane: str = "Horizontal Plane"
     median_plane: str = "Median Plane"
-    frontal_plane: str = "Frontal Plane : [Azimuths= {primary}°, {opposite}°]"
     elevation_spectrum: str = "Elevation Spectrum : [Azimuth= {angle}°]"
 
 
@@ -77,11 +76,6 @@ class AcceptedParameters:
     x_axes: tuple[str, str] = ("time", "samples")
     frequency_x_axes: tuple[str, str] = ("log", "linear")
     planes: tuple[str, str, str] = ("horizontal", "median", "frontal")
-    coordinate_systems: tuple[str, str, str] = (
-        "spherical",
-        "cartesian",
-        "lateral-polar",
-    )
 
 
 @dataclass(frozen=True)
@@ -530,6 +524,7 @@ class Layout2Vertical(Layout2):
 class Layout2VerticalIndependent(Layout2):
     layout = 23
     sharex = False
+    figsize = (8, 12)
 
 
 class Layout3(Layout):
@@ -551,6 +546,7 @@ class Layout2Horizontal(Layout2):
     cols = 2
     positions = ("left", "right")
     figsize = (12, 6)
+    sharex = False
     figure_title_offset = 0.08
     subplot_title_y = 0.98
 
@@ -594,9 +590,7 @@ class Axis:
     azimuth_limits_unsigned: tuple[float, float] = (0.0, 360.0)
     azimuth_limits_signed: tuple[float, float] = (-180.0, 180.0)
     lateral_limits: tuple[float, float] = (-90.0, 90.0)
-    lateral_ticks: tuple[float, ...] = (-90.0, -45.0, 0.0, 45.0, 90.0)
     polar_limits: tuple[float, float] = (-90.0, 270.0)
-    polar_ticks: tuple[float, ...] = (-90.0, 0.0, 90.0, 180.0, 270.0)
     frequency_ticks_log: tuple[float, ...] = (
         250,
         500,
@@ -678,7 +672,6 @@ class Axis:
         values: np.ndarray | None = None,
         tick_step: float | None = None,
         default_limits: tuple[float, float] | None = None,
-        default_ticks: tuple[float, ...] | None = None,
         options: AxisOptions | None = None,
     ) -> None:
         resolved_tick_step = (
@@ -722,8 +715,6 @@ class Axis:
                     )
                 else:
                     tick_values = ()
-            elif default_ticks is not None:
-                tick_values = tuple(float(value) for value in default_ticks)
             else:
                 tick_values = ()
             tick_labels = tuple(f"{int(np.rint(value))}" for value in tick_values)
@@ -1047,6 +1038,7 @@ class Axis:
         position_coordinate_system: str,
         ear: str,
         options: AxisOptions | None = None,
+        legend_location: str = "upper left",
     ) -> None:
         labels = Labels()
         default_label = labels.magnitude_db if unit == "db" else labels.magnitude_linear
@@ -1058,7 +1050,7 @@ class Axis:
             position_coordinate_system=position_coordinate_system,
             ear=ear,
             options=options,
-            legend_location="upper left",
+            legend_location=legend_location,
         )
 
     @staticmethod
@@ -1204,7 +1196,6 @@ class Axis:
             values=values,
             tick_step=Axis.elevation_tick_step,
             default_limits=Axis.lateral_limits,
-            default_ticks=Axis.lateral_ticks,
             options=options,
         )
 
@@ -1223,7 +1214,6 @@ class Axis:
             values=values,
             tick_step=Axis.direction_tick_step,
             default_limits=Axis.polar_limits,
-            default_ticks=Axis.polar_ticks,
             options=options,
         )
 
@@ -1249,36 +1239,12 @@ class Axis:
         plane: str,
     ) -> str:
         plane_key = str(plane).strip().lower()
+        titles = Titles()
         if plane_key == "horizontal":
-            return Axis.create_horizontal_plane_title()
+            return titles.horizontal_plane
         if plane_key == "median":
-            return Axis.create_median_plane_title()
+            return titles.median_plane
         raise ValueError("plane accepts horizontal or median")
-
-    @staticmethod
-    def create_horizontal_plane_title(
-    ) -> str:
-        titles = Titles()
-        return titles.horizontal_plane
-
-    @staticmethod
-    def create_median_plane_title(
-    ) -> str:
-        titles = Titles()
-        return titles.median_plane
-
-    @staticmethod
-    def create_frontal_plane_title(
-        real_plane_angles: np.ndarray,
-    ) -> str:
-        titles = Titles()
-        resolved_plane_angles = np.asarray(real_plane_angles, dtype=float).reshape(-1)
-        if resolved_plane_angles.size < 2:
-            raise ValueError("frontal plane title requires two plane angles")
-        return titles.frontal_plane.format(
-            primary=float(resolved_plane_angles[0]),
-            opposite=float(resolved_plane_angles[1]),
-        )
 
     @staticmethod
     def create_elevation_spectrum_title(
@@ -1293,7 +1259,6 @@ class Plots:
     def plot_magnitude(
         self: "HRTF",
         positions: str | list | np.ndarray = "front",
-        position_coordinate_system: str = "spherical",
         x_axis: str = "linear",
         unit: str = "db",
         ear: str = "both",
@@ -1308,22 +1273,19 @@ class Plots:
         Parameters
         ----------
         positions : str | list | np.ndarray, default="front"
-            One position or a collection of positions to plot. Named aliases such
-            as ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
-            Up to four positions can be displayed in a single figure.
-        position_coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
-            Coordinate system used to interpret ``positions``.
+            One position or a collection of positions. Named aliases such as
+            ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
+            Up to four positions can be shown in one figure.
         x_axis : {"linear", "log"}, default="linear"
-            Frequency-axis scale used on the x axis.
+            Frequency scale used on the x axis.
         unit : {"db", "linear"}, default="db"
             Magnitude representation used on the y axis.
         ear : {"left", "right", "both"}, default="both"
             Ear channel to display. When ``"both"`` is selected, left and right
-            ear responses are drawn together in each subplot.
+            responses are drawn together in each subplot.
         reference : float | {"max"}, default=1.0
-            Reference used when ``unit="db"``. A numeric value uses a fixed dB
-            reference. ``"max"`` normalizes the plotted magnitude to the maximum
-            selected value.
+            Reference used when ``unit="db"``. ``"max"`` normalizes the plotted
+            magnitude to the maximum selected value.
         freq_min : float | None, default=None
             Minimum frequency in Hz included in the plot.
         freq_max : float | None, default=None
@@ -1336,13 +1298,13 @@ class Plots:
         Returns
         -------
         LayoutFigure
-            Created figure layout with the rendered magnitude subplots.
+            Figure layout containing the rendered magnitude subplots.
 
         Use Cases
         ---------
         - Compare magnitude responses across several source positions.
-        - Inspect left, right, or binaural magnitude structure at a specific location.
-        - Export customized magnitude figures without showing them immediately.
+        - Inspect left, right, or binaural magnitude structure at one location.
+        - Create figures without showing them immediately.
 
         Examples
         --------
@@ -1376,13 +1338,6 @@ class Plots:
         if ear not in accepted_parameters.ears:
             raise AttributeError(
                 f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
-            )
-        if position_coordinate_system not in accepted_parameters.coordinate_systems:
-            raise AttributeError(
-                "position_coordinate_system accepts "
-                f"{accepted_parameters.coordinate_systems[0]}, "
-                f"{accepted_parameters.coordinate_systems[1]} or "
-                f"{accepted_parameters.coordinate_systems[2]}"
             )
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -1419,7 +1374,7 @@ class Plots:
         selected_position_info = [
             self.Sources.get_position_index(
                 selected_position_query,
-                coordinate_system=position_coordinate_system,
+                coordinate_system="spherical",
             )
             for selected_position_query in position_queries
         ]
@@ -1440,6 +1395,7 @@ class Plots:
         else:
             tf_values = tf_magnitude
         labels = Labels()
+        magnitude_legend_location = "upper right" if x_axis == "linear" else "upper left"
 
         for index, (_, selected_positions) in enumerate(selected_position_info):
             ax = layout.get_axis(index)
@@ -1496,9 +1452,10 @@ class Plots:
                 axis="y",
                 unit=unit,
                 selected_positions=selected_positions,
-                position_coordinate_system=position_coordinate_system,
+                position_coordinate_system="spherical",
                 ear=ear,
                 options=resolved_axis_options,
+                legend_location=magnitude_legend_location,
             )
 
         if position_count < layout.axes.size:
@@ -1514,7 +1471,6 @@ class Plots:
     def plot_amplitude(
         self: "HRTF",
         positions: str | list | np.ndarray = "front",
-        position_coordinate_system: str = "spherical",
         ear: str = "both",
         x_axis: str = "time",
         options: PlotOptions | None = None,
@@ -1525,16 +1481,14 @@ class Plots:
         Parameters
         ----------
         positions : str | list | np.ndarray, default="front"
-            One position or a collection of positions to plot. Named aliases such
-            as ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
-            Up to four positions can be displayed in a single figure.
-        position_coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
-            Coordinate system used to interpret ``positions``.
+            One position or a collection of positions. Named aliases such as
+            ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
+            Up to four positions can be shown in one figure.
         ear : {"left", "right", "both"}, default="both"
             Ear channel to display. When ``"both"`` is selected, left and right
             ear waveforms are drawn together in each subplot.
         x_axis : {"time", "samples"}, default="time"
-            Horizontal axis used for the waveform representation.
+            Horizontal axis used for the waveform plot.
         options : PlotOptions | None, default=None
             Optional figure, axis, legend, and per-panel overrides.
         show : bool, default=True
@@ -1543,13 +1497,13 @@ class Plots:
         Returns
         -------
         LayoutFigure
-            Created figure layout with the rendered amplitude subplots.
+            Figure layout containing the rendered amplitude subplots.
 
         Use Cases
         ---------
         - Inspect HRIR waveform shape for one or several directions.
         - Compare left and right ear impulse responses at the same position.
-        - Export waveform figures without showing them immediately.
+        - Create waveform figures without showing them immediately.
 
         Examples
         --------
@@ -1577,13 +1531,6 @@ class Plots:
         if x_axis not in accepted_parameters.x_axes:
             raise AttributeError(
                 f"x_axis accepts : {accepted_parameters.x_axes[0]} or {accepted_parameters.x_axes[1]}"
-            )
-        if position_coordinate_system not in accepted_parameters.coordinate_systems:
-            raise AttributeError(
-                "position_coordinate_system accepts "
-                f"{accepted_parameters.coordinate_systems[0]}, "
-                f"{accepted_parameters.coordinate_systems[1]} or "
-                f"{accepted_parameters.coordinate_systems[2]}"
             )
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -1630,7 +1577,7 @@ class Plots:
             resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
             idxs, selected_positions = self.Sources.get_position_index(
                 selected_position_query,
-                coordinate_system=position_coordinate_system,
+                coordinate_system="spherical",
             )
             selected_positions = np.asarray(selected_positions, dtype=float)
             y_values = np.asarray(ir_values[idxs], dtype=float)
@@ -1666,7 +1613,7 @@ class Plots:
                 ax=ax,
                 axis="y",
                 selected_positions=selected_positions,
-                position_coordinate_system=position_coordinate_system,
+                position_coordinate_system="spherical",
                 ear=ear,
                 options=resolved_axis_options,
             )
@@ -1683,15 +1630,12 @@ class Plots:
 
     def plot_amplitude_and_magnitude(
         self: "HRTF",
-        positions: str | list | np.ndarray = "front",
-        position_coordinate_system: str = "spherical",
+        position: str | list | np.ndarray = "front",
         ear: str = "both",
         x_axis: str = "time",
         frequency_x_axis: str = "linear",
-        unit: str = "db",
+        magnitude: str = "db",
         reference: float | str = 1.0,
-        freq_min: float | None = None,
-        freq_max: float | None = None,
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> LayoutFigure:
@@ -1699,41 +1643,38 @@ class Plots:
 
         Parameters
         ----------
-        positions : str | list | np.ndarray, default="front"
-            Position query to plot. Exactly one position is accepted. Named aliases
-            such as ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
-        position_coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
-            Coordinate system used to interpret ``positions``.
+        position : str | list | np.ndarray, default="front"
+            Position query to plot. Exactly one position is accepted. Named
+            aliases such as ``"front"``, ``"back"``, ``"left"``, and ``"right"``
+            are accepted.
         ear : {"left", "right", "both"}, default="both"
             Ear channel to display in both subplots.
         x_axis : {"time", "samples"}, default="time"
             Horizontal axis used for the amplitude subplot.
         frequency_x_axis : {"linear", "log"}, default="linear"
             Frequency-axis scale used on the magnitude subplot.
-        unit : {"db", "linear"}, default="db"
-            Magnitude representation used on the right subplot.
+        magnitude : {"db", "linear"}, default="db"
+            Magnitude representation used on the bottom subplot.
         reference : float | {"max"}, default=1.0
-            Reference used when ``unit="db"`` for the magnitude subplot.
-        freq_min : float | None, default=None
-            Minimum frequency in Hz included in the magnitude subplot.
-        freq_max : float | None, default=None
-            Maximum frequency in Hz included in the magnitude subplot.
+            Reference used when ``magnitude="db"`` for the magnitude subplot.
         options : PlotOptions | None, default=None
             Optional figure, axis, legend, frequency-axis, and panel overrides.
+            Frequency-range control for the magnitude subplot should be passed
+            through ``options.axis.frequency_axis`` or the bottom-panel override.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
 
         Returns
         -------
         LayoutFigure
-            Created figure layout with the amplitude subplot on the left and the
-            magnitude subplot on the right.
+            Figure layout containing the amplitude subplot on top and the
+            magnitude subplot on the bottom.
 
         Use Cases
         ---------
         - Inspect time-domain and frequency-domain behavior for the same direction.
         - Compare left and right ear waveform and magnitude structure together.
-        - Export a compact two-panel summary for one position.
+        - Create a compact two-panel summary for one position.
 
         Examples
         --------
@@ -1744,15 +1685,15 @@ class Plots:
         Plot one position using sample index and linear magnitude:
 
         >>> hrtf.plot_amplitude_and_magnitude(
-        ...     positions="left",
+        ...     position="left",
         ...     x_axis="samples",
-        ...     unit="linear",
+        ...     magnitude="linear",
         ... )
 
         Plot both ears with a logarithmic frequency axis:
 
         >>> hrtf.plot_amplitude_and_magnitude(
-        ...     positions="front",
+        ...     position="front",
         ...     ear="both",
         ...     frequency_x_axis="log",
         ... )
@@ -1776,16 +1717,10 @@ class Plots:
                 f"{accepted_parameters.frequency_x_axes[0]} or "
                 f"{accepted_parameters.frequency_x_axes[1]}"
             )
-        if unit not in accepted_parameters.units:
+        if magnitude not in accepted_parameters.units:
             raise AttributeError(
-                f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
-            )
-        if position_coordinate_system not in accepted_parameters.coordinate_systems:
-            raise AttributeError(
-                "position_coordinate_system accepts "
-                f"{accepted_parameters.coordinate_systems[0]}, "
-                f"{accepted_parameters.coordinate_systems[1]} or "
-                f"{accepted_parameters.coordinate_systems[2]}"
+                "magnitude accepts : "
+                f"{accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
             )
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -1805,7 +1740,7 @@ class Plots:
         if x_axis == "time" and self.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required when x_axis='time'")
 
-        position_queries = self.Sources.get_position_queries(positions)
+        position_queries = self.Sources.get_position_queries(position)
         if len(position_queries) != 1:
             raise ValueError(
                 "plot_amplitude_and_magnitude accepts exactly one position"
@@ -1813,20 +1748,20 @@ class Plots:
         selected_position_query = position_queries[0]
 
         layout = create_layout(
-            layout=22,
+            layout=23,
             figsize=figure_options.figsize,
             margins=resolved_margins,
         )
         panel_axis_options = layout.get_panel_axis_options(plot_options)
 
-        left_axis_options = axis_options.merge(panel_axis_options.get(0))
-        right_axis_options = axis_options.merge(panel_axis_options.get(1))
-        left_axis_panel_options = left_axis_options.merge(AxisOptions(title=""))
-        right_axis_panel_options = right_axis_options.merge(AxisOptions(title=""))
+        top_axis_options = axis_options.merge(panel_axis_options.get(0))
+        bottom_axis_options = axis_options.merge(panel_axis_options.get(1))
+        top_axis_panel_options = top_axis_options.merge(AxisOptions(title=""))
+        bottom_axis_panel_options = bottom_axis_options.merge(AxisOptions(title=""))
 
         idxs, selected_positions = self.Sources.get_position_index(
             selected_position_query,
-            coordinate_system=position_coordinate_system,
+            coordinate_system="spherical",
         )
         selected_positions = np.asarray(selected_positions, dtype=float)
 
@@ -1841,7 +1776,7 @@ class Plots:
         )
         ir_y_values = np.asarray(ir_values[idxs], dtype=float)
 
-        ir_ax = layout.get_axis("left")
+        ir_ax = layout.get_axis("top")
         if ear == "both":
             if ir_y_values.ndim < 2 or ir_y_values.shape[0] < 2:
                 raise ValueError(
@@ -1868,21 +1803,21 @@ class Plots:
             Axis.create_time_axis(
                 ax=ir_ax,
                 axis="x",
-                options=left_axis_options,
+                options=top_axis_options,
             )
         else:
             Axis.create_samples_axis(
                 ax=ir_ax,
                 axis="x",
-                options=left_axis_options,
+                options=top_axis_options,
             )
         Axis.create_amplitude_axis(
             ax=ir_ax,
             axis="y",
             selected_positions=selected_positions,
-            position_coordinate_system=position_coordinate_system,
+            position_coordinate_system="spherical",
             ear=ear,
-            options=left_axis_panel_options,
+            options=top_axis_panel_options,
         )
 
         frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
@@ -1893,9 +1828,7 @@ class Plots:
             axis="x",
             x_axis=frequency_x_axis,
             frequency_bins=frequency_bins_hz,
-            freq_min=freq_min,
-            freq_max=freq_max,
-            options=right_axis_options.frequency_axis,
+            options=bottom_axis_options.frequency_axis,
         )
         frequency_mask = (
             (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
@@ -1905,7 +1838,7 @@ class Plots:
             raise ValueError("Selected frequency range produced no TF bins")
         frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
         tf_magnitude = self.TF.magnitude
-        if unit == "db":
+        if magnitude == "db":
             if isinstance(reference, str) and str(reference).strip().lower() == "max":
                 reference_values = np.asarray(tf_magnitude[idxs], dtype=float)
                 if ear != "both" and reference_values.ndim >= 2:
@@ -1923,7 +1856,7 @@ class Plots:
             tf_values = tf_magnitude
         magnitude_y_values = np.asarray(tf_values[idxs][..., frequency_mask], dtype=float)
 
-        magnitude_ax = layout.get_axis("right")
+        magnitude_ax = layout.get_axis("bottom")
         if ear == "both":
             if magnitude_y_values.ndim < 2 or magnitude_y_values.shape[0] < 2:
                 raise ValueError(
@@ -1947,10 +1880,13 @@ class Plots:
             magnitude_ax.plot(frequency_khz, selected_magnitude_y_values, color="blue")
 
         labels = Labels()
+        magnitude_legend_location = (
+            "upper right" if frequency_x_axis == "linear" else "upper left"
+        )
         frequency_label = (
             labels.frequency
-            if right_axis_options.xlabel is None
-            else right_axis_options.xlabel
+            if bottom_axis_options.xlabel is None
+            else bottom_axis_options.xlabel
         )
         Axis.create_frequency_axis(
             ax=magnitude_ax,
@@ -1962,17 +1898,18 @@ class Plots:
         Axis.create_magnitude_axis(
             ax=magnitude_ax,
             axis="y",
-            unit=unit,
+            unit=magnitude,
             selected_positions=selected_positions,
-            position_coordinate_system=position_coordinate_system,
+            position_coordinate_system="spherical",
             ear=ear,
-            options=right_axis_panel_options,
+            options=bottom_axis_panel_options,
+            legend_location=magnitude_legend_location,
         )
 
         resolved_figure_title = (
             Axis.create_position_title(
                 selected_positions=selected_positions,
-                position_coordinate_system=position_coordinate_system,
+                position_coordinate_system="spherical",
             )
             if figure_options.title is None
             else figure_options.title
@@ -1999,25 +1936,23 @@ class Plots:
         Parameters
         ----------
         plane : {"horizontal", "median"}, default="median"
-            Plane to visualize. ``"horizontal"`` uses the canonical horizontal
+            Canonical plane to visualize. ``"horizontal"`` uses the horizontal
             plane at ``0`` degrees elevation. ``"median"`` uses the canonical
             median plane defined by the front-back sagittal path.
         x_axis : {"linear", "log"}, default="linear"
-            Frequency-axis scale used on the x axis.
+            Frequency scale used on the x axis.
         unit : {"db", "linear"}, default="db"
             Magnitude representation used for the heatmap values.
         ear : {"left", "right", "both"}, default="both"
             Ear channel to display. When ``"both"`` is selected, a separate panel
             is created for each ear.
         reference : float | {"max"}, default="max"
-            Reference used when ``unit="db"``. A numeric value uses a fixed dB
-            reference. ``"max"`` normalizes the plotted plane to its maximum value.
+            Reference used when ``unit="db"``. ``"max"`` normalizes the plotted
+            plane to its maximum value.
         freq_min : float | None, default=None
-            Minimum frequency in Hz included in the plot. When ``None``, the plot
-            uses the available lower bound from the HRTF frequency bins.
+            Minimum frequency in Hz included in the plot.
         freq_max : float | None, default=None
-            Maximum frequency in Hz included in the plot. When ``None``, the plot
-            uses the available upper bound from the HRTF frequency bins.
+            Maximum frequency in Hz included in the plot.
         options : PlotOptions | None, default=None
             Optional figure, axis, heatmap, and panel overrides. For the
             horizontal plane, ``options.axis.azimuth_axis`` can be used to choose
@@ -2029,14 +1964,14 @@ class Plots:
         Returns
         -------
         LayoutFigure
-            Created figure layout with the rendered spectrum heatmap panels.
+            Figure layout containing the rendered spectrum heatmap panels.
 
         Use Cases
         ---------
         - Inspect the canonical horizontal-plane spectrum over azimuth.
         - Inspect the canonical median-plane spectrum over polar angle.
         - Compare left and right ear spectral structure in the same plane.
-        - Export plane-based HRTF heatmaps without showing them immediately.
+        - Create plane-based HRTF heatmaps without showing them immediately.
 
         Examples
         --------
@@ -2311,15 +2246,15 @@ class Plots:
             ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
             The nearest available azimuth in the source grid is used.
         x_axis : {"linear", "log"}, default="linear"
-            Frequency-axis scale used on the x axis.
+            Frequency scale used on the x axis.
         unit : {"db", "linear"}, default="db"
             Magnitude representation used for the heatmap values.
         ear : {"left", "right", "both"}, default="both"
             Ear channel to display. When ``"both"`` is selected, a separate panel
             is created for each ear.
         reference : float | {"max"}, default="max"
-            Reference used when ``unit="db"``. A numeric value uses a fixed dB
-            reference. ``"max"`` normalizes the plotted slice to its maximum value.
+            Reference used when ``unit="db"``. ``"max"`` normalizes the plotted
+            slice to its maximum value.
         freq_min : float | None, default=None
             Minimum frequency in Hz included in the plot.
         freq_max : float | None, default=None
@@ -2332,13 +2267,13 @@ class Plots:
         Returns
         -------
         LayoutFigure
-            Created figure layout with the rendered elevation-spectrum heatmap panels.
+            Figure layout containing the rendered elevation-spectrum heatmap panels.
 
         Use Cases
         ---------
         - Inspect how magnitude changes with elevation at a fixed azimuth.
         - Compare left and right ear spectral structure along one azimuth slice.
-        - Export elevation-spectrum heatmaps without showing them immediately.
+        - Create elevation-spectrum heatmaps without showing them immediately.
 
         Examples
         --------
