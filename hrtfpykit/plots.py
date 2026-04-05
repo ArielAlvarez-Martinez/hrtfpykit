@@ -305,6 +305,231 @@ class Heatmap:
         )
 
 
+class ThreeDimensional:
+    view_elev: float = 22.0
+    view_azim: float = -37.0
+    xlabel: str = "X (m)"
+    ylabel: str = "Y (m)"
+    zlabel: str = "Z (m)"
+    arrow_color: str = "#303030"
+    arrow_linewidth: float = 2.8
+    arrow_length_ratio: float = 0.32
+    arrow_delta_ratio: float = 0.50
+    arrow_label_offset_ratio: float = 0.10
+    right_label_vertical_offset_ratio: float = 0.18
+    label_box: dict[str, object] = {
+        "boxstyle": "round,pad=0.18",
+        "facecolor": "white",
+        "edgecolor": "none",
+        "alpha": 0.88,
+    }
+
+    @staticmethod
+    def create_cartesian_positions(
+        sources: Sources,
+    ) -> np.ndarray:
+        source_positions = np.asarray(
+            sources.get_positions(angle_unit="degrees"),
+            dtype=float,
+        )
+        if (
+            source_positions.ndim != 2
+            or source_positions.shape[0] == 0
+            or source_positions.shape[1] != 3
+        ):
+            raise ValueError("Source positions must have shape (M, 3)")
+
+        source_system = str(sources.get_source_coordinate_system()).strip().lower()
+        if source_system == "cartesian":
+            return source_positions
+        if source_system == "spherical":
+            return sources.spherical_to_cartesian(
+                source_positions,
+                angle_unit="degrees",
+            )
+        if source_system == "lateral-polar":
+            return sources.lateral_polar_to_cartesian(
+                source_positions,
+                angle_unit="degrees",
+            )
+        raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
+
+    @staticmethod
+    def create_layout(
+        figsize: tuple[float, float] | None = None,
+        margins: Margins | None = None,
+    ) -> tuple[LayoutFigure, plt.Axes]:
+        resolved_figsize = (
+            (FigSizeDefault().width, FigSizeDefault().height)
+            if figsize is None
+            else figsize
+        )
+        resolved_margins = Margins() if margins is None else margins
+        configure_rc()
+        fig = plt.figure(figsize=resolved_figsize)
+        fig.subplots_adjust(
+            left=resolved_margins.left,
+            bottom=resolved_margins.bottom,
+            right=resolved_margins.right,
+            top=resolved_margins.top,
+            wspace=resolved_margins.wspace,
+            hspace=resolved_margins.hspace,
+        )
+        ax = fig.add_subplot(111, projection="3d")
+        setattr(ax, "hrtfpykit_subplot_title_y", 1.0)
+        setattr(
+            ax,
+            "hrtfpykit_subplot_title_y_with_figure_title",
+            Layout1.subplot_title_y,
+        )
+        layout = LayoutFigure(
+            fig=fig,
+            axes=np.asarray([ax], dtype=object),
+            layout=1,
+            positions=("main",),
+            figure_title_y=min(resolved_margins.top + Layout1.figure_title_offset, 0.98),
+        )
+        return layout, ax
+
+    @staticmethod
+    def configure_axis(
+        ax: plt.Axes,
+        cartesian_positions: np.ndarray,
+    ) -> float:
+        x_values = np.asarray(cartesian_positions[:, 0], dtype=float)
+        y_values = np.asarray(cartesian_positions[:, 1], dtype=float)
+        z_values = np.asarray(cartesian_positions[:, 2], dtype=float)
+
+        ax.set_xlabel(ThreeDimensional.xlabel)
+        ax.set_ylabel(ThreeDimensional.ylabel)
+        ax.set_zlabel(ThreeDimensional.zlabel)
+        ax.view_init(elev=ThreeDimensional.view_elev, azim=ThreeDimensional.view_azim)
+
+        x_center = (float(np.min(x_values)) + float(np.max(x_values))) / 2.0
+        y_center = (float(np.min(y_values)) + float(np.max(y_values))) / 2.0
+        z_center = (float(np.min(z_values)) + float(np.max(z_values))) / 2.0
+        axis_span = max(
+            float(np.max(x_values) - np.min(x_values)),
+            float(np.max(y_values) - np.min(y_values)),
+            float(np.max(z_values) - np.min(z_values)),
+            1.0,
+        )
+        axis_half_span = axis_span / 2.0
+        ax.set_xlim(x_center - axis_half_span, x_center + axis_half_span)
+        ax.set_ylim(y_center - axis_half_span, y_center + axis_half_span)
+        ax.set_zlim(z_center - axis_half_span, z_center + axis_half_span)
+        ax.set_box_aspect((1.0, 1.0, 1.0))
+        return axis_half_span
+
+    @staticmethod
+    def create_direction_markers(
+        ax: plt.Axes,
+        sources: Sources,
+        axis_half_span: float,
+    ) -> None:
+        _, front_position = sources.get_position_index(
+            np.array([0.0, 0.0], dtype=float),
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        )
+        _, right_position = sources.get_position_index(
+            np.array([270.0, 0.0], dtype=float),
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        )
+        _, up_position = sources.get_position_index(
+            np.array([0.0, 90.0], dtype=float),
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        )
+
+        front_tail = sources.spherical_to_cartesian(front_position, angle_unit="degrees")
+        right_tail = sources.spherical_to_cartesian(right_position, angle_unit="degrees")
+        up_tail = sources.spherical_to_cartesian(up_position, angle_unit="degrees")
+        front_direction = front_tail / max(float(np.linalg.norm(front_tail)), 1e-12)
+        right_direction = right_tail / max(float(np.linalg.norm(right_tail)), 1e-12)
+        up_direction = up_tail / max(float(np.linalg.norm(up_tail)), 1e-12)
+        arrow_delta_radius = ThreeDimensional.arrow_delta_ratio * axis_half_span
+
+        ax.quiver(
+            *front_tail,
+            *(front_direction * arrow_delta_radius),
+            color=ThreeDimensional.arrow_color,
+            linewidth=ThreeDimensional.arrow_linewidth,
+            arrow_length_ratio=ThreeDimensional.arrow_length_ratio,
+        )
+        ax.text(
+            *(
+                front_tail
+                + front_direction
+                * (
+                    arrow_delta_radius
+                    + ThreeDimensional.arrow_label_offset_ratio * axis_half_span
+                )
+            ),
+            "Front",
+            color=ThreeDimensional.arrow_color,
+            fontweight="bold",
+            fontsize=11,
+            ha="left",
+            va="center",
+            bbox=ThreeDimensional.label_box,
+        )
+
+        ax.quiver(
+            *right_tail,
+            *(right_direction * arrow_delta_radius),
+            color=ThreeDimensional.arrow_color,
+            linewidth=ThreeDimensional.arrow_linewidth,
+            arrow_length_ratio=ThreeDimensional.arrow_length_ratio,
+        )
+        ax.text(
+            *(
+                right_tail
+                + right_direction
+                * (
+                    arrow_delta_radius
+                    + ThreeDimensional.arrow_label_offset_ratio * axis_half_span
+                )
+                + np.array(
+                    [0.0, 0.0, ThreeDimensional.right_label_vertical_offset_ratio * axis_half_span]
+                )
+            ),
+            "Right",
+            color=ThreeDimensional.arrow_color,
+            fontweight="bold",
+            fontsize=11,
+            ha="left",
+            va="bottom",
+            bbox=ThreeDimensional.label_box,
+        )
+
+        ax.quiver(
+            *up_tail,
+            *(up_direction * arrow_delta_radius),
+            color=ThreeDimensional.arrow_color,
+            linewidth=ThreeDimensional.arrow_linewidth,
+            arrow_length_ratio=ThreeDimensional.arrow_length_ratio,
+        )
+        ax.text(
+            *(
+                up_tail
+                + up_direction
+                * (
+                    arrow_delta_radius
+                    + ThreeDimensional.arrow_label_offset_ratio * axis_half_span
+                )
+            ),
+            "Up",
+            color=ThreeDimensional.arrow_color,
+            fontweight="bold",
+            fontsize=11,
+            ha="left",
+            va="bottom",
+            bbox=ThreeDimensional.label_box,
+        )
+
+
 class Legends:
     locations: dict[str, str] = {"default": "upper left"}
 
@@ -1267,7 +1492,7 @@ class Plots:
         freq_max: float | None = None,
         options: PlotOptions | None = None,
         show: bool = True,
-    ) -> LayoutFigure:
+    ) -> None:
         """Plot HRTF magnitude responses for up to four source positions.
 
         Parameters
@@ -1297,8 +1522,7 @@ class Plots:
 
         Returns
         -------
-        LayoutFigure
-            Figure layout containing the rendered magnitude subplots.
+        None
 
         Use Cases
         ---------
@@ -1322,7 +1546,7 @@ class Plots:
 
         Create the figure without showing it immediately:
 
-        >>> layout = hrtf.plot_magnitude(show=False)
+        >>> hrtf.plot_magnitude(show=False)
         """
         accepted_parameters = AcceptedParameters()
         if unit not in accepted_parameters.units:
@@ -1466,7 +1690,7 @@ class Plots:
             layout.set_figure_title(figure_options.title)
         if show and plot_options.show:
             plt.show()
-        return layout
+        return None
 
     def plot_amplitude(
         self: "HRTF",
@@ -1475,7 +1699,7 @@ class Plots:
         x_axis: str = "time",
         options: PlotOptions | None = None,
         show: bool = True,
-    ) -> LayoutFigure:
+    ) -> None:
         """Plot HRIR amplitude responses for up to four source positions.
 
         Parameters
@@ -1496,8 +1720,7 @@ class Plots:
 
         Returns
         -------
-        LayoutFigure
-            Figure layout containing the rendered amplitude subplots.
+        None
 
         Use Cases
         ---------
@@ -1521,7 +1744,7 @@ class Plots:
 
         Create the figure without showing it immediately:
 
-        >>> layout = hrtf.plot_amplitude(show=False)
+        >>> hrtf.plot_amplitude(show=False)
         """
         accepted_parameters = AcceptedParameters()
         if ear not in accepted_parameters.ears:
@@ -1626,7 +1849,7 @@ class Plots:
             layout.set_figure_title(figure_options.title)
         if show and plot_options.show:
             plt.show()
-        return layout
+        return None
 
     def plot_amplitude_and_magnitude(
         self: "HRTF",
@@ -1638,7 +1861,7 @@ class Plots:
         reference: float | str = 1.0,
         options: PlotOptions | None = None,
         show: bool = True,
-    ) -> LayoutFigure:
+    ) -> None:
         """Plot amplitude and magnitude views for a single source position.
 
         Parameters
@@ -1666,9 +1889,7 @@ class Plots:
 
         Returns
         -------
-        LayoutFigure
-            Figure layout containing the amplitude subplot on top and the
-            magnitude subplot on the bottom.
+        None
 
         Use Cases
         ---------
@@ -1700,7 +1921,7 @@ class Plots:
 
         Create the figure without showing it immediately:
 
-        >>> layout = hrtf.plot_amplitude_and_magnitude(show=False)
+        >>> hrtf.plot_amplitude_and_magnitude(show=False)
         """
         accepted_parameters = AcceptedParameters()
         if ear not in accepted_parameters.ears:
@@ -1917,7 +2138,7 @@ class Plots:
         layout.set_figure_title(resolved_figure_title)
         if show and plot_options.show:
             plt.show()
-        return layout
+        return None
 
     def plot_plane_spectrum(
         self: "HRTF",
@@ -1930,7 +2151,7 @@ class Plots:
         freq_max: float | None = None,
         options: PlotOptions | None = None,
         show: bool = True,
-    ) -> LayoutFigure:
+    ) -> None:
         """Plot a frequency-angle spectrum heatmap for a canonical HRTF plane.
 
         Parameters
@@ -1963,8 +2184,7 @@ class Plots:
 
         Returns
         -------
-        LayoutFigure
-            Figure layout containing the rendered spectrum heatmap panels.
+        None
 
         Use Cases
         ---------
@@ -1996,7 +2216,7 @@ class Plots:
 
         Create the figure without showing it immediately:
 
-        >>> layout = hrtf.plot_plane_spectrum(show=False)
+        >>> hrtf.plot_plane_spectrum(show=False)
         """
         accepted_parameters = AcceptedParameters()
         if plane not in ("horizontal", "median"):
@@ -2223,7 +2443,7 @@ class Plots:
         layout.set_figure_title(resolved_figure_title)
         if show and plot_options.show:
             plt.show()
-        return layout
+        return None
 
     def plot_elevation_spectrum(
         self: "HRTF",
@@ -2236,7 +2456,7 @@ class Plots:
         freq_max: float | None = None,
         options: PlotOptions | None = None,
         show: bool = True,
-    ) -> LayoutFigure:
+    ) -> None:
         """Plot a fixed-azimuth elevation spectrum heatmap.
 
         Parameters
@@ -2266,8 +2486,7 @@ class Plots:
 
         Returns
         -------
-        LayoutFigure
-            Figure layout containing the rendered elevation-spectrum heatmap panels.
+        None
 
         Use Cases
         ---------
@@ -2291,7 +2510,7 @@ class Plots:
 
         Create the figure without showing it immediately:
 
-        >>> layout = hrtf.plot_elevation_spectrum(show=False)
+        >>> hrtf.plot_elevation_spectrum(show=False)
         """
         accepted_parameters = AcceptedParameters()
         if unit not in accepted_parameters.units:
@@ -2516,13 +2735,48 @@ class Plots:
         layout.set_figure_title(resolved_figure_title)
         if show and plot_options.show:
             plt.show()
-        return layout
+        return None
 
     def plot_source_grid(
         self: "HRTF",
         options: PlotOptions | None = None,
         show: bool = True,
-    ) -> LayoutFigure:
+    ) -> None:
+        """
+        Plot the source grid as an interactive three-dimensional scatter figure.
+
+        The method reads the current source positions from the HRTF instance,
+        converts them to Cartesian coordinates when necessary, and renders the
+        grid in a 3D Matplotlib axis. Direction arrows for front, right, and up
+        are added to make the spatial orientation easier to interpret in the
+        default camera view.
+
+        Parameters
+        ----------
+        options : PlotOptions or None, optional
+            Plot configuration used to control the figure settings, axis grid,
+            margins, and title behavior. If ``None``, default plotting options
+            are used.
+        show : bool, optional
+            If ``True``, call ``plt.show()`` before finishing the method. If
+            ``False``, the figure is created without showing it.
+
+        Returns
+        -------
+        None
+
+        Use Cases
+        ---------
+        - Inspect the spatial sampling pattern of a source grid.
+        - Check how dense or sparse a dataset is across directions.
+        - Visualize the currently selected subset of sources after spatial
+          selection or transformation.
+
+        Examples
+        --------
+        >>> hrtf.plot_source_grid()
+        >>> hrtf.plot_source_grid(show=False)
+        """
         plot_options = PlotOptions() if options is None else options
         figure_options = (
             plot_options.figure if plot_options.figure is not None else FigureOptions()
@@ -2534,57 +2788,10 @@ class Plots:
             plot_options.axis if plot_options.axis is not None else AxisOptions()
         )
 
-        source_positions = np.asarray(
-            self.Sources.get_positions(angle_unit="degrees"),
-            dtype=float,
-        )
-        if source_positions.ndim != 2 or source_positions.shape[0] == 0 or source_positions.shape[1] != 3:
-            raise ValueError("Source positions must have shape (M, 3)")
-
-        source_system = str(self.Sources.get_source_coordinate_system()).strip().lower()
-        if source_system == "cartesian":
-            cartesian_positions = source_positions
-        elif source_system == "spherical":
-            cartesian_positions = self.Sources.spherical_to_cartesian(
-                source_positions,
-                angle_unit="degrees",
-            )
-        elif source_system == "lateral-polar":
-            cartesian_positions = self.Sources.lateral_polar_to_cartesian(
-                source_positions,
-                angle_unit="degrees",
-            )
-        else:
-            raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
-
-        resolved_figsize = (
-            (FigSizeDefault().width, FigSizeDefault().height)
-            if figure_options.figsize is None
-            else figure_options.figsize
-        )
-        configure_rc()
-        fig = plt.figure(figsize=resolved_figsize)
-        fig.subplots_adjust(
-            left=resolved_margins.left,
-            bottom=resolved_margins.bottom,
-            right=resolved_margins.right,
-            top=resolved_margins.top,
-            wspace=resolved_margins.wspace,
-            hspace=resolved_margins.hspace,
-        )
-        ax = fig.add_subplot(111, projection="3d")
-        setattr(ax, "hrtfpykit_subplot_title_y", 1.0)
-        setattr(
-            ax,
-            "hrtfpykit_subplot_title_y_with_figure_title",
-            Layout1.subplot_title_y,
-        )
-        layout = LayoutFigure(
-            fig=fig,
-            axes=np.asarray([ax], dtype=object),
-            layout=1,
-            positions=("main",),
-            figure_title_y=min(resolved_margins.top + Layout1.figure_title_offset, 0.98),
+        cartesian_positions = ThreeDimensional.create_cartesian_positions(self.Sources)
+        layout, ax = ThreeDimensional.create_layout(
+            figsize=figure_options.figsize,
+            margins=resolved_margins,
         )
 
         x_values = np.asarray(cartesian_positions[:, 0], dtype=float)
@@ -2600,25 +2807,15 @@ class Plots:
             linewidths=0.4,
             depthshade=True,
         )
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_zlabel("z")
-        ax.view_init(elev=25.0, azim=-60.0)
-
-        x_center = (float(np.min(x_values)) + float(np.max(x_values))) / 2.0
-        y_center = (float(np.min(y_values)) + float(np.max(y_values))) / 2.0
-        z_center = (float(np.min(z_values)) + float(np.max(z_values))) / 2.0
-        axis_span = max(
-            float(np.max(x_values) - np.min(x_values)),
-            float(np.max(y_values) - np.min(y_values)),
-            float(np.max(z_values) - np.min(z_values)),
-            1.0,
+        axis_half_span = ThreeDimensional.configure_axis(
+            ax=ax,
+            cartesian_positions=cartesian_positions,
         )
-        axis_half_span = axis_span / 2.0
-        ax.set_xlim(x_center - axis_half_span, x_center + axis_half_span)
-        ax.set_ylim(y_center - axis_half_span, y_center + axis_half_span)
-        ax.set_zlim(z_center - axis_half_span, z_center + axis_half_span)
-        ax.set_box_aspect((1.0, 1.0, 1.0))
+        ThreeDimensional.create_direction_markers(
+            ax=ax,
+            sources=self.Sources,
+            axis_half_span=axis_half_span,
+        )
 
         grid_enabled = True if axis_options.grid is None else axis_options.grid
         ax.grid(grid_enabled)
@@ -2629,4 +2826,178 @@ class Plots:
         layout.set_figure_title(resolved_figure_title)
         if show and plot_options.show:
             plt.show()
-        return layout
+        return None
+
+    def plot_plane_grid(
+        self: "HRTF",
+        plane: str | list[str] | tuple[str, ...] = "horizontal",
+        options: PlotOptions | None = None,
+        show: bool = True,
+    ) -> None:
+        """
+        Plot the source grid and highlight canonical spatial planes in 3D.
+
+        The full source grid is displayed as a light background scatter, while
+        the selected canonical plane or planes are overlaid with stronger
+        colors. The supported planes are the horizontal plane, the median plane,
+        and the frontal plane, using the canonical definitions already provided
+        by the spatial plane-selection logic in the library.
+
+        Parameters
+        ----------
+        plane : str or list[str] or tuple[str, ...], optional
+            Plane or planes to highlight. Accepted values are ``"horizontal"``,
+            ``"median"``, and ``"frontal"``. A single string highlights one
+            plane, while a list or tuple highlights multiple planes in the same
+            figure.
+        options : PlotOptions or None, optional
+            Plot configuration used to control the figure settings, axis grid,
+            legend behavior, margins, and title behavior. If ``None``, default
+            plotting options are used.
+        show : bool, optional
+            If ``True``, call ``plt.show()`` before finishing the method. If
+            ``False``, the figure is created without showing it.
+
+        Returns
+        -------
+        None
+
+        Use Cases
+        ---------
+        - Inspect the geometry of the canonical horizontal, median, and frontal
+          planes in a dataset.
+        - Verify whether a dataset contains the expected plane coverage.
+        - Compare several canonical planes in one spatial grid view.
+
+        Examples
+        --------
+        >>> hrtf.plot_plane_grid()
+        >>> hrtf.plot_plane_grid(plane="median")
+        >>> hrtf.plot_plane_grid(plane=["horizontal", "median", "frontal"], show=False)
+        """
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
+        axis_options = (
+            plot_options.axis if plot_options.axis is not None else AxisOptions()
+        )
+        legend_options = (
+            LegendOptions() if axis_options.legend is None else axis_options.legend
+        )
+
+        raw_planes = [plane] if isinstance(plane, str) else list(plane)
+        if len(raw_planes) == 0:
+            raise ValueError("plane must contain at least one value")
+
+        resolved_planes: list[str] = []
+        for raw_plane in raw_planes:
+            plane_key = str(raw_plane).strip().lower()
+            if plane_key not in {"horizontal", "median", "frontal"}:
+                raise ValueError("plane accepts: horizontal, median, frontal")
+            if plane_key not in resolved_planes:
+                resolved_planes.append(plane_key)
+
+        cartesian_positions = ThreeDimensional.create_cartesian_positions(self.Sources)
+        layout, ax = ThreeDimensional.create_layout(
+            figsize=figure_options.figsize,
+            margins=resolved_margins,
+        )
+
+        x_values = np.asarray(cartesian_positions[:, 0], dtype=float)
+        y_values = np.asarray(cartesian_positions[:, 1], dtype=float)
+        z_values = np.asarray(cartesian_positions[:, 2], dtype=float)
+
+        ax.scatter(
+            x_values,
+            y_values,
+            z_values,
+            s=18.0,
+            color="#9ecae1",
+            edgecolors="none",
+            depthshade=True,
+            alpha=0.55,
+            label="Source Grid",
+        )
+
+        plane_colors = {
+            "horizontal": "blue",
+            "median": "red",
+            "frontal": "green",
+        }
+        plane_titles = {
+            "horizontal": "Horizontal Plane Grid",
+            "median": "Median Plane Grid",
+            "frontal": "Frontal Plane Grid",
+        }
+        plane_labels = {
+            "horizontal": "Horizontal Plane",
+            "median": "Median Plane",
+            "frontal": "Frontal Plane",
+        }
+
+        for plane_key in resolved_planes:
+            if plane_key == "horizontal":
+                indices, _ = self.Planes.get_horizontal_plane_indices(
+                    elevation=0.0,
+                    angle_unit="degrees",
+                )
+            elif plane_key == "median":
+                indices, _ = self.Planes.get_median_plane_indices(
+                    azimuth=0.0,
+                    angle_unit="degrees",
+                )
+            else:
+                indices, _ = self.Planes.get_frontal_plane_indices(
+                    azimuth=90.0,
+                    angle_unit="degrees",
+                )
+            plane_positions = np.asarray(cartesian_positions[indices], dtype=float)
+            ax.scatter(
+                plane_positions[:, 0],
+                plane_positions[:, 1],
+                plane_positions[:, 2],
+                s=34.0,
+                color=plane_colors[plane_key],
+                edgecolors="black",
+                linewidths=0.35,
+                depthshade=True,
+                label=plane_labels[plane_key],
+            )
+
+        axis_half_span = ThreeDimensional.configure_axis(
+            ax=ax,
+            cartesian_positions=cartesian_positions,
+        )
+        ThreeDimensional.create_direction_markers(
+            ax=ax,
+            sources=self.Sources,
+            axis_half_span=axis_half_span,
+        )
+
+        grid_enabled = True if axis_options.grid is None else axis_options.grid
+        ax.grid(grid_enabled)
+
+        legend_enabled = True if legend_options.enabled is None else legend_options.enabled
+        if legend_enabled:
+            resolved_legend_location = (
+                "upper right"
+                if legend_options.location is None
+                else legend_options.location
+            )
+            ax.legend(loc=resolved_legend_location)
+
+        if figure_options.title is None:
+            if len(resolved_planes) == 1:
+                resolved_figure_title = plane_titles[resolved_planes[0]]
+            else:
+                resolved_figure_title = "Plane Grid"
+        else:
+            resolved_figure_title = figure_options.title
+        layout.set_figure_title(resolved_figure_title)
+        if show and plot_options.show:
+            plt.show()
+        return None
