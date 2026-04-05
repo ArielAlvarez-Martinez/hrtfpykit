@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from .dsp import calculate_itd, magnitude_to_db
+from .dsp import calculate_ild, calculate_itd, magnitude_to_db
 from .spatial import Sources
 
 
@@ -51,6 +51,7 @@ class Labels:
     samples: str = "Samples"
     impulse_response: str = "Amplitude"
     itd_seconds: str = "Absolute ITD (s)"
+    ild_db: str = "Absolute ILD (dB)"
     azimuth: str = "Azimuth (degrees)"
     elevation: str = "Elevation (degrees)"
     lateral: str = "Lateral (degrees)"
@@ -68,7 +69,6 @@ class Titles:
     horizontal_plane: str = "Horizontal Plane"
     median_plane: str = "Median Plane"
     elevation_spectrum: str = "Elevation Spectrum : [Azimuth= {angle}°]"
-    itd: str = "Absolute ITD"
 
 
 @dataclass(frozen=True)
@@ -307,6 +307,64 @@ class Heatmap:
         )
 
 
+class SourcePositionData:
+    @staticmethod
+    def create_positions(
+        sources: Sources,
+        coordinate_system: str,
+        angle_unit: str = "degrees",
+    ) -> np.ndarray:
+        source_positions = np.asarray(
+            sources.get_positions(angle_unit=angle_unit),
+            dtype=float,
+        )
+        if (
+            source_positions.ndim != 2
+            or source_positions.shape[0] == 0
+            or source_positions.shape[1] != 3
+        ):
+            raise ValueError("Source positions must have shape (M, 3)")
+
+        source_system = str(sources.get_source_coordinate_system()).strip().lower()
+        target_system = str(coordinate_system).strip().lower()
+        if target_system == source_system:
+            return source_positions
+        if target_system == "cartesian":
+            if source_system == "spherical":
+                return sources.spherical_to_cartesian(
+                    source_positions,
+                    angle_unit=angle_unit,
+                )
+            if source_system == "lateral-polar":
+                return sources.lateral_polar_to_cartesian(
+                    source_positions,
+                    angle_unit=angle_unit,
+                )
+        if target_system == "spherical":
+            if source_system == "cartesian":
+                return sources.cartesian_to_spherical(
+                    source_positions,
+                    angle_unit=angle_unit,
+                )
+            if source_system == "lateral-polar":
+                return sources.lateral_polar_to_spherical(
+                    source_positions,
+                    angle_unit=angle_unit,
+                )
+        if target_system == "lateral-polar":
+            if source_system == "cartesian":
+                return sources.cartesian_to_lateral_polar(
+                    source_positions,
+                    angle_unit=angle_unit,
+                )
+            if source_system == "spherical":
+                return sources.spherical_to_lateral_polar(
+                    source_positions,
+                    angle_unit=angle_unit,
+                )
+        raise ValueError(f"Unsupported source coordinate system conversion: {source_system!r} -> {target_system!r}")
+
+
 class ThreeDimensional:
     view_elev: float = 22.0
     view_azim: float = -37.0
@@ -327,71 +385,17 @@ class ThreeDimensional:
     }
 
     @staticmethod
-    def create_cartesian_positions(
-        sources: Sources,
-    ) -> np.ndarray:
-        source_positions = np.asarray(
-            sources.get_positions(angle_unit="degrees"),
-            dtype=float,
-        )
-        if (
-            source_positions.ndim != 2
-            or source_positions.shape[0] == 0
-            or source_positions.shape[1] != 3
-        ):
-            raise ValueError("Source positions must have shape (M, 3)")
-
-        source_system = str(sources.get_source_coordinate_system()).strip().lower()
-        if source_system == "cartesian":
-            return source_positions
-        if source_system == "spherical":
-            return sources.spherical_to_cartesian(
-                source_positions,
-                angle_unit="degrees",
-            )
-        if source_system == "lateral-polar":
-            return sources.lateral_polar_to_cartesian(
-                source_positions,
-                angle_unit="degrees",
-            )
-        raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
-
-    @staticmethod
     def create_layout(
         figsize: tuple[float, float] | None = None,
         margins: Margins | None = None,
     ) -> tuple[LayoutFigure, plt.Axes]:
-        resolved_figsize = (
-            (FigSizeDefault().width, FigSizeDefault().height)
-            if figsize is None
-            else figsize
-        )
-        resolved_margins = Margins() if margins is None else margins
-        configure_rc()
-        fig = plt.figure(figsize=resolved_figsize)
-        fig.subplots_adjust(
-            left=resolved_margins.left,
-            bottom=resolved_margins.bottom,
-            right=resolved_margins.right,
-            top=resolved_margins.top,
-            wspace=resolved_margins.wspace,
-            hspace=resolved_margins.hspace,
-        )
-        ax = fig.add_subplot(111, projection="3d")
-        setattr(ax, "hrtfpykit_subplot_title_y", 1.0)
-        setattr(
-            ax,
-            "hrtfpykit_subplot_title_y_with_figure_title",
-            Layout1.subplot_title_y,
-        )
-        layout = LayoutFigure(
-            fig=fig,
-            axes=np.asarray([ax], dtype=object),
+        layout = Projection.create_layout(
             layout=1,
-            positions=("main",),
-            figure_title_y=min(resolved_margins.top + Layout1.figure_title_offset, 0.98),
+            projection="3d",
+            figsize=figsize,
+            margins=margins,
         )
-        return layout, ax
+        return layout, layout.get_axis("main")
 
     @staticmethod
     def configure_axis(
@@ -730,8 +734,8 @@ class Layout1(Layout):
     subplot_title_y = 0.90
 
 
-class Layout2(Layout):
-    layout = 2
+class Layout2Vertical(Layout):
+    layout = 21
     rows = 2
     cols = 1
     positions = ("top", "bottom")
@@ -744,11 +748,7 @@ class Layout2(Layout):
     subplot_title_y = 0.90
 
 
-class Layout2Vertical(Layout2):
-    layout = 21
-
-
-class Layout2VerticalIndependent(Layout2):
+class Layout2VerticalIndependent(Layout2Vertical):
     layout = 23
     sharex = False
     figsize = (8, 12)
@@ -767,7 +767,7 @@ class Layout3(Layout):
     subplot_title_y = 0.98
 
 
-class Layout2Horizontal(Layout2):
+class Layout2Horizontal(Layout):
     layout = 22
     rows = 1
     cols = 2
@@ -781,7 +781,6 @@ class Layout2Horizontal(Layout2):
 class LayoutFactory:
     registry: dict[int, type[Layout]] = {
         1: Layout1,
-        2: Layout2,
         21: Layout2Vertical,
         22: Layout2Horizontal,
         23: Layout2VerticalIndependent,
@@ -800,6 +799,120 @@ class LayoutFactory:
                 f"layout accepts: {', '.join(str(value) for value in cls.registry)}"
             )
         return cls.registry[layout].create(figsize=figsize, margins=margins)
+
+
+class Projection:
+    @staticmethod
+    def create_layout(
+        layout: int,
+        projection: str,
+        figsize: tuple[float, float] | None = None,
+        margins: Margins | None = None,
+    ) -> LayoutFigure:
+        if layout not in LayoutFactory.registry:
+            raise ValueError(
+                f"layout accepts: {', '.join(str(value) for value in LayoutFactory.registry)}"
+            )
+        layout_class = LayoutFactory.registry[layout]
+        configure_rc()
+        resolved_figsize = layout_class.figsize if figsize is None else figsize
+        resolved_margins = Margins() if margins is None else margins
+        fig = plt.figure(figsize=resolved_figsize)
+        fig.subplots_adjust(
+            left=resolved_margins.left,
+            bottom=resolved_margins.bottom,
+            right=resolved_margins.right,
+            top=resolved_margins.top,
+            wspace=resolved_margins.wspace,
+            hspace=resolved_margins.hspace,
+        )
+        axes: list[plt.Axes] = []
+        shared_x_axis = None
+        shared_y_axis = None
+        for subplot_index in range(layout_class.rows * layout_class.cols):
+            subplot_kwargs: dict[str, object] = {"projection": projection}
+            if layout_class.sharex and shared_x_axis is not None:
+                subplot_kwargs["sharex"] = shared_x_axis
+            if layout_class.sharey and shared_y_axis is not None:
+                subplot_kwargs["sharey"] = shared_y_axis
+            ax = fig.add_subplot(
+                layout_class.rows,
+                layout_class.cols,
+                subplot_index + 1,
+                **subplot_kwargs,
+            )
+            if shared_x_axis is None:
+                shared_x_axis = ax
+            if shared_y_axis is None:
+                shared_y_axis = ax
+            setattr(ax, "hrtfpykit_subplot_title_y", 1.0)
+            setattr(
+                ax,
+                "hrtfpykit_subplot_title_y_with_figure_title",
+                layout_class.subplot_title_y,
+            )
+            axes.append(ax)
+        return LayoutFigure(
+            fig=fig,
+            axes=np.asarray(axes, dtype=object),
+            layout=layout_class.layout,
+            positions=layout_class.positions,
+            figure_title_y=min(
+                resolved_margins.top + layout_class.figure_title_offset,
+                0.98,
+            ),
+        )
+
+
+class Polar:
+    theta_tick_step: float = 30.0
+
+    @staticmethod
+    def create_horizontal_plane_curve(
+        sources: Sources,
+        planes,
+        values: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        indices, _ = planes.get_horizontal_plane_indices(
+            elevation=0.0,
+            angle_unit="degrees",
+        )
+        if indices.size == 0:
+            raise ValueError("Horizontal plane does not contain any source positions")
+
+        spherical_positions = SourcePositionData.create_positions(
+            sources=sources,
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        )[indices]
+        azimuth_values = np.mod(np.asarray(spherical_positions[:, 0], dtype=float), 360.0)
+        plane_values = np.asarray(values, dtype=float)[indices]
+        if plane_values.ndim != 1:
+            plane_values = np.asarray(plane_values, dtype=float).reshape(-1)
+
+        sort_indices = np.argsort(azimuth_values)
+        sorted_azimuth_values = azimuth_values[sort_indices]
+        sorted_plane_values = plane_values[sort_indices]
+        if sorted_azimuth_values.size > 1:
+            theta_values = np.deg2rad(
+                np.concatenate(
+                    (
+                        sorted_azimuth_values,
+                        np.array([sorted_azimuth_values[0] + 360.0], dtype=float),
+                    )
+                )
+            )
+            radial_values = np.concatenate(
+                (
+                    sorted_plane_values,
+                    np.array([sorted_plane_values[0]], dtype=float),
+                )
+            )
+        else:
+            theta_values = np.deg2rad(sorted_azimuth_values)
+            radial_values = sorted_plane_values
+        return theta_values, radial_values, sorted_plane_values
+
 
 def create_layout(
     layout: int,
@@ -1586,7 +1699,7 @@ class Plots:
         if position_count > 4:
             raise ValueError("plot_magnitude accepts up to 4 positions")
 
-        layout_number = 1 if position_count == 1 else 2 if position_count == 2 else 3
+        layout_number = 1 if position_count == 1 else 21 if position_count == 2 else 3
         layout = create_layout(
             layout=layout_number,
             figsize=figure_options.figsize,
@@ -1780,7 +1893,7 @@ class Plots:
         if position_count > 4:
             raise ValueError("plot_amplitude accepts up to 4 positions")
 
-        layout_number = 1 if position_count == 1 else 2 if position_count == 2 else 3
+        layout_number = 1 if position_count == 1 else 21 if position_count == 2 else 3
         layout = create_layout(
             layout=layout_number,
             figsize=figure_options.figsize,
@@ -2276,25 +2389,11 @@ class Plots:
         if indices.size == 0:
             raise ValueError("Selected plane does not contain any source positions")
 
-        source_positions = np.asarray(
-            self.Sources.get_positions(angle_unit="degrees")[indices],
-            dtype=float,
-        )
-        source_system = str(self.Sources.get_source_coordinate_system()).strip().lower()
-        if source_system == "spherical":
-            spherical_positions = source_positions
-        elif source_system == "cartesian":
-            spherical_positions = self.Sources.cartesian_to_spherical(
-                source_positions,
-                angle_unit="degrees",
-            )
-        elif source_system == "lateral-polar":
-            spherical_positions = self.Sources.lateral_polar_to_spherical(
-                source_positions,
-                angle_unit="degrees",
-            )
-        else:
-            raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
+        spherical_positions = SourcePositionData.create_positions(
+            sources=self.Sources,
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        )[indices]
 
         if plane_key == "horizontal":
             plane_axis_values = np.asarray(spherical_positions[:, 0], dtype=float)
@@ -2570,25 +2669,11 @@ class Plots:
         )
         panel_axis_options = layout.get_panel_axis_options(plot_options)
 
-        source_positions = np.asarray(
-            self.Sources.get_positions(angle_unit="degrees"),
-            dtype=float,
+        spherical_positions = SourcePositionData.create_positions(
+            sources=self.Sources,
+            coordinate_system="spherical",
+            angle_unit="degrees",
         )
-        source_system = str(self.Sources.get_source_coordinate_system()).strip().lower()
-        if source_system == "spherical":
-            spherical_positions = source_positions
-        elif source_system == "cartesian":
-            spherical_positions = self.Sources.cartesian_to_spherical(
-                source_positions,
-                angle_unit="degrees",
-            )
-        elif source_system == "lateral-polar":
-            spherical_positions = self.Sources.lateral_polar_to_spherical(
-                source_positions,
-                angle_unit="degrees",
-            )
-        else:
-            raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
 
         azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
         elevation_values = np.asarray(spherical_positions[:, 1], dtype=float)
@@ -2799,34 +2884,6 @@ class Plots:
         if self.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
 
-        indices, _ = self.Planes.get_horizontal_plane_indices(
-            elevation=0.0,
-            angle_unit="degrees",
-        )
-        if indices.size == 0:
-            raise ValueError("Horizontal plane does not contain any source positions")
-
-        source_positions = np.asarray(
-            self.Sources.get_positions(angle_unit="degrees")[indices],
-            dtype=float,
-        )
-        source_system = str(self.Sources.get_source_coordinate_system()).strip().lower()
-        if source_system == "spherical":
-            spherical_positions = source_positions
-        elif source_system == "cartesian":
-            spherical_positions = self.Sources.cartesian_to_spherical(
-                source_positions,
-                angle_unit="degrees",
-            )
-        elif source_system == "lateral-polar":
-            spherical_positions = self.Sources.lateral_polar_to_spherical(
-                source_positions,
-                angle_unit="degrees",
-            )
-        else:
-            raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
-
-        azimuth_values = np.mod(np.asarray(spherical_positions[:, 0], dtype=float), 360.0)
         itd_values = np.abs(
             np.asarray(
                 calculate_itd(
@@ -2834,49 +2891,21 @@ class Plots:
                     output="seconds",
                 ),
                 dtype=float,
-            )[indices]
-        )
-        if itd_values.ndim != 1:
-            itd_values = np.asarray(itd_values, dtype=float).reshape(-1)
-
-        sort_indices = np.argsort(azimuth_values)
-        sorted_azimuth_values = azimuth_values[sort_indices]
-        sorted_itd_values = itd_values[sort_indices]
-        if sorted_azimuth_values.size > 1:
-            theta_values = np.deg2rad(
-                np.concatenate(
-                    (
-                        sorted_azimuth_values,
-                        np.array([sorted_azimuth_values[0] + 360.0], dtype=float),
-                    )
-                )
             )
-            radial_values = np.concatenate(
-                (
-                    sorted_itd_values,
-                    np.array([sorted_itd_values[0]], dtype=float),
-                )
-            )
-        else:
-            theta_values = np.deg2rad(sorted_azimuth_values)
-            radial_values = sorted_itd_values
+        )
+        theta_values, radial_values, sorted_itd_values = Polar.create_horizontal_plane_curve(
+            sources=self.Sources,
+            planes=self.Planes,
+            values=itd_values,
+        )
 
-        resolved_figsize = (
-            (FigSizeDefault().width, FigSizeDefault().height)
-            if figure_options.figsize is None
-            else figure_options.figsize
+        layout = Projection.create_layout(
+            layout=1,
+            projection="polar",
+            figsize=figure_options.figsize,
+            margins=resolved_margins,
         )
-        configure_rc()
-        fig = plt.figure(figsize=resolved_figsize)
-        fig.subplots_adjust(
-            left=resolved_margins.left,
-            bottom=resolved_margins.bottom,
-            right=resolved_margins.right,
-            top=resolved_margins.top,
-            wspace=resolved_margins.wspace,
-            hspace=resolved_margins.hspace,
-        )
-        ax = fig.add_subplot(111, projection="polar")
+        ax = layout.get_axis("main")
 
         ax.plot(
             theta_values,
@@ -2885,7 +2914,7 @@ class Plots:
             linewidth=2.0,
         )
         ax.set_theta_zero_location("N")
-        theta_ticks = np.arange(0.0, 360.0, 30.0, dtype=float)
+        theta_ticks = np.arange(0.0, 360.0, Polar.theta_tick_step, dtype=float)
         ax.set_xticks(np.deg2rad(theta_ticks))
         ax.set_xticklabels([f"{int(tick)}°" for tick in theta_ticks])
         radial_max = float(np.max(sorted_itd_values)) if sorted_itd_values.size > 0 else 0.0
@@ -2910,6 +2939,133 @@ class Plots:
         ax.set_rlabel_position(350.0)
         resolved_title = (
             Labels().itd_seconds if figure_options.title is None else figure_options.title
+        )
+        if axis_options.title is not None:
+            resolved_title = axis_options.title
+        ax.set_title(resolved_title)
+        grid_enabled = True if axis_options.grid is None else axis_options.grid
+        ax.grid(grid_enabled)
+        if show and plot_options.show:
+            plt.show()
+        return None
+
+    def plot_ild_horizontal_plane(
+        self: "HRTF",
+        options: PlotOptions | None = None,
+        show: bool = True,
+    ) -> None:
+        """
+        Plot absolute ILD over the canonical horizontal plane in polar coordinates.
+
+        The horizontal plane at ``0`` degrees elevation is selected from the
+        current source grid, absolute interaural level differences are computed
+        in decibels, and the result is displayed in a polar plot. Azimuth is
+        represented on the angular axis and absolute ILD is represented on the
+        radial axis.
+
+        Parameters
+        ----------
+        options : PlotOptions or None, optional
+            Plot configuration used to control the figure settings, subplot
+            title, margins, and grid behavior. If ``None``, default plotting
+            options are used.
+        show : bool, optional
+            If ``True``, call ``plt.show()`` before finishing the method. If
+            ``False``, the figure is created without showing it.
+
+        Returns
+        -------
+        None
+
+        Use Cases
+        ---------
+        - Inspect the azimuth-dependent ILD pattern in the horizontal plane.
+        - Visualize binaural level cues using a compact polar representation.
+        - Create an ILD figure without showing it immediately.
+
+        Examples
+        --------
+        >>> hrtf.plot_ild_horizontal_plane()
+        >>> hrtf.plot_ild_horizontal_plane(show=False)
+        >>> hrtf.plot_ild_horizontal_plane(
+        ...     options=PlotOptions(
+        ...         figure=FigureOptions(title="Horizontal Plane ILD")
+        ...     )
+        ... )
+        """
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
+        axis_options = (
+            plot_options.axis if plot_options.axis is not None else AxisOptions()
+        )
+
+        if self.IR.values is None:
+            raise ValueError("IR data is not available")
+        if self.IR.sample_rate is None:
+            raise ValueError("IR sample_rate is required")
+
+        ild_values = np.abs(
+            np.asarray(
+                calculate_ild(
+                    self.IR,
+                    domain="ir",
+                    output="db",
+                    mode="broad-band",
+                ),
+                dtype=float,
+            )
+        )
+        theta_values, radial_values, sorted_ild_values = Polar.create_horizontal_plane_curve(
+            sources=self.Sources,
+            planes=self.Planes,
+            values=ild_values,
+        )
+
+        layout = Projection.create_layout(
+            layout=1,
+            projection="polar",
+            figsize=figure_options.figsize,
+            margins=resolved_margins,
+        )
+        ax = layout.get_axis("main")
+
+        ax.plot(
+            theta_values,
+            radial_values,
+            color="steelblue",
+            linewidth=2.0,
+        )
+        ax.set_theta_zero_location("N")
+        theta_ticks = np.arange(0.0, 360.0, Polar.theta_tick_step, dtype=float)
+        ax.set_xticks(np.deg2rad(theta_ticks))
+        ax.set_xticklabels([f"{int(tick)}°" for tick in theta_ticks])
+        radial_max = float(np.max(sorted_ild_values)) if sorted_ild_values.size > 0 else 0.0
+        radial_tick_step = 5.0
+        if np.isclose(radial_max, 0.0):
+            resolved_radial_max = radial_tick_step
+        else:
+            resolved_radial_max = (
+                np.ceil((radial_max * 1.1) / radial_tick_step) * radial_tick_step
+            )
+        radial_ticks = np.arange(
+            radial_tick_step,
+            resolved_radial_max + (0.5 * radial_tick_step),
+            radial_tick_step,
+            dtype=float,
+        )
+        ax.set_ylim(0.0, resolved_radial_max)
+        ax.set_yticks(radial_ticks)
+        ax.set_yticklabels(
+            [f"{int(np.rint(tick))}" for tick in radial_ticks]
+        )
+        ax.set_rlabel_position(350.0)
+        resolved_title = (
+            Labels().ild_db if figure_options.title is None else figure_options.title
         )
         if axis_options.title is not None:
             resolved_title = axis_options.title
@@ -2971,7 +3127,11 @@ class Plots:
             plot_options.axis if plot_options.axis is not None else AxisOptions()
         )
 
-        cartesian_positions = ThreeDimensional.create_cartesian_positions(self.Sources)
+        cartesian_positions = SourcePositionData.create_positions(
+            sources=self.Sources,
+            coordinate_system="cartesian",
+            angle_unit="degrees",
+        )
         layout, ax = ThreeDimensional.create_layout(
             figsize=figure_options.figsize,
             margins=resolved_margins,
@@ -3084,7 +3244,11 @@ class Plots:
             if plane_key not in resolved_planes:
                 resolved_planes.append(plane_key)
 
-        cartesian_positions = ThreeDimensional.create_cartesian_positions(self.Sources)
+        cartesian_positions = SourcePositionData.create_positions(
+            sources=self.Sources,
+            coordinate_system="cartesian",
+            angle_unit="degrees",
+        )
         layout, ax = ThreeDimensional.create_layout(
             figsize=figure_options.figsize,
             margins=resolved_margins,
