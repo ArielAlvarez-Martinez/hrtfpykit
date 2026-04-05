@@ -394,6 +394,33 @@ class LayoutFigure:
                     ax.title.set_y(float(subplot_title_y))
         self.fig.suptitle(title, x=figure_title_x, y=self.figure_title_y)
 
+    def get_panel_axis_options(
+        self,
+        plot_options: PlotOptions,
+    ) -> dict[int, AxisOptions]:
+        panel_axis_options: dict[int, AxisOptions] = {}
+        if plot_options.panels is None:
+            return panel_axis_options
+        for panel, panel_options in plot_options.panels.items():
+            if isinstance(panel, str):
+                if panel not in self.positions:
+                    raise ValueError(
+                        f"panel accepts: {', '.join(self.positions)}"
+                    )
+                panel_index = self.positions.index(panel)
+            else:
+                panel_index = int(panel)
+                if panel_index < 0 or panel_index >= self.axes.size:
+                    raise ValueError(
+                        f"panel index must be between 0 and {self.axes.size - 1}"
+                    )
+            if panel_index in panel_axis_options:
+                raise ValueError(
+                    f"panel override for subplot {panel_index} is duplicated"
+                )
+            panel_axis_options[panel_index] = panel_options
+        return panel_axis_options
+
 
 def configure_rc() -> None:
     rc = Rc()
@@ -1263,34 +1290,6 @@ class Axis:
 
 class Plots:
     #  Inheritance. All methods will accept a instance of HRTF , then HRTF will inherit from Plots
-    @staticmethod
-    def get_panel_axis_options(
-        layout: LayoutFigure,
-        plot_options: PlotOptions,
-    ) -> dict[int, AxisOptions]:
-        panel_axis_options: dict[int, AxisOptions] = {}
-        if plot_options.panels is None:
-            return panel_axis_options
-        for panel, panel_options in plot_options.panels.items():
-            if isinstance(panel, str):
-                if panel not in layout.positions:
-                    raise ValueError(
-                        f"panel accepts: {', '.join(layout.positions)}"
-                    )
-                panel_index = layout.positions.index(panel)
-            else:
-                panel_index = int(panel)
-                if panel_index < 0 or panel_index >= layout.axes.size:
-                    raise ValueError(
-                        f"panel index must be between 0 and {layout.axes.size - 1}"
-                    )
-            if panel_index in panel_axis_options:
-                raise ValueError(
-                    f"panel override for subplot {panel_index} is duplicated"
-                )
-            panel_axis_options[panel_index] = panel_options
-        return panel_axis_options
-
     def plot_magnitude(
         self: "HRTF",
         positions: str | list | np.ndarray = "front",
@@ -1412,7 +1411,7 @@ class Plots:
             figsize=figure_options.figsize,
             margins=resolved_margins,
         )
-        panel_axis_options = self.get_panel_axis_options(layout, plot_options)
+        panel_axis_options = layout.get_panel_axis_options(plot_options)
 
         frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
@@ -1615,7 +1614,7 @@ class Plots:
             figsize=figure_options.figsize,
             margins=resolved_margins,
         )
-        panel_axis_options = self.get_panel_axis_options(layout, plot_options)
+        panel_axis_options = layout.get_panel_axis_options(plot_options)
 
         ir_values = np.asarray(self.IR.values, dtype=float)
         if ir_values.ndim < 2 or ir_values.shape[-1] == 0:
@@ -1818,7 +1817,7 @@ class Plots:
             figsize=figure_options.figsize,
             margins=resolved_margins,
         )
-        panel_axis_options = self.get_panel_axis_options(layout, plot_options)
+        panel_axis_options = layout.get_panel_axis_options(plot_options)
 
         left_axis_options = axis_options.merge(panel_axis_options.get(0))
         right_axis_options = axis_options.merge(panel_axis_options.get(1))
@@ -2110,7 +2109,7 @@ class Plots:
             figsize=figure_options.figsize,
             margins=resolved_margins,
         )
-        panel_axis_options = self.get_panel_axis_options(layout, plot_options)
+        panel_axis_options = layout.get_panel_axis_options(plot_options)
 
         indices, _ = self.Planes.get_plane_indices(
             plane=plane_key,
@@ -2413,7 +2412,7 @@ class Plots:
             figsize=figure_options.figsize,
             margins=resolved_margins,
         )
-        panel_axis_options = self.get_panel_axis_options(layout, plot_options)
+        panel_axis_options = layout.get_panel_axis_options(plot_options)
 
         source_positions = np.asarray(
             self.Sources.get_positions(angle_unit="degrees"),
