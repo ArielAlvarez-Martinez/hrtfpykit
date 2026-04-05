@@ -64,10 +64,10 @@ class Titles:
     cartesian_position: str = "Position : [x= {x}, y= {y}, z= {z}]"
     lateral_polar_alias: str = "{name} : [Lateral= {lateral}°, Polar= {polar}°]"
     lateral_polar_position: str = "Position : [Lateral= {lateral}°, Polar= {polar}°]"
-    horizontal_plane: str = "Horizontal Plane : [Elevation= {angle}°]"
-    median_plane: str = "Median Plane : [Azimuths= {primary}°, {opposite}°]"
+    horizontal_plane: str = "Horizontal Plane"
+    median_plane: str = "Median Plane"
     frontal_plane: str = "Frontal Plane : [Azimuths= {primary}°, {opposite}°]"
-    vertical_slice: str = "Vertical Slice : [Azimuth= {angle}°]"
+    elevation_spectrum: str = "Elevation Spectrum : [Azimuth= {angle}°]"
 
 
 @dataclass(frozen=True)
@@ -135,6 +135,21 @@ class FrequencyAxisOptions:
 
 
 @dataclass(frozen=True)
+class AzimuthAxisOptions:
+    range_mode: str | None = None
+
+    def merge(
+        self,
+        options: AzimuthAxisOptions | None = None,
+    ) -> AzimuthAxisOptions:
+        if options is None:
+            return self
+        return AzimuthAxisOptions(
+            range_mode=self.range_mode if options.range_mode is None else options.range_mode,
+        )
+
+
+@dataclass(frozen=True)
 class AxisOptions:
     xlabel: str | None = None
     ylabel: str | None = None
@@ -143,6 +158,7 @@ class AxisOptions:
     grid: bool | None = None
     legend: LegendOptions | None = None
     frequency_axis: FrequencyAxisOptions | None = None
+    azimuth_axis: AzimuthAxisOptions | None = None
 
     def merge(self, options: AxisOptions | None = None) -> AxisOptions:
         if options is None:
@@ -152,6 +168,11 @@ class AxisOptions:
             FrequencyAxisOptions()
             if self.frequency_axis is None
             else self.frequency_axis
+        )
+        base_azimuth_axis = (
+            AzimuthAxisOptions()
+            if self.azimuth_axis is None
+            else self.azimuth_axis
         )
         return AxisOptions(
             xlabel=self.xlabel if options.xlabel is None else options.xlabel,
@@ -165,6 +186,7 @@ class AxisOptions:
             grid=self.grid if options.grid is None else options.grid,
             legend=base_legend.merge(options.legend),
             frequency_axis=base_frequency_axis.merge(options.frequency_axis),
+            azimuth_axis=base_azimuth_axis.merge(options.azimuth_axis),
         )
 
 
@@ -220,6 +242,7 @@ class Heatmap:
         "default": "viridis",
         "magma": "magma",
         "cividis": "cividis",
+        "jet": "jet",
     }
     colorbar_location: str = "right"
     colorbar_fraction: float = 0.03
@@ -540,6 +563,9 @@ class Axis:
     shared_x_visible: bool = True
     direction_tick_step: float = 20.0
     elevation_tick_step: float = 10.0
+    azimuth_range_modes: tuple[str, str] = ("0-360", "-180-180")
+    azimuth_limits_unsigned: tuple[float, float] = (0.0, 360.0)
+    azimuth_limits_signed: tuple[float, float] = (-180.0, 180.0)
     lateral_limits: tuple[float, float] = (-90.0, 90.0)
     lateral_ticks: tuple[float, ...] = (-90.0, -45.0, 0.0, 45.0, 90.0)
     polar_limits: tuple[float, float] = (-90.0, 270.0)
@@ -1057,6 +1083,41 @@ class Axis:
         )
 
     @staticmethod
+    def get_azimuth_range_mode(
+        options: AxisOptions | None = None,
+    ) -> str:
+        axis_options = AxisOptions() if options is None else options
+        azimuth_axis_options = (
+            AzimuthAxisOptions()
+            if axis_options.azimuth_axis is None
+            else axis_options.azimuth_axis
+        )
+        resolved_range_mode = (
+            Axis.azimuth_range_modes[0]
+            if azimuth_axis_options.range_mode is None
+            else str(azimuth_axis_options.range_mode).strip()
+        )
+        if resolved_range_mode not in Axis.azimuth_range_modes:
+            raise ValueError(
+                "azimuth axis range_mode accepts "
+                f"{Axis.azimuth_range_modes[0]} or {Axis.azimuth_range_modes[1]}"
+            )
+        return resolved_range_mode
+
+    @staticmethod
+    def transform_azimuth_values(
+        values: np.ndarray,
+        options: AxisOptions | None = None,
+    ) -> np.ndarray:
+        resolved_values = np.asarray(values, dtype=float)
+        resolved_range_mode = Axis.get_azimuth_range_mode(options=options)
+        if resolved_range_mode == Axis.azimuth_range_modes[0]:
+            return np.mod(resolved_values, 360.0)
+        transformed_values = np.mod(resolved_values + 180.0, 360.0) - 180.0
+        transformed_values[np.isclose(transformed_values, -180.0, atol=1e-8, rtol=0.0)] = 180.0
+        return transformed_values
+
+    @staticmethod
     def create_azimuth_axis(
         ax: plt.Axes,
         axis: str,
@@ -1064,12 +1125,23 @@ class Axis:
         options: AxisOptions | None = None,
     ) -> None:
         labels = Labels()
+        resolved_range_mode = Axis.get_azimuth_range_mode(options=options)
+        transformed_values = (
+            None
+            if values is None
+            else Axis.transform_azimuth_values(values=values, options=options)
+        )
         Axis.create_direction_axis(
             ax=ax,
             axis=axis,
             default_label=labels.azimuth,
-            values=values,
+            values=transformed_values,
             tick_step=Axis.direction_tick_step,
+            default_limits=(
+                Axis.azimuth_limits_unsigned
+                if resolved_range_mode == Axis.azimuth_range_modes[0]
+                else Axis.azimuth_limits_signed
+            ),
             options=options,
         )
 
@@ -1148,43 +1220,25 @@ class Axis:
     @staticmethod
     def create_plane_title(
         plane: str,
-        real_plane_angles: np.ndarray,
     ) -> str:
         plane_key = str(plane).strip().lower()
         if plane_key == "horizontal":
-            return Axis.create_horizontal_plane_title(
-                real_plane_angles=real_plane_angles,
-            )
+            return Axis.create_horizontal_plane_title()
         if plane_key == "median":
-            return Axis.create_median_plane_title(
-                real_plane_angles=real_plane_angles,
-            )
+            return Axis.create_median_plane_title()
         raise ValueError("plane accepts horizontal or median")
 
     @staticmethod
     def create_horizontal_plane_title(
-        real_plane_angles: np.ndarray,
     ) -> str:
         titles = Titles()
-        resolved_plane_angles = np.asarray(real_plane_angles, dtype=float).reshape(-1)
-        if resolved_plane_angles.size < 1:
-            raise ValueError("horizontal plane title requires one plane angle")
-        return titles.horizontal_plane.format(
-            angle=float(resolved_plane_angles[0]),
-        )
+        return titles.horizontal_plane
 
     @staticmethod
     def create_median_plane_title(
-        real_plane_angles: np.ndarray,
     ) -> str:
         titles = Titles()
-        resolved_plane_angles = np.asarray(real_plane_angles, dtype=float).reshape(-1)
-        if resolved_plane_angles.size < 2:
-            raise ValueError("median plane title requires two plane angles")
-        return titles.median_plane.format(
-            primary=float(resolved_plane_angles[0]),
-            opposite=float(resolved_plane_angles[1]),
-        )
+        return titles.median_plane
 
     @staticmethod
     def create_frontal_plane_title(
@@ -1200,11 +1254,11 @@ class Axis:
         )
 
     @staticmethod
-    def create_vertical_slice_title(
+    def create_elevation_spectrum_title(
         real_azimuth: float,
     ) -> str:
         titles = Titles()
-        return titles.vertical_slice.format(angle=float(real_azimuth))
+        return titles.elevation_spectrum.format(angle=float(real_azimuth))
 
 
 class Plots:
@@ -1241,7 +1295,7 @@ class Plots:
         self: "HRTF",
         positions: str | list | np.ndarray = "front",
         position_coordinate_system: str = "spherical",
-        x_axis: str = "log",
+        x_axis: str = "linear",
         unit: str = "db",
         ear: str = "both",
         reference: float | str = 1.0,
@@ -1250,6 +1304,65 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> LayoutFigure:
+        """Plot HRTF magnitude responses for up to four source positions.
+
+        Parameters
+        ----------
+        positions : str | list | np.ndarray, default="front"
+            One position or a collection of positions to plot. Named aliases such
+            as ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
+            Up to four positions can be displayed in a single figure.
+        position_coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
+            Coordinate system used to interpret ``positions``.
+        x_axis : {"linear", "log"}, default="linear"
+            Frequency-axis scale used on the x axis.
+        unit : {"db", "linear"}, default="db"
+            Magnitude representation used on the y axis.
+        ear : {"left", "right", "both"}, default="both"
+            Ear channel to display. When ``"both"`` is selected, left and right
+            ear responses are drawn together in each subplot.
+        reference : float | {"max"}, default=1.0
+            Reference used when ``unit="db"``. A numeric value uses a fixed dB
+            reference. ``"max"`` normalizes the plotted magnitude to the maximum
+            selected value.
+        freq_min : float | None, default=None
+            Minimum frequency in Hz included in the plot.
+        freq_max : float | None, default=None
+            Maximum frequency in Hz included in the plot.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, legend, frequency-axis, and per-panel overrides.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+
+        Returns
+        -------
+        LayoutFigure
+            Created figure layout with the rendered magnitude subplots.
+
+        Use Cases
+        ---------
+        - Compare magnitude responses across several source positions.
+        - Inspect left, right, or binaural magnitude structure at a specific location.
+        - Export customized magnitude figures without showing them immediately.
+
+        Examples
+        --------
+        Plot the default front position:
+
+        >>> hrtf.plot_magnitude()
+
+        Plot left and right positions with both ears:
+
+        >>> hrtf.plot_magnitude(positions=["left", "right"], ear="both")
+
+        Plot one position in linear magnitude with a logarithmic frequency axis:
+
+        >>> hrtf.plot_magnitude(positions="front", unit="linear", x_axis="log")
+
+        Create the figure without showing it immediately:
+
+        >>> layout = hrtf.plot_magnitude(show=False)
+        """
         accepted_parameters = AcceptedParameters()
         if unit not in accepted_parameters.units:
             raise AttributeError(
@@ -1408,6 +1521,55 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> LayoutFigure:
+        """Plot HRIR amplitude responses for up to four source positions.
+
+        Parameters
+        ----------
+        positions : str | list | np.ndarray, default="front"
+            One position or a collection of positions to plot. Named aliases such
+            as ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
+            Up to four positions can be displayed in a single figure.
+        position_coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
+            Coordinate system used to interpret ``positions``.
+        ear : {"left", "right", "both"}, default="both"
+            Ear channel to display. When ``"both"`` is selected, left and right
+            ear waveforms are drawn together in each subplot.
+        x_axis : {"time", "samples"}, default="time"
+            Horizontal axis used for the waveform representation.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, legend, and per-panel overrides.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+
+        Returns
+        -------
+        LayoutFigure
+            Created figure layout with the rendered amplitude subplots.
+
+        Use Cases
+        ---------
+        - Inspect HRIR waveform shape for one or several directions.
+        - Compare left and right ear impulse responses at the same position.
+        - Export waveform figures without showing them immediately.
+
+        Examples
+        --------
+        Plot the default front position:
+
+        >>> hrtf.plot_amplitude()
+
+        Plot two positions using sample index on the x axis:
+
+        >>> hrtf.plot_amplitude(positions=["front", "left"], x_axis="samples")
+
+        Plot a single ear at a named position:
+
+        >>> hrtf.plot_amplitude(positions="right", ear="left")
+
+        Create the figure without showing it immediately:
+
+        >>> layout = hrtf.plot_amplitude(show=False)
+        """
         accepted_parameters = AcceptedParameters()
         if ear not in accepted_parameters.ears:
             raise AttributeError(
@@ -1526,7 +1688,7 @@ class Plots:
         position_coordinate_system: str = "spherical",
         ear: str = "both",
         x_axis: str = "time",
-        frequency_x_axis: str = "log",
+        frequency_x_axis: str = "linear",
         unit: str = "db",
         reference: float | str = 1.0,
         freq_min: float | None = None,
@@ -1534,6 +1696,72 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> LayoutFigure:
+        """Plot amplitude and magnitude views for a single source position.
+
+        Parameters
+        ----------
+        positions : str | list | np.ndarray, default="front"
+            Position query to plot. Exactly one position is accepted. Named aliases
+            such as ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
+        position_coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
+            Coordinate system used to interpret ``positions``.
+        ear : {"left", "right", "both"}, default="both"
+            Ear channel to display in both subplots.
+        x_axis : {"time", "samples"}, default="time"
+            Horizontal axis used for the amplitude subplot.
+        frequency_x_axis : {"linear", "log"}, default="linear"
+            Frequency-axis scale used on the magnitude subplot.
+        unit : {"db", "linear"}, default="db"
+            Magnitude representation used on the right subplot.
+        reference : float | {"max"}, default=1.0
+            Reference used when ``unit="db"`` for the magnitude subplot.
+        freq_min : float | None, default=None
+            Minimum frequency in Hz included in the magnitude subplot.
+        freq_max : float | None, default=None
+            Maximum frequency in Hz included in the magnitude subplot.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, legend, frequency-axis, and panel overrides.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+
+        Returns
+        -------
+        LayoutFigure
+            Created figure layout with the amplitude subplot on the left and the
+            magnitude subplot on the right.
+
+        Use Cases
+        ---------
+        - Inspect time-domain and frequency-domain behavior for the same direction.
+        - Compare left and right ear waveform and magnitude structure together.
+        - Export a compact two-panel summary for one position.
+
+        Examples
+        --------
+        Plot the default front position:
+
+        >>> hrtf.plot_amplitude_and_magnitude()
+
+        Plot one position using sample index and linear magnitude:
+
+        >>> hrtf.plot_amplitude_and_magnitude(
+        ...     positions="left",
+        ...     x_axis="samples",
+        ...     unit="linear",
+        ... )
+
+        Plot both ears with a logarithmic frequency axis:
+
+        >>> hrtf.plot_amplitude_and_magnitude(
+        ...     positions="front",
+        ...     ear="both",
+        ...     frequency_x_axis="log",
+        ... )
+
+        Create the figure without showing it immediately:
+
+        >>> layout = hrtf.plot_amplitude_and_magnitude(show=False)
+        """
         accepted_parameters = AcceptedParameters()
         if ear not in accepted_parameters.ears:
             raise AttributeError(
@@ -1755,11 +1983,10 @@ class Plots:
             plt.show()
         return layout
 
-    def plot_spectrum(
+    def plot_plane_spectrum(
         self: "HRTF",
         plane: str = "median",
-        plane_angle: float | None = None,
-        x_axis: str = "log",
+        x_axis: str = "linear",
         unit: str = "db",
         ear: str = "both",
         reference: float | str = "max",
@@ -1768,10 +1995,79 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> LayoutFigure:
+        """Plot a frequency-angle spectrum heatmap for a canonical HRTF plane.
+
+        Parameters
+        ----------
+        plane : {"horizontal", "median"}, default="median"
+            Plane to visualize. ``"horizontal"`` uses the canonical horizontal
+            plane at ``0`` degrees elevation. ``"median"`` uses the canonical
+            median plane defined by the front-back sagittal path.
+        x_axis : {"linear", "log"}, default="linear"
+            Frequency-axis scale used on the x axis.
+        unit : {"db", "linear"}, default="db"
+            Magnitude representation used for the heatmap values.
+        ear : {"left", "right", "both"}, default="both"
+            Ear channel to display. When ``"both"`` is selected, a separate panel
+            is created for each ear.
+        reference : float | {"max"}, default="max"
+            Reference used when ``unit="db"``. A numeric value uses a fixed dB
+            reference. ``"max"`` normalizes the plotted plane to its maximum value.
+        freq_min : float | None, default=None
+            Minimum frequency in Hz included in the plot. When ``None``, the plot
+            uses the available lower bound from the HRTF frequency bins.
+        freq_max : float | None, default=None
+            Maximum frequency in Hz included in the plot. When ``None``, the plot
+            uses the available upper bound from the HRTF frequency bins.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, heatmap, and panel overrides. For the
+            horizontal plane, ``options.axis.azimuth_axis`` can be used to choose
+            the azimuth plotting convention, for example ``"-180-180"`` or
+            ``"0-360"``.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+
+        Returns
+        -------
+        LayoutFigure
+            Created figure layout with the rendered spectrum heatmap panels.
+
+        Use Cases
+        ---------
+        - Inspect the canonical horizontal-plane spectrum over azimuth.
+        - Inspect the canonical median-plane spectrum over polar angle.
+        - Compare left and right ear spectral structure in the same plane.
+        - Export plane-based HRTF heatmaps without showing them immediately.
+
+        Examples
+        --------
+        Plot the canonical median plane with default settings:
+
+        >>> hrtf.plot_plane_spectrum()
+
+        Plot the horizontal plane for the left ear only:
+
+        >>> hrtf.plot_plane_spectrum(plane="horizontal", ear="left")
+
+        Plot the horizontal plane using signed azimuth values:
+
+        >>> hrtf.plot_plane_spectrum(
+        ...     plane="horizontal",
+        ...     options=PlotOptions(
+        ...         axis=AxisOptions(
+        ...             azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
+        ...         )
+        ...     ),
+        ... )
+
+        Create the figure without showing it immediately:
+
+        >>> layout = hrtf.plot_plane_spectrum(show=False)
+        """
         accepted_parameters = AcceptedParameters()
         if plane not in ("horizontal", "median"):
             raise AttributeError(
-                "plot_spectrum plane accepts horizontal or median"
+                "plot_plane_spectrum plane accepts horizontal or median"
             )
         if unit not in accepted_parameters.units:
             raise AttributeError(
@@ -1794,9 +2090,9 @@ class Plots:
         resolved_margins = (
             figure_options.margins if figure_options.margins is not None else Margins()
         )
-        axis_options = (
-            plot_options.axis if plot_options.axis is not None else AxisOptions()
-        )
+        axis_options = AxisOptions(
+            azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
+        ).merge(plot_options.axis)
         heatmap_options = HeatmapOptions(cmap="magma").merge(plot_options.heatmap)
         heatmap_frequency_axis_options = (
             FrequencyAxisOptions()
@@ -1808,10 +2104,6 @@ class Plots:
             raise ValueError("TF data is not available")
 
         plane_key = str(plane).strip().lower()
-        resolved_plane_angle = 0.0 if plane_angle is None else float(plane_angle)
-        if not np.isfinite(resolved_plane_angle):
-            raise ValueError("plane_angle must be a finite value")
-
         layout_number = 22 if ear == "both" else 1
         layout = create_layout(
             layout=layout_number,
@@ -1820,9 +2112,9 @@ class Plots:
         )
         panel_axis_options = self.get_panel_axis_options(layout, plot_options)
 
-        indices, real_plane_angles = self.Planes.get_plane_indices(
+        indices, _ = self.Planes.get_plane_indices(
             plane=plane_key,
-            angle=resolved_plane_angle,
+            angle=0.0,
             angle_unit="degrees",
         )
         if indices.size == 0:
@@ -1856,9 +2148,6 @@ class Plots:
                 angle_unit="degrees",
             )
             plane_axis_values = np.asarray(lateral_polar_positions[:, 1], dtype=float)
-
-        sort_indices = np.argsort(plane_axis_values)
-        sorted_plane_axis_values = plane_axis_values[sort_indices]
 
         frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
@@ -1900,8 +2189,6 @@ class Plots:
                 plane_values = magnitude_to_db(plane_values, reference=plot_reference)
             else:
                 plane_values = magnitude_to_db(plane_values, reference=reference)
-        plane_values = plane_values[sort_indices]
-
         if ear == "both":
             if plane_values.shape[1] < 2:
                 raise ValueError(
@@ -1934,10 +2221,21 @@ class Plots:
         ):
             ax = layout.get_axis(panel_position)
             resolved_axis_options = axis_options.merge(panel_axis_options.get(panel_index))
+            panel_plane_axis_values = (
+                Axis.transform_azimuth_values(
+                    values=plane_axis_values,
+                    options=resolved_axis_options,
+                )
+                if plane_key == "horizontal"
+                else np.asarray(plane_axis_values, dtype=float)
+            )
+            panel_sort_indices = np.argsort(panel_plane_axis_values)
+            sorted_panel_plane_axis_values = panel_plane_axis_values[panel_sort_indices]
+            sorted_spectrum_matrix = spectrum_matrix[panel_sort_indices, :]
             mesh = ax.pcolormesh(
                 frequency_khz,
-                sorted_plane_axis_values,
-                spectrum_matrix,
+                sorted_panel_plane_axis_values,
+                sorted_spectrum_matrix,
                 shading="auto",
                 cmap=heatmap_colormap,
                 vmin=vmin,
@@ -1960,7 +2258,7 @@ class Plots:
                 ax=ax,
                 axis="y",
                 plane=plane_key,
-                values=sorted_plane_axis_values,
+                values=sorted_panel_plane_axis_values,
                 options=resolved_axis_options,
             )
             resolved_title = (
@@ -1984,7 +2282,6 @@ class Plots:
         resolved_figure_title = (
             Axis.create_plane_title(
                 plane=plane_key,
-                real_plane_angles=real_plane_angles,
             )
             if figure_options.title is None
             else figure_options.title
@@ -1994,10 +2291,10 @@ class Plots:
             plt.show()
         return layout
 
-    def plot_vertical_slice_spectrum(
+    def plot_elevation_spectrum(
         self: "HRTF",
         azimuth: float | str = 0.0,
-        x_axis: str = "log",
+        x_axis: str = "linear",
         unit: str = "db",
         ear: str = "both",
         reference: float | str = "max",
@@ -2006,6 +2303,62 @@ class Plots:
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> LayoutFigure:
+        """Plot a fixed-azimuth elevation spectrum heatmap.
+
+        Parameters
+        ----------
+        azimuth : float | str, default=0.0
+            Azimuth used to select the elevation slice. Named aliases such as
+            ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
+            The nearest available azimuth in the source grid is used.
+        x_axis : {"linear", "log"}, default="linear"
+            Frequency-axis scale used on the x axis.
+        unit : {"db", "linear"}, default="db"
+            Magnitude representation used for the heatmap values.
+        ear : {"left", "right", "both"}, default="both"
+            Ear channel to display. When ``"both"`` is selected, a separate panel
+            is created for each ear.
+        reference : float | {"max"}, default="max"
+            Reference used when ``unit="db"``. A numeric value uses a fixed dB
+            reference. ``"max"`` normalizes the plotted slice to its maximum value.
+        freq_min : float | None, default=None
+            Minimum frequency in Hz included in the plot.
+        freq_max : float | None, default=None
+            Maximum frequency in Hz included in the plot.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, heatmap, and panel overrides.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+
+        Returns
+        -------
+        LayoutFigure
+            Created figure layout with the rendered elevation-spectrum heatmap panels.
+
+        Use Cases
+        ---------
+        - Inspect how magnitude changes with elevation at a fixed azimuth.
+        - Compare left and right ear spectral structure along one azimuth slice.
+        - Export elevation-spectrum heatmaps without showing them immediately.
+
+        Examples
+        --------
+        Plot the front elevation spectrum with default settings:
+
+        >>> hrtf.plot_elevation_spectrum()
+
+        Plot the left-side elevation spectrum for one ear:
+
+        >>> hrtf.plot_elevation_spectrum(azimuth="left", ear="left")
+
+        Plot a numeric azimuth with logarithmic frequency scaling:
+
+        >>> hrtf.plot_elevation_spectrum(azimuth=30.0, x_axis="log")
+
+        Create the figure without showing it immediately:
+
+        >>> layout = hrtf.plot_elevation_spectrum(show=False)
+        """
         accepted_parameters = AcceptedParameters()
         if unit not in accepted_parameters.units:
             raise AttributeError(
@@ -2095,7 +2448,7 @@ class Plots:
         )
         indices = np.where(selected)[0]
         if indices.size == 0:
-            raise ValueError("Selected vertical slice does not contain any source positions")
+            raise ValueError("Selected elevation spectrum does not contain any source positions")
 
         slice_elevation_values = elevation_values[indices]
         sort_indices = np.argsort(slice_elevation_values)
@@ -2222,7 +2575,7 @@ class Plots:
                 options=heatmap_options,
             )
         resolved_figure_title = (
-            Axis.create_vertical_slice_title(real_azimuth=real_azimuth)
+            Axis.create_elevation_spectrum_title(real_azimuth=real_azimuth)
             if figure_options.title is None
             else figure_options.title
         )

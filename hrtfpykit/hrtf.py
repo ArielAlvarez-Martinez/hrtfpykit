@@ -328,3 +328,4 @@ class HRTF(Plots):
             hrtf.fft_length = fft_length_used
             hrtf.SOFAConventions = convention
             return hrtf
+
