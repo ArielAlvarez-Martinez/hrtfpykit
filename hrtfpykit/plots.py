@@ -67,6 +67,7 @@ class Titles:
     lateral_polar_alias: str = "{name} : [Lateral= {lateral}°, Polar= {polar}°]"
     lateral_polar_position: str = "Position : [Lateral= {lateral}°, Polar= {polar}°]"
     horizontal_plane: str = "Horizontal Plane"
+    horizontal_plane_elevation: str = "Horizontal Plane : [Elevation= {angle}°]"
     median_plane: str = "Median Plane"
     elevation_spectrum: str = "Elevation Spectrum : [Azimuth= {angle}°]"
 
@@ -872,9 +873,10 @@ class Polar:
         sources: Sources,
         planes,
         values: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        indices, _ = planes.get_horizontal_plane_indices(
-            elevation=0.0,
+        elevation: float = 0.0,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+        indices, real_elevation = planes.get_horizontal_plane_indices(
+            elevation=elevation,
             angle_unit="degrees",
         )
         if indices.size == 0:
@@ -911,7 +913,7 @@ class Polar:
         else:
             theta_values = np.deg2rad(sorted_azimuth_values)
             radial_values = sorted_plane_values
-        return theta_values, radial_values, sorted_plane_values
+        return theta_values, radial_values, sorted_plane_values, float(real_elevation)
 
 
 def create_layout(
@@ -1577,11 +1579,14 @@ class Axis:
     @staticmethod
     def create_plane_title(
         plane: str,
+        elevation_angle: float = 0.0,
     ) -> str:
         plane_key = str(plane).strip().lower()
         titles = Titles()
         if plane_key == "horizontal":
-            return titles.horizontal_plane
+            if np.isclose(float(elevation_angle), 0.0, atol=1e-8, rtol=0.0):
+                return titles.horizontal_plane
+            return titles.horizontal_plane_elevation.format(angle=float(elevation_angle))
         if plane_key == "median":
             return titles.median_plane
         raise ValueError("plane accepts horizontal or median")
@@ -2258,6 +2263,7 @@ class Plots:
     def plot_plane_spectrum(
         self: "HRTF",
         plane: str = "median",
+        elevation_angle: float = 0.0,
         x_axis: str = "linear",
         unit: str = "db",
         ear: str = "both",
@@ -2275,6 +2281,10 @@ class Plots:
             Canonical plane to visualize. ``"horizontal"`` uses the horizontal
             plane at ``0`` degrees elevation. ``"median"`` uses the canonical
             median plane defined by the front-back sagittal path.
+        elevation_angle : float, default=0.0
+            Target elevation used when ``plane="horizontal"``. The nearest
+            available horizontal plane in the grid is selected. This parameter
+            is not used for the median plane.
         x_axis : {"linear", "log"}, default="linear"
             Frequency scale used on the x axis.
         unit : {"db", "linear"}, default="db"
@@ -2338,6 +2348,11 @@ class Plots:
             raise AttributeError(
                 "plot_plane_spectrum plane accepts horizontal or median"
             )
+        if isinstance(elevation_angle, bool):
+            raise AttributeError("elevation_angle must be a finite value")
+        elevation_angle = float(elevation_angle)
+        if not np.isfinite(elevation_angle):
+            raise AttributeError("elevation_angle must be a finite value")
         if unit not in accepted_parameters.units:
             raise AttributeError(
                 f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
@@ -2373,6 +2388,15 @@ class Plots:
             raise ValueError("TF data is not available")
 
         plane_key = str(plane).strip().lower()
+        if plane_key != "horizontal" and not np.isclose(
+            elevation_angle,
+            0.0,
+            atol=1e-8,
+            rtol=0.0,
+        ):
+            raise ValueError(
+                "elevation_angle only applies when plane='horizontal'"
+            )
         layout_number = 22 if ear == "both" else 1
         layout = create_layout(
             layout=layout_number,
@@ -2381,11 +2405,17 @@ class Plots:
         )
         panel_axis_options = layout.get_panel_axis_options(plot_options)
 
-        indices, _ = self.Planes.get_plane_indices(
-            plane=plane_key,
-            angle=0.0,
-            angle_unit="degrees",
-        )
+        if plane_key == "horizontal":
+            indices, real_plane_elevation = self.Planes.get_horizontal_plane_indices(
+                elevation=elevation_angle,
+                angle_unit="degrees",
+            )
+        else:
+            indices, _ = self.Planes.get_median_plane_indices(
+                azimuth=0.0,
+                angle_unit="degrees",
+            )
+            real_plane_elevation = 0.0
         if indices.size == 0:
             raise ValueError("Selected plane does not contain any source positions")
 
@@ -2537,6 +2567,7 @@ class Plots:
         resolved_figure_title = (
             Axis.create_plane_title(
                 plane=plane_key,
+                elevation_angle=real_plane_elevation,
             )
             if figure_options.title is None
             else figure_options.title
@@ -2826,6 +2857,7 @@ class Plots:
 
     def plot_itd_horizontal_plane(
         self: "HRTF",
+        elevation_angle: float = 0.0,
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> None:
@@ -2840,6 +2872,9 @@ class Plots:
 
         Parameters
         ----------
+        elevation_angle : float, optional
+            Target elevation used to select the horizontal plane. The nearest
+            available elevation in the grid is used.
         options : PlotOptions or None, optional
             Plot configuration used to control the figure settings, subplot
             title, margins, and grid behavior. If ``None``, default plotting
@@ -2861,6 +2896,7 @@ class Plots:
         Examples
         --------
         >>> hrtf.plot_itd_horizontal_plane()
+        >>> hrtf.plot_itd_horizontal_plane(elevation_angle=10.0)
         >>> hrtf.plot_itd_horizontal_plane(show=False)
         >>> hrtf.plot_itd_horizontal_plane(
         ...     options=PlotOptions(
@@ -2883,6 +2919,11 @@ class Plots:
             raise ValueError("IR data is not available")
         if self.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
+        if isinstance(elevation_angle, bool):
+            raise ValueError("elevation_angle must be a finite value")
+        elevation_angle = float(elevation_angle)
+        if not np.isfinite(elevation_angle):
+            raise ValueError("elevation_angle must be a finite value")
 
         itd_values = np.abs(
             np.asarray(
@@ -2893,10 +2934,11 @@ class Plots:
                 dtype=float,
             )
         )
-        theta_values, radial_values, sorted_itd_values = Polar.create_horizontal_plane_curve(
+        theta_values, radial_values, sorted_itd_values, real_elevation = Polar.create_horizontal_plane_curve(
             sources=self.Sources,
             planes=self.Planes,
             values=itd_values,
+            elevation=elevation_angle,
         )
 
         layout = Projection.create_layout(
@@ -2938,7 +2980,13 @@ class Plots:
         )
         ax.set_rlabel_position(350.0)
         resolved_title = (
-            Labels().itd_seconds if figure_options.title is None else figure_options.title
+            (
+                Labels().itd_seconds
+                if np.isclose(real_elevation, 0.0, atol=1e-8, rtol=0.0)
+                else f"{Labels().itd_seconds} : [Elevation= {real_elevation}°]"
+            )
+            if figure_options.title is None
+            else figure_options.title
         )
         if axis_options.title is not None:
             resolved_title = axis_options.title
@@ -2951,6 +2999,7 @@ class Plots:
 
     def plot_ild_horizontal_plane(
         self: "HRTF",
+        elevation_angle: float = 0.0,
         options: PlotOptions | None = None,
         show: bool = True,
     ) -> None:
@@ -2965,6 +3014,9 @@ class Plots:
 
         Parameters
         ----------
+        elevation_angle : float, optional
+            Target elevation used to select the horizontal plane. The nearest
+            available elevation in the grid is used.
         options : PlotOptions or None, optional
             Plot configuration used to control the figure settings, subplot
             title, margins, and grid behavior. If ``None``, default plotting
@@ -2986,6 +3038,7 @@ class Plots:
         Examples
         --------
         >>> hrtf.plot_ild_horizontal_plane()
+        >>> hrtf.plot_ild_horizontal_plane(elevation_angle=10.0)
         >>> hrtf.plot_ild_horizontal_plane(show=False)
         >>> hrtf.plot_ild_horizontal_plane(
         ...     options=PlotOptions(
@@ -3008,6 +3061,11 @@ class Plots:
             raise ValueError("IR data is not available")
         if self.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
+        if isinstance(elevation_angle, bool):
+            raise ValueError("elevation_angle must be a finite value")
+        elevation_angle = float(elevation_angle)
+        if not np.isfinite(elevation_angle):
+            raise ValueError("elevation_angle must be a finite value")
 
         ild_values = np.abs(
             np.asarray(
@@ -3020,10 +3078,11 @@ class Plots:
                 dtype=float,
             )
         )
-        theta_values, radial_values, sorted_ild_values = Polar.create_horizontal_plane_curve(
+        theta_values, radial_values, sorted_ild_values, real_elevation = Polar.create_horizontal_plane_curve(
             sources=self.Sources,
             planes=self.Planes,
             values=ild_values,
+            elevation=elevation_angle,
         )
 
         layout = Projection.create_layout(
@@ -3065,7 +3124,13 @@ class Plots:
         )
         ax.set_rlabel_position(350.0)
         resolved_title = (
-            Labels().ild_db if figure_options.title is None else figure_options.title
+            (
+                Labels().ild_db
+                if np.isclose(real_elevation, 0.0, atol=1e-8, rtol=0.0)
+                else f"{Labels().ild_db} : [Elevation= {real_elevation}°]"
+            )
+            if figure_options.title is None
+            else figure_options.title
         )
         if axis_options.title is not None:
             resolved_title = axis_options.title
