@@ -16,11 +16,30 @@ from hrtfpykit.plots import (
 
 
 class DummySources:
+    @staticmethod
+    def get_position_queries(
+        positions: np.ndarray | list | tuple | str,
+    ) -> list[np.ndarray | str]:
+        if isinstance(positions, str):
+            return [positions]
+        raw_positions = np.asarray(positions, dtype=object)
+        if raw_positions.ndim == 1:
+            return [np.asarray(raw_positions, dtype=float)]
+        return [np.asarray(position, dtype=float) for position in raw_positions]
+
     def get_position_index(
         self,
-        position: list[float] | np.ndarray,
+        position: str | list[float] | np.ndarray,
         coordinate_system: str = "spherical",
     ) -> tuple[int, np.ndarray]:
+        if isinstance(position, str):
+            named_positions = {
+                "front": np.array([0.0, 0.0], dtype=float),
+                "left": np.array([90.0, 0.0], dtype=float),
+                "right": np.array([270.0, 0.0], dtype=float),
+                "back": np.array([180.0, 0.0], dtype=float),
+            }
+            return 0, named_positions[position]
         return 0, np.asarray(position, dtype=float)
 
 
@@ -119,6 +138,7 @@ def test_create_magnitude_axis_sets_ylabel_title_and_legend() -> None:
         axis="y",
         unit="db",
         selected_positions=np.array([30.0, 10.0]),
+        position_coordinate_system="spherical",
         ear="both",
         options=AxisOptions(),
     )
@@ -150,7 +170,7 @@ def test_plot_magnitude_single_position_returns_layout_and_lines(
     assert ax.get_xscale() == "linear"
     assert ax.get_xlabel() == "Frequency(kHz)"
     assert ax.get_ylabel() == "Magnitude"
-    assert ax.get_title() == "Position : [Azimuth= 0.0°, Elevation= 0.0°]"
+    assert ax.get_title() == "Front : [Azimuth= 0.0°, Elevation= 0.0°]"
 
 
 def test_plot_magnitude_panel_overrides_apply_by_index_and_name(
@@ -216,5 +236,5 @@ def test_plot_magnitude_hides_unused_axis_for_three_positions(
         options=PlotOptions(show=False),
     )
 
-    assert layout.layout == 4
+    assert layout.layout == 3
     assert layout.get_axis("bottom_right").get_visible() is False

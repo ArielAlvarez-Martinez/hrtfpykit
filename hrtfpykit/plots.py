@@ -36,7 +36,8 @@ class Rc:
     ticks: float = 7
     axis_labels: float = 9
     default: float = 10
-    fig_title: float = 10
+    axis_title: float = 10
+    fig_title: float = 12
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,10 @@ class Labels:
     time: str = "Time (s)"
     samples: str = "Samples"
     impulse_response: str = "Amplitude"
+    azimuth: str = "Azimuth (degrees)"
+    elevation: str = "Elevation (degrees)"
+    lateral: str = "Lateral (degrees)"
+    polar: str = "Polar (degrees)"
 
 
 @dataclass(frozen=True)
@@ -57,6 +62,9 @@ class Titles:
     cartesian_position: str = "Position : [x= {x}, y= {y}, z= {z}]"
     lateral_polar_alias: str = "{name} : [Lateral= {lateral}°, Polar= {polar}°]"
     lateral_polar_position: str = "Position : [Lateral= {lateral}°, Polar= {polar}°]"
+    horizontal_plane: str = "Horizontal Plane : [Elevation= {angle}°]"
+    median_plane: str = "Median Plane : [Azimuths= {primary}°, {opposite}°]"
+    frontal_plane: str = "Frontal Plane : [Azimuths= {primary}°, {opposite}°]"
 
 
 @dataclass(frozen=True)
@@ -64,6 +72,7 @@ class AcceptedParameters:
     units: tuple[str, str] = ("db", "linear")
     ears: tuple[str, str, str] = ("left", "right", "both")
     x_axes: tuple[str, str] = ("time", "samples")
+    planes: tuple[str, str, str] = ("horizontal", "median", "frontal")
     coordinate_systems: tuple[str, str, str] = (
         "spherical",
         "cartesian",
@@ -211,6 +220,7 @@ class LayoutFigure:
     axes: np.ndarray
     layout: int
     positions: tuple[str, ...]
+    figure_title_y: float
 
     def get_axis(self, position: int | str = 0) -> plt.Axes:
         if isinstance(position, str):
@@ -227,19 +237,30 @@ class LayoutFigure:
                 )
         return self.axes[axis_index]
 
+    def set_figure_title(self, title: str) -> None:
+        visible_axes = [ax for ax in self.axes if ax.get_visible()]
+        if len(visible_axes) == 0:
+            figure_title_x = 0.5
+        else:
+            left = min(ax.get_position().x0 for ax in visible_axes)
+            right = max(ax.get_position().x1 for ax in visible_axes)
+            figure_title_x = (left + right) / 2.0
+        self.fig.suptitle(title, x=figure_title_x, y=self.figure_title_y)
+
 
 def configure_rc() -> None:
     rc = Rc()
     plt.rcParams.update(
         {
             "font.size": rc.default,
-            "axes.titlesize": rc.fig_title,
+            "axes.titlesize": rc.axis_title,
             "axes.labelsize": rc.axis_labels,
             "xtick.labelsize": rc.ticks,
             "ytick.labelsize": rc.ticks,
             "legend.fontsize": rc.legend,
             "legend.title_fontsize": rc.legend_title,
             "figure.titlesize": rc.fig_title,
+            "figure.titleweight": "bold",
         }
     )
 
@@ -255,6 +276,8 @@ class Layout:
     )
     sharex: bool = False
     sharey: bool = False
+    figure_title_offset: float = 0.07
+    subplot_title_y: float = 0.92
 
     @classmethod
     def create(
@@ -281,11 +304,16 @@ class Layout:
             wspace=resolved_margins.wspace,
             hspace=resolved_margins.hspace,
         )
+        figure_title_y = min(resolved_margins.top + cls.figure_title_offset, 0.98)
+        reshaped_axes = np.asarray(axes, dtype=object).reshape(-1)
+        for ax in reshaped_axes:
+            setattr(ax, "hrtfpykit_subplot_title_y", cls.subplot_title_y)
         return LayoutFigure(
             fig=fig,
-            axes=np.asarray(axes, dtype=object).reshape(-1),
+            axes=reshaped_axes,
             layout=cls.layout,
             positions=cls.positions,
+            figure_title_y=figure_title_y,
         )
 
 
@@ -298,9 +326,11 @@ class Layout1(Layout):
         FigSizeDefault().width,
         FigSizeDefault().height,
     )
+    figure_title_offset = 0.08
+    subplot_title_y = 0.90
 
 
-class Layout2Vertical(Layout):
+class Layout2(Layout):
     layout = 2
     rows = 2
     cols = 1
@@ -310,21 +340,21 @@ class Layout2Vertical(Layout):
         FigSizeDefault().height,
     )
     sharex = True
+    figure_title_offset = 0.08
+    subplot_title_y = 0.90
 
 
-class Layout2VerticalIndependent(Layout):
-    layout = 22
-    rows = 2
-    cols = 1
-    positions = ("top", "bottom")
-    figsize = (
-        FigSizeDefault().width,
-        FigSizeDefault().height,
-    )
+class Layout2Vertical(Layout2):
+    layout = 21
 
 
-class Layout4(Layout):
-    layout = 4
+class Layout2VerticalIndependent(Layout2):
+    layout = 23
+    sharex = False
+
+
+class Layout3(Layout):
+    layout = 3
     rows = 2
     cols = 2
     positions = ("top_left", "top_right", "bottom_left", "bottom_right")
@@ -332,23 +362,28 @@ class Layout4(Layout):
         FigSizeDefault().width + 2,
         FigSizeDefault().height + 1,
     )
+    figure_title_offset = 0.08
+    subplot_title_y = 0.98
 
 
-class Layout2Horizontal(Layout):
-    layout = 12
+class Layout2Horizontal(Layout2):
+    layout = 22
     rows = 1
     cols = 2
     positions = ("left", "right")
     figsize = (12, 6)
+    figure_title_offset = 0.08
+    subplot_title_y = 0.98
 
 
 class LayoutFactory:
     registry: dict[int, type[Layout]] = {
         1: Layout1,
-        2: Layout2Vertical,
-        22: Layout2VerticalIndependent,
-        4: Layout4,
-        12: Layout2Horizontal,
+        2: Layout2,
+        21: Layout2Vertical,
+        22: Layout2Horizontal,
+        23: Layout2VerticalIndependent,
+        3: Layout3,
     }
 
     @classmethod
@@ -466,7 +501,11 @@ class Axis:
             options=axis_options,
         )
         resolved_title = default_title if axis_options.title is None else axis_options.title
-        ax.set_title(resolved_title)
+        subplot_title_y = getattr(ax, "hrtfpykit_subplot_title_y", None)
+        if subplot_title_y is None:
+            ax.set_title(resolved_title)
+        else:
+            ax.set_title(resolved_title, y=float(subplot_title_y))
         if shared_x_visible:
             ax.tick_params(axis="x", which="both", labelbottom=True)
         legend_enabled = True if legend_options.enabled is None else legend_options.enabled
@@ -762,6 +801,139 @@ class Axis:
             options=options,
         )
 
+    @staticmethod
+    def create_azimuth_axis(
+        ax: plt.Axes,
+        axis: str,
+        options: AxisOptions | None = None,
+    ) -> None:
+        labels = Labels()
+        Axis.create_label_axis(
+            ax=ax,
+            axis=axis,
+            default_label=labels.azimuth,
+            options=options,
+        )
+
+    @staticmethod
+    def create_elevation_axis(
+        ax: plt.Axes,
+        axis: str,
+        options: AxisOptions | None = None,
+    ) -> None:
+        labels = Labels()
+        Axis.create_label_axis(
+            ax=ax,
+            axis=axis,
+            default_label=labels.elevation,
+            options=options,
+        )
+
+    @staticmethod
+    def create_lateral_axis(
+        ax: plt.Axes,
+        axis: str,
+        options: AxisOptions | None = None,
+    ) -> None:
+        labels = Labels()
+        Axis.create_label_axis(
+            ax=ax,
+            axis=axis,
+            default_label=labels.lateral,
+            options=options,
+        )
+
+    @staticmethod
+    def create_polar_axis(
+        ax: plt.Axes,
+        axis: str,
+        options: AxisOptions | None = None,
+    ) -> None:
+        labels = Labels()
+        Axis.create_label_axis(
+            ax=ax,
+            axis=axis,
+            default_label=labels.polar,
+            options=options,
+        )
+
+    @staticmethod
+    def create_plane_angle_axis(
+        ax: plt.Axes,
+        axis: str,
+        plane: str,
+        options: AxisOptions | None = None,
+    ) -> None:
+        plane_key = str(plane).strip().lower()
+        if plane_key == "horizontal":
+            Axis.create_azimuth_axis(ax=ax, axis=axis, options=options)
+            return
+        if plane_key == "median":
+            Axis.create_polar_axis(ax=ax, axis=axis, options=options)
+            return
+        if plane_key == "frontal":
+            Axis.create_lateral_axis(ax=ax, axis=axis, options=options)
+            return
+        raise ValueError("plane accepts horizontal, median, or frontal")
+
+    @staticmethod
+    def create_plane_title(
+        plane: str,
+        real_plane_angles: np.ndarray,
+    ) -> str:
+        plane_key = str(plane).strip().lower()
+        if plane_key == "horizontal":
+            return Axis.create_horizontal_plane_title(
+                real_plane_angles=real_plane_angles,
+            )
+        if plane_key == "median":
+            return Axis.create_median_plane_title(
+                real_plane_angles=real_plane_angles,
+            )
+        if plane_key == "frontal":
+            return Axis.create_frontal_plane_title(
+                real_plane_angles=real_plane_angles,
+            )
+        raise ValueError("plane accepts horizontal, median, or frontal")
+
+    @staticmethod
+    def create_horizontal_plane_title(
+        real_plane_angles: np.ndarray,
+    ) -> str:
+        titles = Titles()
+        resolved_plane_angles = np.asarray(real_plane_angles, dtype=float).reshape(-1)
+        if resolved_plane_angles.size < 1:
+            raise ValueError("horizontal plane title requires one plane angle")
+        return titles.horizontal_plane.format(
+            angle=float(resolved_plane_angles[0]),
+        )
+
+    @staticmethod
+    def create_median_plane_title(
+        real_plane_angles: np.ndarray,
+    ) -> str:
+        titles = Titles()
+        resolved_plane_angles = np.asarray(real_plane_angles, dtype=float).reshape(-1)
+        if resolved_plane_angles.size < 2:
+            raise ValueError("median plane title requires two plane angles")
+        return titles.median_plane.format(
+            primary=float(resolved_plane_angles[0]),
+            opposite=float(resolved_plane_angles[1]),
+        )
+
+    @staticmethod
+    def create_frontal_plane_title(
+        real_plane_angles: np.ndarray,
+    ) -> str:
+        titles = Titles()
+        resolved_plane_angles = np.asarray(real_plane_angles, dtype=float).reshape(-1)
+        if resolved_plane_angles.size < 2:
+            raise ValueError("frontal plane title requires two plane angles")
+        return titles.frontal_plane.format(
+            primary=float(resolved_plane_angles[0]),
+            opposite=float(resolved_plane_angles[1]),
+        )
+
 
 class Plots:
     #  Inheritance. All methods will accept a instance of HRTF , then HRTF will inherit from Plots
@@ -795,7 +967,7 @@ class Plots:
 
     def plot_magnitude(
         self: "HRTF",
-        positions: list | np.ndarray,
+        positions: str | list | np.ndarray = "front",
         position_coordinate_system: str = "spherical",
         unit: str = "db",
         ear: str = "both",
@@ -841,7 +1013,7 @@ class Plots:
         if position_count > 4:
             raise ValueError("plot_magnitude accepts up to 4 positions")
 
-        layout_number = 1 if position_count == 1 else 2 if position_count == 2 else 4
+        layout_number = 1 if position_count == 1 else 2 if position_count == 2 else 3
         layout = create_layout(
             layout=layout_number,
             figsize=figure_options.figsize,
@@ -927,17 +1099,14 @@ class Plots:
                 ax.set_visible(False)
 
         if figure_options.title is not None:
-            layout.fig.suptitle(
-                figure_options.title,
-                y=min(resolved_margins.top + 0.05, 0.98),
-            )
+            layout.set_figure_title(figure_options.title)
         if plot_options.show:
             plt.show()
         return layout
 
     def plot_amplitude(
         self: "HRTF",
-        positions: list | np.ndarray,
+        positions: str | list | np.ndarray = "front",
         position_coordinate_system: str = "spherical",
         ear: str = "both",
         x_axis: str = "time",
@@ -982,7 +1151,7 @@ class Plots:
         if position_count > 4:
             raise ValueError("plot_amplitude accepts up to 4 positions")
 
-        layout_number = 1 if position_count == 1 else 2 if position_count == 2 else 4
+        layout_number = 1 if position_count == 1 else 2 if position_count == 2 else 3
         layout = create_layout(
             layout=layout_number,
             figsize=figure_options.figsize,
@@ -1050,17 +1219,14 @@ class Plots:
                 ax.set_visible(False)
 
         if figure_options.title is not None:
-            layout.fig.suptitle(
-                figure_options.title,
-                y=min(resolved_margins.top + 0.05, 0.98),
-            )
+            layout.set_figure_title(figure_options.title)
         if plot_options.show:
             plt.show()
         return layout
 
     def plot_amplitude_and_magnitude(
         self: "HRTF",
-        positions: list | np.ndarray,
+        positions: str | list | np.ndarray = "front",
         position_coordinate_system: str = "spherical",
         ear: str = "both",
         x_axis: str = "time",
@@ -1116,7 +1282,7 @@ class Plots:
         selected_position_query = position_queries[0]
 
         layout = create_layout(
-            layout=12,
+            layout=22,
             figsize=figure_options.figsize,
             margins=resolved_margins,
         )
@@ -1268,10 +1434,239 @@ class Plots:
             if figure_options.title is None
             else figure_options.title
         )
-        layout.fig.suptitle(
-            resolved_figure_title,
-            y=min(resolved_margins.top + 0.05, 0.98),
+        layout.set_figure_title(resolved_figure_title)
+        if plot_options.show:
+            plt.show()
+        return layout
+
+    def plot_spectrum(
+        self: "HRTF",
+        plane: str = "horizontal",
+        plane_angle: float | None = None,
+        unit: str = "db",
+        ear: str = "both",
+        reference: float = 1.0,
+        freq_min: float | None = None,
+        freq_max: float | None = None,
+        options: PlotOptions | None = None,
+    ) -> LayoutFigure:
+        accepted_parameters = AcceptedParameters()
+        if plane not in accepted_parameters.planes:
+            raise AttributeError(
+                "plane accepts "
+                f"{accepted_parameters.planes[0]}, "
+                f"{accepted_parameters.planes[1]} or "
+                f"{accepted_parameters.planes[2]}"
+            )
+        if unit not in accepted_parameters.units:
+            raise AttributeError(
+                f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
+            )
+        if ear not in accepted_parameters.ears:
+            raise AttributeError(
+                f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
+            )
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
         )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
+        axis_options = (
+            plot_options.axis if plot_options.axis is not None else AxisOptions()
+        )
+
+        if self.TF.values is None or self.TF.frequency_bins is None:
+            raise ValueError("TF data is not available")
+
+        plane_key = str(plane).strip().lower()
+        resolved_plane_angle = (
+            90.0
+            if plane_key == "frontal" and plane_angle is None
+            else 0.0
+            if plane_angle is None
+            else float(plane_angle)
+        )
+        if not np.isfinite(resolved_plane_angle):
+            raise ValueError("plane_angle must be a finite value")
+
+        layout_number = 22 if ear == "both" else 1
+        layout = create_layout(
+            layout=layout_number,
+            figsize=figure_options.figsize,
+            margins=resolved_margins,
+        )
+        panel_axis_options = self.get_panel_axis_options(layout, plot_options)
+
+        indices, real_plane_angles = self.Planes.get_plane_indices(
+            plane=plane_key,
+            angle=resolved_plane_angle,
+            angle_unit="degrees",
+        )
+        if indices.size == 0:
+            raise ValueError("Selected plane does not contain any source positions")
+
+        source_positions = np.asarray(
+            self.Sources.get_positions(angle_unit="degrees")[indices],
+            dtype=float,
+        )
+        source_system = str(self.Sources.get_source_coordinate_system()).strip().lower()
+        if plane_key == "horizontal":
+            if source_system == "spherical":
+                spherical_positions = source_positions
+            elif source_system == "cartesian":
+                spherical_positions = self.Sources.cartesian_to_spherical(
+                    source_positions,
+                    angle_unit="degrees",
+                )
+            elif source_system == "lateral-polar":
+                spherical_positions = self.Sources.lateral_polar_to_spherical(
+                    source_positions,
+                    angle_unit="degrees",
+                )
+            else:
+                raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
+            plane_axis_values = np.asarray(spherical_positions[:, 0], dtype=float)
+        else:
+            if source_system == "lateral-polar":
+                lateral_polar_positions = source_positions
+            elif source_system == "cartesian":
+                lateral_polar_positions = self.Sources.cartesian_to_lateral_polar(
+                    source_positions,
+                    angle_unit="degrees",
+                )
+            elif source_system == "spherical":
+                lateral_polar_positions = self.Sources.spherical_to_lateral_polar(
+                    source_positions,
+                    angle_unit="degrees",
+                )
+            else:
+                raise ValueError(f"Unsupported source coordinate system: {source_system!r}")
+            plane_axis_values = np.asarray(
+                lateral_polar_positions[:, 1 if plane_key == "median" else 0],
+                dtype=float,
+            )
+
+        sort_indices = np.argsort(plane_axis_values)
+        sorted_plane_axis_values = plane_axis_values[sort_indices]
+
+        frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
+        if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
+            raise ValueError("TF frequency bins must be a non-empty 1D array")
+        resolved_frequency_axis = Axis.create_frequency_axis(
+            ax=None,
+            axis="x",
+            unit=unit,
+            frequency_bins=frequency_bins_hz,
+            freq_min=freq_min,
+            freq_max=freq_max,
+            options=axis_options.frequency_axis,
+        )
+        frequency_mask = (
+            (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
+            & (frequency_bins_hz <= float(resolved_frequency_axis.freq_max))
+        )
+        if not np.any(frequency_mask):
+            raise ValueError("Selected frequency range produced no TF bins")
+        frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
+
+        tf_values = (
+            self.TF.get_magnitude_db(reference=reference)
+            if unit == "db"
+            else self.TF.magnitude
+        )
+        plane_values = np.asarray(tf_values[indices][..., frequency_mask], dtype=float)
+        if plane_values.ndim == 2:
+            plane_values = plane_values[:, np.newaxis, :]
+        if plane_values.ndim != 3:
+            raise ValueError("TF values for spectrum must have shape (M, E, F)")
+        plane_values = plane_values[sort_indices]
+
+        if ear == "both":
+            if plane_values.shape[1] < 2:
+                raise ValueError(
+                    "Both ears requested but TF data does not contain two ear channels"
+                )
+            spectrum_matrices = [plane_values[:, 0, :], plane_values[:, 1, :]]
+            panel_positions = ["left", "right"]
+            default_panel_titles = ["Left Ear", "Right Ear"]
+        else:
+            if plane_values.shape[1] == 1:
+                ear_index = 0
+            else:
+                ear_index = 0 if ear == "left" else 1
+                if plane_values.shape[1] <= ear_index:
+                    raise ValueError(
+                        f"Requested ear '{ear}' is not available in TF data"
+                    )
+            spectrum_matrices = [plane_values[:, ear_index, :]]
+            panel_positions = ["main"]
+            default_panel_titles = [f"{ear.capitalize()} Ear"]
+
+        vmin = min(float(np.min(matrix)) for matrix in spectrum_matrices)
+        vmax = max(float(np.max(matrix)) for matrix in spectrum_matrices)
+        labels = Labels()
+        colorbar_label = labels.magnitude_db if unit == "db" else labels.magnitude_linear
+        used_axes: list[plt.Axes] = []
+        meshes = []
+
+        for panel_index, (panel_position, spectrum_matrix, default_panel_title) in enumerate(
+            zip(panel_positions, spectrum_matrices, default_panel_titles)
+        ):
+            ax = layout.get_axis(panel_position)
+            used_axes.append(ax)
+            resolved_axis_options = axis_options.merge(panel_axis_options.get(panel_index))
+            mesh = ax.pcolormesh(
+                frequency_khz,
+                sorted_plane_axis_values,
+                spectrum_matrix,
+                shading="auto",
+                cmap="viridis",
+                vmin=vmin,
+                vmax=vmax,
+            )
+            meshes.append(mesh)
+            frequency_label = (
+                labels.frequency
+                if resolved_axis_options.xlabel is None
+                else resolved_axis_options.xlabel
+            )
+            Axis.create_frequency_axis(
+                ax=ax,
+                axis="x",
+                unit=unit,
+                label=frequency_label,
+                options=resolved_frequency_axis,
+            )
+            Axis.create_plane_angle_axis(
+                ax=ax,
+                axis="y",
+                plane=plane_key,
+                options=resolved_axis_options,
+            )
+            resolved_title = (
+                default_panel_title
+                if resolved_axis_options.title is None
+                else resolved_axis_options.title
+            )
+            ax.set_title(resolved_title)
+            grid_enabled = (
+                False if resolved_axis_options.grid is None else resolved_axis_options.grid
+            )
+            if grid_enabled:
+                ax.grid(True)
+
+        layout.fig.colorbar(meshes[0], ax=used_axes, label=colorbar_label)
+        resolved_figure_title = (
+            Axis.create_plane_title(
+                plane=plane_key,
+                real_plane_angles=real_plane_angles,
+            )
+            if figure_options.title is None
+            else figure_options.title
+        )
+        layout.set_figure_title(resolved_figure_title)
         if plot_options.show:
             plt.show()
         return layout
