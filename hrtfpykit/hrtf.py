@@ -6,9 +6,14 @@ from .dsp import (
     calculate_ir_from_tf,
     calculate_tf_from_ir,
 )
+from .planes import (
+    get_frontal_plane,
+    get_horizontal_plane,
+    get_median_plane,
+)
 from .plots import HRTFPlots
 from .sofa.core import SOFA
-from .spatial import Planes, Sources
+from .spatial import Sources
 from .domain import IR, TF
 from .transforms import Transform
 
@@ -33,10 +38,6 @@ class HRTF(HRTFPlots):
     @cached_property
     def Sources(self) -> "Sources":
         return Sources(self)
-
-    @cached_property
-    def Planes(self) -> "Planes":
-        return Planes(self)
 
     @cached_property
     def transform(self) -> "Transform":
@@ -114,17 +115,20 @@ class HRTF(HRTFPlots):
             if plane is not None:
                 plane_key = str(plane).strip().lower()
                 if plane_key == "horizontal":
-                    plane_indices, _ = transformed_hrtf.Planes.get_horizontal_plane_indices(
+                    plane_indices, _ = get_horizontal_plane(
+                        hrtf=transformed_hrtf,
                         elevation=plane_angle,
                         angle_unit=angle_unit,
                     )
                 elif plane_key == "median":
-                    plane_indices, _ = transformed_hrtf.Planes.get_median_plane_indices(
+                    plane_indices, _ = get_median_plane(
+                        hrtf=transformed_hrtf,
                         azimuth=plane_angle,
                         angle_unit=angle_unit,
                     )
                 elif plane_key == "frontal":
-                    plane_indices, _ = transformed_hrtf.Planes.get_frontal_plane_indices(
+                    plane_indices, _ = get_frontal_plane(
+                        hrtf=transformed_hrtf,
                         azimuth=plane_angle,
                         angle_unit=angle_unit,
                     )

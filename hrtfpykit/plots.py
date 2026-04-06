@@ -8,6 +8,11 @@ import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from .dsp import calculate_ild, calculate_itd, magnitude_to_db
+from .planes import (
+    get_frontal_plane,
+    get_horizontal_plane,
+    get_median_plane,
+)
 from .spatial import Sources
 
 
@@ -870,12 +875,12 @@ class Polar:
 
     @staticmethod
     def create_horizontal_plane_curve(
-        sources: Sources,
-        planes,
+        hrtf: "HRTF",
         values: np.ndarray,
         elevation: float = 0.0,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-        indices, real_elevation = planes.get_horizontal_plane_indices(
+        indices, real_elevation = get_horizontal_plane(
+            hrtf=hrtf,
             elevation=elevation,
             angle_unit="degrees",
         )
@@ -883,7 +888,7 @@ class Polar:
             raise ValueError("Horizontal plane does not contain any source positions")
 
         spherical_positions = SourcePositionData.create_positions(
-            sources=sources,
+            sources=hrtf.Sources,
             coordinate_system="spherical",
             angle_unit="degrees",
         )[indices]
@@ -2295,7 +2300,7 @@ class HRTFPlots:
             plt.show()
         return None
 
-    def plot_plane_spectrum(
+    def plot_spectrum(
         self: "HRTF",
         plane: str = "median",
         elevation_angle: float = 0.0,
@@ -2367,19 +2372,19 @@ class HRTFPlots:
         --------
         Plot the canonical median plane with default settings:
 
-        >>> hrtf.plot_plane_spectrum()
+        >>> hrtf.plot_spectrum()
 
         Plot the horizontal plane for the left ear only:
 
-        >>> hrtf.plot_plane_spectrum(plane="horizontal", ear="left")
+        >>> hrtf.plot_spectrum(plane="horizontal", ear="left")
 
         Plot a non-canonical horizontal plane selected by elevation:
 
-        >>> hrtf.plot_plane_spectrum(plane="horizontal", elevation_angle=10.0)
+        >>> hrtf.plot_spectrum(plane="horizontal", elevation_angle=10.0)
 
         Plot the horizontal plane using signed azimuth values:
 
-        >>> hrtf.plot_plane_spectrum(
+        >>> hrtf.plot_spectrum(
         ...     plane="horizontal",
         ...     options=PlotOptions(
         ...         axis=AxisOptions(
@@ -2390,12 +2395,12 @@ class HRTFPlots:
 
         Create the figure without showing it immediately:
 
-        >>> hrtf.plot_plane_spectrum(show=False)
+        >>> hrtf.plot_spectrum(show=False)
         """
         accepted_parameters = AcceptedParameters()
         if plane not in ("horizontal", "median"):
             raise AttributeError(
-                "plot_plane_spectrum plane accepts horizontal or median"
+                "plot_spectrum plane accepts horizontal or median"
             )
         if isinstance(elevation_angle, bool):
             raise AttributeError("elevation_angle must be a finite value")
@@ -2455,12 +2460,14 @@ class HRTFPlots:
         panel_axis_options = layout.get_panel_axis_options(plot_options)
 
         if plane_key == "horizontal":
-            indices, real_plane_elevation = self.Planes.get_horizontal_plane_indices(
+            indices, real_plane_elevation = get_horizontal_plane(
+                hrtf=self,
                 elevation=elevation_angle,
                 angle_unit="degrees",
             )
         else:
-            indices, _ = self.Planes.get_median_plane_indices(
+            indices, _ = get_median_plane(
+                hrtf=self,
                 azimuth=0.0,
                 angle_unit="degrees",
             )
@@ -2999,8 +3006,7 @@ class HRTFPlots:
             )
         )
         theta_values, radial_values, sorted_itd_values, real_elevation = Polar.create_horizontal_plane_curve(
-            sources=self.Sources,
-            planes=self.Planes,
+            hrtf=self,
             values=itd_values,
             elevation=elevation_angle,
         )
@@ -3149,8 +3155,7 @@ class HRTFPlots:
             )
         )
         theta_values, radial_values, sorted_ild_values, real_elevation = Polar.create_horizontal_plane_curve(
-            sources=self.Sources,
-            planes=self.Planes,
+            hrtf=self,
             values=ild_values,
             elevation=elevation_angle,
         )
@@ -3428,17 +3433,20 @@ class HRTFPlots:
 
         for plane_key in resolved_planes:
             if plane_key == "horizontal":
-                indices, _ = self.Planes.get_horizontal_plane_indices(
+                indices, _ = get_horizontal_plane(
+                    hrtf=self,
                     elevation=0.0,
                     angle_unit="degrees",
                 )
             elif plane_key == "median":
-                indices, _ = self.Planes.get_median_plane_indices(
+                indices, _ = get_median_plane(
+                    hrtf=self,
                     azimuth=0.0,
                     angle_unit="degrees",
                 )
             else:
-                indices, _ = self.Planes.get_frontal_plane_indices(
+                indices, _ = get_frontal_plane(
+                    hrtf=self,
                     azimuth=90.0,
                     angle_unit="degrees",
                 )
