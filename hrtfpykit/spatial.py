@@ -681,12 +681,6 @@ class Sources:
         - Build plane or panel selections from the source layout.
         - Validate angular coverage before plotting or interpolation.
 
-        Best Practices
-        --------------
-        - Use the same ``angle_unit`` that will be used by downstream queries.
-        - Treat the returned values as the real grid angles available in the data.
-        - When the stored source system is not spherical, this method converts
-          positions to spherical coordinates before extracting azimuth.
         """
         target_system = str(self.source_coordinate_system).strip().lower()
         positions = self.get_positions(angle_unit=angle_unit)
@@ -725,12 +719,6 @@ class Sources:
         - Select horizontal slices from the source layout.
         - Validate vertical coverage before plotting or spatial selection.
 
-        Best Practices
-        --------------
-        - Use the same ``angle_unit`` that will be used by downstream queries.
-        - Treat the returned values as the real grid angles available in the data.
-        - When the stored source system is not spherical, this method converts
-          positions to spherical coordinates before extracting elevation.
         """
         target_system = str(self.source_coordinate_system).strip().lower()
         positions = self.get_positions(angle_unit=angle_unit)
@@ -774,11 +762,6 @@ class Sources:
         - Build elevation selectors for plotting or interactive tools.
         - Query the real grid coverage before extracting directional data.
 
-        Best Practices
-        --------------
-        - Treat ``real_azimuth`` as the true grid value used for the query.
-        - Use the same ``angle_unit`` as the rest of the spatial workflow.
-        - Expect nearest-match behavior when the requested azimuth is not present exactly.
         """
         if isinstance(azimuth, bool):
             raise ValueError("azimuth must be a finite value")
@@ -845,11 +828,6 @@ class Sources:
         - Build azimuth selectors for plotting or interactive tools.
         - Query the real grid coverage before extracting directional data.
 
-        Best Practices
-        --------------
-        - Treat ``real_elevation`` as the true grid value used for the query.
-        - Use the same ``angle_unit`` as the rest of the spatial workflow.
-        - Expect nearest-match behavior when the requested elevation is not present exactly.
         """
         if isinstance(elevation, bool):
             raise ValueError("elevation must be a finite value")

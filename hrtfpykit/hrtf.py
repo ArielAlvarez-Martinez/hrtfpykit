@@ -3,18 +3,17 @@ from pathlib import Path
 
 import numpy as np
 from .dsp import (
-    apply_ir_crop,
     calculate_ir_from_tf,
     calculate_tf_from_ir,
 )
-from .plots import Plots
+from .plots import HRTFPlots
 from .sofa.core import SOFA
 from .spatial import Planes, Sources
 from .domain import IR, TF
 from .transforms import Transform
 
 
-class HRTF(Plots):
+class HRTF(HRTFPlots):
     def __init__(
         self,
         Sofa: SOFA | None = None,
@@ -174,13 +173,73 @@ class HRTF(Plots):
         if cropping_ir:
             if transformed_hrtf.IR.values is None:
                 raise ValueError("IR data is not available")
-            transformed_hrtf.IR.values = apply_ir_crop(
-                transformed_hrtf.IR,
-                start=start,
-                end=end,
-                start_seconds=start_seconds,
-                end_seconds=end_seconds,
-            )
+            ir_values = transformed_hrtf.IR.values
+            if not isinstance(ir_values, np.ndarray):
+                raise ValueError("IR data must be a NumPy array")
+            if ir_values.ndim == 0:
+                raise ValueError("IR data must have at least one dimension")
+
+            using_sample_indices = start is not None or end is not None
+            using_seconds = start_seconds is not None or end_seconds is not None
+            if using_sample_indices and using_seconds:
+                raise ValueError(
+                    "Use either sample indices (start/end) or seconds (start_seconds/end_seconds)"
+                )
+
+            start_index = start
+            end_index = end
+            if using_seconds:
+                if transformed_hrtf.IR.sample_rate is None:
+                    raise ValueError("sample_rate is required when using seconds crop")
+                resolved_sample_rate = transformed_hrtf.IR.sample_rate
+                if isinstance(resolved_sample_rate, bool):
+                    raise ValueError("sample_rate must be a finite, positive value.")
+                try:
+                    resolved_sample_rate = float(resolved_sample_rate)
+                except (TypeError, ValueError):
+                    raise ValueError("sample_rate must be a finite, positive value.") from None
+                if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
+                    raise ValueError("sample_rate must be a finite, positive value.")
+                if start_seconds is not None:
+                    if isinstance(start_seconds, bool):
+                        raise ValueError("start_seconds must be a finite, non-negative value.")
+                    try:
+                        start_seconds = float(start_seconds)
+                    except (TypeError, ValueError):
+                        raise ValueError("start_seconds must be a finite, non-negative value.") from None
+                    if not np.isfinite(start_seconds) or start_seconds < 0.0:
+                        raise ValueError("start_seconds must be a finite, non-negative value.")
+                    start_index = int(round(start_seconds * resolved_sample_rate))
+                else:
+                    start_index = None
+                if end_seconds is not None:
+                    if isinstance(end_seconds, bool):
+                        raise ValueError("end_seconds must be a finite, non-negative value.")
+                    try:
+                        end_seconds = float(end_seconds)
+                    except (TypeError, ValueError):
+                        raise ValueError("end_seconds must be a finite, non-negative value.") from None
+                    if not np.isfinite(end_seconds) or end_seconds < 0.0:
+                        raise ValueError("end_seconds must be a finite, non-negative value.")
+                    end_index = int(round(end_seconds * resolved_sample_rate))
+                else:
+                    end_index = None
+            else:
+                if start is not None:
+                    if isinstance(start, bool) or not isinstance(start, int):
+                        raise ValueError("start must be an integer")
+                    if start < 0:
+                        raise ValueError("start must be non-negative")
+                if end is not None:
+                    if isinstance(end, bool) or not isinstance(end, int):
+                        raise ValueError("end must be an integer")
+                    if end < 0:
+                        raise ValueError("end must be non-negative")
+
+            if start_index is not None and end_index is not None and start_index >= end_index:
+                raise ValueError("Crop end must be greater than crop start")
+
+            transformed_hrtf.IR.values = ir_values[..., slice(start_index, end_index)]
             calculate_tf_from_ir(
                 transformed_hrtf.IR,
                 fft_length=transformed_hrtf.fft_length,

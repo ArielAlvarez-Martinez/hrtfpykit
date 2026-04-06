@@ -542,39 +542,15 @@ def test_clone_returns_independent_hrtf() -> None:
     assert not np.array_equal(cloned.TF.frequency_bins, hrtf.TF.frequency_bins)
 
 
-def test_transform_apply_padding_in_tf_domain_updates_ir_and_tf() -> None:
-    hrtf = HRTF()
-    hrtf.IR.values = np.array([[1.0, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=float)
-    hrtf.IR.sample_rate = 48_000.0
-    hrtf_with_tf = hrtf.transform.modify_fft_length(8)
-    original_bins = np.array(hrtf_with_tf.TF.frequency_bins, copy=True)
-
-    padded_hrtf = hrtf_with_tf.transform.apply_padding(
-        padding_length=2,
-        location="end",
-        domain="frequency",
-    )
-
-    assert padded_hrtf is not hrtf_with_tf
-    assert hrtf_with_tf.TF.values.shape[-1] == 5
-    assert hrtf_with_tf.TF.frequency_bins.shape[-1] == 5
-    assert padded_hrtf.TF.values.shape[-1] == 7
-    assert padded_hrtf.TF.frequency_bins.shape[-1] == 7
-    assert padded_hrtf.IR.values is not None
-    assert padded_hrtf.IR.sample_rate is not None
-    assert np.array_equal(hrtf_with_tf.TF.frequency_bins, original_bins)
-
-
-def test_transform_apply_padding_invalid_domain_raises() -> None:
+def test_transform_apply_padding_invalid_location_raises() -> None:
     hrtf = HRTF()
     hrtf.IR.values = np.array([[1.0, 0.5, 0.25, 0.0]], dtype=float)
     hrtf.IR.sample_rate = 48_000.0
 
-    with pytest.raises(ValueError, match="domain must be 'time' or 'frequency'"):
+    with pytest.raises(ValueError, match="Padding location must be 'start' or 'end'"):
         hrtf.transform.apply_padding(
             padding_length=2,
-            location="end",
-            domain="other",
+            location="other",
         )
 
     assert hrtf.IR.values.shape[-1] == 4

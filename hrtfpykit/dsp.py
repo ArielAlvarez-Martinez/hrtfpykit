@@ -3,7 +3,6 @@ from __future__ import annotations
 from fractions import Fraction
 from typing import TYPE_CHECKING
 
-import warnings
 import numpy as np
 from scipy import signal
 
@@ -15,22 +14,23 @@ def get_signal_duration(
     signal: np.ndarray | "IR",
     sample_rate: float | None = None,
 ) -> float:
-    """General Description:
-    Compute the duration of a time-domain signal from its sample count and sample rate.
+    """Compute the duration of a time-domain signal.
 
-    Parameters:
-    - signal: Time-domain array or `IR` object with `.values`.
-    - sample_rate: Optional sample rate in Hz. If omitted for an `IR` object,
-      the method uses `IR.sample_rate`.
+    Parameters
+    ----------
+    signal : np.ndarray | IR
+        Time-domain array or ``IR`` object with ``.values``.
+    sample_rate : float | None, default=None
+        Sample rate in Hz. When ``signal`` is an ``IR`` object and this value
+        is omitted, ``IR.sample_rate`` is used.
 
-    Returns:
-    - Duration in seconds as a Python `float`.
+    Returns
+    -------
+    float
+        Duration in seconds.
 
-    Use Cases:
-    - Report HRIR length in physical time units.
-    - Build time-based crop, window, or plotting settings.
-
-    Examples:
+    Examples
+    --------
     >>> get_signal_duration(np.zeros(480), sample_rate=48000.0)
     0.01
     >>> get_signal_duration(np.zeros((2, 960)), sample_rate=48000.0)
@@ -75,29 +75,35 @@ def calculate_itd(
     upper_cut_freq: float = 3000.0,
     filter_order: int = 10,
 ) -> np.ndarray:
-    """General Description:
-    Estimate interaural time differences from binaural impulse responses.
+    """Estimate interaural time differences from binaural IR data.
 
-    Parameters:
-    - ir: Time-domain array or `IR` object with `.values`. Expected layout is
-      `[..., ear, samples]` with ear convention `0=left`, `1=right`.
-    - method: ITD estimator. Supported values are `threshold` and `maxiacce`.
-    - sample_rate: Optional sample rate in Hz for NumPy input. For `IR` input,
-      the method uses `IR.sample_rate` when this argument is omitted.
-    - output: Output unit for the ITD values, either `seconds` or `samples`.
-    - thresh_level: Threshold offset in dB used by the `threshold` method.
-    - upper_cut_freq: Low-pass cutoff in Hz applied before ITD estimation.
-    - filter_order: Positive Butterworth filter order used in the preprocessing stage.
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        Time-domain array or ``IR`` object with layout ``[..., ear, samples]``.
+        The ear convention is ``0=left`` and ``1=right``.
+    method : {"threshold", "maxiacce"}, default="threshold"
+        ITD estimator used to compute the onset difference.
+    sample_rate : float | None, default=None
+        Sample rate in Hz for NumPy input. When ``ir`` is an ``IR`` object and
+        this value is omitted, ``IR.sample_rate`` is used.
+    output : {"seconds", "samples"}, default="seconds"
+        Output unit of the returned ITD values.
+    thresh_level : float, default=-10.0
+        Threshold offset in dB used by the ``threshold`` method.
+    upper_cut_freq : float, default=3000.0
+        Low-pass cutoff in Hz applied before ITD estimation.
+    filter_order : int, default=10
+        Butterworth low-pass filter order used in the preprocessing stage.
 
-    Returns:
-    - Array of ITD values with shape `ir.shape[:-2]`. Positive values mean the
-      left ear is delayed relative to the right ear.
+    Returns
+    -------
+    np.ndarray
+        ITD values with shape ``ir.shape[:-2]``. Positive values mean the left
+        ear is delayed relative to the right ear.
 
-    Use Cases:
-    - Extract binaural timing cues from HRIR datasets.
-    - Compare source-dependent ITD behavior across positions.
-
-    Examples:
+    Examples
+    --------
     >>> ir = np.array([[[0.0, 0.0, 1.0, 0.0],
     ...                 [0.0, 1.0, 0.0, 0.0]]])
     >>> calculate_itd(ir, sample_rate=48000.0, output="samples")
@@ -213,80 +219,66 @@ def calculate_itd(
 
 
 def calculate_ild(
-    data: np.ndarray | "IR" | "TF",
-    domain: str = "auto",
+    ir: np.ndarray | "IR",
     sample_rate: float | None = None,
     fft_length: int | None = None,
     mode: str = "broad-band",
     output: str = "db",
     epsilon: float = 1e-12,
 ) -> np.ndarray:
-    """General Description:
-    Compute interaural level differences from binaural IR or TF data.
+    """Compute interaural level differences from binaural IR data.
 
-    Parameters:
-    - data: Binaural signal container. Accepted inputs are:
-      - `np.ndarray` with layout `[..., ear, samples_or_bins]`
-      - `IR` object with `.values`
-      - `TF` object with `.values`
-      Ear convention is `0=left`, `1=right`.
-    - domain: Input domain. Supported values are `auto`, `ir`, and `tf`.
-      In `auto` mode, `IR` objects map to `ir`, `TF` objects map to `tf`,
-      complex NumPy arrays map to `tf`, and real NumPy arrays map to `ir`.
-    - sample_rate: Sample rate in Hz used only for NumPy IR inputs.
-    - fft_length: Optional FFT length used only when IR data must be converted to TF.
-    - mode: ILD mode, either `broad-band` or `frequency-dependent`.
-    - output: Output representation, either `db` or `linear`.
-    - epsilon: Positive floor used to avoid division by zero in level ratios.
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        Binaural time-domain signal with layout ``[..., ear, samples]``. The
+        ear convention is ``0=left`` and ``1=right``.
+    sample_rate : float | None, default=None
+        Sample rate in Hz used when ``ir`` is a NumPy array and
+        ``mode="frequency-dependent"``.
+    fft_length : int | None, default=None
+        Optional FFT length used when ``mode="frequency-dependent"`` and the
+        IR must be converted internally to TF values.
+    mode : {"broad-band", "frequency-dependent"}, default="broad-band"
+        ILD mode to compute.
+    output : {"db", "linear"}, default="db"
+        Output representation of the ILD values.
+    epsilon : float, default=1e-12
+        Positive floor used to avoid division by zero in level ratios.
 
-    Returns:
-    - ILD array in the requested mode:
-      - `mode='broad-band'` returns shape `[...]`
-      - `mode='frequency-dependent'` returns shape `[..., frequency_bins]`
-      For `output='db'`, the result is `20*log10(left/right)`.
+    Returns
+    -------
+    np.ndarray
+        ILD array in the requested mode. ``mode="broad-band"`` returns shape
+        ``[...]`` and ``mode="frequency-dependent"`` returns
+        ``[..., frequency_bins]``.
 
-    Use Cases:
-    - Extract broadband or spectral binaural level cues from HRIR/HRTF data.
-    - Compare left-right level balance across source positions.
-
-    Examples:
+    Examples
+    --------
     >>> ir = np.array([[[1.0, 0.0, 0.0, 0.0],
     ...                 [0.5, 0.0, 0.0, 0.0]]])
-    >>> calculate_ild(ir, domain="ir", sample_rate=48000.0, mode="broad-band", output="db")
+    >>> calculate_ild(ir, sample_rate=48000.0, mode="broad-band", output="db")
     array([6.02059991])
-    >>> tf = np.fft.rfft(ir, axis=-1)
-    >>> calculate_ild(tf, domain="tf", mode="frequency-dependent", output="linear").shape
-    (3,)
+    >>> calculate_ild(ir, sample_rate=48000.0, mode="frequency-dependent", output="linear").shape
+    (1, 3)
     """
-    data_object = None
-    if isinstance(data, np.ndarray):
-        data_values = data
-    elif hasattr(data, "values"):
-        data_object = data
-        data_values = data.values
+    ir_object = None
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+    elif hasattr(ir, "values"):
+        ir_object = ir
+        ir_values = ir.values
     else:
-        raise ValueError("data must be a NumPy array, IR, or TF instance")
+        raise ValueError("ir must be a NumPy array or an IR instance")
 
-    if data_values is None:
-        raise ValueError("Signal data is not available")
-    if not isinstance(data_values, np.ndarray):
-        raise ValueError("Signal data must be a NumPy array")
-    if data_values.size == 0:
-        raise ValueError("Signal data must be non-empty")
-    if data_values.ndim < 2:
-        raise ValueError("Signal data must include at least ear and time/frequency axes")
-
-    domain_key = str(domain).strip().lower()
-    if domain_key not in {"auto", "ir", "tf"}:
-        raise ValueError("domain must be one of: auto, ir, tf")
-
-    if domain_key == "auto":
-        if data_object is not None and hasattr(data_object, "sample_rate"):
-            domain_key = "ir"
-        elif data_object is not None and hasattr(data_object, "frequency_bins"):
-            domain_key = "tf"
-        else:
-            domain_key = "tf" if np.iscomplexobj(data_values) else "ir"
+    if ir_values is None:
+        raise ValueError("IR data is not available")
+    if not isinstance(ir_values, np.ndarray):
+        raise ValueError("IR data must be a NumPy array")
+    if ir_values.size == 0:
+        raise ValueError("IR data must be non-empty")
+    if ir_values.ndim < 2:
+        raise ValueError("IR data must include at least ear and time axes")
 
     output_key = str(output).strip().lower()
     if output_key not in {"db", "linear"}:
@@ -305,38 +297,32 @@ def calculate_ild(
     if not np.isfinite(epsilon) or epsilon <= 0.0:
         raise ValueError("epsilon must be a finite, positive value.")
 
-    if domain_key == "ir":
-        if data_object is not None and hasattr(data_object, "sample_rate"):
-            resolved_sample_rate = sample_rate if sample_rate is not None else data_object.sample_rate
-        else:
-            resolved_sample_rate = sample_rate
-        if resolved_sample_rate is None:
-            raise ValueError("sample_rate is required for IR NumPy inputs")
-        if mode_key == "frequency-dependent":
-            tf_values, _, _ = calculate_tf_from_ir(
-                data_values,
-                sample_rate=resolved_sample_rate,
-                fft_length=fft_length,
-            )
-        else:
-            tf_values = None
+    if ir_object is not None and hasattr(ir_object, "sample_rate"):
+        resolved_sample_rate = (
+            sample_rate if sample_rate is not None else ir_object.sample_rate
+        )
     else:
-        tf_values = np.asarray(data_values)
+        resolved_sample_rate = sample_rate
 
-    if data_values.shape[-2] < 2:
+    if ir_values.shape[-2] < 2:
         raise ValueError("Ear axis must contain at least two channels (0=left, 1=right)")
 
+    if mode_key == "frequency-dependent":
+        if resolved_sample_rate is None:
+            raise ValueError("sample_rate is required for IR NumPy inputs")
+        tf_values, _, _ = calculate_tf_from_ir(
+            ir_values,
+            sample_rate=resolved_sample_rate,
+            fft_length=fft_length,
+        )
+    else:
+        tf_values = None
+
     if mode_key == "broad-band":
-        if domain_key == "ir":
-            left_values = np.asarray(data_values[..., 0, :], dtype=float)
-            right_values = np.asarray(data_values[..., 1, :], dtype=float)
-            left_rms = np.sqrt(np.mean(np.square(left_values), axis=-1))
-            right_rms = np.sqrt(np.mean(np.square(right_values), axis=-1))
-        else:
-            left_values = np.abs(np.asarray(data_values[..., 0, :]))
-            right_values = np.abs(np.asarray(data_values[..., 1, :]))
-            left_rms = np.sqrt(np.mean(np.square(left_values), axis=-1))
-            right_rms = np.sqrt(np.mean(np.square(right_values), axis=-1))
+        left_values = np.asarray(ir_values[..., 0, :], dtype=float)
+        right_values = np.asarray(ir_values[..., 1, :], dtype=float)
+        left_rms = np.sqrt(np.mean(np.square(left_values), axis=-1))
+        right_rms = np.sqrt(np.mean(np.square(right_values), axis=-1))
         ild_linear = (left_rms + epsilon) / (right_rms + epsilon)
         if output_key == "linear":
             return ild_linear
@@ -352,20 +338,21 @@ def calculate_ild(
 
 
 def get_magnitude(tf: np.ndarray | "TF") -> np.ndarray:
-    """General Description:
-    Return the magnitude of transfer-function values.
+    """Return transfer-function magnitudes.
 
-    Parameters:
-    - tf: Frequency-domain array or `TF` object with `.values`.
+    Parameters
+    ----------
+    tf : np.ndarray | TF
+        Frequency-domain array or ``TF`` object with ``.values``.
 
-    Returns:
-    - Magnitude array computed as `abs(tf)` with the same shape as the input TF.
+    Returns
+    -------
+    np.ndarray
+        Magnitude values computed as ``abs(tf)`` with the same shape as the
+        input.
 
-    Use Cases:
-    - Build magnitude-response curves from complex HRTF values.
-    - Prepare TF data for dB conversion or ratio analysis.
-
-    Examples:
+    Examples
+    --------
     >>> get_magnitude(np.array([1.0 + 1.0j, 0.0 + 2.0j]))
     array([1.41421356, 2.        ])
     """
@@ -386,25 +373,29 @@ def magnitude_to_db(
     magnitude: np.ndarray,
     reference: float | str = 1.0,
 ) -> np.ndarray:
-    """General Description:
-    Convert linear magnitude values into decibels using a reference value.
+    """Convert linear magnitude values to decibels.
 
-    Parameters:
-    - magnitude: Non-negative magnitude values.
-    - reference: Positive reference magnitude used in the conversion
-      `20 * log10(magnitude / reference)`.
+    Parameters
+    ----------
+    magnitude : np.ndarray
+        Non-negative magnitude values.
+    reference : float | {"max"}, default=1.0
+        Positive reference magnitude used in the conversion
+        ``20 * log10(magnitude / reference)``. The special value ``"max"``
+        uses the maximum magnitude present in the input array.
 
-    Returns:
-    - Magnitude values in dB with the same shape as the input array.
+    Returns
+    -------
+    np.ndarray
+        Magnitude values in dB with the same shape as the input array.
 
-    Use Cases:
-    - Plot frequency responses in logarithmic amplitude.
-    - Express magnitude relative to a fixed reference or a dataset-specific peak.
-
-    Examples:
+    Examples
+    --------
     >>> magnitude_to_db(np.array([1.0, 2.0]))
     array([0.        , 6.02059991])
     >>> magnitude_to_db(np.array([1.0, 2.0]), reference=2.0)
+    array([-6.02059991,  0.        ])
+    >>> magnitude_to_db(np.array([1.0, 2.0]), reference="max")
     array([-6.02059991,  0.        ])
     """
     magnitude_values = np.asarray(magnitude, dtype=float)
@@ -428,21 +419,23 @@ def db_to_magnitude(
     magnitude_db: np.ndarray,
     reference: float | str = 1.0,
 ) -> np.ndarray:
-    """General Description:
-    Convert decibel magnitudes back to linear magnitude values.
+    """Convert decibel magnitudes back to linear values.
 
-    Parameters:
-    - magnitude_db: Magnitude values in decibels.
-    - reference: Positive reference magnitude used in the inverse conversion.
+    Parameters
+    ----------
+    magnitude_db : np.ndarray
+        Magnitude values in decibels.
+    reference : float, default=1.0
+        Positive reference magnitude used in the inverse conversion.
+        ``"max"`` is not supported here.
 
-    Returns:
-    - Linear magnitude values with the same shape as the input array.
+    Returns
+    -------
+    np.ndarray
+        Linear magnitude values with the same shape as the input array.
 
-    Use Cases:
-    - Rebuild linear magnitudes after dB-domain processing.
-    - Prepare spectra for complex TF reconstruction.
-
-    Examples:
+    Examples
+    --------
     >>> db_to_magnitude(np.array([0.0, 6.02059991]))
     array([1., 2.])
     >>> db_to_magnitude(np.array([-6.02059991, 0.0]), reference=2.0)
@@ -464,25 +457,29 @@ def get_magnitude_db(
     tf: np.ndarray | "TF",
     reference: float | str = 1.0,
 ) -> np.ndarray:
-    """General Description:
-    Return transfer-function magnitudes directly in decibels.
+    """Return transfer-function magnitudes directly in decibels.
 
-    Parameters:
-    - tf: Frequency-domain array or `TF` object with `.values`.
-    - reference: Positive reference magnitude used in the dB conversion.
+    Parameters
+    ----------
+    tf : np.ndarray | TF
+        Frequency-domain array or ``TF`` object with ``.values``.
+    reference : float | {"max"}, default=1.0
+        Positive reference magnitude used in the dB conversion. The special
+        value ``"max"`` uses the maximum magnitude present in the input TF.
 
-    Returns:
-    - Magnitude values in dB with the same shape as the TF input.
+    Returns
+    -------
+    np.ndarray
+        Magnitude values in dB with the same shape as the TF input.
 
-    Use Cases:
-    - Inspect HRTF magnitude responses directly in dB.
-    - Build relative-magnitude plots by using a custom reference.
-
-    Examples:
+    Examples
+    --------
     >>> tf = np.array([1.0 + 0.0j, 2.0 + 0.0j])
     >>> get_magnitude_db(tf)
     array([0.        , 6.02059991])
     >>> get_magnitude_db(tf, reference=2.0)
+    array([-6.02059991,  0.        ])
+    >>> get_magnitude_db(tf, reference="max")
     array([-6.02059991,  0.        ])
     """
     magnitude = get_magnitude(tf)
@@ -490,22 +487,22 @@ def get_magnitude_db(
 
 
 def get_phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
-    """General Description:
-    Return the phase of transfer-function values in degrees or radians.
+    """Return transfer-function phase values.
 
-    Parameters:
-    - tf: Frequency-domain array or `TF` object with `.values`.
-    - unit: Output unit. Supported values are `degrees`, `degree`, `deg`,
-      `radians`, `radian`, and `rad`.
+    Parameters
+    ----------
+    tf : np.ndarray | TF
+        Frequency-domain array or ``TF`` object with ``.values``.
+    unit : str, default="degrees"
+        Output unit. Degree and radian aliases are supported.
 
-    Returns:
-    - Phase values in the requested unit with the same shape as the input TF.
+    Returns
+    -------
+    np.ndarray
+        Phase values in the requested unit with the same shape as the input TF.
 
-    Use Cases:
-    - Plot HRTF phase responses.
-    - Build phase-aware transforms or diagnostics.
-
-    Examples:
+    Examples
+    --------
     >>> get_phase(np.array([1.0 + 1.0j]), unit="degrees")
     array([45.])
     >>> np.round(get_phase(np.array([1.0 + 1.0j]), unit="radians"), 4)
@@ -534,22 +531,25 @@ def modify_phase(
     new_phase: np.ndarray,
     unit: str = "degrees",
 ) -> np.ndarray:
-    """General Description:
-    Replace TF phase values while preserving the original magnitude.
+    """Replace TF phase values while preserving the original magnitude.
 
-    Parameters:
-    - tf: Frequency-domain array or `TF` object with `.values`.
-    - new_phase: Phase array with the same shape as the TF values.
-    - unit: Phase unit used by `new_phase`. Supported values are degree and radian aliases.
+    Parameters
+    ----------
+    tf : np.ndarray | TF
+        Frequency-domain array or ``TF`` object with ``.values``.
+    new_phase : np.ndarray
+        Phase array with the same shape as the TF values.
+    unit : str, default="degrees"
+        Phase unit used by ``new_phase``. Degree and radian aliases are
+        supported.
 
-    Returns:
-    - Complex TF values with the original magnitude and the new phase.
+    Returns
+    -------
+    np.ndarray
+        Complex TF values with the original magnitude and the new phase.
 
-    Use Cases:
-    - Apply external phase estimates to measured HRTF magnitudes.
-    - Build controlled phase-perturbation experiments.
-
-    Examples:
+    Examples
+    --------
     >>> tf = np.array([1.0 + 1.0j])
     >>> np.round(modify_phase(tf, np.array([0.0]), unit="degrees"), 4)
     array([1.4142+0.j])
@@ -586,22 +586,25 @@ def modify_magnitude(
     new_magnitude: np.ndarray,
     scale: str = "linear",
 ) -> np.ndarray:
-    """General Description:
-    Replace TF magnitude values while preserving the original phase.
+    """Replace TF magnitude values while preserving the original phase.
 
-    Parameters:
-    - tf: Frequency-domain array or `TF` object with `.values`.
-    - new_magnitude: Magnitude array with the same shape as the TF values.
-    - scale: Scale of `new_magnitude`. Supported values are `linear`, `lineal`, and `db`.
+    Parameters
+    ----------
+    tf : np.ndarray | TF
+        Frequency-domain array or ``TF`` object with ``.values``.
+    new_magnitude : np.ndarray
+        Magnitude array with the same shape as the TF values.
+    scale : str, default="linear"
+        Scale of ``new_magnitude``. Supported values are ``linear``,
+        ``lineal``, and ``db``.
 
-    Returns:
-    - Complex TF values with the new magnitude and the original phase.
+    Returns
+    -------
+    np.ndarray
+        Complex TF values with the new magnitude and the original phase.
 
-    Use Cases:
-    - Apply a smoothed target magnitude to a measured phase response.
-    - Reconstruct TF values after equalization in the magnitude domain.
-
-    Examples:
+    Examples
+    --------
     >>> tf = np.array([1.0 + 1.0j])
     >>> np.round(modify_magnitude(tf, np.array([2.0])), 4)
     array([1.4142+1.4142j])
@@ -637,20 +640,20 @@ def modify_magnitude(
 
 
 def get_real(tf: np.ndarray | "TF") -> np.ndarray:
-    """General Description:
-    Return the real part of transfer-function values.
+    """Return the real part of transfer-function values.
 
-    Parameters:
-    - tf: Frequency-domain array or `TF` object with `.values`.
+    Parameters
+    ----------
+    tf : np.ndarray | TF
+        Frequency-domain array or ``TF`` object with ``.values``.
 
-    Returns:
-    - Real component of the TF values with the same shape as the input.
+    Returns
+    -------
+    np.ndarray
+        Real component of the TF values with the same shape as the input.
 
-    Use Cases:
-    - Serialize TF values into real/imag fields for SOFA-like storage.
-    - Inspect numerical behavior of complex spectral transforms.
-
-    Examples:
+    Examples
+    --------
     >>> get_real(np.array([1.0 + 2.0j, 3.0 - 4.0j]))
     array([1., 3.])
     """
@@ -668,20 +671,20 @@ def get_real(tf: np.ndarray | "TF") -> np.ndarray:
 
 
 def get_imag(tf: np.ndarray | "TF") -> np.ndarray:
-    """General Description:
-    Return the imaginary part of transfer-function values.
+    """Return the imaginary part of transfer-function values.
 
-    Parameters:
-    - tf: Frequency-domain array or `TF` object with `.values`.
+    Parameters
+    ----------
+    tf : np.ndarray | TF
+        Frequency-domain array or ``TF`` object with ``.values``.
 
-    Returns:
-    - Imaginary component of the TF values with the same shape as the input.
+    Returns
+    -------
+    np.ndarray
+        Imaginary component of the TF values with the same shape as the input.
 
-    Use Cases:
-    - Export complex TF data into split real/imag channels.
-    - Inspect numerical artifacts in spectral transforms.
-
-    Examples:
+    Examples
+    --------
     >>> get_imag(np.array([1.0 + 2.0j, 3.0 - 4.0j]))
     array([ 2., -4.])
     """
@@ -703,23 +706,25 @@ def upsampling(
     new_sample_rate: float,
     sample_rate: float | None = None,
 ) -> tuple[np.ndarray, float]:
-    """General Description:
-    Upsample an IR signal to a higher sample rate using polyphase resampling.
+    """Upsample an IR signal using polyphase resampling.
 
-    Parameters:
-    - ir: Time-domain array or `IR` object with `.values`.
-    - new_sample_rate: Target sample rate in Hz. It must be strictly greater than
-      the current sample rate.
-    - sample_rate: Optional source sample rate used when `ir` is a NumPy array.
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        Time-domain array or ``IR`` object with ``.values``.
+    new_sample_rate : float
+        Target sample rate in Hz. It must be strictly greater than the current
+        sample rate.
+    sample_rate : float | None, default=None
+        Source sample rate used when ``ir`` is a NumPy array.
 
-    Returns:
-    - Tuple `(resampled_ir, resolved_new_sample_rate)`.
+    Returns
+    -------
+    tuple[np.ndarray, float]
+        Tuple ``(resampled_ir, resolved_new_sample_rate)``.
 
-    Use Cases:
-    - Increase temporal resolution for later analysis.
-    - Match a high-rate rendering or convolution pipeline.
-
-    Examples:
+    Examples
+    --------
     >>> ir = np.array([1.0, 0.0, 0.0, 0.0])
     >>> resampled_ir, sr = upsampling(ir, new_sample_rate=96000.0, sample_rate=48000.0)
     >>> sr
@@ -782,23 +787,25 @@ def downsampling(
     new_sample_rate: float,
     sample_rate: float | None = None,
 ) -> tuple[np.ndarray, float]:
-    """General Description:
-    Downsample an IR signal to a lower sample rate using polyphase resampling.
+    """Downsample an IR signal using polyphase resampling.
 
-    Parameters:
-    - ir: Time-domain array or `IR` object with `.values`.
-    - new_sample_rate: Target sample rate in Hz. It must be strictly lower than
-      the current sample rate.
-    - sample_rate: Optional source sample rate used when `ir` is a NumPy array.
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        Time-domain array or ``IR`` object with ``.values``.
+    new_sample_rate : float
+        Target sample rate in Hz. It must be strictly lower than the current
+        sample rate.
+    sample_rate : float | None, default=None
+        Source sample rate used when ``ir`` is a NumPy array.
 
-    Returns:
-    - Tuple `(resampled_ir, resolved_new_sample_rate)`.
+    Returns
+    -------
+    tuple[np.ndarray, float]
+        Tuple ``(resampled_ir, resolved_new_sample_rate)``.
 
-    Use Cases:
-    - Reduce storage and compute for large HRIR datasets.
-    - Match external systems that require lower sample rates.
-
-    Examples:
+    Examples
+    --------
     >>> ir = np.zeros(8, dtype=float)
     >>> resampled_ir, sr = downsampling(ir, new_sample_rate=24000.0, sample_rate=48000.0)
     >>> sr
@@ -856,40 +863,45 @@ def downsampling(
     return resampled_ir, new_sample_rate
 
 
-def apply_window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray | None:
-    """General Description:
-    Apply a named time-domain window to IR samples.
+def apply_window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
+    """Apply a named time-domain window to IR samples.
 
-    Parameters:
-    - ir: Time-domain array or `IR` object with `.values`.
-    - window_name: Window identifier. Supported values are `hann`, `hamming`,
-      `blackman`, and `rectangular`.
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        Time-domain array or ``IR`` object with ``.values``.
+    window_name : str
+        Window identifier. Supported values are ``hann``, ``hamming``,
+        ``blackman``, and ``rectangular``.
 
-    Returns:
-    - Windowed IR values, or `None` when the input signal is invalid or the
-      window name is unsupported.
+    Returns
+    -------
+    np.ndarray
+        Windowed IR values.
 
-    Use Cases:
-    - Reduce spectral leakage before FFT conversion.
-    - Smooth IR edges for controlled truncation experiments.
-
-    Examples:
+    Examples
+    --------
     >>> np.round(apply_window(np.ones(4), "hann"), 4)
     array([0.  , 0.75, 0.75, 0.  ])
     >>> apply_window(np.ones(4), "rectangular")
     array([1., 1., 1., 1.])
-    """
 
-    if not isinstance(ir, np.ndarray):
-        if hasattr(ir, "values"):
-            ir = ir.values
-        else:
-            ir = None
-    if ir is None:
-        return None
-    length = ir.shape[-1]
+    """
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+    else:
+        if not hasattr(ir, "values"):
+            raise ValueError("ir must be a NumPy array or an IR instance")
+        ir_values = ir.values
+    if ir_values is None:
+        raise ValueError("IR data is not available")
+    if not isinstance(ir_values, np.ndarray):
+        raise ValueError("IR data must be a NumPy array")
+    if ir_values.ndim == 0:
+        raise ValueError("IR data must have at least one dimension")
+    length = ir_values.shape[-1]
     if length <= 0:
-        return None
+        raise ValueError("IR data must contain at least one sample")
     key = window_name.strip().lower()
     if key in {"hann", "hanning"}:
         window_values = np.hanning(length)
@@ -900,296 +912,61 @@ def apply_window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray | None:
     elif key == "blackman":
         window_values = np.blackman(length)
     else:
-        warnings.warn(
-            f"Unsupported window '{window_name}'; proceeding without windowing.",
-            UserWarning,
-        )
-        return None
-    return ir * window_values
-
-
-def apply_ir_crop(
-    ir: np.ndarray | "IR",
-    start: int | None = None,
-    end: int | None = None,
-    start_seconds: float | None = None,
-    end_seconds: float | None = None,
-    sample_rate: float | None = None,
-) -> np.ndarray:
-    """General Description:
-    Crop IR samples by sample indices or by physical time range.
-
-    Parameters:
-    - ir: Time-domain array or `IR` object with `.values`.
-    - start: Start sample index, inclusive.
-    - end: End sample index, exclusive.
-    - start_seconds: Start time in seconds.
-    - end_seconds: End time in seconds.
-    - sample_rate: Optional sample rate used for second-based cropping.
-
-    Returns:
-    - Cropped IR values with the same leading dimensions as the input.
-
-    Use Cases:
-    - Isolate direct sound or reflection windows.
-    - Build fixed-duration HRIR segments for analysis or plotting.
-
-    Examples:
-    >>> apply_ir_crop(np.arange(8), start=2, end=5)
-    array([2, 3, 4])
-    >>> apply_ir_crop(np.arange(8), start_seconds=0.0, end_seconds=0.0000625, sample_rate=48000.0)
-    array([0, 1, 2])
-    """
-
-    if isinstance(ir, np.ndarray):
-        ir_values = ir
-        resolved_sample_rate = sample_rate
-    else:
-        if not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
-            raise ValueError("ir must be a NumPy array or an IR instance")
-        ir_values = ir.values
-        resolved_sample_rate = sample_rate if sample_rate is not None else ir.sample_rate
-
-    if ir_values is None:
-        raise ValueError("IR data is not available")
-    if not isinstance(ir_values, np.ndarray):
-        raise ValueError("IR data must be a NumPy array")
-    if ir_values.ndim == 0:
-        raise ValueError("IR data must have at least one dimension")
-
-    using_sample_indices = start is not None or end is not None
-    using_seconds = start_seconds is not None or end_seconds is not None
-    if using_sample_indices and using_seconds:
-        raise ValueError("Use either sample indices (start/end) or seconds (start_seconds/end_seconds)")
-
-    start_index = start
-    end_index = end
-    if using_seconds:
-        if resolved_sample_rate is None:
-            raise ValueError("sample_rate is required when using seconds crop")
-        if isinstance(resolved_sample_rate, bool):
-            raise ValueError("sample_rate must be a finite, positive value.")
-        try:
-            resolved_sample_rate = float(resolved_sample_rate)
-        except (TypeError, ValueError):
-            raise ValueError("sample_rate must be a finite, positive value.") from None
-        if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
-            raise ValueError("sample_rate must be a finite, positive value.")
-        if start_seconds is not None:
-            if isinstance(start_seconds, bool):
-                raise ValueError("start_seconds must be a finite, non-negative value.")
-            try:
-                start_seconds = float(start_seconds)
-            except (TypeError, ValueError):
-                raise ValueError("start_seconds must be a finite, non-negative value.") from None
-            if not np.isfinite(start_seconds) or start_seconds < 0.0:
-                raise ValueError("start_seconds must be a finite, non-negative value.")
-            start_index = int(round(start_seconds * resolved_sample_rate))
-        else:
-            start_index = None
-        if end_seconds is not None:
-            if isinstance(end_seconds, bool):
-                raise ValueError("end_seconds must be a finite, non-negative value.")
-            try:
-                end_seconds = float(end_seconds)
-            except (TypeError, ValueError):
-                raise ValueError("end_seconds must be a finite, non-negative value.") from None
-            if not np.isfinite(end_seconds) or end_seconds < 0.0:
-                raise ValueError("end_seconds must be a finite, non-negative value.")
-            end_index = int(round(end_seconds * resolved_sample_rate))
-        else:
-            end_index = None
-    else:
-        if start is not None:
-            if isinstance(start, bool) or not isinstance(start, int):
-                raise ValueError("start must be an integer")
-            if start < 0:
-                raise ValueError("start must be non-negative")
-        if end is not None:
-            if isinstance(end, bool) or not isinstance(end, int):
-                raise ValueError("end must be an integer")
-            if end < 0:
-                raise ValueError("end must be non-negative")
-
-    if start_index is not None and end_index is not None and start_index >= end_index:
-        raise ValueError("Crop end must be greater than crop start")
-
-    return ir_values[..., slice(start_index, end_index)]
-
-
-def apply_tf_crop(
-    tf: np.ndarray | "TF",
-    start: int | None = None,
-    end: int | None = None,
-    start_frequency: float | None = None,
-    end_frequency: float | None = None,
-    frequency_bins: np.ndarray | None = None,
-) -> np.ndarray:
-    """General Description:
-    Apply a band-limiting crop to TF values by bin indices or by frequency limits.
-
-    Parameters:
-    - tf: Frequency-domain array or `TF` object with `.values`.
-    - start: Start bin index, inclusive.
-    - end: End bin index, exclusive.
-    - start_frequency: Lower crop frequency in Hz.
-    - end_frequency: Upper crop frequency in Hz.
-    - frequency_bins: Optional frequency-bin vector used for NumPy TF inputs.
-
-    Returns:
-    - TF array where bins outside the selected region are set to zero.
-
-    Use Cases:
-    - Keep only selected spectral regions for analysis.
-    - Apply simple band masks in frequency-domain experiments.
-
-    Examples:
-    >>> tf = np.array([1+0j, 2+0j, 3+0j, 4+0j])
-    >>> apply_tf_crop(tf, start=1, end=3)
-    array([0.+0.j, 2.+0.j, 3.+0.j, 0.+0.j])
-    >>> bins = np.array([0.0, 1000.0, 2000.0, 3000.0])
-    >>> apply_tf_crop(tf, start_frequency=1000.0, end_frequency=2000.0, frequency_bins=bins)
-    array([0.+0.j, 2.+0.j, 3.+0.j, 0.+0.j])
-    """
-    if isinstance(tf, np.ndarray):
-        tf_values = tf
-        frequency_bins_array = frequency_bins
-    else:
-        if not hasattr(tf, "values") or not hasattr(tf, "frequency_bins"):
-            raise ValueError("tf must be a NumPy array or a TF instance")
-        tf_values = tf.values
-        if frequency_bins is not None:
-            frequency_bins_array = frequency_bins
-        else:
-            frequency_bins_array = tf.frequency_bins
-
-    if tf_values is None:
-        raise ValueError("TF data is not available")
-    if not isinstance(tf_values, np.ndarray):
-        raise ValueError("TF data must be a NumPy array")
-    if tf_values.ndim == 0:
-        raise ValueError("TF data must have at least one dimension")
-
-
-    using_indices = start is not None or end is not None
-    using_frequencies = start_frequency is not None or end_frequency is not None
-    if using_indices and using_frequencies:
         raise ValueError(
-            "Use either index crop (start/end) or frequency crop (start_frequency/end_frequency)"
+            "window_name must be one of: hann, hamming, blackman, rectangular"
         )
-
-    tf_cropped = np.array(tf_values, copy=True)
-
-    if using_indices:
-        if start is not None:
-            if isinstance(start, bool) or not isinstance(start, int):
-                raise ValueError("start must be an integer")
-            if start < 0:
-                raise ValueError("start must be non-negative")
-        if end is not None:
-            if isinstance(end, bool) or not isinstance(end, int):
-                raise ValueError("end must be an integer")
-            if end < 0:
-                raise ValueError("end must be non-negative")
-        if start is not None and end is not None and start >= end:
-            raise ValueError("Crop end must be greater than crop start")
-
-        mask = np.zeros(tf_values.shape[-1], dtype=bool)
-        mask[slice(start, end)] = True
-        tf_cropped[..., ~mask] = 0
-        return tf_cropped
-
-    if using_frequencies:
-        if frequency_bins_array is None:
-            raise ValueError("frequency_bins is required for frequency-domain crop")
-        frequency_bins_array = np.asarray(frequency_bins_array, dtype=float)
-        if frequency_bins_array.ndim != 1:
-            raise ValueError("frequency_bins must be a 1D array")
-        if frequency_bins_array.size != tf_values.shape[-1]:
-            raise ValueError("frequency_bins must match TF length")
-
-        if start_frequency is not None:
-            if isinstance(start_frequency, bool):
-                raise ValueError("start_frequency must be a finite, non-negative value.")
-            try:
-                start_frequency = float(start_frequency)
-            except (TypeError, ValueError):
-                raise ValueError("start_frequency must be a finite, non-negative value.") from None
-            if not np.isfinite(start_frequency) or start_frequency < 0.0:
-                raise ValueError("start_frequency must be a finite, non-negative value.")
-        else:
-            start_frequency = 0.0
-
-        if end_frequency is not None:
-            if isinstance(end_frequency, bool):
-                raise ValueError("end_frequency must be a finite, non-negative value.")
-            try:
-                end_frequency = float(end_frequency)
-            except (TypeError, ValueError):
-                raise ValueError("end_frequency must be a finite, non-negative value.") from None
-            if not np.isfinite(end_frequency) or end_frequency < 0.0:
-                raise ValueError("end_frequency must be a finite, non-negative value.")
-        else:
-            end_frequency = float(np.max(np.abs(frequency_bins_array)))
-
-        if start_frequency >= end_frequency:
-            raise ValueError("Crop end frequency must be greater than crop start frequency")
-
-        frequency_magnitude = np.abs(frequency_bins_array)
-        mask = (frequency_magnitude >= start_frequency) & (frequency_magnitude <= end_frequency)
-        tf_cropped[..., ~mask] = 0
-        return tf_cropped
-
-    return tf_cropped
-
+    return ir_values * window_values
 
 def apply_padding(
-    data: np.ndarray | "IR" | "TF",
+    ir: np.ndarray | "IR",
     padding_length: int,
     location: str = "end",
     value: float | complex = 0,
 ) -> np.ndarray:
-    """General Description:
-    Pad signal values at the start or end along the last axis.
+    """Pad IR values along the last axis.
 
-    Parameters:
-    - data: Signal container (`np.ndarray`, `IR`, or `TF`) with `.values`.
-    - padding_length: Number of samples or bins to add.
-    - location: Padding side, either `start` or `end`.
-    - value: Constant value used in the padded region.
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        Time-domain signal container with ``.values``.
+    padding_length : int
+        Number of samples added to the IR.
+    location : {"start", "end"}, default="end"
+        Side where the padding is applied.
+    value : float | complex, default=0
+        Constant value used in the padded region.
 
-    Returns:
-    - Padded signal array.
+    Returns
+    -------
+    np.ndarray
+        Padded IR array.
 
-    Use Cases:
-    - Extend IR length before FFT analysis.
-    - Extend TF vectors for controlled frequency-domain experiments.
-
-    Examples:
+    Examples
+    --------
     >>> apply_padding(np.array([1.0, 2.0]), padding_length=2, location="end")
     array([1., 2., 0., 0.])
     >>> apply_padding(np.array([1.0, 2.0]), padding_length=2, location="start", value=-1.0)
     array([-1., -1.,  1.,  2.])
     """
 
-    if isinstance(data, np.ndarray):
-        signal_values = data
-    elif hasattr(data, "values"):
-        signal_values = data.values
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+    elif hasattr(ir, "values") and hasattr(ir, "sample_rate"):
+        ir_values = ir.values
     else:
-        signal_values = None
-    if signal_values is None:
-        raise ValueError("Signal data is not available")
-    if not isinstance(signal_values, np.ndarray):
-        raise ValueError("Signal data must be a NumPy array")
-    if signal_values.size == 0:
-        raise ValueError("Signal data must be non-empty")
+        ir_values = None
+    if ir_values is None:
+        raise ValueError("IR data is not available")
+    if not isinstance(ir_values, np.ndarray):
+        raise ValueError("IR data must be a NumPy array")
+    if ir_values.size == 0:
+        raise ValueError("IR data must be non-empty")
     if isinstance(padding_length, bool) or not isinstance(padding_length, int):
         raise ValueError("Padding must be an integer")
     if padding_length < 0:
         raise ValueError("Padding must be non-negative")
     if padding_length == 0:
-        return signal_values
+        return ir_values
     location_key = location.strip().lower()
     if location_key == "start":
         before, after = padding_length, 0
@@ -1197,9 +974,9 @@ def apply_padding(
         before, after = 0, padding_length
     else:
         raise ValueError("Padding location must be 'start' or 'end'")
-    pad_width = [(0, 0)] * (signal_values.ndim - 1) + [(before, after)]
+    pad_width = [(0, 0)] * (ir_values.ndim - 1) + [(before, after)]
     return np.pad(
-        signal_values,
+        ir_values,
         pad_width,
         mode="constant",
         constant_values=value,
@@ -1214,25 +991,33 @@ def apply_fir_filter(
     num_taps: int = 101,
     window: str | None = None,
 ) -> np.ndarray:
-    """General Description:
-    Apply an FIR filter to IR data.
+    """Apply an FIR filter to IR data.
 
-    Parameters:
-    - ir: Time-domain array or `IR` object with `.values`.
-    - filter: Filter family. Supported values are low-pass, high-pass, and band-pass aliases.
-    - sample_rate: Sample rate in Hz.
-    - cutoff: Cutoff value. Use a scalar for low/high-pass and a tuple for band-pass.
-    - num_taps: Odd FIR length.
-    - window: FIR design window, one of `hann`, `hamming`, `blackman`, or `rectangular`.
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        Time-domain array or ``IR`` object with ``.values``.
+    filter : str
+        Filter family. Low-pass, high-pass, and band-pass aliases are
+        supported.
+    sample_rate : float | None, default=None
+        Sample rate in Hz.
+    cutoff : float | tuple[float, float] | None, default=None
+        Cutoff value. Use a scalar for low-pass or high-pass filtering and a
+        tuple for band-pass filtering.
+    num_taps : int, default=101
+        Odd FIR length.
+    window : str | None, default=None
+        FIR design window. Supported values are ``hann``, ``hamming``,
+        ``blackman``, and ``rectangular``.
 
-    Returns:
-    - Filtered IR values with the same shape as the input.
+    Returns
+    -------
+    np.ndarray
+        Filtered IR values with the same shape as the input.
 
-    Use Cases:
-    - Remove undesired frequency regions from HRIRs.
-    - Precondition responses before feature extraction.
-
-    Examples:
+    Examples
+    --------
     >>> ir = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     >>> filtered = apply_fir_filter(ir, filter="lowpass", sample_rate=48000.0, cutoff=3000.0, num_taps=5)
     >>> filtered.shape
@@ -1327,24 +1112,30 @@ def apply_iir_filter(
     cutoff: float | tuple[float, float] | None = None,
     order: int = 10,
 ) -> np.ndarray:
-    """General Description:
-    Apply an IIR Butterworth filter to IR data.
+    """Apply an IIR Butterworth filter to IR data.
 
-    Parameters:
-    - ir: Time-domain array or `IR` object with `.values`.
-    - filter: Filter family. Supported values are low-pass, high-pass, and band-pass aliases.
-    - sample_rate: Sample rate in Hz.
-    - cutoff: Cutoff value. Use a scalar for low/high-pass and a tuple for band-pass.
-    - order: Positive Butterworth filter order.
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        Time-domain array or ``IR`` object with ``.values``.
+    filter : str
+        Filter family. Low-pass, high-pass, and band-pass aliases are
+        supported.
+    sample_rate : float | None, default=None
+        Sample rate in Hz.
+    cutoff : float | tuple[float, float] | None, default=None
+        Cutoff value. Use a scalar for low-pass or high-pass filtering and a
+        tuple for band-pass filtering.
+    order : int, default=10
+        Positive Butterworth filter order.
 
-    Returns:
-    - Filtered IR values with the same shape as the input.
+    Returns
+    -------
+    np.ndarray
+        Filtered IR values with the same shape as the input.
 
-    Use Cases:
-    - Reproduce IIR preprocessing chains for ITD estimation.
-    - Apply lightweight recursive filtering before feature extraction.
-
-    Examples:
+    Examples
+    --------
     >>> ir = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     >>> filtered = apply_iir_filter(ir, filter="lowpass", sample_rate=48000.0, cutoff=3000.0, order=4)
     >>> filtered.shape
@@ -1404,25 +1195,29 @@ def minimum_phase(
     fft_length: int | None = None,
     epsilon: float = 1e-12,
 ) -> np.ndarray:
-    """General Description:
-    Convert IR data into a minimum-phase IR.
+    """Convert IR data into a minimum-phase IR.
 
-    Parameters:
-    - data: `np.ndarray` or `IR` object containing real-valued IR samples.
-    - method: Minimum-phase strategy. `homomorphic` and `real_cepstrum` use a
-      log-magnitude real cepstrum, while `cepstrum` uses a complex cepstrum with
-      unwrapped phase.
-    - fft_length: Optional FFT length used for cepstral operations.
-    - epsilon: Positive floor applied to magnitude values before logarithms.
+    Parameters
+    ----------
+    data : np.ndarray | IR
+        Real-valued IR samples stored as a NumPy array or ``IR`` object.
+    method : {"homomorphic", "cepstrum", "real_cepstrum"}, default="homomorphic"
+        Minimum-phase strategy. ``homomorphic`` and ``real_cepstrum`` use a
+        log-magnitude real cepstrum, while ``cepstrum`` uses a complex
+        cepstrum with unwrapped phase.
+    fft_length : int | None, default=None
+        Optional FFT length used for cepstral operations.
+    epsilon : float, default=1e-12
+        Positive floor applied to magnitude values before logarithms.
 
-    Returns:
-    - Minimum-phase IR array with the same trailing length as the resolved IR input.
+    Returns
+    -------
+    np.ndarray
+        Minimum-phase IR array with the same trailing length as the resolved
+        IR input.
 
-    Use Cases:
-    - Create minimum-phase HRIR approximations for low-latency processing.
-    - Standardize phase behavior before comparisons or model fitting.
-
-    Examples:
+    Examples
+    --------
     >>> ir = np.array([1.0, 0.5, 0.25, 0.0])
     >>> minimum_phase(ir).shape
     (4,)
@@ -1531,24 +1326,29 @@ def calculate_tf_from_ir(
     fft_length: int | None = None,
     window_name: str | None = None,
 ) -> tuple[np.ndarray, np.ndarray, int] | "TF":
-    """General Description:
-    Compute transfer-function values from IR values using an FFT.
+    """Compute TF values from IR values using an FFT.
 
-    Parameters:
-    - ir: IR array or `IR` object.
-    - sample_rate: Sample rate in Hz for NumPy input. Optional for `IR` input.
-    - fft_length: Optional FFT size. If omitted, the IR length is used.
-    - window_name: Optional time-domain window applied before the FFT.
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        IR array or ``IR`` object.
+    sample_rate : float | None, default=None
+        Sample rate in Hz for NumPy input. Optional for ``IR`` input when
+        ``IR.sample_rate`` is available.
+    fft_length : int | None, default=None
+        FFT size. When omitted, the IR length is used.
+    window_name : str | None, default=None
+        Optional time-domain window applied before the FFT.
 
-    Returns:
-    - For NumPy input: `(tf_values, frequency_bins, fft_length_used)`.
-    - For `IR` input: the updated `TF` object linked to the same `HRTF`.
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, int] | TF
+        For NumPy input, returns ``(tf_values, frequency_bins, fft_length_used)``.
+        For ``IR`` input, returns the updated ``TF`` object linked to the same
+        ``HRTF`` instance.
 
-    Use Cases:
-    - Build TF representations after IR editing.
-    - Control frequency resolution via explicit FFT lengths.
-
-    Examples:
+    Examples
+    --------
     >>> ir = np.array([1.0, 0.0, 0.0, 0.0])
     >>> tf, frequency_bins, fft_length_used = calculate_tf_from_ir(ir, sample_rate=48000.0)
     >>> tf.shape, frequency_bins.shape, fft_length_used
@@ -1598,9 +1398,7 @@ def calculate_tf_from_ir(
 
     ir_used = ir_values
     if window_name:
-        windowed = apply_window(ir_values, window_name)
-        if windowed is not None:
-            ir_used = windowed
+        ir_used = apply_window(ir_values, window_name)
 
     tf_values = np.fft.rfft(ir_used, n=fft_length_used, axis=-1)
     frequency_bins = np.fft.rfftfreq(fft_length_used, d=1.0 / resolved_sample_rate)
@@ -1619,25 +1417,30 @@ def calculate_ir_from_tf(
     sample_rate: float | None = None,
     spectrum_type: str | None = None,
 ) -> tuple[np.ndarray, float] | "IR":
-    """General Description:
-    Compute IR values from TF values using inverse FFT routines.
+    """Compute IR values from TF values using inverse FFT routines.
 
-    Parameters:
-    - tf: TF array or `TF` object.
-    - frequency_bins: Optional frequency-bin vector matching the TF length.
-    - sample_rate: Optional sample rate used when inferring bins for NumPy TF input.
-    - spectrum_type: Required when inferring bins. Supported values are `positive`
-      for one-sided spectra and `complete` for full complex spectra.
+    Parameters
+    ----------
+    tf : np.ndarray | TF
+        TF array or ``TF`` object.
+    frequency_bins : np.ndarray | None, default=None
+        Optional frequency-bin vector matching the TF length.
+    sample_rate : float | None, default=None
+        Sample rate used when frequency bins must be inferred for NumPy TF
+        input.
+    spectrum_type : str | None, default=None
+        Required when inferring bins. Supported values are ``"positive"``
+        for one-sided spectra and ``"complete"`` for full complex spectra.
 
-    Returns:
-    - For NumPy input: `(ir_values, sample_rate, fft_length_used)`.
-    - For `TF` input: the updated `IR` object linked to the same `HRTF`.
+    Returns
+    -------
+    tuple[np.ndarray, float, int] | IR
+        For NumPy input, returns ``(ir_values, sample_rate, fft_length_used)``.
+        For ``TF`` input, returns the updated ``IR`` object linked to the same
+        ``HRTF`` instance.
 
-    Use Cases:
-    - Reconstruct HRIRs after TF-domain edits.
-    - Convert loaded HRTF datasets back into time-domain form.
-
-    Examples:
+    Examples
+    --------
     >>> tf = np.array([1.0 + 0.0j, 1.0 + 0.0j, 1.0 + 0.0j])
     >>> frequency_bins = np.array([0.0, 12000.0, 24000.0])
     >>> ir, sample_rate, fft_length_used = calculate_ir_from_tf(tf, frequency_bins=frequency_bins)

@@ -30,25 +30,32 @@ class Transform:
         self._hrtf = hrtf
 
     def apply_window(self, window_name: str) -> "HRTF":
-        """General Description:
-        Apply a time-domain window to IR values and resync TF.
+        """Apply a time-domain window to IR values and resync TF.
 
-        Parameters:
-        - window_name: Window identifier (for example hann, hamming, blackman).
+        Parameters
+        ----------
+        window_name : str
+            Window identifier passed to the DSP layer, for example ``"hann"``,
+            ``"hamming"``, ``"blackman"``, or ``"rectangular"``.
 
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with windowed IR values and refreshed TF data.
 
-        Use Cases:
+        Use Cases
+        ---------
         - Reduce spectral leakage before FFT conversion.
+        - Prepare HRIR data for spectral analysis.
 
+        Examples
+        --------
+        >>> transformed = hrtf.transform.apply_window("hann")
+        >>> transformed = hrtf.transform.apply_window("blackman")
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        windowed = apply_window(ir, window_name)
-        if windowed is None:
-            raise ValueError(f"Unsupported window '{window_name}'")
-        ir.values = windowed
+        ir.values = apply_window(ir, window_name)
         calculate_tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
@@ -59,77 +66,47 @@ class Transform:
         self,
         padding_length: int,
         location: str = "end",
-        value: float | complex = 0,
-        domain: str = "time",
+        value: float = 0,
     ) -> "HRTF":
-        """General Description:
-        Pad IR or TF values and resync the paired domain.
+        """Pad IR values in time and resync TF.
 
-        Parameters:
-        - padding_length: Number of samples or bins to add.
-        - location: Padding side, start or end.
-        - value: Constant pad value.
-        - domain: Domain to apply padding, time or frequency.
+        Parameters
+        ----------
+        padding_length : int
+            Number of samples added to the IR.
+        location : {"start", "end"}, default="end"
+            Side where the padding is applied.
+        value : float, default=0
+            Constant value used in the padded region.
 
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with padded IR values and refreshed TF data.
 
-        Use Cases:
+        Use Cases
+        ---------
         - Increase IR length before FFT-based workflows.
-        - Extend TF length for FFT-size exploration.
+        - Add leading or trailing samples for later processing.
 
+        Examples
+        --------
+        >>> transformed = hrtf.transform.apply_padding(32)
+        >>> transformed = hrtf.transform.apply_padding(16, location="start", value=0.0)
         """
         transformed_hrtf = self._hrtf.clone()
-        domain_key = str(domain).strip().lower()
-        if domain_key == "time":
-            ir = transformed_hrtf.IR
-            ir.values = apply_padding(
-                ir,
-                padding_length=padding_length,
-                location=location,
-                value=value,
-            )
-            calculate_tf_from_ir(
-                ir,
-                fft_length=transformed_hrtf.fft_length,
-            )
-            return transformed_hrtf
-
-        if domain_key == "frequency":
-            tf = transformed_hrtf.TF
-            tf_values = apply_padding(
-                tf,
-                padding_length=padding_length,
-                location=location,
-                value=value,
-            )
-            frequency_bins = tf.frequency_bins
-            if frequency_bins is None:
-                raise ValueError("TF frequency bins are required for TF padding")
-            frequency_bins = np.asarray(frequency_bins, dtype=float)
-            if frequency_bins.ndim != 1 or frequency_bins.size < 2:
-                raise ValueError("TF frequency bins must be 1D with at least two values")
-            diffs = np.diff(frequency_bins)
-            step = float(diffs[0])
-            if not np.allclose(diffs, step, rtol=1e-5, atol=1e-8):
-                raise ValueError("TF frequency bins must be uniformly spaced for TF padding")
-            location_key = str(location).strip().lower()
-            if location_key == "start":
-                new_bins = frequency_bins[0] - step * np.arange(padding_length, 0, -1)
-                tf.frequency_bins = np.concatenate((new_bins, frequency_bins))
-            elif location_key == "end":
-                new_bins = frequency_bins[-1] + step * np.arange(1, padding_length + 1)
-                tf.frequency_bins = np.concatenate((frequency_bins, new_bins))
-            else:
-                raise ValueError("Padding location must be 'start' or 'end'")
-            tf.values = tf_values
-            calculate_ir_from_tf(
-                tf,
-                frequency_bins=tf.frequency_bins,
-            )
-            return transformed_hrtf
-
-        raise ValueError("domain must be 'time' or 'frequency'")
+        ir = transformed_hrtf.IR
+        ir.values = apply_padding(
+            ir,
+            padding_length=padding_length,
+            location=location,
+            value=value,
+        )
+        calculate_tf_from_ir(
+            ir,
+            fft_length=transformed_hrtf.fft_length,
+        )
+        return transformed_hrtf
 
     def apply_fir_filter(
         self,
@@ -138,22 +115,34 @@ class Transform:
         num_taps: int = 101,
         window: str | None = None,
     ) -> "HRTF":
-        """General Description:
-        Apply FIR filtering on IR values and resync TF.
+        """Apply FIR filtering to IR values and resync TF.
 
-        Parameters:
-        - filter: Filter type (lowpass, highpass, bandpass aliases supported).
-        - cutoff: Cutoff frequency or cutoff pair for bandpass.
-        - num_taps: FIR filter length.
-        - window: Optional FIR design window.
+        Parameters
+        ----------
+        filter : str
+            Filter type. Low-pass, high-pass, and band-pass aliases are
+            accepted by the DSP layer.
+        cutoff : float | tuple[float, float] | None, default=None
+            Cutoff frequency or frequency pair in Hz.
+        num_taps : int, default=101
+            FIR filter length.
+        window : str | None, default=None
+            Optional FIR design window.
 
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with filtered IR values and refreshed TF data.
 
-        Use Cases:
+        Use Cases
+        ---------
         - Remove undesired frequency content from HRIR data.
         - Isolate a band before feature extraction.
 
+        Examples
+        --------
+        >>> transformed = hrtf.transform.apply_fir_filter("lowpass", cutoff=3000.0)
+        >>> transformed = hrtf.transform.apply_fir_filter("bandpass", cutoff=(1000.0, 8000.0))
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -177,21 +166,32 @@ class Transform:
         cutoff: float | tuple[float, float] | None = None,
         order: int = 10,
     ) -> "HRTF":
-        """General Description:
-        Apply IIR filtering on IR values and resync TF.
+        """Apply IIR filtering to IR values and resync TF.
 
-        Parameters:
-        - filter: Filter type (lowpass, highpass, bandpass aliases supported).
-        - cutoff: Cutoff frequency or cutoff pair for bandpass.
-        - order: IIR Butterworth filter order.
+        Parameters
+        ----------
+        filter : str
+            Filter type. Low-pass, high-pass, and band-pass aliases are
+            accepted by the DSP layer.
+        cutoff : float | tuple[float, float] | None, default=None
+            Cutoff frequency or frequency pair in Hz.
+        order : int, default=10
+            Butterworth filter order.
 
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with filtered IR values and refreshed TF data.
 
-        Use Cases:
+        Use Cases
+        ---------
         - Reproduce legacy IIR-based preprocessing chains.
         - Apply low-latency recursive filtering before analysis.
 
+        Examples
+        --------
+        >>> transformed = hrtf.transform.apply_iir_filter("lowpass", cutoff=3000.0)
+        >>> transformed = hrtf.transform.apply_iir_filter("bandpass", cutoff=(1000.0, 8000.0), order=4)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -214,21 +214,31 @@ class Transform:
         fft_length: int | None = None,
         epsilon: float = 1e-12,
     ) -> "HRTF":
-        """General Description:
-        Convert IR values to minimum-phase and resync TF.
+        """Convert IR values to minimum phase and resync TF.
 
-        Parameters:
-        - method: Minimum-phase method key.
-        - fft_length: Optional FFT length used in cepstral reconstruction.
-        - epsilon: Small positive floor for log-magnitude stability.
+        Parameters
+        ----------
+        method : str, default="homomorphic"
+            Minimum-phase method key passed to the DSP layer.
+        fft_length : int | None, default=None
+            Optional FFT length used during cepstral reconstruction.
+        epsilon : float, default=1e-12
+            Small positive floor used for numerical stability.
 
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with minimum-phase IR values and refreshed TF data.
 
-        Use Cases:
+        Use Cases
+        ---------
         - Build minimum-phase HRIR approximations for reduced-latency processing.
         - Standardize phase behavior across datasets before analysis.
 
+        Examples
+        --------
+        >>> transformed = hrtf.transform.minimum_phase()
+        >>> transformed = hrtf.transform.minimum_phase(method="hilbert", fft_length=1024)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -249,20 +259,29 @@ class Transform:
         new_phase: np.ndarray,
         unit: str = "degrees",
     ) -> "HRTF":
-        """General Description:
-        Replace TF phase values and rebuild IR.
+        """Replace TF phase values and rebuild IR.
 
-        Parameters:
-        - new_phase: Phase array matching TF shape.
-        - unit: Phase unit (`degrees` or `radians`).
+        Parameters
+        ----------
+        new_phase : np.ndarray
+            Phase array with the same TF layout as the current HRTF.
+        unit : {"degrees", "radians"}, default="degrees"
+            Unit used by ``new_phase``.
 
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with modified TF phase and rebuilt IR data.
 
-        Use Cases:
+        Use Cases
+        ---------
         - Apply target phase profiles while preserving measured magnitudes.
         - Build controlled phase perturbation experiments.
 
+        Examples
+        --------
+        >>> phase = np.zeros_like(hrtf.TF.phase)
+        >>> transformed = hrtf.transform.modify_phase(phase, unit="degrees")
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -282,20 +301,29 @@ class Transform:
         new_magnitude: np.ndarray,
         scale: str = "linear",
     ) -> "HRTF":
-        """General Description:
-        Replace TF magnitude values and rebuild IR.
+        """Replace TF magnitude values and rebuild IR.
 
-        Parameters:
-        - new_magnitude: Magnitude array matching TF shape.
-        - scale: Magnitude scale (`linear`, `lineal`, or `db`).
+        Parameters
+        ----------
+        new_magnitude : np.ndarray
+            Magnitude array with the same TF layout as the current HRTF.
+        scale : {"linear", "lineal", "db"}, default="linear"
+            Magnitude scale used by ``new_magnitude``.
 
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with modified TF magnitude and rebuilt IR data.
 
-        Use Cases:
+        Use Cases
+        ---------
         - Apply target magnitude responses while preserving phase.
         - Evaluate perceptual effects of magnitude-only modifications.
 
+        Examples
+        --------
+        >>> magnitude = np.ones_like(hrtf.TF.magnitude)
+        >>> transformed = hrtf.transform.modify_magnitude(magnitude, scale="linear")
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -311,18 +339,26 @@ class Transform:
         return transformed_hrtf
 
     def upsampling(self, new_sample_rate: float) -> "HRTF":
-        """General Description:
-        Upsample IR values to a higher sample rate and resync TF.
+        """Upsample IR values to a higher sample rate and resync TF.
 
-        Parameters:
-        - new_sample_rate: Target sample rate in Hz, higher than current IR sample rate.
+        Parameters
+        ----------
+        new_sample_rate : float
+            Target sample rate in Hz. It must be higher than the current IR
+            sample rate.
 
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with resampled IR values and refreshed TF data.
 
-        Use Cases:
+        Use Cases
+        ---------
         - Increase temporal resolution for analysis or rendering.
 
+        Examples
+        --------
+        >>> transformed = hrtf.transform.upsampling(96000.0)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -339,19 +375,27 @@ class Transform:
         return transformed_hrtf
 
     def downsampling(self, new_sample_rate: float) -> "HRTF":
-        """General Description:
-        Downsample IR values to a lower sample rate and resync TF.
+        """Downsample IR values to a lower sample rate and resync TF.
 
-        Parameters:
-        - new_sample_rate: Target sample rate in Hz, lower than current IR sample rate.
+        Parameters
+        ----------
+        new_sample_rate : float
+            Target sample rate in Hz. It must be lower than the current IR
+            sample rate.
 
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with resampled IR values and refreshed TF data.
 
-        Use Cases:
+        Use Cases
+        ---------
         - Reduce processing and storage footprint.
         - Match external systems that require lower sample rates.
 
+        Examples
+        --------
+        >>> transformed = hrtf.transform.downsampling(24000.0)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -368,18 +412,25 @@ class Transform:
         return transformed_hrtf
 
     def modify_fft_length(self, new_fft_length: int) -> "HRTF":
-        """General Description:
-        Set HRTF FFT length and recompute TF from current IR.
+        """Set the HRTF FFT length and recompute TF from the current IR.
 
-        Parameters:
-        - new_fft_length: FFT size used for IR-to-TF conversion.
+        Parameters
+        ----------
+        new_fft_length : int
+            FFT size used for IR-to-TF conversion.
 
-        Returns:
-        - A new HRTF instance with transformed IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with updated FFT length and recomputed TF data.
 
-        Use Cases:
+        Use Cases
+        ---------
         - Adjust spectral resolution for analysis or interpolation pipelines.
 
+        Examples
+        --------
+        >>> transformed = hrtf.transform.modify_fft_length(1024)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -396,19 +447,27 @@ class Transform:
         self,
         coordinate_system: str,
     ) -> "HRTF":
-        """General Description:
-        Update Sources target coordinate system and refresh source positions.
+        """Update the target source coordinate system.
 
-        Parameters:
-        - coordinate_system: Target source coordinate system (`spherical`, `cartesian`, or `lateral-polar`).
+        Parameters
+        ----------
+        coordinate_system : {"spherical", "cartesian", "lateral-polar"}
+            Target coordinate system used by ``Sources`` when positions are read.
 
-        Returns:
-        - A new HRTF instance with updated `Sources.source_coordinate_system`.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with updated ``Sources.source_coordinate_system``.
 
-        Use Cases:
-        - Switch source representation without modifying underlying SOFA stored coordinates.
+        Use Cases
+        ---------
+        - Switch source representation without modifying SOFA-stored coordinates.
         - Prepare source grids for coordinate-specific analysis workflows.
 
+        Examples
+        --------
+        >>> transformed = hrtf.transform.modify_source_coordinate_system("cartesian")
+        >>> transformed = hrtf.transform.modify_source_coordinate_system("lateral-polar")
         """
         coordinate_system = str(coordinate_system).strip().lower()
         allowed_coordinate_systems = {"spherical", "cartesian", "lateral-polar"}
@@ -426,15 +485,30 @@ class Transform:
         itd: float,
         unit: str = "seconds",
     ) -> "HRTF":
-        """General Description:
-        Add a fixed ITD to current IR values and resync TF.
+        """Add a fixed ITD to the current IR values and resync TF.
 
-        Parameters:
-        - itd: ITD value to apply. Positive delays left ear; negative delays right ear.
-        - unit: ITD unit (`seconds` or `samples`).
+        Parameters
+        ----------
+        itd : float
+            ITD value to apply. Positive values delay the left ear and
+            negative values delay the right ear.
+        unit : {"seconds", "samples"}, default="seconds"
+            Unit used by ``itd``.
 
-        Returns:
-        - A new HRTF instance with ITD-modified IR/TF values.
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with ITD-modified IR values and refreshed TF data.
+
+        Use Cases
+        ---------
+        - Introduce controlled binaural delay for experiments.
+        - Simulate additional interaural timing offset.
+
+        Examples
+        --------
+        >>> transformed = hrtf.transform.add_itd(0.0002, unit="seconds")
+        >>> transformed = hrtf.transform.add_itd(4, unit="samples")
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -500,26 +574,39 @@ class Transform:
         upper_cut_freq: float = 3000.0,
         filter_order: int = 10,
     ) -> "HRTF":
-        """General Description:
-        Estimate and remove ITD from current IR values by deducting delay on the delayed ear, then resync TF.
-        The ITD sign convention follows `calculate_itd`: positive ITD means left-ear delay relative to right-ear
-        (`ear axis: 0=left, 1=right`), negative ITD means right-ear delay relative to left-ear.
+        """Estimate and remove ITD from the current IR values, then resync TF.
 
-        Parameters:
-        - method: ITD estimator (`threshold` or `maxiacce`) used to compute per-position ITD.
-        - thresh_level: Threshold offset in dB for `threshold` mode.
-        - upper_cut_freq: Low-pass cutoff in Hz applied before ITD estimation.
-        - filter_order: Positive IIR Butterworth order for low-pass preprocessing.
+        The ITD sign convention follows ``calculate_itd``: positive ITD means
+        left-ear delay relative to right-ear and negative ITD means right-ear
+        delay relative to left-ear.
 
-        Returns:
-        - A new HRTF instance with ITD-compensated IR/TF values.
-        - Compensation is performed per IR position.
+        Parameters
+        ----------
+        method : {"threshold", "maxiacce"}, default="threshold"
+            ITD estimator used to compute the delay per position.
+        thresh_level : float, default=-10.0
+            Threshold offset in dB used when ``method="threshold"``.
+        upper_cut_freq : float, default=3000.0
+            Low-pass cutoff in Hz applied before ITD estimation.
+        filter_order : int, default=10
+            Butterworth low-pass filter order used before ITD estimation.
 
-        Use Cases:
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with ITD-compensated IR values and refreshed
+            TF data. Compensation is applied per source position.
+
+        Use Cases
+        ---------
         - Align binaural arrival times while avoiding additional latency.
         - Remove measured interaural delay before comparative analysis.
-        - Standardize onset alignment before ML feature extraction or metric computation.
+        - Standardize onset alignment before feature extraction or metric computation.
 
+        Examples
+        --------
+        >>> transformed = hrtf.transform.delete_itd()
+        >>> transformed = hrtf.transform.delete_itd(method="maxiacce", upper_cut_freq=1500.0)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR

@@ -1599,8 +1599,8 @@ class Axis:
         return titles.elevation_spectrum.format(angle=float(real_azimuth))
 
 
-class Plots:
-    #  Inheritance. All methods will accept a instance of HRTF , then HRTF will inherit from Plots
+class HRTFPlots:
+    #  Inheritance. All methods will accept a instance of HRTF , then HRTF will inherit from HRTFPlots
     def plot_magnitude(
         self: "HRTF",
         positions: str | list | np.ndarray = "front",
@@ -1612,6 +1612,7 @@ class Plots:
         freq_max: float | None = None,
         options: PlotOptions | None = None,
         show: bool = True,
+        titles: bool = True,
     ) -> None:
         """Plot HRTF magnitude responses for up to four source positions.
 
@@ -1644,6 +1645,9 @@ class Plots:
             Optional figure, axis, legend, frequency-axis, and per-panel overrides.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress generated default subplot titles. Explicit
+            titles provided through axis or panel options are still shown.
 
         Returns
         -------
@@ -1749,6 +1753,8 @@ class Plots:
         for index, (_, selected_positions) in enumerate(selected_position_info):
             ax = layout.get_axis(index)
             resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
+            if not titles and resolved_axis_options.title is None:
+                resolved_axis_options = resolved_axis_options.merge(AxisOptions(title=""))
             resolved_frequency_axis = Axis.create_frequency_axis(
                 ax=None,
                 axis="x",
@@ -1824,6 +1830,7 @@ class Plots:
         x_axis: str = "time",
         options: PlotOptions | None = None,
         show: bool = True,
+        titles: bool = True,
     ) -> None:
         """Plot HRIR amplitude responses for up to four source positions.
 
@@ -1847,6 +1854,9 @@ class Plots:
             Optional figure, axis, legend, and per-panel overrides.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress generated default subplot titles. Explicit
+            titles provided through axis or panel options are still shown.
 
         Returns
         -------
@@ -1928,6 +1938,8 @@ class Plots:
         for index, selected_position_query in enumerate(position_queries):
             ax = layout.get_axis(index)
             resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
+            if not titles and resolved_axis_options.title is None:
+                resolved_axis_options = resolved_axis_options.merge(AxisOptions(title=""))
             idxs, selected_positions = self.Sources.get_position_index(
                 selected_position_query,
                 coordinate_system="spherical",
@@ -1985,18 +1997,21 @@ class Plots:
         self: "HRTF",
         position: str | list | np.ndarray = "front",
         ear: str = "both",
-        x_axis: str = "time",
-        frequency_x_axis: str = "linear",
+        amplitude_x_axis: str = "time",
+        magnitude_x_axis: str = "linear",
         magnitude: str = "db",
         reference: float | str = 1.0,
         options: PlotOptions | None = None,
         show: bool = True,
+        titles: bool = True,
     ) -> None:
         """Plot amplitude and magnitude views for a single source position.
 
         This method creates a two-panel summary for one source direction. The
         top panel shows the HRIR amplitude response and the bottom panel shows
-        the corresponding HRTF magnitude response for the same position.
+        the corresponding HRTF magnitude response for the same position. The
+        amplitude panel uses ``amplitude_x_axis`` and the magnitude panel uses
+        ``magnitude_x_axis``.
 
         Parameters
         ----------
@@ -2006,9 +2021,9 @@ class Plots:
             are accepted.
         ear : {"left", "right", "both"}, default="both"
             Ear channel to display in both subplots.
-        x_axis : {"time", "samples"}, default="time"
+        amplitude_x_axis : {"time", "samples"}, default="time"
             Horizontal axis used for the amplitude subplot.
-        frequency_x_axis : {"linear", "log"}, default="linear"
+        magnitude_x_axis : {"linear", "log"}, default="linear"
             Frequency-axis scale used on the magnitude subplot.
         magnitude : {"db", "linear"}, default="db"
             Magnitude representation used on the bottom subplot.
@@ -2017,9 +2032,13 @@ class Plots:
         options : PlotOptions | None, default=None
             Optional figure, axis, legend, frequency-axis, and panel overrides.
             Frequency-range control for the magnitude subplot should be passed
-            through ``options.axis.frequency_axis`` or the bottom-panel override.
+            through ``options.axis.frequency_axis`` or the bottom-panel axis
+            override.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress the generated default figure title. Explicit
+            figure titles provided through ``options.figure.title`` are still shown.
 
         Returns
         -------
@@ -2041,7 +2060,8 @@ class Plots:
 
         >>> hrtf.plot_amplitude_and_magnitude(
         ...     position="left",
-        ...     x_axis="samples",
+        ...     amplitude_x_axis="samples",
+        ...     magnitude_x_axis="linear",
         ...     magnitude="linear",
         ... )
 
@@ -2050,7 +2070,7 @@ class Plots:
         >>> hrtf.plot_amplitude_and_magnitude(
         ...     position="front",
         ...     ear="both",
-        ...     frequency_x_axis="log",
+        ...     magnitude_x_axis="log",
         ... )
 
         Create the figure without showing it immediately:
@@ -2062,13 +2082,14 @@ class Plots:
             raise AttributeError(
                 f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
             )
-        if x_axis not in accepted_parameters.x_axes:
+        if amplitude_x_axis not in accepted_parameters.x_axes:
             raise AttributeError(
-                f"x_axis accepts : {accepted_parameters.x_axes[0]} or {accepted_parameters.x_axes[1]}"
+                "amplitude_x_axis accepts : "
+                f"{accepted_parameters.x_axes[0]} or {accepted_parameters.x_axes[1]}"
             )
-        if frequency_x_axis not in accepted_parameters.frequency_x_axes:
+        if magnitude_x_axis not in accepted_parameters.frequency_x_axes:
             raise AttributeError(
-                "frequency_x_axis accepts "
+                "magnitude_x_axis accepts "
                 f"{accepted_parameters.frequency_x_axes[0]} or "
                 f"{accepted_parameters.frequency_x_axes[1]}"
             )
@@ -2092,8 +2113,8 @@ class Plots:
             raise ValueError("IR data is not available")
         if self.TF.values is None or self.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
-        if x_axis == "time" and self.IR.sample_rate is None:
-            raise ValueError("IR sample_rate is required when x_axis='time'")
+        if amplitude_x_axis == "time" and self.IR.sample_rate is None:
+            raise ValueError("IR sample_rate is required when amplitude_x_axis='time'")
 
         position_queries = self.Sources.get_position_queries(position)
         if len(position_queries) != 1:
@@ -2104,7 +2125,7 @@ class Plots:
 
         layout = create_layout(
             layout=23,
-            figsize=figure_options.figsize,
+            figsize=(8, 8) if figure_options.figsize is None else figure_options.figsize,
             margins=resolved_margins,
         )
         panel_axis_options = layout.get_panel_axis_options(plot_options)
@@ -2126,7 +2147,7 @@ class Plots:
         sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
         x_values = (
             sample_indexes / float(self.IR.sample_rate)
-            if x_axis == "time"
+            if amplitude_x_axis == "time"
             else sample_indexes
         )
         ir_y_values = np.asarray(ir_values[idxs], dtype=float)
@@ -2154,7 +2175,7 @@ class Plots:
                 ).reshape(-1)
             ir_ax.plot(x_values, selected_ir_y_values, color="blue")
 
-        if x_axis == "time":
+        if amplitude_x_axis == "time":
             Axis.create_time_axis(
                 ax=ir_ax,
                 axis="x",
@@ -2181,7 +2202,7 @@ class Plots:
         resolved_frequency_axis = Axis.create_frequency_axis(
             ax=None,
             axis="x",
-            x_axis=frequency_x_axis,
+            x_axis=magnitude_x_axis,
             frequency_bins=frequency_bins_hz,
             options=bottom_axis_options.frequency_axis,
         )
@@ -2236,7 +2257,7 @@ class Plots:
 
         labels = Labels()
         magnitude_legend_location = (
-            "upper right" if frequency_x_axis == "linear" else "upper left"
+            "upper right" if magnitude_x_axis == "linear" else "upper left"
         )
         frequency_label = (
             labels.frequency
@@ -2246,7 +2267,7 @@ class Plots:
         Axis.create_frequency_axis(
             ax=magnitude_ax,
             axis="x",
-            x_axis=frequency_x_axis,
+            x_axis=magnitude_x_axis,
             label=frequency_label,
             options=resolved_frequency_axis,
         )
@@ -2261,15 +2282,15 @@ class Plots:
             legend_location=magnitude_legend_location,
         )
 
-        resolved_figure_title = (
-            Axis.create_position_title(
-                selected_positions=selected_positions,
-                position_coordinate_system="spherical",
+        if figure_options.title is not None:
+            layout.set_figure_title(figure_options.title)
+        elif titles:
+            layout.set_figure_title(
+                Axis.create_position_title(
+                    selected_positions=selected_positions,
+                    position_coordinate_system="spherical",
+                )
             )
-            if figure_options.title is None
-            else figure_options.title
-        )
-        layout.set_figure_title(resolved_figure_title)
         if show and plot_options.show:
             plt.show()
         return None
@@ -2286,6 +2307,7 @@ class Plots:
         freq_max: float | None = None,
         options: PlotOptions | None = None,
         show: bool = True,
+        titles: bool = True,
     ) -> None:
         """Plot a frequency-angle spectrum heatmap for an HRTF plane.
 
@@ -2325,6 +2347,10 @@ class Plots:
             ``"0-360"``.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress generated default panel and figure titles.
+            Explicit titles provided through figure, axis, or panel options are
+            still shown.
 
         Returns
         -------
@@ -2574,6 +2600,8 @@ class Plots:
                 if resolved_axis_options.title is None
                 else resolved_axis_options.title
             )
+            if not titles and resolved_axis_options.title is None:
+                resolved_title = ""
             ax.set_title(resolved_title)
             grid_enabled = (
                 False if resolved_axis_options.grid is None else resolved_axis_options.grid
@@ -2587,15 +2615,15 @@ class Plots:
                 label=colorbar_label,
                 options=heatmap_options,
             )
-        resolved_figure_title = (
-            Axis.create_plane_title(
-                plane=plane_key,
-                elevation_angle=real_plane_elevation,
+        if figure_options.title is not None:
+            layout.set_figure_title(figure_options.title)
+        elif titles:
+            layout.set_figure_title(
+                Axis.create_plane_title(
+                    plane=plane_key,
+                    elevation_angle=real_plane_elevation,
+                )
             )
-            if figure_options.title is None
-            else figure_options.title
-        )
-        layout.set_figure_title(resolved_figure_title)
         if show and plot_options.show:
             plt.show()
         return None
@@ -2611,6 +2639,7 @@ class Plots:
         freq_max: float | None = None,
         options: PlotOptions | None = None,
         show: bool = True,
+        titles: bool = True,
     ) -> None:
         """Plot a fixed-azimuth elevation spectrum heatmap.
 
@@ -2642,6 +2671,10 @@ class Plots:
             Optional figure, axis, heatmap, and panel overrides.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress generated default panel and figure titles.
+            Explicit titles provided through figure, axis, or panel options are
+            still shown.
 
         Returns
         -------
@@ -2859,6 +2892,8 @@ class Plots:
                 if resolved_axis_options.title is None
                 else resolved_axis_options.title
             )
+            if not titles and resolved_axis_options.title is None:
+                resolved_title = ""
             ax.set_title(resolved_title)
             grid_enabled = (
                 False if resolved_axis_options.grid is None else resolved_axis_options.grid
@@ -2872,12 +2907,12 @@ class Plots:
                 label=colorbar_label,
                 options=heatmap_options,
             )
-        resolved_figure_title = (
-            Axis.create_elevation_spectrum_title(real_azimuth=real_azimuth)
-            if figure_options.title is None
-            else figure_options.title
-        )
-        layout.set_figure_title(resolved_figure_title)
+        if figure_options.title is not None:
+            layout.set_figure_title(figure_options.title)
+        elif titles:
+            layout.set_figure_title(
+                Axis.create_elevation_spectrum_title(real_azimuth=real_azimuth)
+            )
         if show and plot_options.show:
             plt.show()
         return None
@@ -2887,6 +2922,7 @@ class Plots:
         elevation_angle: float = 0.0,
         options: PlotOptions | None = None,
         show: bool = True,
+        titles: bool = True,
     ) -> None:
         """Plot absolute ITD over a horizontal plane in polar coordinates.
 
@@ -2901,9 +2937,14 @@ class Plots:
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
         options : PlotOptions | None, default=None
-            Optional figure, axis, and margin overrides.
+            Optional figure, axis, and margin overrides. ``options.axis.ylabel``
+            controls the radial-axis label shown at the top of the polar subplot.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress the generated default figure title. The
+            radial-axis label remains controlled by ``options.axis.ylabel`` or
+            the method default label.
 
         Returns
         -------
@@ -2922,6 +2963,7 @@ class Plots:
         >>> hrtf.plot_itd_horizontal_plane(show=False)
         >>> hrtf.plot_itd_horizontal_plane(
         ...     options=PlotOptions(
+        ...         axis=AxisOptions(ylabel="ITD (s)"),
         ...         figure=FigureOptions(title="Horizontal Plane ITD")
         ...     )
         ... )
@@ -3001,19 +3043,23 @@ class Plots:
             [f"{tick:0.4f}".replace(".", ",") for tick in radial_ticks]
         )
         ax.set_rlabel_position(350.0)
-        resolved_title = Labels().itd_seconds
-        if axis_options.title is not None:
-            resolved_title = axis_options.title
-        ax.set_title(resolved_title)
-        resolved_figure_title = (
-            Axis.create_plane_title(
-                plane="horizontal",
-                elevation_angle=real_elevation,
+        if axis_options.ylabel is not None:
+            resolved_radial_label = axis_options.ylabel
+        else:
+            resolved_radial_label = Labels().itd_seconds
+        ax.set_ylabel(resolved_radial_label, rotation=0)
+        ax.yaxis.set_label_coords(0.5, ax.title.get_position()[1], transform=ax.transAxes)
+        ax.yaxis.label.set_horizontalalignment("center")
+        ax.yaxis.label.set_verticalalignment("bottom")
+        if figure_options.title is not None:
+            layout.set_figure_title(figure_options.title)
+        elif titles:
+            layout.set_figure_title(
+                Axis.create_plane_title(
+                    plane="horizontal",
+                    elevation_angle=real_elevation,
+                )
             )
-            if figure_options.title is None
-            else figure_options.title
-        )
-        layout.set_figure_title(resolved_figure_title)
         grid_enabled = True if axis_options.grid is None else axis_options.grid
         ax.grid(grid_enabled)
         if show and plot_options.show:
@@ -3025,6 +3071,7 @@ class Plots:
         elevation_angle: float = 0.0,
         options: PlotOptions | None = None,
         show: bool = True,
+        titles: bool = True,
     ) -> None:
         """Plot absolute ILD over a horizontal plane in polar coordinates.
 
@@ -3039,9 +3086,14 @@ class Plots:
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
         options : PlotOptions | None, default=None
-            Optional figure, axis, and margin overrides.
+            Optional figure, axis, and margin overrides. ``options.axis.ylabel``
+            controls the radial-axis label shown at the top of the polar subplot.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress the generated default figure title. The
+            radial-axis label remains controlled by ``options.axis.ylabel`` or
+            the method default label.
 
         Returns
         -------
@@ -3060,6 +3112,7 @@ class Plots:
         >>> hrtf.plot_ild_horizontal_plane(show=False)
         >>> hrtf.plot_ild_horizontal_plane(
         ...     options=PlotOptions(
+        ...         axis=AxisOptions(ylabel="ILD (dB)"),
         ...         figure=FigureOptions(title="Horizontal Plane ILD")
         ...     )
         ... )
@@ -3089,7 +3142,6 @@ class Plots:
             np.asarray(
                 calculate_ild(
                     self.IR,
-                    domain="ir",
                     output="db",
                     mode="broad-band",
                 ),
@@ -3141,19 +3193,23 @@ class Plots:
             [f"{int(np.rint(tick))}" for tick in radial_ticks]
         )
         ax.set_rlabel_position(350.0)
-        resolved_title = Labels().ild_db
-        if axis_options.title is not None:
-            resolved_title = axis_options.title
-        ax.set_title(resolved_title)
-        resolved_figure_title = (
-            Axis.create_plane_title(
-                plane="horizontal",
-                elevation_angle=real_elevation,
+        if axis_options.ylabel is not None:
+            resolved_radial_label = axis_options.ylabel
+        else:
+            resolved_radial_label = Labels().ild_db
+        ax.set_ylabel(resolved_radial_label, rotation=0)
+        ax.yaxis.set_label_coords(0.5, ax.title.get_position()[1], transform=ax.transAxes)
+        ax.yaxis.label.set_horizontalalignment("center")
+        ax.yaxis.label.set_verticalalignment("bottom")
+        if figure_options.title is not None:
+            layout.set_figure_title(figure_options.title)
+        elif titles:
+            layout.set_figure_title(
+                Axis.create_plane_title(
+                    plane="horizontal",
+                    elevation_angle=real_elevation,
+                )
             )
-            if figure_options.title is None
-            else figure_options.title
-        )
-        layout.set_figure_title(resolved_figure_title)
         grid_enabled = True if axis_options.grid is None else axis_options.grid
         ax.grid(grid_enabled)
         if show and plot_options.show:
@@ -3164,6 +3220,7 @@ class Plots:
         self: "HRTF",
         options: PlotOptions | None = None,
         show: bool = True,
+        titles: bool = True,
     ) -> None:
         """Plot the source grid as an interactive three-dimensional scatter.
 
@@ -3179,6 +3236,9 @@ class Plots:
             Optional figure, axis, and margin overrides.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress the generated default figure title. Explicit
+            figure titles provided through ``options.figure.title`` are still shown.
 
         Returns
         -------
@@ -3243,10 +3303,10 @@ class Plots:
         grid_enabled = True if axis_options.grid is None else axis_options.grid
         ax.grid(grid_enabled)
 
-        resolved_figure_title = (
-            "Source Grid" if figure_options.title is None else figure_options.title
-        )
-        layout.set_figure_title(resolved_figure_title)
+        if figure_options.title is not None:
+            layout.set_figure_title(figure_options.title)
+        elif titles:
+            layout.set_figure_title("Source Grid")
         if show and plot_options.show:
             plt.show()
         return None
@@ -3256,6 +3316,7 @@ class Plots:
         plane: str | list[str] | tuple[str, ...] = "horizontal",
         options: PlotOptions | None = None,
         show: bool = True,
+        titles: bool = True,
     ) -> None:
         """Plot the source grid and highlight canonical spatial planes in 3D.
 
@@ -3276,6 +3337,9 @@ class Plots:
             Optional figure, axis, legend, and margin overrides.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress the generated default figure title. Explicit
+            figure titles provided through ``options.figure.title`` are still shown.
 
         Returns
         -------
@@ -3347,9 +3411,9 @@ class Plots:
         )
 
         plane_colors = {
-            "horizontal": "blue",
+            "horizontal": "green",
             "median": "red",
-            "frontal": "green",
+            "frontal": "blue",
         }
         plane_titles = {
             "horizontal": "Horizontal Plane Grid",
@@ -3413,14 +3477,14 @@ class Plots:
             )
             ax.legend(loc=resolved_legend_location)
 
-        if figure_options.title is None:
+        if figure_options.title is not None:
+            layout.set_figure_title(figure_options.title)
+        elif titles:
             if len(resolved_planes) == 1:
                 resolved_figure_title = plane_titles[resolved_planes[0]]
             else:
                 resolved_figure_title = "Plane Grid"
-        else:
-            resolved_figure_title = figure_options.title
-        layout.set_figure_title(resolved_figure_title)
+            layout.set_figure_title(resolved_figure_title)
         if show and plot_options.show:
             plt.show()
         return None
