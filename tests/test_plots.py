@@ -60,10 +60,14 @@ class DummyTF:
             raise ValueError("DummyTF only supports reference=1.0 in tests")
         return self._magnitude_db
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> dev
 
+=======
+
+>>>>>>> dev
 
 class DummyPlotHRTF(HRTFPlots):
     def __init__(
@@ -259,12 +263,18 @@ def test_plot_magnitude_hides_unused_axis_for_three_positions(
     )
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     assert layout.layout == 3
     assert layout.get_axis("bottom_right").get_visible() is False
 =======
+=======
+>>>>>>> dev
     fig = plt.gcf()
 
     assert result is None
     assert len(fig.axes) == 4
     assert fig.axes[3].get_visible() is False
+<<<<<<< HEAD
+>>>>>>> dev
+=======
 >>>>>>> dev
