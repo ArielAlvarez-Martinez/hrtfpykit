@@ -7,13 +7,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from .coordinates import (
+    cartesian_to_lateral_polar,
+    cartesian_to_spherical,
+    get_named_positions,
+    get_position_alias,
+    get_position_queries,
+    lateral_polar_to_cartesian,
+    lateral_polar_to_spherical,
+    spherical_to_cartesian,
+    spherical_to_lateral_polar,
+)
 from .dsp import calculate_ild, calculate_itd, magnitude_to_db
 from .planes import (
     get_frontal_plane,
     get_horizontal_plane,
     get_median_plane,
 )
-from .spatial import Sources
+from .sources import Sources
 
 
 if TYPE_CHECKING:
@@ -331,40 +342,40 @@ class SourcePositionData:
         ):
             raise ValueError("Source positions must have shape (M, 3)")
 
-        source_system = str(sources.get_source_coordinate_system()).strip().lower()
+        source_system = str(sources.source_coordinate_system).strip().lower()
         target_system = str(coordinate_system).strip().lower()
         if target_system == source_system:
             return source_positions
         if target_system == "cartesian":
             if source_system == "spherical":
-                return sources.spherical_to_cartesian(
+                return spherical_to_cartesian(
                     source_positions,
                     angle_unit=angle_unit,
                 )
             if source_system == "lateral-polar":
-                return sources.lateral_polar_to_cartesian(
+                return lateral_polar_to_cartesian(
                     source_positions,
                     angle_unit=angle_unit,
                 )
         if target_system == "spherical":
             if source_system == "cartesian":
-                return sources.cartesian_to_spherical(
+                return cartesian_to_spherical(
                     source_positions,
                     angle_unit=angle_unit,
                 )
             if source_system == "lateral-polar":
-                return sources.lateral_polar_to_spherical(
+                return lateral_polar_to_spherical(
                     source_positions,
                     angle_unit=angle_unit,
                 )
         if target_system == "lateral-polar":
             if source_system == "cartesian":
-                return sources.cartesian_to_lateral_polar(
+                return cartesian_to_lateral_polar(
                     source_positions,
                     angle_unit=angle_unit,
                 )
             if source_system == "spherical":
-                return sources.spherical_to_lateral_polar(
+                return spherical_to_lateral_polar(
                     source_positions,
                     angle_unit=angle_unit,
                 )
@@ -455,9 +466,9 @@ class ThreeDimensional:
             angle_unit="degrees",
         )
 
-        front_tail = sources.spherical_to_cartesian(front_position, angle_unit="degrees")
-        right_tail = sources.spherical_to_cartesian(right_position, angle_unit="degrees")
-        up_tail = sources.spherical_to_cartesian(up_position, angle_unit="degrees")
+        front_tail = spherical_to_cartesian(front_position, angle_unit="degrees")
+        right_tail = spherical_to_cartesian(right_position, angle_unit="degrees")
+        up_tail = spherical_to_cartesian(up_position, angle_unit="degrees")
         front_direction = front_tail / max(float(np.linalg.norm(front_tail)), 1e-12)
         right_direction = right_tail / max(float(np.linalg.norm(right_tail)), 1e-12)
         up_direction = up_tail / max(float(np.linalg.norm(up_tail)), 1e-12)
@@ -1170,7 +1181,7 @@ class Axis:
         position_coordinate_system: str,
     ) -> str:
         titles = Titles()
-        position_alias = Sources.get_position_alias(
+        position_alias = get_position_alias(
             selected_positions,
             coordinate_system=position_coordinate_system,
         )
@@ -1711,7 +1722,7 @@ class HRTFPlots:
         if self.TF.values is None or self.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
 
-        position_queries = self.Sources.get_position_queries(positions)
+        position_queries = get_position_queries(positions)
         position_count = len(position_queries)
         if position_count == 0:
             raise ValueError("At least one position is required")
@@ -1916,7 +1927,7 @@ class HRTFPlots:
         if x_axis == "time" and self.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required when x_axis='time'")
 
-        position_queries = self.Sources.get_position_queries(positions)
+        position_queries = get_position_queries(positions)
         position_count = len(position_queries)
         if position_count == 0:
             raise ValueError("At least one position is required")
@@ -2121,7 +2132,7 @@ class HRTFPlots:
         if amplitude_x_axis == "time" and self.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required when amplitude_x_axis='time'")
 
-        position_queries = self.Sources.get_position_queries(position)
+        position_queries = get_position_queries(position)
         if len(position_queries) != 1:
             raise ValueError(
                 "plot_amplitude_and_magnitude accepts exactly one position"
@@ -2484,7 +2495,7 @@ class HRTFPlots:
         if plane_key == "horizontal":
             plane_axis_values = np.asarray(spherical_positions[:, 0], dtype=float)
         else:
-            lateral_polar_positions = self.Sources.spherical_to_lateral_polar(
+            lateral_polar_positions = spherical_to_lateral_polar(
                 spherical_positions,
                 angle_unit="degrees",
             )
@@ -2748,7 +2759,7 @@ class HRTFPlots:
 
         if isinstance(azimuth, str):
             azimuth_key = str(azimuth).strip().lower()
-            named_positions = Sources.get_named_positions(angle_unit="degrees")
+            named_positions = get_named_positions(angle_unit="degrees")
             if azimuth_key not in named_positions:
                 raise ValueError("azimuth accepts a finite value or: front, back, left, right")
             resolved_azimuth = float(named_positions[azimuth_key][0])

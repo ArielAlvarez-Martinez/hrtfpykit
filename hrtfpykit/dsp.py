@@ -412,7 +412,8 @@ def magnitude_to_db(
         reference_value = float(reference)
         if not np.isfinite(reference_value) or reference_value <= 0.0:
             raise ValueError("reference must be a finite, positive float or 'max'")
-    return 20.0 * np.log10(magnitude_values / reference_value)
+    with np.errstate(divide="ignore"):
+        return 20.0 * np.log10(magnitude_values / reference_value)
 
 
 def db_to_magnitude(

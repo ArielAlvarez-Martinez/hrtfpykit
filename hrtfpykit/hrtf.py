@@ -2,6 +2,7 @@ from functools import cached_property
 from pathlib import Path
 
 import numpy as np
+from .coordinates import get_position_alias, get_position_queries
 from .dsp import (
     calculate_ir_from_tf,
     calculate_tf_from_ir,
@@ -13,7 +14,7 @@ from .planes import (
 )
 from .plots import HRTFPlots
 from .sofa.core import SOFA
-from .spatial import Sources
+from .sources import Sources
 from .domain import IR, TF
 from .transforms import Transform
 
@@ -102,7 +103,7 @@ class HRTF(HRTFPlots):
 
             if positions is not None:
                 position_indices: list[int] = []
-                for position in Sources.get_position_queries(positions):
+                for position in get_position_queries(positions):
                     idx, _ = transformed_hrtf.Sources.get_position_index(
                         position=position,
                         coordinate_system=position_coordinate_system,

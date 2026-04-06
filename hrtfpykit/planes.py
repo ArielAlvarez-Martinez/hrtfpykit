@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+from .coordinates import cartesian_to_spherical, lateral_polar_to_spherical
 
 
 if TYPE_CHECKING:
@@ -15,7 +16,6 @@ def _get_plane_indices(
     angle: float = 0.0,
     angle_unit: str = "degrees",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return source indices for a requested plane and selected plane angles."""
     plane_key = str(plane).strip().lower()
     if plane_key not in {"horizontal", "median", "frontal"}:
         raise ValueError("plane must be one of: horizontal, median, frontal")
@@ -28,7 +28,7 @@ def _get_plane_indices(
     if not np.isfinite(angle):
         raise ValueError("angle must be a finite value")
 
-    grid_system = str(hrtf.Sources.get_source_coordinate_system()).strip().lower()
+    grid_system = str(hrtf.Sources.source_coordinate_system).strip().lower()
     grid_positions = hrtf.Sources.get_positions(angle_unit=unit)
     if grid_positions.ndim != 2 or grid_positions.shape[-1] != 3:
         raise ValueError("Source positions grid must have shape (N, 3)")
@@ -36,12 +36,12 @@ def _get_plane_indices(
     if grid_system == "spherical":
         spherical_positions = grid_positions
     elif grid_system == "cartesian":
-        spherical_positions = hrtf.Sources.cartesian_to_spherical(
+        spherical_positions = cartesian_to_spherical(
             grid_positions,
             angle_unit=unit,
         )
     elif grid_system == "lateral-polar":
-        spherical_positions = hrtf.Sources.lateral_polar_to_spherical(
+        spherical_positions = lateral_polar_to_spherical(
             grid_positions,
             angle_unit=unit,
         )
@@ -82,7 +82,38 @@ def get_horizontal_plane(
     elevation: float = 0.0,
     angle_unit: str = "degrees",
 ) -> tuple[np.ndarray, float]:
-    """Return indices of the horizontal plane nearest to requested elevation."""
+    """Return the horizontal plane nearest to a requested elevation.
+
+    Parameters
+    ----------
+    hrtf : HRTF
+        HRTF instance that provides the source grid to inspect.
+    elevation : float, default=0.0
+        Requested horizontal-plane elevation.
+    angle_unit : {"degrees", "radians"}, default="degrees"
+        Angular unit used by ``elevation`` and by the returned real elevation.
+
+    Returns
+    -------
+    tuple[np.ndarray, float]
+        ``(indices, real_elevation)`` where ``indices`` contains the source-grid
+        indices in the selected horizontal plane and ``real_elevation`` is the
+        actual elevation present in the grid.
+
+    Use Cases
+    ---------
+    - Select the canonical horizontal plane at ``0°`` elevation.
+    - Resolve the nearest available horizontal slice for plotting.
+    - Inspect source positions that belong to one elevation band.
+
+    Examples
+    --------
+    >>> idx, real_elevation = get_horizontal_plane(hrtf)
+    >>> idx.ndim
+    1
+    >>> isinstance(real_elevation, float)
+    True
+    """
     indices, real_plane_angles = _get_plane_indices(
         hrtf=hrtf,
         plane="horizontal",
@@ -97,7 +128,38 @@ def get_median_plane(
     azimuth: float = 0.0,
     angle_unit: str = "degrees",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return indices of the median plane nearest to requested azimuth."""
+    """Return the median plane nearest to a requested azimuth.
+
+    Parameters
+    ----------
+    hrtf : HRTF
+        HRTF instance that provides the source grid to inspect.
+    azimuth : float, default=0.0
+        Requested azimuth used to resolve the nearest median plane.
+    angle_unit : {"degrees", "radians"}, default="degrees"
+        Angular unit used by ``azimuth`` and by the returned real azimuths.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        ``(indices, real_azimuths)`` where ``indices`` contains the source-grid
+        indices in the selected median plane and ``real_azimuths`` contains the
+        two opposite azimuths that define that plane in the grid.
+
+    Use Cases
+    ---------
+    - Select the canonical median plane defined by the front-back path.
+    - Resolve the nearest available sagittal plane from a sampled source grid.
+    - Retrieve the actual azimuth pair used for a median-plane visualization.
+
+    Examples
+    --------
+    >>> idx, real_azimuths = get_median_plane(hrtf)
+    >>> idx.ndim
+    1
+    >>> real_azimuths.shape
+    (2,)
+    """
     return _get_plane_indices(
         hrtf=hrtf,
         plane="median",
@@ -111,7 +173,38 @@ def get_frontal_plane(
     azimuth: float = 90.0,
     angle_unit: str = "degrees",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return indices of the frontal plane nearest to requested azimuth."""
+    """Return the frontal plane nearest to a requested azimuth.
+
+    Parameters
+    ----------
+    hrtf : HRTF
+        HRTF instance that provides the source grid to inspect.
+    azimuth : float, default=90.0
+        Requested azimuth used to resolve the nearest frontal plane.
+    angle_unit : {"degrees", "radians"}, default="degrees"
+        Angular unit used by ``azimuth`` and by the returned real azimuths.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        ``(indices, real_azimuths)`` where ``indices`` contains the source-grid
+        indices in the selected frontal plane and ``real_azimuths`` contains the
+        two opposite azimuths that define that plane in the grid.
+
+    Use Cases
+    ---------
+    - Select the canonical frontal plane defined by the left-right path.
+    - Resolve the nearest available coronal plane from a sampled source grid.
+    - Retrieve the actual azimuth pair used for frontal-plane analysis.
+
+    Examples
+    --------
+    >>> idx, real_azimuths = get_frontal_plane(hrtf)
+    >>> idx.ndim
+    1
+    >>> real_azimuths.shape
+    (2,)
+    """
     return _get_plane_indices(
         hrtf=hrtf,
         plane="frontal",

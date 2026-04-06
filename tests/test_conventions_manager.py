@@ -5,10 +5,12 @@ import pytest
 from hrtfpykit.sofa.conventions_manager import ConventionsManager
 
 
-def test_list_conventions_specifications_returns_mapping() -> None:
-    listing = ConventionsManager.list_conventions_specifications()
-    assert isinstance(listing, dict)
-    assert "SimpleFreeFieldHRIR" in listing
+def test_available_conventions_specifications_prints_table(capsys: pytest.CaptureFixture[str]) -> None:
+    ConventionsManager.available_conventions_specifications()
+    captured = capsys.readouterr()
+
+    assert "AVAILABLE CONVENTIONS" in captured.out
+    assert "SimpleFreeFieldHRIR" in captured.out
 
 
 def test_inspect_and_add_delete_convention_specification() -> None:

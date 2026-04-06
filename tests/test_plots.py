@@ -10,8 +10,8 @@ from hrtfpykit.plots import (
     Axis,
     AxisOptions,
     FrequencyAxisOptions,
+    HRTFPlots,
     PlotOptions,
-    Plots,
 )
 
 
@@ -59,9 +59,13 @@ class DummyTF:
         if reference != 1.0:
             raise ValueError("DummyTF only supports reference=1.0 in tests")
         return self._magnitude_db
+<<<<<<< HEAD
+
+=======
+>>>>>>> dev
 
 
-class DummyPlotHRTF(Plots):
+class DummyPlotHRTF(HRTFPlots):
     def __init__(
         self,
         magnitude_db: np.ndarray,
@@ -98,7 +102,7 @@ def test_create_frequency_axis_linear_sets_scale_ticks_and_label() -> None:
     resolved = Axis.create_frequency_axis(
         ax=ax,
         axis="x",
-        unit="linear",
+        x_axis="linear",
         frequency_bins=np.array([0.0, 5_000.0, 10_000.0, 15_000.0, 20_000.0]),
         freq_min=250.0,
         freq_max=20_000.0,
@@ -109,14 +113,25 @@ def test_create_frequency_axis_linear_sets_scale_ticks_and_label() -> None:
     assert resolved.freq_max == 20_000.0
     assert ax.get_xscale() == "linear"
     assert ax.get_xlabel() == "Frequency(kHz)"
-    assert [tick.get_text() for tick in ax.get_xticklabels()] == ["5", "10", "15", "20"]
+    assert [tick.get_text() for tick in ax.get_xticklabels()] == [
+        "2",
+        "4",
+        "6",
+        "8",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18",
+        "20",
+    ]
 
 
 def test_create_frequency_axis_db_uses_first_positive_bin_when_freq_min_is_missing() -> None:
     resolved = Axis.create_frequency_axis(
         ax=None,
         axis="x",
-        unit="db",
+        x_axis="log",
         frequency_bins=np.array([0.0, 250.0, 500.0, 1_000.0]),
         freq_max=1_000.0,
     )
@@ -154,18 +169,21 @@ def test_create_magnitude_axis_sets_ylabel_title_and_legend() -> None:
 def test_plot_magnitude_single_position_returns_layout_and_lines(
     dummy_hrtf: DummyPlotHRTF,
 ) -> None:
-    layout = dummy_hrtf.plot_magnitude(
+    result = dummy_hrtf.plot_magnitude(
         [0.0, 0.0],
         unit="linear",
         ear="both",
+        x_axis="linear",
         freq_min=250.0,
         freq_max=20_000.0,
-        options=PlotOptions(show=False),
+        show=False,
     )
 
-    ax = layout.get_axis("main")
+    fig = plt.gcf()
+    ax = fig.axes[0]
 
-    assert layout.layout == 1
+    assert result is None
+    assert len(fig.axes) == 1
     assert len(ax.lines) == 2
     assert ax.get_xscale() == "linear"
     assert ax.get_xlabel() == "Frequency(kHz)"
@@ -176,14 +194,14 @@ def test_plot_magnitude_single_position_returns_layout_and_lines(
 def test_plot_magnitude_panel_overrides_apply_by_index_and_name(
     dummy_hrtf: DummyPlotHRTF,
 ) -> None:
-    layout = dummy_hrtf.plot_magnitude(
+    result = dummy_hrtf.plot_magnitude(
         [[0.0, 0.0], [30.0, 0.0]],
         unit="linear",
         ear="both",
+        x_axis="linear",
         freq_min=250.0,
         freq_max=20_000.0,
         options=PlotOptions(
-            show=False,
             axis=AxisOptions(title="Common Title"),
             panels={
                 0: AxisOptions(title="Top Panel", ylabel="Panel 1 Magnitude"),
@@ -199,11 +217,14 @@ def test_plot_magnitude_panel_overrides_apply_by_index_and_name(
                 ),
             },
         ),
+        show=False,
     )
 
-    top_axis = layout.get_axis(0)
-    bottom_axis = layout.get_axis("bottom")
+    fig = plt.gcf()
+    top_axis = fig.axes[0]
+    bottom_axis = fig.axes[1]
 
+    assert result is None
     assert top_axis.get_title() == "Top Panel"
     assert top_axis.get_ylabel() == "Panel 1 Magnitude"
     assert bottom_axis.get_title() == "Bottom Panel"
@@ -218,23 +239,32 @@ def test_plot_magnitude_rejects_invalid_panel_name(dummy_hrtf: DummyPlotHRTF) ->
             unit="linear",
             ear="both",
             options=PlotOptions(
-                show=False,
                 panels={"invalid_panel": AxisOptions(title="Wrong")},
             ),
+            show=False,
         )
 
 
 def test_plot_magnitude_hides_unused_axis_for_three_positions(
     dummy_hrtf: DummyPlotHRTF,
 ) -> None:
-    layout = dummy_hrtf.plot_magnitude(
+    result = dummy_hrtf.plot_magnitude(
         [[0.0, 0.0], [30.0, 0.0], [60.0, 0.0]],
         unit="linear",
         ear="both",
+        x_axis="linear",
         freq_min=250.0,
         freq_max=20_000.0,
-        options=PlotOptions(show=False),
+        show=False,
     )
 
+<<<<<<< HEAD
     assert layout.layout == 3
     assert layout.get_axis("bottom_right").get_visible() is False
+=======
+    fig = plt.gcf()
+
+    assert result is None
+    assert len(fig.axes) == 4
+    assert fig.axes[3].get_visible() is False
+>>>>>>> dev

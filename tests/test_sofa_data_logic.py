@@ -34,7 +34,7 @@ def _create_sofa_file(tmp_path: Path) -> Path:
 
 def test_sofa_properties(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa=True)
+    sofa = SOFA.load(path, check_sofa_against_conventions=True)
     try:
         assert sofa.Dimensions is not None
         assert sofa.GlobalAttributes is not None
@@ -46,7 +46,7 @@ def test_sofa_properties(tmp_path: Path) -> None:
 
 def test_dimensions_logic(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa=True)
+    sofa = SOFA.load(path, check_sofa_against_conventions=True)
     try:
         dims = sofa.Dimensions
         assert dims is not None
@@ -61,7 +61,7 @@ def test_dimensions_logic(tmp_path: Path) -> None:
 
 def test_global_and_variable_attributes(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa=True)
+    sofa = SOFA.load(path, check_sofa_against_conventions=True)
     try:
         global_attrs = sofa.GlobalAttributes
         variable_attrs = sofa.VariableAttributes
@@ -83,7 +83,7 @@ def test_global_and_variable_attributes(tmp_path: Path) -> None:
 
 def test_variables_logic(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa=True)
+    sofa = SOFA.load(path, check_sofa_against_conventions=True)
     try:
         variables = sofa.Variables
         assert variables is not None
@@ -94,19 +94,19 @@ def test_variables_logic(tmp_path: Path) -> None:
 
         sr = variables.get("Data.SamplingRate")
         assert sr is not None
-        assert sr.value == 44100
-        assert isinstance(sr.value, int)
+        assert np.array_equal(sr.value, np.array([44100.0], dtype=float))
+        assert isinstance(sr.value, np.ndarray)
 
         summary = variables.summary()
-        assert "Data.IR : dimensions:(m=2, R=2, n=4)" in summary
-        assert "Data.IR:Units: pascal" in summary
+        assert "Data.IR : dimensions= (m=2, R=2, n=4)" in summary
+        assert "Data.IR:Units= pascal" in summary
     finally:
         sofa.netCDF4_dataset.close()
 
 
 def test_sofa_summary(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa=True)
+    sofa = SOFA.load(path, check_sofa_against_conventions=True)
     try:
         summary = sofa.summary()
         assert "GLOBAL ATTRIBUTES" in summary

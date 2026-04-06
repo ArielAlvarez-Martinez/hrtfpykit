@@ -18,7 +18,10 @@ def test_transform_apply_window_unsupported_keeps_values() -> None:
     hrtf.IR.values = original.copy()
     hrtf.IR.sample_rate = 48_000.0
 
-    with pytest.raises(ValueError, match="Unsupported window"):
+    with pytest.raises(
+        ValueError,
+        match="window_name must be one of: hann, hamming, blackman, rectangular",
+    ):
         hrtf.transform.apply_window("unsupported_window")
 
     assert np.array_equal(hrtf.IR.values, original)
@@ -43,13 +46,12 @@ def test_transform_apply_window_supported_updates_values_and_tf() -> None:
     assert transformed_hrtf.TF.frequency_bins is not None
 
 
-def test_transform_apply_crop_time_by_seconds_updates_ir_and_tf() -> None:
+def test_select_crop_time_by_seconds_updates_ir_and_tf() -> None:
     hrtf = HRTF()
     hrtf.IR.values = np.arange(8, dtype=float).reshape(1, -1)
     hrtf.IR.sample_rate = 4.0
 
-    transformed_hrtf = hrtf.transform.apply_crop(
-        domain="time",
+    transformed_hrtf = hrtf.select(
         start_seconds=0.5,
         end_seconds=1.5,
     )
@@ -273,15 +275,19 @@ def test_select_with_ear_returns_ear_selected_copy() -> None:
 
     assert left_hrtf is not hrtf
     assert right_hrtf is not hrtf
-    assert both_hrtf is hrtf
+    assert both_hrtf is not hrtf
     assert left_hrtf.IR.values.shape == (3, 4)
     assert right_hrtf.IR.values.shape == (3, 4)
+    assert both_hrtf.IR.values.shape == (3, 2, 4)
     assert left_hrtf.TF.values.shape == (3, 3)
     assert right_hrtf.TF.values.shape == (3, 3)
+    assert both_hrtf.TF.values.shape == (3, 2, 3)
     assert np.array_equal(left_hrtf.IR.values, ir_values[:, 0, :])
     assert np.array_equal(right_hrtf.IR.values, ir_values[:, 1, :])
+    assert np.array_equal(both_hrtf.IR.values, ir_values)
     assert np.array_equal(left_hrtf.TF.values, tf_values[:, 0, :])
     assert np.array_equal(right_hrtf.TF.values, tf_values[:, 1, :])
+    assert np.array_equal(both_hrtf.TF.values, tf_values)
 
 
 def test_select_with_ear_squeezes_ear_axis() -> None:
@@ -471,28 +477,22 @@ def test_transform_modify_magnitude_updates_tf_and_ir_immutably() -> None:
     assert np.allclose(np.abs(transformed_db.TF.values), 10.0 ** (new_magnitude_db / 20.0))
 
 
-def test_transform_apply_crop_frequency_updates_ir() -> None:
+def test_select_crop_by_sample_indices_updates_ir_and_tf() -> None:
     hrtf = HRTF()
-    hrtf.IR.values = np.array([[1.0, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=float)
+    hrtf.IR.values = np.arange(8, dtype=float).reshape(1, -1)
     hrtf.IR.sample_rate = 48_000.0
-    hrtf_with_fft = hrtf.transform.modify_fft_length(8)
-
-    original_ir = np.array(hrtf_with_fft.IR.values, copy=True)
-    cropped_hrtf = hrtf_with_fft.transform.apply_crop(
-        domain="frequency",
+    cropped_hrtf = hrtf.select(
         start=1,
-        end=3,
+        end=5,
     )
 
-    assert hrtf.fft_length is None
+    assert np.array_equal(hrtf.IR.values, np.arange(8, dtype=float).reshape(1, -1))
     assert hrtf.TF.values is None
     assert hrtf.TF.frequency_bins is None
-    assert np.allclose(hrtf_with_fft.IR.values, original_ir)
+    assert np.array_equal(cropped_hrtf.IR.values, np.array([[1.0, 2.0, 3.0, 4.0]]))
     assert cropped_hrtf.TF.values is not None
     assert cropped_hrtf.IR.values is not None
-    assert np.allclose(cropped_hrtf.TF.values[..., 0], 0.0)
-    assert np.allclose(cropped_hrtf.TF.values[..., 3:], 0.0)
-    assert not np.allclose(cropped_hrtf.IR.values, original_ir)
+    assert cropped_hrtf.TF.frequency_bins is not None
 
 
 def test_transform_resampling_updates_sample_rate_and_syncs_tf() -> None:
