@@ -393,4 +393,3 @@ class HRTF(HRTFPlots):
             hrtf.SOFAConventions = convention
             return hrtf
 
-HRTF.load_hrtf("hrtfs/hrtf_58.sofa")
