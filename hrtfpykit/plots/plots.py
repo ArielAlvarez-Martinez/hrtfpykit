@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from .coordinates import (
+from ..coordinates import (
     cartesian_to_lateral_polar,
     cartesian_to_spherical,
     get_named_positions,
@@ -18,17 +18,17 @@ from .coordinates import (
     spherical_to_cartesian,
     spherical_to_lateral_polar,
 )
-from .dsp import calculate_ild, calculate_itd, magnitude_to_db
-from .planes import (
+from ..dsp import calculate_ild, calculate_itd, magnitude_to_db
+from ..planes import (
     get_frontal_plane,
     get_horizontal_plane,
     get_median_plane,
 )
-from .sources import Sources
+from ..sources import Sources
 
 
 if TYPE_CHECKING:
-    from .hrtf import HRTF
+    from ..hrtf import HRTF
 
 
 @dataclass(frozen=True)
