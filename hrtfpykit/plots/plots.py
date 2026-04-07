@@ -2938,7 +2938,7 @@ class HRTFPlots:
             plt.show()
         return None
 
-    def plot_itd(
+    def plot_itd_curve(
         self: "HRTF",
         elevation_angle: float = 0.0,
         options: PlotOptions | None = None,
@@ -2979,10 +2979,10 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_itd()
-        >>> hrtf.plot_itd(elevation_angle=10.0)
-        >>> hrtf.plot_itd(show=False)
-        >>> hrtf.plot_itd(
+        >>> hrtf.plot_itd_curve()
+        >>> hrtf.plot_itd_curve(elevation_angle=10.0)
+        >>> hrtf.plot_itd_curve(show=False)
+        >>> hrtf.plot_itd_curve(
         ...     options=PlotOptions(
         ...         axis=AxisOptions(ylabel="ITD (s)")
         ...     )
@@ -3472,7 +3472,7 @@ class HRTFPlots:
             plt.show()
         return None
 
-    def plot_ild(
+    def plot_ild_curve(
         self: "HRTF",
         elevation_angle: float = 0.0,
         options: PlotOptions | None = None,
@@ -3513,10 +3513,10 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_ild()
-        >>> hrtf.plot_ild(elevation_angle=10.0)
-        >>> hrtf.plot_ild(show=False)
-        >>> hrtf.plot_ild(
+        >>> hrtf.plot_ild_curve()
+        >>> hrtf.plot_ild_curve(elevation_angle=10.0)
+        >>> hrtf.plot_ild_curve(show=False)
+        >>> hrtf.plot_ild_curve(
         ...     options=PlotOptions(
         ...         axis=AxisOptions(ylabel="ILD (dB)")
         ...     )
