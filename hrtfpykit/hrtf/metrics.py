@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy import signal
 
-from .dsp import apply_iir_filter, calculate_tf_from_ir, magnitude_to_db
+from .dsp import iir_filter, magnitude_to_db, tf_from_ir
 
 if TYPE_CHECKING:
     from .domain import IR
@@ -111,14 +111,14 @@ def calculate_itd(
 
     left_signals = flattened[:, 0, :]
     right_signals = flattened[:, 1, :]
-    left_processed = apply_iir_filter(
+    left_processed = iir_filter(
         left_signals,
         filter="lowpass",
         sample_rate=resolved_sample_rate,
         cutoff=upper_cut_freq,
         order=filter_order,
     )
-    right_processed = apply_iir_filter(
+    right_processed = iir_filter(
         right_signals,
         filter="lowpass",
         sample_rate=resolved_sample_rate,
@@ -257,7 +257,7 @@ def calculate_ild(
     if mode_key == "frequency-dependent":
         if resolved_sample_rate is None:
             raise ValueError("sample_rate is required for IR NumPy inputs")
-        tf_values, _, _ = calculate_tf_from_ir(
+        tf_values, _, _ = tf_from_ir(
             ir_values,
             sample_rate=resolved_sample_rate,
             fft_length=fft_length,

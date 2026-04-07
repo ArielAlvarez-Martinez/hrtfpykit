@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 
 from hrtfpykit.hrtf.dsp import (
-    apply_fir_filter,
-    apply_iir_filter,
+    fir_filter,
+    iir_filter,
     minimum_phase,
     modify_magnitude,
     modify_phase,
@@ -119,11 +119,11 @@ def test_transform_apply_iir_filter_updates_ir_and_tf() -> None:
     assert transformed_hrtf.TF.frequency_bins is not None
 
 
-def test_dsp_apply_fir_and_iir_filter_accept_ndarray_and_ir() -> None:
+def test_dsp_fir_and_iir_filter_accept_ndarray_and_ir() -> None:
     ir_values = np.zeros((2, 32), dtype=float)
     ir_values[:, 4] = 1.0
 
-    fir_filtered = apply_fir_filter(
+    fir_filtered = fir_filter(
         ir_values,
         filter="lowpass",
         sample_rate=48_000.0,
@@ -133,7 +133,7 @@ def test_dsp_apply_fir_and_iir_filter_accept_ndarray_and_ir() -> None:
     assert fir_filtered.shape == ir_values.shape
     assert np.all(np.isfinite(fir_filtered))
 
-    iir_filtered = apply_iir_filter(
+    iir_filtered = iir_filter(
         ir_values,
         filter="lowpass",
         sample_rate=48_000.0,
@@ -146,14 +146,14 @@ def test_dsp_apply_fir_and_iir_filter_accept_ndarray_and_ir() -> None:
     hrtf = HRTF()
     hrtf.IR.values = ir_values.copy()
     hrtf.IR.sample_rate = 48_000.0
-    fir_from_ir = apply_fir_filter(
+    fir_from_ir = fir_filter(
         hrtf.IR,
         filter="lowpass",
         sample_rate=48_000.0,
         cutoff=3_000.0,
         num_taps=11,
     )
-    iir_from_ir = apply_iir_filter(
+    iir_from_ir = iir_filter(
         hrtf.IR,
         filter="lowpass",
         sample_rate=48_000.0,

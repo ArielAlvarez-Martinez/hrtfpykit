@@ -5,17 +5,17 @@ import matplotlib.pyplot as plt
 from typing import TYPE_CHECKING
 
 from .dsp import (
-    apply_fir_filter,
-    apply_iir_filter,
-    apply_padding,
-    apply_window,
-    calculate_ir_from_tf,
-    calculate_tf_from_ir,
     downsampling,
+    fir_filter,
+    iir_filter,
+    ir_from_tf,
     minimum_phase,
     modify_magnitude,
     modify_phase,
+    padding,
+    tf_from_ir,
     upsampling,
+    window,
 )
 from .metrics import calculate_itd
 
@@ -55,8 +55,8 @@ class Transform:
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        ir.values = apply_window(ir, window_name)
-        calculate_tf_from_ir(
+        ir.values = window(ir, window_name)
+        tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
@@ -96,13 +96,13 @@ class Transform:
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        ir.values = apply_padding(
+        ir.values = padding(
             ir,
             padding_length=padding_length,
             location=location,
             value=value,
         )
-        calculate_tf_from_ir(
+        tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
@@ -146,7 +146,7 @@ class Transform:
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        ir.values = apply_fir_filter(
+        ir.values = fir_filter(
             ir,
             filter=filter,
             sample_rate=ir.sample_rate,
@@ -154,7 +154,7 @@ class Transform:
             num_taps=num_taps,
             window=window,
         )
-        calculate_tf_from_ir(
+        tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
@@ -195,14 +195,14 @@ class Transform:
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        ir.values = apply_iir_filter(
+        ir.values = iir_filter(
             ir,
             filter=filter,
             sample_rate=ir.sample_rate,
             cutoff=cutoff,
             order=order,
         )
-        calculate_tf_from_ir(
+        tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
@@ -248,7 +248,7 @@ class Transform:
             fft_length=fft_length,
             epsilon=epsilon,
         )
-        calculate_tf_from_ir(
+        tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
@@ -290,7 +290,7 @@ class Transform:
             new_phase=new_phase,
             unit=unit,
         )
-        calculate_ir_from_tf(
+        ir_from_tf(
             tf,
             frequency_bins=tf.frequency_bins,
         )
@@ -332,7 +332,7 @@ class Transform:
             new_magnitude=new_magnitude,
             scale=scale,
         )
-        calculate_ir_from_tf(
+        ir_from_tf(
             tf,
             frequency_bins=tf.frequency_bins,
         )
@@ -368,7 +368,7 @@ class Transform:
         )
         ir.values = resampled_ir
         ir.sample_rate = resampled_sample_rate
-        calculate_tf_from_ir(
+        tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
@@ -405,7 +405,7 @@ class Transform:
         )
         ir.values = resampled_ir
         ir.sample_rate = resampled_sample_rate
-        calculate_tf_from_ir(
+        tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
@@ -437,7 +437,7 @@ class Transform:
         if ir.values is None:
             raise ValueError("IR data is not available")
         transformed_hrtf.fft_length = int(new_fft_length)
-        calculate_tf_from_ir(
+        tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
@@ -537,7 +537,7 @@ class Transform:
             itd_samples = int(np.round(itd_value))
 
         if itd_samples == 0:
-            calculate_tf_from_ir(
+            tf_from_ir(
                 ir,
                 fft_length=transformed_hrtf.fft_length,
             )
@@ -561,7 +561,7 @@ class Transform:
             ir_values[..., 1, :] = delayed_right
 
         ir.values = ir_values
-        calculate_tf_from_ir(
+        tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
@@ -652,7 +652,7 @@ class Transform:
                 flattened[index, 1, :] = advanced_right
 
         ir.values = flattened.reshape(*leading_shape, channel_count, sample_count)
-        calculate_tf_from_ir(
+        tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
         )

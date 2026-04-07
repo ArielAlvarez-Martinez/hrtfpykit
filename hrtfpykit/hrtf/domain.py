@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from .dsp import (
-    get_imag,
-    get_magnitude,
-    get_magnitude_db,
-    get_phase,
-    get_real,
-    get_signal_duration,
+    imag,
+    magnitude,
+    magnitude_db,
+    phase,
+    real,
+    signal_duration,
 )
 from .metrics import calculate_itd
 
@@ -34,7 +34,7 @@ class IR:
     @property
     def ir_duration(self) -> float:
         """Return the IR duration in seconds."""
-        return get_signal_duration(self)
+        return signal_duration(self)
 
     def get_itd(
         self,
@@ -104,22 +104,22 @@ class TF:
     @property
     def magnitude(self) -> np.ndarray:
         """Return TF magnitude."""
-        return get_magnitude(self)
+        return magnitude(self)
 
     def get_magnitude_db(self, reference: float | str = 1.0) -> np.ndarray:
-        return get_magnitude_db(self, reference=reference)
+        return magnitude_db(self, reference=reference)
 
     @property
     def phase(self) -> np.ndarray:
         """Return TF phase in degrees."""
-        return get_phase(self)
+        return phase(self)
 
     @property
     def real(self) -> np.ndarray:
         """Return the real part of TF values."""
-        return get_real(self)
+        return real(self)
 
     @property
     def imag(self) -> np.ndarray:
         """Return the imaginary part of TF values."""
-        return get_imag(self)
+        return imag(self)

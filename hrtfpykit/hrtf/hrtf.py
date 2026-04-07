@@ -4,8 +4,8 @@ from pathlib import Path
 import numpy as np
 from .coordinates import get_position_alias, get_position_queries
 from .dsp import (
-    calculate_ir_from_tf,
-    calculate_tf_from_ir,
+    ir_from_tf,
+    tf_from_ir,
 )
 from .planes import (
     get_frontal_plane,
@@ -245,7 +245,7 @@ class HRTF(HRTFPlots):
                 raise ValueError("Crop end must be greater than crop start")
 
             transformed_hrtf.IR.values = ir_values[..., slice(start_index, end_index)]
-            calculate_tf_from_ir(
+            tf_from_ir(
                 transformed_hrtf.IR,
                 fft_length=transformed_hrtf.fft_length,
             )
@@ -333,7 +333,7 @@ class HRTF(HRTFPlots):
                     "SimpleFreeFieldHRIR requires a finite, positive 'Data.SamplingRate' value."
                 )
 
-            tf, frequency_bins, fft_length_used = calculate_tf_from_ir(
+            tf, frequency_bins, fft_length_used = tf_from_ir(
                 ir,
                 resolved_sample_rate,
                 fft_length=fft_length,
@@ -377,7 +377,7 @@ class HRTF(HRTFPlots):
                 )
 
             tf = real + 1j * imag
-            ir, sample_rate, fft_length_used = calculate_ir_from_tf(
+            ir, sample_rate, fft_length_used = ir_from_tf(
                 tf,
                 frequency_bins=frequency_bins,
             )

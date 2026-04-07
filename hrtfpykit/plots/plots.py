@@ -18,7 +18,7 @@ from ..hrtf.coordinates import (
     spherical_to_cartesian,
     spherical_to_lateral_polar,
 )
-from ..hrtf.dsp import calculate_tf_from_ir, magnitude_to_db
+from ..hrtf.dsp import magnitude_to_db, tf_from_ir
 from ..hrtf.metrics import calculate_ild, calculate_itd
 from ..hrtf.planes import (
     get_frontal_plane,
@@ -255,7 +255,7 @@ class HeatmapOptions:
 
 class Heatmap:
     colormaps: dict[str, str] = {
-        "default": "viridis",
+        "viridis": "viridis",
         "magma": "magma",
         "cividis": "cividis",
         "jet": "jet",
@@ -271,7 +271,7 @@ class Heatmap:
     ) -> str:
         heatmap_options = HeatmapOptions() if options is None else options
         color_key = (
-            "default" if heatmap_options.cmap is None else str(heatmap_options.cmap)
+            "jet" if heatmap_options.cmap is None else str(heatmap_options.cmap)
         )
         if color_key not in Heatmap.colormaps:
             raise ValueError(
@@ -1622,7 +1622,7 @@ class HRTFPlots:
     #  Inheritance. All methods will accept a instance of HRTF , then HRTF will inherit from HRTFPlots
     def plot_magnitude(
         self: "HRTF",
-        positions: str | list | np.ndarray = "front",
+        positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
         x_axis: str = "linear",
         unit: str = "db",
         ear: str = "both",
@@ -1642,7 +1642,7 @@ class HRTFPlots:
 
         Parameters
         ----------
-        positions : str | list | np.ndarray, default="front"
+        positions : str | list | tuple | np.ndarray, default=("front", "back", "left", "right")
             One position or a collection of positions. Named aliases such as
             ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
             Up to four positions can be shown in one figure.
@@ -1680,7 +1680,7 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot the default front position:
+        Plot the default front, back, left, and right positions:
 
         >>> hrtf.plot_magnitude()
 
@@ -1844,7 +1844,7 @@ class HRTFPlots:
 
     def plot_amplitude(
         self: "HRTF",
-        positions: str | list | np.ndarray = "front",
+        positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
         ear: str = "both",
         x_axis: str = "time",
         options: PlotOptions | None = None,
@@ -1860,7 +1860,7 @@ class HRTFPlots:
 
         Parameters
         ----------
-        positions : str | list | np.ndarray, default="front"
+        positions : str | list | tuple | np.ndarray, default=("front", "back", "left", "right")
             One position or a collection of positions. Named aliases such as
             ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
             Up to four positions can be shown in one figure.
@@ -1889,7 +1889,7 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot the default front position:
+        Plot the default front, back, left, and right positions:
 
         >>> hrtf.plot_amplitude()
 
@@ -2445,7 +2445,7 @@ class HRTFPlots:
         axis_options = AxisOptions(
             azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
         ).merge(plot_options.axis)
-        heatmap_options = HeatmapOptions(cmap="magma").merge(plot_options.heatmap)
+        heatmap_options = HeatmapOptions(cmap="jet").merge(plot_options.heatmap)
         heatmap_frequency_axis_options = (
             FrequencyAxisOptions()
             if axis_options.frequency_axis is None
@@ -2750,7 +2750,7 @@ class HRTFPlots:
         axis_options = (
             plot_options.axis if plot_options.axis is not None else AxisOptions()
         )
-        heatmap_options = HeatmapOptions(cmap="magma").merge(plot_options.heatmap)
+        heatmap_options = HeatmapOptions(cmap="jet").merge(plot_options.heatmap)
         heatmap_frequency_axis_options = (
             FrequencyAxisOptions()
             if axis_options.frequency_axis is None
@@ -3309,7 +3309,7 @@ class HRTFPlots:
         axis_options = AxisOptions(
             azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
         ).merge(plot_options.axis)
-        heatmap_options = HeatmapOptions(cmap="magma").merge(plot_options.heatmap)
+        heatmap_options = HeatmapOptions(cmap="jet").merge(plot_options.heatmap)
         heatmap_frequency_axis_options = (
             FrequencyAxisOptions()
             if axis_options.frequency_axis is None
@@ -3366,7 +3366,7 @@ class HRTFPlots:
             )
             plane_axis_values = np.asarray(lateral_polar_positions[:, 1], dtype=float)
 
-        _, frequency_bins_hz, _ = calculate_tf_from_ir(
+        _, frequency_bins_hz, _ = tf_from_ir(
             np.asarray(self.IR.values, dtype=float),
             sample_rate=self.IR.sample_rate,
             fft_length=self.fft_length,

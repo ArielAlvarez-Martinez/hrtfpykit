@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from .domain import IR, TF
 
 
-def get_signal_duration(
+def signal_duration(
     signal: np.ndarray | "IR",
     sample_rate: float | None = None,
 ) -> float:
@@ -30,9 +30,9 @@ def get_signal_duration(
 
     Examples
     --------
-    >>> get_signal_duration(np.zeros(480), sample_rate=48000.0)
+    >>> signal_duration(np.zeros(480), sample_rate=48000.0)
     0.01
-    >>> get_signal_duration(np.zeros((2, 960)), sample_rate=48000.0)
+    >>> signal_duration(np.zeros((2, 960)), sample_rate=48000.0)
     0.02
     """
     if isinstance(signal, np.ndarray):
@@ -65,7 +65,7 @@ def get_signal_duration(
     return float(signal_values.shape[-1]) / resolved_sample_rate
 
 
-def get_magnitude(tf: np.ndarray | "TF") -> np.ndarray:
+def magnitude(tf: np.ndarray | "TF") -> np.ndarray:
     """Return transfer-function magnitudes.
 
     Parameters
@@ -81,7 +81,7 @@ def get_magnitude(tf: np.ndarray | "TF") -> np.ndarray:
 
     Examples
     --------
-    >>> get_magnitude(np.array([1.0 + 1.0j, 0.0 + 2.0j]))
+    >>> magnitude(np.array([1.0 + 1.0j, 0.0 + 2.0j]))
     array([1.41421356, 2.        ])
     """
     if isinstance(tf, np.ndarray):
@@ -182,7 +182,7 @@ def db_to_magnitude(
     return reference_value * (10.0 ** (magnitude_db_values / 20.0))
 
 
-def get_magnitude_db(
+def magnitude_db(
     tf: np.ndarray | "TF",
     reference: float | str = 1.0,
 ) -> np.ndarray:
@@ -204,18 +204,18 @@ def get_magnitude_db(
     Examples
     --------
     >>> tf = np.array([1.0 + 0.0j, 2.0 + 0.0j])
-    >>> get_magnitude_db(tf)
+    >>> magnitude_db(tf)
     array([0.        , 6.02059991])
-    >>> get_magnitude_db(tf, reference=2.0)
+    >>> magnitude_db(tf, reference=2.0)
     array([-6.02059991,  0.        ])
-    >>> get_magnitude_db(tf, reference="max")
+    >>> magnitude_db(tf, reference="max")
     array([-6.02059991,  0.        ])
     """
-    magnitude = get_magnitude(tf)
-    return magnitude_to_db(magnitude, reference=reference)
+    magnitude_values = magnitude(tf)
+    return magnitude_to_db(magnitude_values, reference=reference)
 
 
-def get_phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
+def phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
     """Return transfer-function phase values.
 
     Parameters
@@ -232,9 +232,9 @@ def get_phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
 
     Examples
     --------
-    >>> get_phase(np.array([1.0 + 1.0j]), unit="degrees")
+    >>> phase(np.array([1.0 + 1.0j]), unit="degrees")
     array([45.])
-    >>> np.round(get_phase(np.array([1.0 + 1.0j]), unit="radians"), 4)
+    >>> np.round(phase(np.array([1.0 + 1.0j]), unit="radians"), 4)
     array([0.7854])
     """
     if isinstance(tf, np.ndarray):
@@ -368,7 +368,7 @@ def modify_magnitude(
     return magnitude_values * np.exp(1j * phase_values)
 
 
-def get_real(tf: np.ndarray | "TF") -> np.ndarray:
+def real(tf: np.ndarray | "TF") -> np.ndarray:
     """Return the real part of transfer-function values.
 
     Parameters
@@ -383,7 +383,7 @@ def get_real(tf: np.ndarray | "TF") -> np.ndarray:
 
     Examples
     --------
-    >>> get_real(np.array([1.0 + 2.0j, 3.0 - 4.0j]))
+    >>> real(np.array([1.0 + 2.0j, 3.0 - 4.0j]))
     array([1., 3.])
     """
     if isinstance(tf, np.ndarray):
@@ -399,7 +399,7 @@ def get_real(tf: np.ndarray | "TF") -> np.ndarray:
     return np.real(tf_values)
 
 
-def get_imag(tf: np.ndarray | "TF") -> np.ndarray:
+def imag(tf: np.ndarray | "TF") -> np.ndarray:
     """Return the imaginary part of transfer-function values.
 
     Parameters
@@ -414,7 +414,7 @@ def get_imag(tf: np.ndarray | "TF") -> np.ndarray:
 
     Examples
     --------
-    >>> get_imag(np.array([1.0 + 2.0j, 3.0 - 4.0j]))
+    >>> imag(np.array([1.0 + 2.0j, 3.0 - 4.0j]))
     array([ 2., -4.])
     """
     if isinstance(tf, np.ndarray):
@@ -592,7 +592,7 @@ def downsampling(
     return resampled_ir, new_sample_rate
 
 
-def apply_window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
+def window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
     """Apply a named time-domain window to IR samples.
 
     Parameters
@@ -610,9 +610,9 @@ def apply_window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
 
     Examples
     --------
-    >>> np.round(apply_window(np.ones(4), "hann"), 4)
+    >>> np.round(window(np.ones(4), "hann"), 4)
     array([0.  , 0.75, 0.75, 0.  ])
-    >>> apply_window(np.ones(4), "rectangular")
+    >>> window(np.ones(4), "rectangular")
     array([1., 1., 1., 1.])
 
     """
@@ -646,7 +646,7 @@ def apply_window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
         )
     return ir_values * window_values
 
-def apply_padding(
+def padding(
     ir: np.ndarray | "IR",
     padding_length: int,
     location: str = "end",
@@ -672,9 +672,9 @@ def apply_padding(
 
     Examples
     --------
-    >>> apply_padding(np.array([1.0, 2.0]), padding_length=2, location="end")
+    >>> padding(np.array([1.0, 2.0]), padding_length=2, location="end")
     array([1., 2., 0., 0.])
-    >>> apply_padding(np.array([1.0, 2.0]), padding_length=2, location="start", value=-1.0)
+    >>> padding(np.array([1.0, 2.0]), padding_length=2, location="start", value=-1.0)
     array([-1., -1.,  1.,  2.])
     """
 
@@ -712,7 +712,7 @@ def apply_padding(
     )
 
 
-def apply_fir_filter(
+def fir_filter(
     ir: np.ndarray | "IR",
     filter: str,
     sample_rate: float | None = None,
@@ -748,7 +748,7 @@ def apply_fir_filter(
     Examples
     --------
     >>> ir = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    >>> filtered = apply_fir_filter(ir, filter="lowpass", sample_rate=48000.0, cutoff=3000.0, num_taps=5)
+    >>> filtered = fir_filter(ir, filter="lowpass", sample_rate=48000.0, cutoff=3000.0, num_taps=5)
     >>> filtered.shape
     (7,)
     """
@@ -834,7 +834,7 @@ def apply_fir_filter(
     )
 
 
-def apply_iir_filter(
+def iir_filter(
     ir: np.ndarray | "IR",
     filter: str,
     sample_rate: float | None = None,
@@ -866,7 +866,7 @@ def apply_iir_filter(
     Examples
     --------
     >>> ir = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    >>> filtered = apply_iir_filter(ir, filter="lowpass", sample_rate=48000.0, cutoff=3000.0, order=4)
+    >>> filtered = iir_filter(ir, filter="lowpass", sample_rate=48000.0, cutoff=3000.0, order=4)
     >>> filtered.shape
     (7,)
     """
@@ -916,6 +916,144 @@ def apply_iir_filter(
         raise ValueError("filter must be one of: lowpass, highpass, bandpass")
 
     return signal.lfilter(b, a, ir, axis=-1)
+
+
+def convolve(
+    ir_1: np.ndarray | "IR",
+    ir_2: np.ndarray | "IR",
+    mode: str = "full",
+    method: str = "auto",
+) -> np.ndarray:
+    """Convolve two IR inputs along the last axis.
+
+    Parameters
+    ----------
+    ir_1 : np.ndarray | IR
+        Time-domain array or ``IR`` object with ``.values`` and
+        ``.sample_rate``. This is the reference input for the API, so when
+        ``mode="same"`` the output length follows ``ir_1``.
+    ir_2 : np.ndarray | IR
+        Second time-domain array or ``IR`` object with ``.values`` and
+        ``.sample_rate``. It is convolved with ``ir_1`` independently along
+        the last axis.
+    mode : {"full", "same", "valid"}, default="full"
+        Convolution output mode passed to ``scipy.signal.convolve``.
+    method : {"auto", "direct", "fft"}, default="auto"
+        Convolution method passed to ``scipy.signal.convolve``.
+
+    Returns
+    -------
+    np.ndarray
+        Convolved values with the broadcast leading shape of ``ir_1`` and
+        ``ir_2`` and the output length implied by ``mode``.
+
+    Examples
+    --------
+    >>> convolve(np.array([1.0, 2.0, 3.0]), np.array([1.0, -1.0]))
+    array([ 1.,  1.,  1., -3.])
+    >>> convolve(np.array([[1.0, 0.0, 0.0]]), np.array([1.0, 0.5]), mode="same").shape
+    (1, 3)
+    """
+    ir_sample_rate = None
+    if isinstance(ir_1, np.ndarray):
+        ir_values = ir_1
+    else:
+        if not hasattr(ir_1, "values") or not hasattr(ir_1, "sample_rate"):
+            raise ValueError("ir_1 must be a NumPy array or an IR instance")
+        ir_values = ir_1.values
+        ir_sample_rate = ir_1.sample_rate
+
+    kernel_sample_rate = None
+    if isinstance(ir_2, np.ndarray):
+        kernel_values = ir_2
+    else:
+        if not hasattr(ir_2, "values") or not hasattr(ir_2, "sample_rate"):
+            raise ValueError("ir_2 must be a NumPy array or an IR instance")
+        kernel_values = ir_2.values
+        kernel_sample_rate = ir_2.sample_rate
+
+    if ir_values is None:
+        raise ValueError("IR data for ir_1 is not available")
+    if not isinstance(ir_values, np.ndarray):
+        raise ValueError("IR data for ir_1 must be a NumPy array")
+    if ir_values.size == 0:
+        raise ValueError("IR data for ir_1 must be non-empty")
+    if ir_values.ndim == 0:
+        raise ValueError("IR data for ir_1 must have at least one dimension")
+
+    if kernel_values is None:
+        raise ValueError("IR data for ir_2 is not available")
+    if not isinstance(kernel_values, np.ndarray):
+        raise ValueError("IR data for ir_2 must be a NumPy array")
+    if kernel_values.size == 0:
+        raise ValueError("IR data for ir_2 must be non-empty")
+    if kernel_values.ndim == 0:
+        raise ValueError("IR data for ir_2 must have at least one dimension")
+
+    mode_key = str(mode).strip().lower()
+    if mode_key not in {"full", "same", "valid"}:
+        raise ValueError("mode must be one of: full, same, valid")
+
+    method_key = str(method).strip().lower()
+    if method_key not in {"auto", "direct", "fft"}:
+        raise ValueError("method must be one of: auto, direct, fft")
+
+    if ir_sample_rate is not None and kernel_sample_rate is not None:
+        if isinstance(ir_sample_rate, bool) or isinstance(kernel_sample_rate, bool):
+            raise ValueError("IR inputs must have matching finite, positive sample_rate values")
+        try:
+            ir_sample_rate = float(ir_sample_rate)
+            kernel_sample_rate = float(kernel_sample_rate)
+        except (TypeError, ValueError):
+            raise ValueError("IR inputs must have matching finite, positive sample_rate values") from None
+        if (
+            not np.isfinite(ir_sample_rate)
+            or ir_sample_rate <= 0.0
+            or not np.isfinite(kernel_sample_rate)
+            or kernel_sample_rate <= 0.0
+        ):
+            raise ValueError("IR inputs must have matching finite, positive sample_rate values")
+        if not np.isclose(ir_sample_rate, kernel_sample_rate, rtol=1e-8, atol=1e-8):
+            raise ValueError("IR inputs must share the same sample_rate for convolution")
+
+    try:
+        leading_shape = np.broadcast_shapes(ir_values.shape[:-1], kernel_values.shape[:-1])
+    except ValueError:
+        raise ValueError("ir_1 and ir_2 leading shapes must be broadcast-compatible") from None
+
+    ir_broadcast = np.broadcast_to(
+        ir_values,
+        leading_shape + (ir_values.shape[-1],),
+    )
+    kernel_broadcast = np.broadcast_to(
+        kernel_values,
+        leading_shape + (kernel_values.shape[-1],),
+    )
+
+    ir_flat = ir_broadcast.reshape(-1, ir_values.shape[-1])
+    kernel_flat = kernel_broadcast.reshape(-1, kernel_values.shape[-1])
+
+    first_result = signal.convolve(
+        ir_flat[0],
+        kernel_flat[0],
+        mode=mode_key,
+        method=method_key,
+    )
+    convolved_values = np.empty(
+        (ir_flat.shape[0], first_result.shape[-1]),
+        dtype=first_result.dtype,
+    )
+    convolved_values[0] = first_result
+
+    for index in range(1, ir_flat.shape[0]):
+        convolved_values[index] = signal.convolve(
+            ir_flat[index],
+            kernel_flat[index],
+            mode=mode_key,
+            method=method_key,
+        )
+
+    return convolved_values.reshape(leading_shape + (first_result.shape[-1],))
 
 
 def minimum_phase(
@@ -1049,7 +1187,7 @@ def minimum_phase(
     return minimum_phase_values
 
 
-def calculate_tf_from_ir(
+def tf_from_ir(
     ir: np.ndarray | "IR",
     sample_rate: float | None = None,
     fft_length: int | None = None,
@@ -1079,7 +1217,7 @@ def calculate_tf_from_ir(
     Examples
     --------
     >>> ir = np.array([1.0, 0.0, 0.0, 0.0])
-    >>> tf, frequency_bins, fft_length_used = calculate_tf_from_ir(ir, sample_rate=48000.0)
+    >>> tf, frequency_bins, fft_length_used = tf_from_ir(ir, sample_rate=48000.0)
     >>> tf.shape, frequency_bins.shape, fft_length_used
     ((3,), (3,), 4)
     """
@@ -1127,7 +1265,7 @@ def calculate_tf_from_ir(
 
     ir_used = ir_values
     if window_name:
-        ir_used = apply_window(ir_values, window_name)
+        ir_used = window(ir_values, window_name)
 
     tf_values = np.fft.rfft(ir_used, n=fft_length_used, axis=-1)
     frequency_bins = np.fft.rfftfreq(fft_length_used, d=1.0 / resolved_sample_rate)
@@ -1140,7 +1278,7 @@ def calculate_tf_from_ir(
     return tf_values, frequency_bins, fft_length_used
 
 
-def calculate_ir_from_tf(
+def ir_from_tf(
     tf: np.ndarray | "TF",
     frequency_bins: np.ndarray | None = None,
     sample_rate: float | None = None,
@@ -1172,7 +1310,7 @@ def calculate_ir_from_tf(
     --------
     >>> tf = np.array([1.0 + 0.0j, 1.0 + 0.0j, 1.0 + 0.0j])
     >>> frequency_bins = np.array([0.0, 12000.0, 24000.0])
-    >>> ir, sample_rate, fft_length_used = calculate_ir_from_tf(tf, frequency_bins=frequency_bins)
+    >>> ir, sample_rate, fft_length_used = ir_from_tf(tf, frequency_bins=frequency_bins)
     >>> ir.shape, sample_rate, fft_length_used
     ((4,), 48000.0, 4)
     """
@@ -1201,7 +1339,7 @@ def calculate_ir_from_tf(
     if frequency_bins is None:
         if tf_object is not None:
             raise ValueError(
-                "calculate_ir_from_tf requires 'frequency_bins' when tf is a TF instance."
+                "ir_from_tf requires 'frequency_bins' when tf is a TF instance."
             )
         if sample_rate is None:
             raise ValueError(
