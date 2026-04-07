@@ -1,15 +1,20 @@
 from typing import Any, Dict, Optional, Union
-import datetime
-import importlib.metadata
 import pathlib
-import platform
-import sys
-import warnings
 import netCDF4
 import numpy as np
-from .check import  check_sofa_against_conventions
 from .conventions import CONVENTIONS
 from .data import  _Dimensions, _GlobalAttributes, _VariableAttributes, _Variables
+from .sofa_helpers import (
+    complete_global_attributes,
+    dtype_for,
+    ensure_broadcastable,
+    first_dim_option,
+    open_sofa,
+    require_dataset,
+    reshape_for_broadcast,
+    version_key,
+    warn_dimension_shape_mismatch,
+)
 
 
 class SOFA:
@@ -44,11 +49,6 @@ class SOFA:
     def __init__(self):
         self.netCDF4_dataset: Optional[netCDF4.Dataset] = None
         self.path = None
-
-    def _require_dataset(self) -> netCDF4.Dataset:
-        if self.netCDF4_dataset is None:
-            raise ValueError("Dataset is not loaded")
-        return self.netCDF4_dataset
 
     @property
     def Dimensions(self) -> Optional[_Dimensions]:
@@ -133,7 +133,7 @@ class SOFA:
         >>> sofa = SOFA.load("my.sofa", mode="r+")
         >>> sofa.create_dimension("X", 3)
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if name in dataset.dimensions:
             raise ValueError(f"Dimension attribute already exists: {name}")
         dataset.createDimension(name, value)
@@ -170,66 +170,12 @@ class SOFA:
         >>> sofa = SOFA.load("my.sofa", mode="r+")
         >>> sofa.rename_dimension("M", "Measurements")
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if old_name not in dataset.dimensions:
             print(f"Dimension: '{old_name}' not found")
             raise ValueError(f"Dimension not found: {old_name}")
         dataset.renameDimension(old_name , new_name)
         print(f"Dimension: '{old_name}' renamed succesfully")
-
-    @staticmethod
-    def _warn_dimension_shape_mismatch(
-        variable_name: str,
-        dimensions: tuple[str, ...],
-        data_shape: tuple[int, ...],
-        dataset: netCDF4.Dataset,
-    ) -> None:
-        if len(dimensions) != len(data_shape):
-            warnings.warn(
-                (
-                    f"Variable '{variable_name}' dimensions do not coincide with dataset Dimensions "
-                    f"(dims={dimensions}); got shape {data_shape}."
-                ),
-                UserWarning,
-            )
-            return
-
-        expected_sizes: list[int] = []
-        mismatch = False
-        for dim_name, size in zip(dimensions, data_shape):
-            dim = dataset.dimensions[dim_name]
-            if dim.isunlimited():
-                expected_sizes.append(size)
-                continue
-            expected_sizes.append(dim.size)
-            if dim.size != size:
-                mismatch = True
-
-        if mismatch:
-            dims_desc = ", ".join(
-                f"{dim_name}={'unlimited' if dataset.dimensions[dim_name].isunlimited() else dataset.dimensions[dim_name].size}"
-                for dim_name in dimensions
-            )
-            warnings.warn(
-                (
-                    f"Variable '{variable_name}' dimensions do not coincide with dataset Dimensions "
-                    f"({dims_desc}); expected shape {tuple(expected_sizes)}, got {data_shape}."
-                ),
-                UserWarning,
-            )
-
-    @staticmethod
-    def _ensure_broadcastable(
-        variable_name: str,
-        data: np.ndarray,
-        target_shape: tuple[int, ...],
-    ) -> None:
-        try:
-            np.broadcast_to(data, target_shape)
-        except ValueError as exc:
-            raise ValueError(
-                f"Variable '{variable_name}' data shape must match: {target_shape}"
-            ) from exc
 
     def create_global_attribute(self, name: str, value: Optional[str] = None) -> None:
         """Create a global SOFA attribute.
@@ -262,7 +208,7 @@ class SOFA:
         >>> sofa = SOFA.load("my.sofa", mode="r+")
         >>> sofa.create_global_attribute("Title", "My HRTF")
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if name in dataset.ncattrs():
             raise ValueError(f"Global attribute already exists: {name}")
         stored_value = "" if value is None else value
@@ -300,7 +246,7 @@ class SOFA:
         >>> sofa = SOFA.load("my.sofa", mode="r+")
         >>> sofa.modify_global_attribute("Title", "Updated title")
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if name not in dataset.ncattrs():
             raise ValueError(f"Global attribute not found: {name}")
         setattr(dataset, name, value)
@@ -335,7 +281,7 @@ class SOFA:
         >>> sofa = SOFA.load("my.sofa", mode="r+")
         >>> sofa.delete_global_attribute("Comment")
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if name not in dataset.ncattrs():
             raise ValueError(f"Global attribute not found: {name}")
         delattr(dataset, name)
@@ -372,7 +318,7 @@ class SOFA:
         >>> sofa = SOFA.load("my.sofa", mode="r+")
         >>> sofa.create_variable_attribute("Data.SamplingRate:Units", "hertz")
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if ":" not in name:
             raise ValueError("Variable attribute name must be in format 'Variable:Attribute'")
         var_name, attr_name = name.split(":", 1)
@@ -416,7 +362,7 @@ class SOFA:
         >>> sofa = SOFA.load("my.sofa", mode="r+")
         >>> sofa.modify_variable_attribute("Data.IR:Units", "Pa")
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if ":" not in name:
             raise ValueError("Variable attribute name must be in format 'Variable:Attribute'")
         var_name, attr_name = name.split(":", 1)
@@ -457,7 +403,7 @@ class SOFA:
         >>> sofa = SOFA.load("my.sofa", mode="r+")
         >>> sofa.delete_variable_attribute("Data.IR:Units")
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if ":" not in name:
             raise ValueError("Variable attribute name must be in format 'Variable:Attribute'")
         var_name, attr_name = name.split(":", 1)
@@ -518,7 +464,7 @@ class SOFA:
         >>> data = np.zeros((sofa.netCDF4_dataset.dimensions["M"].size,))
         >>> sofa.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if name in dataset.variables:
             raise ValueError(f"Variable already exists: {name}")
 
@@ -532,7 +478,7 @@ class SOFA:
         if dtype is None:
             dtype = array.dtype
 
-        self._warn_dimension_shape_mismatch(name, dims, array.shape, dataset)
+        warn_dimension_shape_mismatch(name, dims, array.shape, dataset)
         target_shape: list[int] = []
         for idx, dim_name in enumerate(dims):
             dim = dataset.dimensions[dim_name]
@@ -543,7 +489,7 @@ class SOFA:
                     target_shape.append(1)
             else:
                 target_shape.append(dim.size)
-        self._ensure_broadcastable(name, array, tuple(target_shape))
+        ensure_broadcastable(name, array, tuple(target_shape))
 
         var = dataset.createVariable(name, dtype, dims)
         var[...] = array
@@ -590,12 +536,12 @@ class SOFA:
         >>> new_data = np.zeros((sofa.netCDF4_dataset.dimensions["M"].size, 2, 256))
         >>> sofa.modify_variable("Data.IR", new_data)
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if name not in dataset.variables:
             raise ValueError(f"Variable not found: {name}")
         var = dataset.variables[name]
         array = np.array(data)
-        self._warn_dimension_shape_mismatch(name, var.dimensions, array.shape, dataset)
+        warn_dimension_shape_mismatch(name, var.dimensions, array.shape, dataset)
         target_shape: list[int] = []
         for idx, dim_name in enumerate(var.dimensions):
             dim = dataset.dimensions[dim_name]
@@ -606,7 +552,7 @@ class SOFA:
                     target_shape.append(var.shape[idx])
             else:
                 target_shape.append(var.shape[idx])
-        self._ensure_broadcastable(name, array, tuple(target_shape))
+        ensure_broadcastable(name, array, tuple(target_shape))
         var[...] = array
         print(f"Variable: '{name}' modified succesfully")
 
@@ -639,28 +585,11 @@ class SOFA:
         >>> sofa = SOFA.load("my.sofa", mode="r+")
         >>> sofa.delete_variable("Custom")
         """
-        dataset = self._require_dataset()
+        dataset = require_dataset(self)
         if name not in dataset.variables:
             raise ValueError(f"Variable not found: {name}")
         del dataset.variables[name]
         print(f"Variable: '{name}' deleted succesfully")
-
-    @staticmethod
-    def _check_path(path : Union[str, pathlib.Path]):
-        if not isinstance(path, pathlib.Path):
-           path = pathlib.Path(path)
-        if not path.exists():
-            raise FileNotFoundError(f"SOFA file not found: {path}")
-        if path.suffix.lower() != ".sofa":
-            raise ValueError(f"SOFA file must end with .sofa: {path}")
-
-    def _open(self, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa: bool = True):
-        self._check_path(path)
-        if check_sofa is True:
-            check_sofa_against_conventions(path)
-        self.netCDF4_dataset = netCDF4.Dataset(path, mode=mode, parallel=parallel)
-        self.path = path
-        return self
 
     @classmethod
     def load(cls, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa_against_conventions: bool = True) -> "SOFA": 
@@ -688,7 +617,7 @@ class SOFA:
         """
         print(f"Loading SOFA file from: {path}")
         sofa_object = cls()
-        sofa_object._open(path, mode, parallel, check_sofa_against_conventions)
+        open_sofa(sofa_object, path, mode, parallel, check_sofa_against_conventions)
         print("SOFA load complete")
         return sofa_object
 
@@ -765,12 +694,7 @@ class SOFA:
             )
         available_versions = CONVENTIONS[sofa_conventions]
         if version is None:
-            def _version_key(value: str) -> tuple:
-                parts = value.split(".")
-                if all(part.isdigit() for part in parts):
-                    return tuple(int(part) for part in parts)
-                return (value,)
-            version = max(available_versions.keys(), key=_version_key)
+            version = max(available_versions.keys(), key=version_key)
             print(f"No version provided, using latest available: {version}")
         else:
             print(f"Requested conventions version: {version}")
@@ -782,47 +706,6 @@ class SOFA:
             )
 
         spec = available_versions[version]
-
-        def _first_dim_option(dim_spec: Optional[str]) -> list[str]:
-            if not dim_spec:
-                return []
-            option = dim_spec.split(",", 1)[0].strip()
-            option = option.replace(" ", "")
-            return [letter.upper() for letter in option]
-
-        def _dtype_for(var_type: Optional[str]) -> object:
-            if var_type is None:
-                return "f8"
-            key = var_type.lower()
-            if key in ("double", "float64"):
-                return "f8"
-            if key in ("float", "float32"):
-                return "f4"
-            if key in ("int", "int32"):
-                return "i4"
-            if key in ("short", "int16"):
-                return "i2"
-            if key in ("char", "string"):
-                return str
-            return "f8"
-
-        def _reshape_for_broadcast(data: np.ndarray, target_shape: tuple[int, ...]) -> np.ndarray:
-            if data.shape == target_shape:
-                return data
-            if data.shape == ():
-                return data
-            non_singleton = tuple(dim for dim in target_shape if dim != 1)
-            if data.shape != non_singleton:
-                return data
-            reshaped: list[int] = []
-            data_index = 0
-            for dim in target_shape:
-                if dim == 1:
-                    reshaped.append(1)
-                else:
-                    reshaped.append(data.shape[data_index])
-                    data_index += 1
-            return data.reshape(tuple(reshaped))
 
         user_dim_sizes: Dict[str, int] = {}
 
@@ -848,7 +731,7 @@ class SOFA:
         for name, entry in spec.items():
             if name.startswith("GLOBAL:") or ":" in name:
                 continue
-            dim_names = _first_dim_option(entry.get("dimensions"))
+            dim_names = first_dim_option(entry.get("dimensions"))
             if not dim_names:
                 continue
             default = entry.get("default")
@@ -898,8 +781,8 @@ class SOFA:
             for name, entry in spec.items():
                 if name.startswith("GLOBAL:") or ":" in name:
                     continue
-                dim_names = _first_dim_option(entry.get("dimensions"))
-                dtype = _dtype_for(entry.get("type"))
+                dim_names = first_dim_option(entry.get("dimensions"))
+                dtype = dtype_for(entry.get("type"))
                 var = dataset.createVariable(name, dtype, tuple(dim_names))
                 default = entry.get("default")
                 if default is None:
@@ -918,7 +801,7 @@ class SOFA:
                         var[:] = np.broadcast_to(data, shape)
                     except Exception:
                         try:
-                            reshaped = _reshape_for_broadcast(data, shape)
+                            reshaped = reshape_for_broadcast(data, shape)
                             var[:] = np.broadcast_to(reshaped, shape)
                         except Exception:
                             var[:] = np.zeros(shape)
@@ -939,7 +822,7 @@ class SOFA:
 
         dataset.SOFAConventions = sofa_conventions
         dataset.SOFAConventionsVersion = version
-        cls._complete_global_attributes(
+        complete_global_attributes(
             dataset,
             custom_global_attributes,
             override_default_global_attributes,
@@ -950,50 +833,6 @@ class SOFA:
         sofa_object.path = None
         print("Dummy SOFA dataset ready")
         return sofa_object
-
-    @staticmethod
-    def _complete_global_attributes(
-        dataset: netCDF4.Dataset,
-        custom_global_attributes: Optional[Dict[str, str]] = None,
-        override_default_global_attributes: bool = False,
-    ) -> None:
-        def _is_missing(value: object) -> bool:
-            if value is None:
-                return True
-            if isinstance(value, str) and value.strip() == "":
-                return True
-            return False
-
-        try:
-            api_version = importlib.metadata.version("hrtfpykit")
-        except importlib.metadata.PackageNotFoundError:
-            api_version = "unknown"
-
-        compiler = platform.python_compiler()
-        implementation = sys.implementation.name
-        if implementation:
-            implementation = implementation.capitalize()
-        else:
-            implementation = "Python"
-        python_version = f"{platform.python_version()} [{implementation} - {compiler}]"
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        default_custom_attributes: Dict[str, str] = {
-            "APIName": "hrtfpykit",
-            "APIVersion": api_version,
-            "ApplicationName": "Python",
-            "ApplicationVersion": python_version,
-            "DateCreated": now,
-            "DateModified": now,
-        }
-
-        resolved = default_custom_attributes
-        if custom_global_attributes:
-            resolved = {**default_custom_attributes, **custom_global_attributes}
-
-        for attr_name, value in resolved.items():
-            if override_default_global_attributes or _is_missing(getattr(dataset, attr_name, None)):
-                setattr(dataset, attr_name, value)
 
     def save(self, path: Optional[Union[str, pathlib.Path]] = None, overwrite: bool = False) -> pathlib.Path:
         """Save the SOFA dataset to disk.
@@ -1232,7 +1071,7 @@ class SOFA:
                             target_shape.append(dst_var.shape[idx])
                     else:
                         target_shape.append(dim.size)
-                self._ensure_broadcastable(name, array, tuple(target_shape))
+                ensure_broadcastable(name, array, tuple(target_shape))
                 dst_var[...] = array
         except Exception:
             dst.close()
