@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from hrtfpykit.sofa.core import SOFA
+from hrtfpykit.sofa.sofa import SOFA
 
 
 def _make_dummy_sofa() -> SOFA:

@@ -3,7 +3,7 @@ from pathlib import Path
 import netCDF4 as ncdf
 import numpy as np
 
-from hrtfpykit.sofa.core import SOFA
+from hrtfpykit.sofa.sofa import SOFA
 
 
 def _create_sofa_file(tmp_path: Path) -> Path:

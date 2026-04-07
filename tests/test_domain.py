@@ -9,7 +9,7 @@ from hrtfpykit.hrtf.dsp import (
     modify_magnitude,
     modify_phase,
 )
-from hrtfpykit.hrtf import HRTF
+from hrtfpykit.hrtf.hrtf import HRTF
 
 
 def test_transform_apply_window_unsupported_keeps_values() -> None:

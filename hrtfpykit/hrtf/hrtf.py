@@ -12,8 +12,8 @@ from .planes import (
     get_horizontal_plane,
     get_median_plane,
 )
-from ..plots import HRTFPlots
-from ..sofa.core import SOFA
+from ..plots.plots import HRTFPlots
+from ..sofa import SOFA
 from .sources import Sources
 from .domain import IR, TF
 from .transforms import Transform

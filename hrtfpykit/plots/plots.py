@@ -28,7 +28,7 @@ from ..hrtf.sources import Sources
 
 
 if TYPE_CHECKING:
-    from ..hrtf import HRTF
+    from ..hrtf.hrtf import HRTF
 
 
 @dataclass(frozen=True)

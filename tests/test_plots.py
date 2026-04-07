@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from hrtfpykit.plots import (
+from hrtfpykit.plots.plots import (
     Axis,
     AxisOptions,
     FrequencyAxisOptions,
@@ -73,7 +73,7 @@ class DummyPlotHRTF(HRTFPlots):
 
 
 @pytest.fixture(autouse=True)
-def close_figures() -> None:
+def close_figures():
     yield
     plt.close("all")
 
