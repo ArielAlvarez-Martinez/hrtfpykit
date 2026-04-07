@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from hrtfpykit.dsp import (
+from hrtfpykit.hrtf.dsp import (
     apply_fir_filter,
     apply_iir_filter,
     calculate_itd,

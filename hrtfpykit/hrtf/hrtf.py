@@ -12,8 +12,8 @@ from .planes import (
     get_horizontal_plane,
     get_median_plane,
 )
-from .plots import HRTFPlots
-from .sofa.core import SOFA
+from ..plots import HRTFPlots
+from ..sofa.core import SOFA
 from .sources import Sources
 from .domain import IR, TF
 from .transforms import Transform
@@ -393,3 +393,4 @@ class HRTF(HRTFPlots):
             hrtf.SOFAConventions = convention
             return hrtf
 
+HRTF.load_hrtf("hrtfs/hrtf_58.sofa")

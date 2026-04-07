@@ -1,6 +1,10 @@
 import numpy as np
 
+<<<<<<< HEAD
 from hrtfpykit.coordinates import (
+=======
+from hrtfpykit.hrtf.coordinates import (
+>>>>>>> dev
     cartesian_to_spherical,
     get_closest_position_index,
     get_named_positions,

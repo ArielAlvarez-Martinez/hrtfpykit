@@ -1,7 +1,12 @@
 import numpy as np
 
+<<<<<<< HEAD
 from hrtfpykit.coordinates import spherical_to_cartesian
 from hrtfpykit.planes import (
+=======
+from hrtfpykit.hrtf.coordinates import spherical_to_cartesian
+from hrtfpykit.hrtf.planes import (
+>>>>>>> dev
     get_frontal_plane,
     get_horizontal_plane,
     get_median_plane,
