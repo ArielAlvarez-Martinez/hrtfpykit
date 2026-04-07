@@ -9,7 +9,6 @@ from .dsp import (
     apply_iir_filter,
     apply_padding,
     apply_window,
-    calculate_itd,
     calculate_ir_from_tf,
     calculate_tf_from_ir,
     downsampling,
@@ -18,6 +17,7 @@ from .dsp import (
     modify_phase,
     upsampling,
 )
+from .metrics import calculate_itd
 
 if TYPE_CHECKING:
     from .hrtf import HRTF

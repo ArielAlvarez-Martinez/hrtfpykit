@@ -18,7 +18,8 @@ from ..hrtf.coordinates import (
     spherical_to_cartesian,
     spherical_to_lateral_polar,
 )
-from ..hrtf.dsp import calculate_ild, calculate_itd, magnitude_to_db
+from ..hrtf.dsp import magnitude_to_db
+from ..hrtf.metrics import calculate_ild, calculate_itd
 from ..hrtf.planes import (
     get_frontal_plane,
     get_horizontal_plane,

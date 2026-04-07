@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from .dsp import (
-    calculate_itd,
     get_imag,
     get_magnitude,
     get_magnitude_db,
@@ -13,6 +12,7 @@ from .dsp import (
     get_real,
     get_signal_duration,
 )
+from .metrics import calculate_itd
 
 if TYPE_CHECKING:
     from .hrtf import HRTF

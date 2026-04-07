@@ -4,12 +4,12 @@ import pytest
 from hrtfpykit.hrtf.dsp import (
     apply_fir_filter,
     apply_iir_filter,
-    calculate_itd,
     minimum_phase,
     modify_magnitude,
     modify_phase,
 )
 from hrtfpykit.hrtf.hrtf import HRTF
+from hrtfpykit.hrtf.metrics import calculate_itd
 
 
 def test_transform_apply_window_unsupported_keeps_values() -> None:
