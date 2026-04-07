@@ -18,7 +18,7 @@ from ..hrtf.coordinates import (
     spherical_to_cartesian,
     spherical_to_lateral_polar,
 )
-from ..hrtf.dsp import magnitude_to_db
+from ..hrtf.dsp import calculate_tf_from_ir, magnitude_to_db
 from ..hrtf.metrics import calculate_ild, calculate_itd
 from ..hrtf.planes import (
     get_frontal_plane,
@@ -64,6 +64,8 @@ class Labels:
     frequency: str = "Frequency(kHz)"
     magnitude_db: str = "Magnitude (dB)"
     magnitude_linear: str = "Magnitude"
+    ild: str = "ILD (dB)"
+    itd: str = "ITD (s)"
     time: str = "Time (s)"
     samples: str = "Samples"
     impulse_response: str = "Amplitude"
@@ -2312,9 +2314,9 @@ class HRTFPlots:
             plt.show()
         return None
 
-    def plot_spectrum(
+    def plot_spectrum_plane(
         self: "HRTF",
-        plane: str = "median",
+        plane: str = "horizontal",
         elevation_angle: float = 0.0,
         x_axis: str = "linear",
         unit: str = "db",
@@ -2335,7 +2337,7 @@ class HRTFPlots:
 
         Parameters
         ----------
-        plane : {"horizontal", "median"}, default="median"
+        plane : {"horizontal", "median"}, default="horizontal"
             Plane to visualize. ``"horizontal"`` uses a horizontal plane
             selected by elevation. ``"median"`` uses the canonical median
             plane defined by the front-back sagittal path.
@@ -2382,21 +2384,21 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot the canonical median plane with default settings:
+        Plot the canonical horizontal plane with default settings:
 
-        >>> hrtf.plot_spectrum()
+        >>> hrtf.plot_spectrum_plane()
 
         Plot the horizontal plane for the left ear only:
 
-        >>> hrtf.plot_spectrum(plane="horizontal", ear="left")
+        >>> hrtf.plot_spectrum_plane(plane="horizontal", ear="left")
 
         Plot a non-canonical horizontal plane selected by elevation:
 
-        >>> hrtf.plot_spectrum(plane="horizontal", elevation_angle=10.0)
+        >>> hrtf.plot_spectrum_plane(plane="horizontal", elevation_angle=10.0)
 
         Plot the horizontal plane using signed azimuth values:
 
-        >>> hrtf.plot_spectrum(
+        >>> hrtf.plot_spectrum_plane(
         ...     plane="horizontal",
         ...     options=PlotOptions(
         ...         axis=AxisOptions(
@@ -2407,12 +2409,12 @@ class HRTFPlots:
 
         Create the figure without showing it immediately:
 
-        >>> hrtf.plot_spectrum(show=False)
+        >>> hrtf.plot_spectrum_plane(show=False)
         """
         accepted_parameters = AcceptedParameters()
         if plane not in ("horizontal", "median"):
             raise AttributeError(
-                "plot_spectrum plane accepts horizontal or median"
+                "plot_spectrum_plane plane accepts horizontal or median"
             )
         if isinstance(elevation_angle, bool):
             raise AttributeError("elevation_angle must be a finite value")
@@ -2936,7 +2938,153 @@ class HRTFPlots:
             plt.show()
         return None
 
-    def plot_itd_horizontal_plane(
+    def plot_itd(
+        self: "HRTF",
+        elevation_angle: float = 0.0,
+        options: PlotOptions | None = None,
+        show: bool = True,
+        titles: bool = True,
+    ) -> None:
+        """Plot signed ITD over a horizontal plane as azimuth versus time delay.
+
+        This method selects the nearest horizontal plane to the requested
+        elevation and plots signed interaural time difference values in
+        seconds against azimuth. The azimuth axis uses the signed
+        ``-180 .. 180`` convention by default, where positive azimuth values
+        correspond to the left side and negative azimuth values correspond to
+        the right side.
+
+        Parameters
+        ----------
+        elevation_angle : float, default=0.0
+            Target elevation used to select the horizontal plane. The nearest
+            available elevation in the grid is used.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, and margin overrides. The azimuth axis is
+            configured by default to use the signed ``-180 .. 180`` range.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress the generated default figure title.
+
+        Returns
+        -------
+        None
+
+        Use Cases
+        ---------
+        - Inspect how signed ITD changes around the horizontal plane.
+        - Compare left-side and right-side timing cues using a signed azimuth axis.
+        - Generate a horizontal-plane ITD curve for later display with ``show=False``.
+
+        Examples
+        --------
+        >>> hrtf.plot_itd()
+        >>> hrtf.plot_itd(elevation_angle=10.0)
+        >>> hrtf.plot_itd(show=False)
+        >>> hrtf.plot_itd(
+        ...     options=PlotOptions(
+        ...         axis=AxisOptions(ylabel="ITD (s)")
+        ...     )
+        ... )
+        """
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
+        axis_options = AxisOptions(
+            azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
+        ).merge(plot_options.axis)
+
+        if self.IR.values is None:
+            raise ValueError("IR data is not available")
+        if self.IR.sample_rate is None:
+            raise ValueError("IR sample_rate is required")
+        if isinstance(elevation_angle, bool):
+            raise ValueError("elevation_angle must be a finite value")
+        elevation_angle = float(elevation_angle)
+        if not np.isfinite(elevation_angle):
+            raise ValueError("elevation_angle must be a finite value")
+
+        itd_values = np.asarray(
+            calculate_itd(
+                self.IR,
+                output="seconds",
+            ),
+            dtype=float,
+        )
+        if itd_values.ndim != 1:
+            itd_values = itd_values.reshape(-1)
+        indices, real_elevation = get_horizontal_plane(
+            hrtf=self,
+            elevation=elevation_angle,
+            angle_unit="degrees",
+        )
+        if indices.size == 0:
+            raise ValueError("Selected horizontal plane does not contain any source positions")
+
+        spherical_positions = SourcePositionData.create_positions(
+            sources=self.Sources,
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        )[indices]
+        azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
+        transformed_azimuth_values = Axis.transform_azimuth_values(
+            values=azimuth_values,
+            options=axis_options,
+        )
+        if itd_values.shape[0] != self.Sources.get_positions(angle_unit="degrees").shape[0]:
+            raise ValueError("ITD values must match the number of source positions")
+        horizontal_itd_values = itd_values[indices]
+        sort_indices = np.argsort(transformed_azimuth_values)
+        sorted_azimuth_values = transformed_azimuth_values[sort_indices]
+        sorted_itd_values = horizontal_itd_values[sort_indices]
+
+        layout = create_layout(
+            layout=1,
+            figsize=figure_options.figsize,
+            margins=resolved_margins,
+        )
+        ax = layout.get_axis("main")
+        ax.plot(
+            sorted_azimuth_values,
+            sorted_itd_values,
+            color="steelblue",
+            linewidth=2.0,
+        )
+        ax.margins(x=0.0)
+        Axis.create_azimuth_axis(
+            ax=ax,
+            axis="x",
+            values=sorted_azimuth_values,
+            options=axis_options,
+        )
+        Axis.create_label_axis(
+            ax=ax,
+            axis="y",
+            default_label=Labels().itd,
+            options=axis_options,
+        )
+        grid_enabled = True if axis_options.grid is None else axis_options.grid
+        if grid_enabled:
+            ax.grid(True)
+        if figure_options.title is not None:
+            layout.set_figure_title(figure_options.title)
+        elif titles:
+            layout.set_figure_title(
+                Axis.create_plane_title(
+                    plane="horizontal",
+                    elevation_angle=real_elevation,
+                )
+            )
+        if show and plot_options.show:
+            plt.show()
+        return None
+
+    def plot_absolute_itd(
         self: "HRTF",
         elevation_angle: float = 0.0,
         options: PlotOptions | None = None,
@@ -2977,10 +3125,10 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_itd_horizontal_plane()
-        >>> hrtf.plot_itd_horizontal_plane(elevation_angle=10.0)
-        >>> hrtf.plot_itd_horizontal_plane(show=False)
-        >>> hrtf.plot_itd_horizontal_plane(
+        >>> hrtf.plot_absolute_itd()
+        >>> hrtf.plot_absolute_itd(elevation_angle=10.0)
+        >>> hrtf.plot_absolute_itd(show=False)
+        >>> hrtf.plot_absolute_itd(
         ...     options=PlotOptions(
         ...         axis=AxisOptions(ylabel="ITD (s)"),
         ...         figure=FigureOptions(title="Horizontal Plane ITD")
@@ -3084,7 +3232,394 @@ class HRTFPlots:
             plt.show()
         return None
 
-    def plot_ild_horizontal_plane(
+    def plot_ild_plane(
+        self: "HRTF",
+        plane: str = "horizontal",
+        elevation_angle: float = 0.0,
+        freq_min: float | None = None,
+        freq_max: float | None = None,
+        options: PlotOptions | None = None,
+        show: bool = True,
+        titles: bool = True,
+    ) -> None:
+        """Plot a frequency-dependent ILD heatmap for an HRTF plane.
+
+        This method plots a heatmap where frequency is shown on the horizontal
+        axis and the plane angle is shown on the vertical axis. The horizontal
+        plane may be selected at another elevation through ``elevation_angle``.
+        The median plane remains the canonical sagittal path.
+
+        Parameters
+        ----------
+        plane : {"horizontal", "median"}, default="horizontal"
+            Plane to visualize. ``"horizontal"`` uses a horizontal plane
+            selected by elevation. ``"median"`` uses the canonical median
+            plane defined by the front-back sagittal path.
+        elevation_angle : float, default=0.0
+            Target elevation used when ``plane="horizontal"``. The nearest
+            available horizontal plane in the grid is selected. This parameter
+            is not used for the median plane.
+        freq_min : float | None, default=None
+            Minimum frequency in Hz included in the plot.
+        freq_max : float | None, default=None
+            Maximum frequency in Hz included in the plot.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, heatmap, and margin overrides. For the
+            horizontal plane, the azimuth axis is configured by default to use
+            the signed ``-180 .. 180`` convention, where positive values are
+            on the left side and negative values are on the right side.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress the generated default figure title.
+
+        Returns
+        -------
+        None
+
+        Use Cases
+        ---------
+        - Inspect frequency-dependent ILD over the horizontal plane.
+        - Inspect frequency-dependent ILD over the canonical median plane.
+        - Generate an ILD heatmap without showing it immediately.
+
+        Examples
+        --------
+        >>> hrtf.plot_ild_plane()
+        >>> hrtf.plot_ild_plane(plane="median")
+        >>> hrtf.plot_ild_plane(elevation_angle=10.0, freq_max=8000.0)
+        >>> hrtf.plot_ild_plane(show=False)
+        """
+        accepted_parameters = AcceptedParameters()
+        if plane not in ("horizontal", "median"):
+            raise AttributeError("plot_ild_plane plane accepts horizontal or median")
+        if isinstance(elevation_angle, bool):
+            raise AttributeError("elevation_angle must be a finite value")
+        elevation_angle = float(elevation_angle)
+        if not np.isfinite(elevation_angle):
+            raise AttributeError("elevation_angle must be a finite value")
+
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
+        axis_options = AxisOptions(
+            azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
+        ).merge(plot_options.axis)
+        heatmap_options = HeatmapOptions(cmap="magma").merge(plot_options.heatmap)
+        heatmap_frequency_axis_options = (
+            FrequencyAxisOptions()
+            if axis_options.frequency_axis is None
+            else axis_options.frequency_axis
+        ).merge(FrequencyAxisOptions(margin_ratio=Heatmap.axis_margin_ratio))
+
+        if self.IR.values is None:
+            raise ValueError("IR data is not available")
+        if self.IR.sample_rate is None:
+            raise ValueError("IR sample_rate is required")
+
+        plane_key = str(plane).strip().lower()
+        if plane_key != "horizontal" and not np.isclose(
+            elevation_angle,
+            0.0,
+            atol=1e-8,
+            rtol=0.0,
+        ):
+            raise ValueError("elevation_angle only applies when plane='horizontal'")
+
+        layout = create_layout(
+            layout=1,
+            figsize=figure_options.figsize,
+            margins=resolved_margins,
+        )
+
+        if plane_key == "horizontal":
+            indices, real_plane_elevation = get_horizontal_plane(
+                hrtf=self,
+                elevation=elevation_angle,
+                angle_unit="degrees",
+            )
+        else:
+            indices, _ = get_median_plane(
+                hrtf=self,
+                azimuth=0.0,
+                angle_unit="degrees",
+            )
+            real_plane_elevation = 0.0
+        if indices.size == 0:
+            raise ValueError("Selected plane does not contain any source positions")
+
+        spherical_positions = SourcePositionData.create_positions(
+            sources=self.Sources,
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        )[indices]
+        if plane_key == "horizontal":
+            plane_axis_values = np.asarray(spherical_positions[:, 0], dtype=float)
+        else:
+            lateral_polar_positions = spherical_to_lateral_polar(
+                spherical_positions,
+                angle_unit="degrees",
+            )
+            plane_axis_values = np.asarray(lateral_polar_positions[:, 1], dtype=float)
+
+        _, frequency_bins_hz, _ = calculate_tf_from_ir(
+            np.asarray(self.IR.values, dtype=float),
+            sample_rate=self.IR.sample_rate,
+            fft_length=self.fft_length,
+        )
+        frequency_bins_hz = np.asarray(frequency_bins_hz, dtype=float)
+        if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
+            raise ValueError("TF frequency bins must be a non-empty 1D array")
+        resolved_frequency_axis = Axis.create_frequency_axis(
+            ax=None,
+            axis="x",
+            x_axis="linear",
+            frequency_bins=frequency_bins_hz,
+            freq_min=freq_min,
+            freq_max=freq_max,
+            options=heatmap_frequency_axis_options,
+        )
+        frequency_mask = (
+            (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
+            & (frequency_bins_hz <= float(resolved_frequency_axis.freq_max))
+        )
+        if not np.any(frequency_mask):
+            raise ValueError("Selected frequency range produced no TF bins")
+        frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
+
+        ild_values = np.asarray(
+            calculate_ild(
+                self.IR,
+                sample_rate=self.IR.sample_rate,
+                fft_length=self.fft_length,
+                mode="frequency-dependent",
+                output="db",
+            ),
+            dtype=float,
+        )
+        plane_matrix = np.asarray(ild_values[indices][..., frequency_mask], dtype=float)
+        if plane_matrix.ndim != 2:
+            raise ValueError("Frequency-dependent ILD values must have shape (M, F)")
+
+        ax = layout.get_axis("main")
+        resolved_axis_options = axis_options
+        panel_plane_axis_values = (
+            Axis.transform_azimuth_values(
+                values=plane_axis_values,
+                options=resolved_axis_options,
+            )
+            if plane_key == "horizontal"
+            else np.asarray(plane_axis_values, dtype=float)
+        )
+        panel_sort_indices = np.argsort(panel_plane_axis_values)
+        sorted_panel_plane_axis_values = panel_plane_axis_values[panel_sort_indices]
+        sorted_plane_matrix = plane_matrix[panel_sort_indices, :]
+        mesh = ax.pcolormesh(
+            frequency_khz,
+            sorted_panel_plane_axis_values,
+            sorted_plane_matrix,
+            shading="auto",
+            cmap=Heatmap.create_colormap(options=heatmap_options),
+            vmin=float(np.min(sorted_plane_matrix)),
+            vmax=float(np.max(sorted_plane_matrix)),
+        )
+        ax.margins(x=0.0, y=0.0)
+        frequency_label = (
+            Labels().frequency
+            if resolved_axis_options.xlabel is None
+            else resolved_axis_options.xlabel
+        )
+        Axis.create_frequency_axis(
+            ax=ax,
+            axis="x",
+            x_axis="linear",
+            label=frequency_label,
+            options=resolved_frequency_axis,
+        )
+        Axis.create_plane_angle_axis(
+            ax=ax,
+            axis="y",
+            plane=plane_key,
+            values=sorted_panel_plane_axis_values,
+            options=resolved_axis_options,
+        )
+        grid_enabled = (
+            False if resolved_axis_options.grid is None else resolved_axis_options.grid
+        )
+        if grid_enabled:
+            ax.grid(True)
+        Heatmap.create_colorbar(
+            fig=layout.fig,
+            ax=ax,
+            mesh=mesh,
+            label=Labels().ild,
+            options=heatmap_options,
+        )
+        if figure_options.title is not None:
+            layout.set_figure_title(figure_options.title)
+        elif titles:
+            layout.set_figure_title(
+                Axis.create_plane_title(
+                    plane=plane_key,
+                    elevation_angle=real_plane_elevation,
+                )
+            )
+        if show and plot_options.show:
+            plt.show()
+        return None
+
+    def plot_ild(
+        self: "HRTF",
+        elevation_angle: float = 0.0,
+        options: PlotOptions | None = None,
+        show: bool = True,
+        titles: bool = True,
+    ) -> None:
+        """Plot signed ILD over a horizontal plane as azimuth versus level difference.
+
+        This method selects the nearest horizontal plane to the requested
+        elevation and plots signed broad-band interaural level difference
+        values in decibels against azimuth. The azimuth axis uses the signed
+        ``-180 .. 180`` convention by default, where positive azimuth values
+        correspond to the left side and negative azimuth values correspond to
+        the right side.
+
+        Parameters
+        ----------
+        elevation_angle : float, default=0.0
+            Target elevation used to select the horizontal plane. The nearest
+            available elevation in the grid is used.
+        options : PlotOptions | None, default=None
+            Optional figure, axis, and margin overrides. The azimuth axis is
+            configured by default to use the signed ``-180 .. 180`` range.
+        show : bool, default=True
+            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+        titles : bool, default=True
+            If ``False``, suppress the generated default figure title.
+
+        Returns
+        -------
+        None
+
+        Use Cases
+        ---------
+        - Inspect how signed ILD changes around the horizontal plane.
+        - Compare left-side and right-side level cues using a signed azimuth axis.
+        - Generate a horizontal-plane ILD curve for later display with ``show=False``.
+
+        Examples
+        --------
+        >>> hrtf.plot_ild()
+        >>> hrtf.plot_ild(elevation_angle=10.0)
+        >>> hrtf.plot_ild(show=False)
+        >>> hrtf.plot_ild(
+        ...     options=PlotOptions(
+        ...         axis=AxisOptions(ylabel="ILD (dB)")
+        ...     )
+        ... )
+        """
+        plot_options = PlotOptions() if options is None else options
+        figure_options = (
+            plot_options.figure if plot_options.figure is not None else FigureOptions()
+        )
+        resolved_margins = (
+            figure_options.margins if figure_options.margins is not None else Margins()
+        )
+        axis_options = AxisOptions(
+            azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
+        ).merge(plot_options.axis)
+
+        if self.IR.values is None:
+            raise ValueError("IR data is not available")
+        if self.IR.sample_rate is None:
+            raise ValueError("IR sample_rate is required")
+        if isinstance(elevation_angle, bool):
+            raise ValueError("elevation_angle must be a finite value")
+        elevation_angle = float(elevation_angle)
+        if not np.isfinite(elevation_angle):
+            raise ValueError("elevation_angle must be a finite value")
+
+        ild_values = np.asarray(
+            calculate_ild(
+                self.IR,
+                output="db",
+                mode="broad-band",
+            ),
+            dtype=float,
+        )
+        if ild_values.ndim != 1:
+            ild_values = ild_values.reshape(-1)
+        indices, real_elevation = get_horizontal_plane(
+            hrtf=self,
+            elevation=elevation_angle,
+            angle_unit="degrees",
+        )
+        if indices.size == 0:
+            raise ValueError("Selected horizontal plane does not contain any source positions")
+
+        spherical_positions = SourcePositionData.create_positions(
+            sources=self.Sources,
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        )[indices]
+        azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
+        transformed_azimuth_values = Axis.transform_azimuth_values(
+            values=azimuth_values,
+            options=axis_options,
+        )
+        if ild_values.shape[0] != self.Sources.get_positions(angle_unit="degrees").shape[0]:
+            raise ValueError("ILD values must match the number of source positions")
+        horizontal_ild_values = ild_values[indices]
+        sort_indices = np.argsort(transformed_azimuth_values)
+        sorted_azimuth_values = transformed_azimuth_values[sort_indices]
+        sorted_ild_values = horizontal_ild_values[sort_indices]
+
+        layout = create_layout(
+            layout=1,
+            figsize=figure_options.figsize,
+            margins=resolved_margins,
+        )
+        ax = layout.get_axis("main")
+        ax.plot(
+            sorted_azimuth_values,
+            sorted_ild_values,
+            color="steelblue",
+            linewidth=2.0,
+        )
+        ax.margins(x=0.0)
+        Axis.create_azimuth_axis(
+            ax=ax,
+            axis="x",
+            values=sorted_azimuth_values,
+            options=axis_options,
+        )
+        Axis.create_label_axis(
+            ax=ax,
+            axis="y",
+            default_label=Labels().ild,
+            options=axis_options,
+        )
+        grid_enabled = True if axis_options.grid is None else axis_options.grid
+        if grid_enabled:
+            ax.grid(True)
+        if figure_options.title is not None:
+            layout.set_figure_title(figure_options.title)
+        elif titles:
+            layout.set_figure_title(
+                Axis.create_plane_title(
+                    plane="horizontal",
+                    elevation_angle=real_elevation,
+                )
+            )
+        if show and plot_options.show:
+            plt.show()
+        return None
+
+    def plot_absolute_ild(
         self: "HRTF",
         elevation_angle: float = 0.0,
         options: PlotOptions | None = None,
@@ -3125,10 +3660,10 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_ild_horizontal_plane()
-        >>> hrtf.plot_ild_horizontal_plane(elevation_angle=10.0)
-        >>> hrtf.plot_ild_horizontal_plane(show=False)
-        >>> hrtf.plot_ild_horizontal_plane(
+        >>> hrtf.plot_absolute_ild()
+        >>> hrtf.plot_absolute_ild(elevation_angle=10.0)
+        >>> hrtf.plot_absolute_ild(show=False)
+        >>> hrtf.plot_absolute_ild(
         ...     options=PlotOptions(
         ...         axis=AxisOptions(ylabel="ILD (dB)"),
         ...         figure=FigureOptions(title="Horizontal Plane ILD")

@@ -196,7 +196,9 @@ def calculate_ild(
     np.ndarray
         ILD array in the requested mode. ``mode="broad-band"`` returns shape
         ``[...]`` and ``mode="frequency-dependent"`` returns
-        ``[..., frequency_bins]``.
+        ``[..., frequency_bins]``. Positive values mean the left-ear level is
+        greater than the right-ear level, and negative values mean the
+        right-ear level is greater than the left-ear level.
 
     Examples
     --------
