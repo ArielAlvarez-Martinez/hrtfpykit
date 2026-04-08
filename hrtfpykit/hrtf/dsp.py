@@ -1455,7 +1455,9 @@ def ir_from_tf(
     tf : np.ndarray | TF
         TF array or ``TF`` object.
     frequency_bins : np.ndarray | None, default=None
-        Optional frequency-bin vector matching the TF length.
+        Optional frequency-bin vector matching the TF length. When ``tf`` is a
+        ``TF`` object and ``frequency_bins`` is ``None``, ``tf.frequency_bins``
+        is used.
     sample_rate : float | None, default=None
         Sample rate used when frequency bins must be inferred for NumPy TF
         input.
@@ -1502,42 +1504,48 @@ def ir_from_tf(
 
     if frequency_bins is None:
         if tf_object is not None:
-            raise ValueError(
-                "ir_from_tf requires 'frequency_bins' when tf is a TF instance."
-            )
+            frequency_bins_array = tf_object.frequency_bins
+            if frequency_bins_array is None:
+                raise ValueError(
+                    "TF.frequency_bins is required when frequency_bins is not provided."
+                )
         if sample_rate is None:
-            raise ValueError(
-                "sample_rate is required when frequency_bins is not provided for NumPy TF."
-            )
-        try:
-            resolved_sample_rate = float(sample_rate)
-        except (TypeError, ValueError):
-            raise ValueError("sample_rate must be a finite, positive value.") from None
-        if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
-            raise ValueError("sample_rate must be a finite, positive value.")
-        if spectrum_type is None:
-            raise ValueError(
-                "spectrum_type is required when frequency_bins is not provided for NumPy TF."
-            )
-        spectrum_key = str(spectrum_type).strip().lower()
-        if spectrum_key == "positive":
-            inferred_fft_length = 2 * (tf_used.shape[-1] - 1)
-            frequency_bins_array = np.fft.rfftfreq(
-                inferred_fft_length,
-                d=1.0 / resolved_sample_rate,
-            )
-        elif spectrum_key == "complete":
-            inferred_fft_length = tf_used.shape[-1]
-            frequency_bins_array = np.fft.fftshift(
-                np.fft.fftfreq(
+            if tf_object is not None:
+                frequency_bins_array = np.asarray(frequency_bins_array, dtype=float)
+            else:
+                raise ValueError(
+                    "sample_rate is required when frequency_bins is not provided for NumPy TF."
+                )
+        if tf_object is None:
+            try:
+                resolved_sample_rate = float(sample_rate)
+            except (TypeError, ValueError):
+                raise ValueError("sample_rate must be a finite, positive value.") from None
+            if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
+                raise ValueError("sample_rate must be a finite, positive value.")
+            if spectrum_type is None:
+                raise ValueError(
+                    "spectrum_type is required when frequency_bins is not provided for NumPy TF."
+                )
+            spectrum_key = str(spectrum_type).strip().lower()
+            if spectrum_key == "positive":
+                inferred_fft_length = 2 * (tf_used.shape[-1] - 1)
+                frequency_bins_array = np.fft.rfftfreq(
                     inferred_fft_length,
                     d=1.0 / resolved_sample_rate,
                 )
-            )
-        else:
-            raise ValueError(
-                "spectrum_type must be 'positive' or 'complete' when inferring frequency_bins."
-            )
+            elif spectrum_key == "complete":
+                inferred_fft_length = tf_used.shape[-1]
+                frequency_bins_array = np.fft.fftshift(
+                    np.fft.fftfreq(
+                        inferred_fft_length,
+                        d=1.0 / resolved_sample_rate,
+                    )
+                )
+            else:
+                raise ValueError(
+                    "spectrum_type must be 'positive' or 'complete' when inferring frequency_bins."
+                )
     else:
         frequency_bins_array = np.asarray(frequency_bins, dtype=float)
 

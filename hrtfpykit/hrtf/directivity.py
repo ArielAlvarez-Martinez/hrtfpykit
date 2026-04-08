@@ -23,7 +23,9 @@ def ctf_from_hrtf(
     The CTF is derived by collapsing the source axis of the input HRTF into a
     single common spectral response for each ear. The resulting magnitude is
     then converted to a minimum-phase transfer function and returned as a new
-    HRTF object for compatibility with the rest of the HRTF API.
+    HRTF object for compatibility with the rest of the HRTF API. The returned
+    TF keeps the FFT grid of the input HRTF, but the returned IR is cropped or
+    zero-padded so that its length matches ``hrtf.IR.ir_length``.
 
     Parameters
     ----------
@@ -48,7 +50,8 @@ def ctf_from_hrtf(
     HRTF
         New HRTF object containing the CTF. The output keeps a singleton
         source axis for compatibility, so a typical binaural output has
-        ``TF.values.shape == (1, 2, F)`` and ``IR.values.shape == (1, 2, N)``.
+        ``TF.values.shape == (1, 2, F)`` and
+        ``IR.values.shape == (1, 2, hrtf.IR.ir_length)``.
 
     Use Cases
     ---------
@@ -65,6 +68,26 @@ def ctf_from_hrtf(
       analysis because it is less dominated by large spectral peaks.
     - Treat the returned singleton source axis as a compatibility axis, not as
       a real directional measurement.
+
+    Design Notes
+    ------------
+    - The CTF is estimated in the frequency domain, so its inverse FFT length
+      is naturally tied to ``TF.frequency_bins`` and therefore to the active
+      FFT grid.
+    - A larger FFT length increases spectral sampling density, but it does not
+      create additional physical HRIR information. It only changes how finely
+      the same spectrum is sampled.
+    - For that reason, this function does not expose the raw inverse-FFT
+      length as the final ``IR.ir_length``. Instead, it treats
+      ``hrtf.IR.ir_length`` as the time-domain reference support.
+    - In this API that reference IR is not optional. Loaded HRTF objects are
+      expected to provide a valid ``IR`` representation, and that IR length is
+      used as the design target for the returned CTF.
+    - If the inverse FFT produces a longer IR, the extra tail is cropped. If
+      it produces a shorter IR, zeros are appended at the end. The TF is then
+      resynchronized with the same ``fft_length``.
+    - This behavior is deliberate: ``TF.tf_length`` expresses FFT resolution,
+      while ``IR.ir_length`` expresses the intended HRIR support.
 
     Examples
     --------
@@ -101,6 +124,9 @@ def ctf_from_hrtf(
         raise ValueError("TF data must contain at least two frequency bins")
     if frequency_bins is None:
         raise ValueError("TF frequency_bins are required")
+    target_ir_length = None
+    if hrtf.IR.values is not None:
+        target_ir_length = int(np.asarray(hrtf.IR.values).shape[-1])
 
     source_count = int(tf_values.shape[0])
     tiny = np.finfo(float).tiny
@@ -190,6 +216,23 @@ def ctf_from_hrtf(
     if np.min(np.asarray(ctf_hrtf.TF.frequency_bins, dtype=float)) < 0.0:
         raise ValueError("minimum-phase CTF currently requires one-sided TF data")
     ctf_hrtf.IR.values = minimum_phase(ctf_hrtf.IR)
+    if target_ir_length is not None:
+        current_ir_length = int(ctf_hrtf.IR.values.shape[-1])
+        if current_ir_length > target_ir_length:
+            ctf_hrtf.IR.values = np.asarray(
+                ctf_hrtf.IR.values[..., :target_ir_length],
+                dtype=float,
+            )
+        elif current_ir_length < target_ir_length:
+            pad_width = [(0, 0)] * (ctf_hrtf.IR.values.ndim - 1) + [
+                (0, target_ir_length - current_ir_length)
+            ]
+            ctf_hrtf.IR.values = np.pad(
+                np.asarray(ctf_hrtf.IR.values, dtype=float),
+                pad_width,
+                mode="constant",
+                constant_values=0.0,
+            )
     tf_from_ir(
         ctf_hrtf.IR,
         fft_length=ctf_hrtf.fft_length,
@@ -218,7 +261,9 @@ def dtf_from_hrtf(
     The DTF is obtained by dividing the input HRTF by a common transfer
     function (CTF) derived from the same HRTF. The CTF is internally computed
     as a minimum-phase response with :func:`ctf_from_hrtf`, while the returned
-    DTF preserves the original source axis of the input HRTF.
+    DTF preserves the original source axis of the input HRTF. The returned TF
+    keeps the FFT grid of the input HRTF, but the returned IR is cropped or
+    zero-padded so that its length matches ``hrtf.IR.ir_length``.
 
     Parameters
     ----------
@@ -243,7 +288,8 @@ def dtf_from_hrtf(
     HRTF
         New HRTF object containing the DTF. The output preserves the source
         layout of the input HRTF, so a typical binaural output keeps
-        ``TF.values.shape == (M, 2, F)`` and ``IR.values.shape == (M, 2, N)``.
+        ``TF.values.shape == (M, 2, F)`` and
+        ``IR.values.shape == (M, 2, hrtf.IR.ir_length)``.
 
     Use Cases
     ---------
@@ -262,6 +308,24 @@ def dtf_from_hrtf(
       analysis because it is less dominated by large spectral peaks.
     - Interpret ``attenuation`` as a playback or export headroom control for
       the DTF itself, not as part of the CTF estimation.
+
+    Design Notes
+    ------------
+    - The DTF division is carried out on the active TF grid, so the raw
+      inverse FFT would otherwise return an IR length implied only by
+      ``TF.frequency_bins``.
+    - That raw inverse-FFT length is not treated as the final DTF support,
+      because changing FFT length changes spectral resolution, not the amount
+      of meaningful time-domain HRTF information.
+    - By design, ``hrtf.IR.ir_length`` is the reference time-domain support
+      for the returned DTF.
+    - In this API that reference IR is not optional. Loaded HRTF objects are
+      expected to provide a valid ``IR`` representation, and that IR length is
+      used as the design target for the returned DTF.
+    - If the inverse FFT produces a longer IR, the extra tail is cropped. If
+      it produces a shorter IR, zeros are appended at the end. The TF is then
+      recomputed with the same ``fft_length`` so the spectral grid stays
+      unchanged.
 
     Examples
     --------
@@ -297,6 +361,9 @@ def dtf_from_hrtf(
         raise ValueError("TF data must contain at least two frequency bins")
     if frequency_bins is None:
         raise ValueError("TF frequency_bins are required")
+    target_ir_length = None
+    if hrtf.IR.values is not None:
+        target_ir_length = int(np.asarray(hrtf.IR.values).shape[-1])
 
     if attenuation is not None:
         if isinstance(attenuation, bool):
@@ -335,6 +402,27 @@ def dtf_from_hrtf(
         dtf_hrtf.TF,
         frequency_bins=dtf_hrtf.TF.frequency_bins,
     )
+    if target_ir_length is not None:
+        current_ir_length = int(dtf_hrtf.IR.values.shape[-1])
+        if current_ir_length > target_ir_length:
+            dtf_hrtf.IR.values = np.asarray(
+                dtf_hrtf.IR.values[..., :target_ir_length],
+                dtype=float,
+            )
+        elif current_ir_length < target_ir_length:
+            pad_width = [(0, 0)] * (dtf_hrtf.IR.values.ndim - 1) + [
+                (0, target_ir_length - current_ir_length)
+            ]
+            dtf_hrtf.IR.values = np.pad(
+                np.asarray(dtf_hrtf.IR.values, dtype=float),
+                pad_width,
+                mode="constant",
+                constant_values=0.0,
+            )
+        tf_from_ir(
+            dtf_hrtf.IR,
+            fft_length=dtf_hrtf.fft_length,
+        )
 
     return dtf_hrtf
 
@@ -348,7 +436,9 @@ def hrtf_from_dtf_and_ctf(
     The reconstruction is performed in the frequency domain by multiplying the
     directional transfer function (DTF) by the common transfer function (CTF).
     The returned object keeps the source layout of the DTF input and rebuilds
-    its IR representation from the reconstructed TF.
+    its IR representation from the reconstructed TF. The reconstructed TF keeps
+    the active FFT grid, but the reconstructed IR is cropped or zero-padded so
+    that its length matches ``dtf.IR.ir_length``.
 
     Parameters
     ----------
@@ -364,9 +454,8 @@ def hrtf_from_dtf_and_ctf(
     -------
     HRTF
         New HRTF object containing the reconstructed transfer function and
-        impulse response. If the underlying SOFA file provides ``Data.IR``,
-        the reconstructed IR is cropped back to that original stored IR length
-        and the TF is resynchronized with the same FFT length.
+        impulse response. The reconstructed source layout follows the DTF, and
+        the reconstructed IR length follows ``dtf.IR.ir_length``.
 
     Use Cases
     ---------
@@ -381,9 +470,23 @@ def hrtf_from_dtf_and_ctf(
       grid.
     - Treat the DTF as the source-layout reference and the CTF as a
       broadcast-compatible common response.
-    - When comparing reconstructed IRs against the original HRTF, keep in mind
-      that the IR is rebuilt from TF and then cropped to the original stored
-      IR length when that length is available from the SOFA file.
+    - Treat the DTF as the time-domain reference as well: the reconstruction
+      keeps the DTF source layout and the DTF IR support.
+
+    Design Notes
+    ------------
+    - The multiplication ``DTF * CTF`` is performed on the TF grid, so the raw
+      inverse FFT is controlled by ``TF.frequency_bins`` and ``fft_length``.
+    - As in ``ctf_from_hrtf`` and ``dtf_from_hrtf``, that raw inverse-FFT
+      length is not considered authoritative for the final HRIR support.
+    - By design, the DTF is the reference object for reconstruction: it
+      defines the directional layout and also the intended ``IR.ir_length``.
+    - In this API that DTF IR is not optional. It is the explicit time-domain
+      reference used to size the reconstructed HRTF.
+    - If the inverse FFT produces a longer IR, the extra tail is cropped. If
+      it produces a shorter IR, zeros are appended at the end. The TF is then
+      recomputed with the same ``fft_length`` so the reconstruction keeps the
+      chosen spectral resolution without silently changing HRIR support.
 
     Examples
     --------
@@ -431,6 +534,9 @@ def hrtf_from_dtf_and_ctf(
         raise ValueError("DTF TF frequency_bins are required")
     if ctf_frequency_bins is None:
         raise ValueError("CTF TF frequency_bins are required")
+    target_ir_length = None
+    if dtf.IR.values is not None:
+        target_ir_length = int(np.asarray(dtf.IR.values).shape[-1])
 
     dtf_frequency_bins = np.asarray(dtf_frequency_bins, dtype=float)
     ctf_frequency_bins = np.asarray(ctf_frequency_bins, dtype=float)
@@ -467,24 +573,26 @@ def hrtf_from_dtf_and_ctf(
         hrtf.TF,
         frequency_bins=hrtf.TF.frequency_bins,
     )
-
-    if hrtf.Sofa is not None and hrtf.IR.values is not None:
-        variables = hrtf.Sofa.Variables
-        if variables is not None:
-            try:
-                original_ir_values = np.asarray(variables.get("Data.IR").value)
-            except ValueError:
-                original_ir_values = None
-            if original_ir_values is not None and original_ir_values.ndim >= 1:
-                original_ir_length = int(original_ir_values.shape[-1])
-                if hrtf.IR.values.shape[-1] > original_ir_length:
-                    hrtf.IR.values = np.asarray(
-                        hrtf.IR.values[..., :original_ir_length],
-                        dtype=float,
-                    )
-                    tf_from_ir(
-                        hrtf.IR,
-                        fft_length=hrtf.fft_length,
-                    )
+    if target_ir_length is not None:
+        current_ir_length = int(hrtf.IR.values.shape[-1])
+        if current_ir_length > target_ir_length:
+            hrtf.IR.values = np.asarray(
+                hrtf.IR.values[..., :target_ir_length],
+                dtype=float,
+            )
+        elif current_ir_length < target_ir_length:
+            pad_width = [(0, 0)] * (hrtf.IR.values.ndim - 1) + [
+                (0, target_ir_length - current_ir_length)
+            ]
+            hrtf.IR.values = np.pad(
+                np.asarray(hrtf.IR.values, dtype=float),
+                pad_width,
+                mode="constant",
+                constant_values=0.0,
+            )
+        tf_from_ir(
+            hrtf.IR,
+            fft_length=hrtf.fft_length,
+        )
 
     return hrtf
