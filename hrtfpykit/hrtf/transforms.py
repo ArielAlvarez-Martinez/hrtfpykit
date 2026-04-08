@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 from scipy.special import sph_harm
 import math
@@ -5,6 +7,8 @@ import matplotlib.pyplot as plt
 from typing import TYPE_CHECKING
 
 from .dsp import (
+    convolve,
+    deconvolve,
     downsampling,
     fir_filter,
     iir_filter,
@@ -20,6 +24,7 @@ from .dsp import (
 from .metrics import calculate_itd
 
 if TYPE_CHECKING:
+    from .domain import IR
     from .hrtf import HRTF
 
 
@@ -202,6 +207,141 @@ class Transform:
             cutoff=cutoff,
             order=order,
         )
+        tf_from_ir(
+            ir,
+            fft_length=transformed_hrtf.fft_length,
+        )
+        return transformed_hrtf
+
+    def convolve(
+        self,
+        ir_2: np.ndarray | "IR" | "HRTF",
+        mode: str = "same",
+        method: str = "auto",
+    ) -> "HRTF":
+        """Convolve the current IR with another IR and resync TF.
+
+        Parameters
+        ----------
+        ir_2 : np.ndarray | IR | HRTF
+            Second impulse response used in the convolution. When an ``HRTF``
+            instance is provided, its ``IR`` domain is used.
+        mode : {"full", "same", "valid"}, default="same"
+            Convolution output mode passed to the DSP layer. The default keeps
+            the current IR length.
+        method : {"auto", "direct", "fft"}, default="auto"
+            Convolution method passed to the DSP layer.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with convolved IR values and refreshed TF data.
+
+        Use Cases
+        ---------
+        - Cascade the current HRIR with another measured or designed IR.
+        - Apply one IR to every source and ear through broadcasting.
+        - Use another HRTF object's IR data as the convolution target.
+
+        Examples
+        --------
+        >>> transformed = hrtf.transform.convolve(np.array([1.0, 0.5, 0.0]))
+        >>> transformed = hrtf.transform.convolve(other_hrtf)
+        """
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        if ir.values is None:
+            raise ValueError("IR data is not available")
+
+        if isinstance(ir_2, self._hrtf.__class__):
+            ir_2_values = ir_2.IR
+        else:
+            ir_2_values = ir_2
+
+        ir.values = convolve(
+            ir_1=ir,
+            ir_2=ir_2_values,
+            mode=mode,
+            method=method,
+        )
+
+        if transformed_hrtf.fft_length is not None:
+            transformed_hrtf.fft_length = max(
+                int(transformed_hrtf.fft_length),
+                int(ir.values.shape[-1]),
+            )
+
+        tf_from_ir(
+            ir,
+            fft_length=transformed_hrtf.fft_length,
+        )
+        return transformed_hrtf
+
+    def compensate(
+        self,
+        ir_2: np.ndarray | "IR" | "HRTF",
+        fft_length: int | None = None,
+        output_length: int | None = None,
+        regularization: float = 1e-8,
+    ) -> "HRTF":
+        """Remove an IR from the current IR through regularized deconvolution.
+
+        Parameters
+        ----------
+        ir_2 : np.ndarray | IR | HRTF
+            IR to remove from the current IR. When an ``HRTF`` instance is
+            provided, its ``IR`` domain is used.
+        fft_length : int | None, default=None
+            FFT length used by the DSP deconvolution step.
+        output_length : int | None, default=None
+            Number of samples returned in the compensated IR. When omitted, the
+            current IR length is used.
+        regularization : float, default=1e-8
+            Positive stabilization value passed to the DSP deconvolution step.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with compensated IR values and refreshed TF
+            data.
+
+        Use Cases
+        ---------
+        - Remove a known room or device IR from the current HRIR.
+        - Use another HRTF object's IR data as the compensation reference.
+
+        Examples
+        --------
+        >>> transformed = hrtf.transform.compensate(np.array([1.0, 0.5, 0.0]))
+        >>> transformed = hrtf.transform.compensate(other_hrtf, output_length=256)
+        """
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        if ir.values is None:
+            raise ValueError("IR data is not available")
+
+        if isinstance(ir_2, self._hrtf.__class__):
+            ir_2_values = ir_2.IR
+        else:
+            ir_2_values = ir_2
+
+        if output_length is None:
+            output_length = int(ir.values.shape[-1])
+
+        ir.values = deconvolve(
+            ir_1=ir,
+            ir_2=ir_2_values,
+            fft_length=fft_length,
+            output_length=output_length,
+            regularization=regularization,
+        )
+
+        if transformed_hrtf.fft_length is not None:
+            transformed_hrtf.fft_length = max(
+                int(transformed_hrtf.fft_length),
+                int(ir.values.shape[-1]),
+            )
+
         tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,

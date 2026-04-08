@@ -1056,6 +1056,170 @@ def convolve(
     return convolved_values.reshape(leading_shape + (first_result.shape[-1],))
 
 
+def deconvolve(
+    ir_1: np.ndarray | "IR",
+    ir_2: np.ndarray | "IR",
+    fft_length: int | None = None,
+    output_length: int | None = None,
+    regularization: float = 1e-8,
+) -> np.ndarray:
+    """Estimate an IR by removing another IR through regularized deconvolution.
+
+    Parameters
+    ----------
+    ir_1 : np.ndarray | IR
+        Time-domain array or ``IR`` object with ``.values`` and
+        ``.sample_rate``. This is the measured or mixed IR from which
+        ``ir_2`` is removed.
+    ir_2 : np.ndarray | IR
+        Time-domain array or ``IR`` object with ``.values`` and
+        ``.sample_rate``. This is the IR to remove from ``ir_1``.
+    fft_length : int | None, default=None
+        FFT length used for the frequency-domain inversion. When omitted, the
+        maximum of ``ir_1`` length, ``ir_2`` length, and ``output_length`` is
+        used.
+    output_length : int | None, default=None
+        Number of samples returned along the last axis. When omitted, the
+        length of ``ir_1`` is used.
+    regularization : float, default=1e-8
+        Positive stabilization value added to the spectral denominator to
+        avoid division by zero and reduce numerical blow-up.
+
+    Returns
+    -------
+    np.ndarray
+        Deconvolved values with the broadcast leading shape of ``ir_1`` and
+        ``ir_2`` and the requested ``output_length``.
+
+    Examples
+    --------
+    >>> target = np.array([1.0, 2.0, 3.0])
+    >>> system = np.array([1.0, 0.5])
+    >>> measured = convolve(target, system, mode="full")
+    >>> recovered = deconvolve(
+    ...     measured,
+    ...     system,
+    ...     output_length=target.shape[-1],
+    ... )
+    >>> np.allclose(np.round(recovered, 6), target)
+    True
+    """
+    ir_1_sample_rate = None
+    if isinstance(ir_1, np.ndarray):
+        ir_1_values = ir_1
+    else:
+        if not hasattr(ir_1, "values") or not hasattr(ir_1, "sample_rate"):
+            raise ValueError("ir_1 must be a NumPy array or an IR instance")
+        ir_1_values = ir_1.values
+        ir_1_sample_rate = ir_1.sample_rate
+
+    ir_2_sample_rate = None
+    if isinstance(ir_2, np.ndarray):
+        ir_2_values = ir_2
+    else:
+        if not hasattr(ir_2, "values") or not hasattr(ir_2, "sample_rate"):
+            raise ValueError("ir_2 must be a NumPy array or an IR instance")
+        ir_2_values = ir_2.values
+        ir_2_sample_rate = ir_2.sample_rate
+
+    if ir_1_values is None:
+        raise ValueError("IR data for ir_1 is not available")
+    if not isinstance(ir_1_values, np.ndarray):
+        raise ValueError("IR data for ir_1 must be a NumPy array")
+    if ir_1_values.size == 0:
+        raise ValueError("IR data for ir_1 must be non-empty")
+    if ir_1_values.ndim == 0:
+        raise ValueError("IR data for ir_1 must have at least one dimension")
+
+    if ir_2_values is None:
+        raise ValueError("IR data for ir_2 is not available")
+    if not isinstance(ir_2_values, np.ndarray):
+        raise ValueError("IR data for ir_2 must be a NumPy array")
+    if ir_2_values.size == 0:
+        raise ValueError("IR data for ir_2 must be non-empty")
+    if ir_2_values.ndim == 0:
+        raise ValueError("IR data for ir_2 must have at least one dimension")
+
+    if ir_1_sample_rate is not None and ir_2_sample_rate is not None:
+        if isinstance(ir_1_sample_rate, bool) or isinstance(ir_2_sample_rate, bool):
+            raise ValueError("IR inputs must have matching finite, positive sample_rate values")
+        try:
+            ir_1_sample_rate = float(ir_1_sample_rate)
+            ir_2_sample_rate = float(ir_2_sample_rate)
+        except (TypeError, ValueError):
+            raise ValueError("IR inputs must have matching finite, positive sample_rate values") from None
+        if (
+            not np.isfinite(ir_1_sample_rate)
+            or ir_1_sample_rate <= 0.0
+            or not np.isfinite(ir_2_sample_rate)
+            or ir_2_sample_rate <= 0.0
+        ):
+            raise ValueError("IR inputs must have matching finite, positive sample_rate values")
+        if not np.isclose(ir_1_sample_rate, ir_2_sample_rate, rtol=1e-8, atol=1e-8):
+            raise ValueError("IR inputs must share the same sample_rate for deconvolution")
+
+    if output_length is None:
+        output_length_used = int(ir_1_values.shape[-1])
+    else:
+        if isinstance(output_length, bool) or not isinstance(output_length, int):
+            raise ValueError("output_length must be an integer")
+        if output_length <= 0:
+            raise ValueError("output_length must be positive")
+        output_length_used = int(output_length)
+
+    minimum_fft_length = max(
+        int(ir_1_values.shape[-1]),
+        int(ir_2_values.shape[-1]),
+        output_length_used,
+    )
+    if fft_length is None:
+        fft_length_used = minimum_fft_length
+    else:
+        if isinstance(fft_length, bool) or not isinstance(fft_length, int):
+            raise ValueError("fft_length must be an integer")
+        if fft_length < minimum_fft_length:
+            raise ValueError("fft_length must be greater than or equal to the input and output lengths")
+        fft_length_used = int(fft_length)
+
+    if isinstance(regularization, bool):
+        raise ValueError("regularization must be a finite, positive value.")
+    try:
+        regularization = float(regularization)
+    except (TypeError, ValueError):
+        raise ValueError("regularization must be a finite, positive value.") from None
+    if not np.isfinite(regularization) or regularization <= 0.0:
+        raise ValueError("regularization must be a finite, positive value.")
+
+    try:
+        leading_shape = np.broadcast_shapes(
+            ir_1_values.shape[:-1],
+            ir_2_values.shape[:-1],
+        )
+    except ValueError:
+        raise ValueError("ir_1 and ir_2 leading shapes must be broadcast-compatible") from None
+
+    ir_1_broadcast = np.broadcast_to(
+        ir_1_values,
+        leading_shape + (ir_1_values.shape[-1],),
+    )
+    ir_2_broadcast = np.broadcast_to(
+        ir_2_values,
+        leading_shape + (ir_2_values.shape[-1],),
+    )
+
+    ir_1_spectrum = np.fft.rfft(ir_1_broadcast, n=fft_length_used, axis=-1)
+    ir_2_spectrum = np.fft.rfft(ir_2_broadcast, n=fft_length_used, axis=-1)
+    denominator = np.square(np.abs(ir_2_spectrum)) + regularization
+    deconvolved_spectrum = ir_1_spectrum * np.conj(ir_2_spectrum) / denominator
+    deconvolved_values = np.fft.irfft(
+        deconvolved_spectrum,
+        n=fft_length_used,
+        axis=-1,
+    )
+    deconvolved_values = np.real_if_close(deconvolved_values, tol=1000)
+    return np.asarray(deconvolved_values[..., :output_length_used])
+
+
 def minimum_phase(
     data: np.ndarray | "IR",
     method: str = "homomorphic",
