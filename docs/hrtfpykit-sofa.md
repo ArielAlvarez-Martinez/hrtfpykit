@@ -2,7 +2,7 @@
 
 This guide describes the public SOFA API in `hrtfpykit.sofa`.
 It covers the main objects, the normal edit workflows, and the methods used to
-inspect, validate, copy, and save SOFA datasets.
+inspect, validate, copy, and save SOFA files and SOFA objects.
 
 ---
 
@@ -33,16 +33,16 @@ The SOFA layer is the library entry point for low-level SOFA file handling.
 It wraps a `netCDF4.Dataset` and exposes a small high-level API for:
 
 - loading existing `.sofa` files
-- creating in-memory SOFA datasets
+- creating in-memory SOFA objects
 - reading dimensions, variables, and attributes through wrapper objects
-- editing datasets through explicit copy or writable-open workflows
+- editing SOFA objects through explicit copy or writable-open workflows
 - validating files against the local conventions registry
 
 The API is explicit by design:
 
-- `load()` opens a dataset
-- `clone()` and `copy_with()` create new in-memory datasets
-- `save()` writes a dataset to disk
+- `load()` opens a SOFA file
+- `clone()` and `copy_with()` create new in-memory SOFA objects
+- `save()` writes a SOFA object to disk
 
 There is no hidden file I/O.
 
@@ -62,7 +62,7 @@ Use `SOFA` when you want to:
 - edit metadata or variables with shape checks and SOFA-oriented naming
 - prepare an in-memory modified copy before saving to disk
 
-The underlying dataset is still available as `sofa.netCDF4_dataset` for
+The underlying `netCDF4.Dataset` is still available as `sofa.netCDF4_dataset` for
 advanced use.
 
 ### Wrapper Collections
@@ -85,7 +85,7 @@ These wrappers provide a consistent access pattern:
 - iteration
 - `len(...)`
 
-If no dataset is loaded, these properties return `None`.
+If no SOFA file is loaded, these properties return `None`.
 
 ### Wrap Objects
 
@@ -140,7 +140,7 @@ sofa_clone.modify_global_attribute("Title", "Updated title")
 sofa_clone.save("my_updated.sofa")
 ```
 
-`clone()` and `copy_with()` create independent in-memory datasets.
+`clone()` and `copy_with()` create independent in-memory SOFA objects.
 They can be called repeatedly on the same source object.
 
 ### Edit in Place
@@ -208,7 +208,7 @@ sofa_mod = sofa.copy_with(
 
 ### `SOFA.Dimensions`
 
-Access dataset dimensions through `DimensionsWrap` objects.
+Access SOFA dimensions through `DimensionsWrap` objects.
 
 ```python
 dims = sofa.Dimensions
@@ -306,13 +306,13 @@ Use `mode="r+"` only when you want in-place changes.
 
 ### `SOFA.create_dummy(sofa_conventions, version=None, dim_sizes=None, custom_global_attributes=None, override_default_global_attributes=False)`
 
-Create an in-memory SOFA dataset from a registered convention specification.
+Create an in-memory SOFA object from a registered convention specification.
 
 This is useful for:
 
 - prototyping
 - examples
-- generating minimal SOFA datasets
+- generating minimal SOFA objects
 
 Important behavior:
 
@@ -322,7 +322,7 @@ Important behavior:
 
 ### `SOFA.clone()`
 
-Create an in-memory writable copy of the current dataset.
+Create an in-memory writable copy of the current SOFA object.
 
 Use `clone()` when you want to:
 
@@ -330,11 +330,11 @@ Use `clone()` when you want to:
 - make manual edits through the CRUD methods
 - save to a new output path without touching the original file
 
-Each call creates a new independent in-memory dataset.
+Each call creates a new independent in-memory SOFA object.
 
 ### `SOFA.copy_with(dim_sizes=None, global_attributes=None, variable_attributes=None, variables=None)`
 
-Create an in-memory copy of the current dataset with explicit overrides.
+Create an in-memory copy of the current SOFA object with explicit overrides.
 
 Use `copy_with()` when you already know the modifications you want to apply.
 It is especially useful for:
@@ -352,7 +352,7 @@ Important behavior:
 
 ### `SOFA.save(path=None, overwrite=False)`
 
-Write the current dataset to disk.
+Write the current SOFA object to disk.
 
 Behavior:
 
@@ -362,13 +362,13 @@ Behavior:
 
 Use `save()` after:
 
-- editing a dataset opened with `mode="r+"`
+- editing a SOFA file opened with `mode="r+"`
 - creating a clone and preparing an output file
-- creating a modified in-memory dataset with `copy_with()`
+- creating a modified in-memory SOFA object with `copy_with()`
 
-When writing from a separate dataset handle to the exact same on-disk path,
-normal filesystem locking rules still apply. In that case, save to a new file
-path or ensure the original writable handle is no longer holding that path open.
+When writing from a separate SOFA object to the exact same on-disk path, normal
+filesystem locking rules still apply. In that case, save to a new file path or
+ensure the original writable object is no longer holding that path open.
 
 ### `SOFA.summary()`
 
@@ -378,7 +378,7 @@ Return a formatted summary of:
 - variables
 - variable attributes
 
-Use it for fast inspection of a dataset without manually traversing the
+Use it for fast inspection of a SOFA object without manually traversing the
 underlying `netCDF4.Dataset`.
 
 ---
@@ -392,7 +392,7 @@ These methods operate on a writable `SOFA` object, typically one produced by
 
 #### `SOFA.create_dimension(name, value)`
 
-Create a new dimension in the dataset.
+Create a new dimension in the SOFA object.
 
 Raises `ValueError` if the dimension already exists.
 
