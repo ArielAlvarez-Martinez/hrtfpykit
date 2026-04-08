@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional, Union
 import pathlib
+from uuid import uuid4
 import netCDF4
 import numpy as np
 from .conventions import CONVENTIONS
@@ -114,10 +115,11 @@ class SOFA:
 
         Notes
         -----
-        Editing a SOFA file requires it to be loaded in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -151,10 +153,11 @@ class SOFA:
 
         Notes
         -----
-        Editing a SOFA file requires it to be loaded in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -189,10 +192,11 @@ class SOFA:
 
         Notes
         -----
-        Editing a SOFA file requires it to be loaded in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -227,10 +231,11 @@ class SOFA:
 
         Notes
         -----
-        Editing a SOFA file requires it to be loaded in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -262,10 +267,11 @@ class SOFA:
 
         Notes
         -----
-        Editing a SOFA file requires it to be loaded in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -299,10 +305,11 @@ class SOFA:
 
         Notes
         -----
-        Editing a SOFA file requires it to be loaded in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -343,10 +350,11 @@ class SOFA:
 
         Notes
         -----
-        Editing a SOFA file requires it to be loaded in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -384,10 +392,11 @@ class SOFA:
 
         Notes
         -----
-        Editing a SOFA file requires it to be loaded in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -443,10 +452,11 @@ class SOFA:
         The function warns when dimension sizes do not coincide with the
         dataset dimensions and raises an error if the data cannot be
         broadcast to the target shape.
-        Editing a SOFA file requires it to be loaded in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -515,10 +525,11 @@ class SOFA:
         The function warns when dimension sizes do not coincide with the
         dataset dimensions and raises an error if the data cannot be
         broadcast to the target shape.
-        Editing a SOFA file requires the dataset to be opened in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -566,10 +577,11 @@ class SOFA:
 
         Notes
         -----
-        Editing a SOFA file requires the dataset to be opened in a writable
-        mode (e.g., ``mode="r+"``). If you are not an expert user, prefer
-        working on an in-memory copy created with ``clone()`` and then save
-        to a new file path.
+        Editing a SOFA file requires writable access. The recommended
+        workflow is to load the original dataset, create an in-memory
+        clone with ``clone()``, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with ``mode="r+"`` is
+        still available for expert users.
 
         Examples
         --------
@@ -851,17 +863,27 @@ class SOFA:
 
         Notes
         -----
-        File locking only becomes an issue when you try to overwrite the
-        *same* path while the original file is still open (for example,
-        using ``overwrite=True``). In that case, close the original dataset
-        or save to a new file path.
+        Cloned SOFA objects are independent in-memory datasets, so creating
+        multiple clones from the same source object is supported. Saving
+        still follows normal filesystem rules: if you try to overwrite the
+        same on-disk path while another dataset keeps that file open, close
+        the original dataset first or save to a different path.
 
         Examples
         --------
+        Save a clone to a new file path:
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_clone = sofa.clone()
+        >>> sofa_clone.save("my_copy.sofa")
+
+        Save the currently opened writable dataset back to its original path:
+
         >>> sofa = SOFA.load("my.sofa", mode="r+")
         >>> sofa.save()
 
-        >>> # If you need to overwrite the same path, close the original first:
+        Overwrite the original path from a separate clone:
+
         >>> sofa_ro = SOFA.load("my.sofa")
         >>> sofa_clone = sofa_ro.clone()
         >>> sofa_ro.netCDF4_dataset.close()
@@ -911,10 +933,20 @@ class SOFA:
         SOFA
             A new SOFA instance backed by a diskless dataset.
 
+        Notes
+        -----
+        The clone is an in-memory writable copy of the current dataset.
+        Each call creates a new independent diskless NetCDF dataset, so
+        cloning the same SOFA object multiple times is supported.
+
         Examples
         --------
         >>> sofa = SOFA.load("my.sofa")
         >>> sofa_clone = sofa.clone()
+
+        >>> sofa = SOFA.load("my.sofa")
+        >>> sofa_clone_1 = sofa.clone()
+        >>> sofa_clone_2 = sofa.clone()
         """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
@@ -922,7 +954,7 @@ class SOFA:
         src = self.netCDF4_dataset
         file_format = getattr(src, "file_format", "NETCDF4")
         dst = netCDF4.Dataset(
-            f"inmemory_{id(self)}",
+            f"inmemory_{uuid4().hex}",
             mode="w",
             diskless=True,
             persist=False,
@@ -1013,7 +1045,7 @@ class SOFA:
         src = self.netCDF4_dataset
         file_format = getattr(src, "file_format", "NETCDF4")
         dst = netCDF4.Dataset(
-            f"inmemory_{id(self)}_copy_with",
+            f"inmemory_{uuid4().hex}",
             mode="w",
             diskless=True,
             persist=False,

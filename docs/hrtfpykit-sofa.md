@@ -1,1144 +1,626 @@
 # SOFA API
 
-This document describes the stable SOFA API in `hrtfpykit.sofa`. It focuses on
-loading, inspecting, validating, and editing SOFA files with explicit I/O and
-reproducible behavior.
+This guide describes the public SOFA API in `hrtfpykit.sofa`.
+It covers the main objects, the normal edit workflows, and the methods used to
+inspect, validate, copy, and save SOFA datasets.
 
 ---
 
 ## Contents
 
 - [Overview](#overview)
-- [Design principles](#design-principles)
-- [Quick start](#quick-start)
-- [Recommended edit workflow](#recommended-edit-workflow)
-- [Public surface](#public-surface)
-- [Wrappers](#wrappers)
-- [SOFA Main Methods](#sofa-main-methods)
-- [SOFA CRUD Methods](#sofa-crud-methods)
-- [Validation and security](#validation-and-security)
+- [Main Objects](#main-objects)
+- [Recommended Workflows](#recommended-workflows)
+- [Public Surface](#public-surface)
+- [Wrapper Collections](#wrapper-collections)
+- [Core SOFA Methods](#core-sofa-methods)
+- [CRUD Methods](#crud-methods)
+- [Dimensions](#dimensions)
+- [Global Attributes](#global-attributes)
+- [Variable Attributes](#variable-attributes)
+- [Variables](#variables)
+- [Validation and Security](#validation-and-security)
 - [ConventionsManager](#conventionsmanager)
-- [SOFA conventions registry](#sofa-conventions-registry-conventions)
-- [Common pitfalls](#common-pitfalls)
-- [Use cases](#use-cases)
+- [The `CONVENTIONS` Registry](#the-conventions-registry)
+- [Common Pitfalls](#common-pitfalls)
+- [Typical Use Cases](#typical-use-cases)
 
 ---
 
 ## Overview
 
-The SOFA API provides high-level access to SOFA.
-It wraps common operations for dimensions, variables, and attributes, while
-preserving the underlying SOFA conventions and constraints.
+The SOFA layer is the library entry point for low-level SOFA file handling.
+It wraps a `netCDF4.Dataset` and exposes a small high-level API for:
 
-You can:
-- Load, handle and save SOFA files.
-- Inspect or validate metadata against the conventions registry.
-- Create in-memory SOFA objects for tests.
-- Safely modify files via an explicit copy → save workflow.
+- loading existing `.sofa` files
+- creating in-memory SOFA datasets
+- reading dimensions, variables, and attributes through wrapper objects
+- editing datasets through explicit copy or writable-open workflows
+- validating files against the local conventions registry
 
----
+The API is explicit by design:
 
-## Design principles
+- `load()` opens a dataset
+- `clone()` and `copy_with()` create new in-memory datasets
+- `save()` writes a dataset to disk
 
-- No hidden I/O: you must call `load()` or `save()` explicitly.
-- Deterministic behavior: no implicit shuffling or randomization.
-- Explicit validation: use `check_sofa_against_conventions` and
-  `check_sofa_security` when needed.
-- Safe editing: prefer `clone()` then `save()` to a new path.
-- NetCDF4-backed: the underlying SOFA object is a `netCDF4.Dataset` and can be
-  accessed via `sofa.netCDF4_dataset` for advanced use.
+There is no hidden file I/O.
 
 ---
 
-## Quick start
+## Main Objects
+
+### `SOFA`
+
+`SOFA` is the main high-level object.
+It owns a `netCDF4.Dataset` and exposes convenience methods for SOFA-specific
+CRUD operations and validation workflows.
+
+Use `SOFA` when you want to:
+
+- inspect a SOFA file without working directly with raw `netCDF4`
+- edit metadata or variables with shape checks and SOFA-oriented naming
+- prepare an in-memory modified copy before saving to disk
+
+The underlying dataset is still available as `sofa.netCDF4_dataset` for
+advanced use.
+
+### Wrapper Collections
+
+A loaded `SOFA` object exposes four wrapper collections:
+
+- `sofa.Dimensions`
+- `sofa.GlobalAttributes`
+- `sofa.VariableAttributes`
+- `sofa.Variables`
+
+These wrappers provide a consistent access pattern:
+
+- `get(name)`
+- `get_all()`
+- `get_names()`
+- `get_values()`
+- `summary()`
+- `__getitem__(name)`
+- iteration
+- `len(...)`
+
+If no dataset is loaded, these properties return `None`.
+
+### Wrap Objects
+
+The wrapper collections return small inspection objects:
+
+- `DimensionsWrap`
+  - `name`
+  - `value`
+  - `is_unlimited`
+- `AttributesWrap`
+  - `name`
+  - `value`
+  - `type`
+- `VariablesWrap`
+  - `name`
+  - `value`
+  - `attributes`
+
+`VariablesWrap.value` returns a NumPy copy of the variable data.
+
+---
+
+## Recommended Workflows
+
+### Inspect a File
+
+Use this when you want to read metadata, inspect variables, or validate a file.
 
 ```python
 from hrtfpykit.sofa import SOFA, check_sofa_against_conventions
 
-# Load
 sofa = SOFA.load("my.sofa")
 
-# Inspect
 print(sofa.summary())
+print(sofa.Dimensions["M"].value)
+print(sofa.Variables["Data.IR"].value.shape)
 
-# Access variables
-ir = sofa.Variables["Data.IR"].value
-sr = sofa.Variables["Data.SamplingRate"].value
-
-# Validate
 check_sofa_against_conventions(sofa)
 ```
 
----
+### Edit Safely in Memory
 
-## Recommended edit workflow
+This is the default editing workflow.
+Read the original file, clone or copy it in memory, make changes there, and
+save the result to a new file path.
 
 ```python
-# Read-only open
 sofa = SOFA.load("my.sofa")
 
-# Make changes on a copy
 sofa_clone = sofa.clone()
 sofa_clone.modify_global_attribute("Title", "Updated title")
-
-# Save to a new path
 sofa_clone.save("my_updated.sofa")
+```
 
-# Close the original object if no longer needed
-sofa.netCDF4_dataset.close()
+`clone()` and `copy_with()` create independent in-memory datasets.
+They can be called repeatedly on the same source object.
+
+### Edit in Place
+
+Use this only when you intentionally want to modify the original file directly.
+
+```python
+sofa = SOFA.load("my.sofa", mode="r+")
+sofa.modify_global_attribute("Title", "Updated title")
+sofa.save()
+```
+
+### Build a Modified Copy in One Step
+
+Use `copy_with()` when you already know the overrides you want to apply.
+
+```python
+sofa_mod = sofa.copy_with(
+    dim_sizes={"N": 512},
+    variables={"Data.IR": new_ir},
+    global_attributes={"Title": "Modified HRTF"},
+)
 ```
 
 ---
 
-## Public surface
+## Public Surface
 
 ### Classes
+
 - `SOFA`
 - `ConventionsManager`
 
 ### Functions
+
 - `check_sofa_against_conventions`
 - `check_sofa_security`
 
-### Key SOFA methods
+### Core SOFA Methods
+
 - `SOFA.load`
-- `SOFA.save`
+- `SOFA.create_dummy`
 - `SOFA.clone`
 - `SOFA.copy_with`
+- `SOFA.save`
+- `SOFA.summary`
+
+### SOFA CRUD Methods
+
+- `SOFA.create_dimension`
+- `SOFA.rename_dimension`
+- `SOFA.create_global_attribute`
+- `SOFA.modify_global_attribute`
+- `SOFA.delete_global_attribute`
+- `SOFA.create_variable_attribute`
+- `SOFA.modify_variable_attribute`
+- `SOFA.delete_variable_attribute`
+- `SOFA.create_variable`
+- `SOFA.modify_variable`
+- `SOFA.delete_variable`
 
 ---
 
-## Wrappers
-
-The SOFA object exposes wrappers for dimensions, attributes, and variables.
-If a SOFA object is not loaded, these properties return `None`.
+## Wrapper Collections
 
 ### `SOFA.Dimensions`
 
-**Purpose**
-Access dimensions via a wrapper interface.
+Access dataset dimensions through `DimensionsWrap` objects.
 
-**Returns**
-- `_Dimensions` wrapper
-
-**Example**
 ```python
 dims = sofa.Dimensions
 print(dims.get_names())
+print(dims["M"].value)
+print(dims["N"].is_unlimited)
 ```
-
-**Wrap fields**
-- `name`
-- `value` (dimension size)
-- `is_unlimited`
-
----
 
 ### `SOFA.GlobalAttributes`
 
-**Purpose**
-Access global attributes via a wrapper interface.
+Access global SOFA attributes through `AttributesWrap` objects.
 
-**Returns**
-- `_GlobalAttributes` wrapper
-
-**Example**
 ```python
 ga = sofa.GlobalAttributes
 print(ga.get("Title").value)
 ```
 
-**Wrap fields**
-- `name`
-- `value`
-- `type` (always `"GlobalAttribute"` here)
-
----
-
 ### `SOFA.VariableAttributes`
 
-**Purpose**
-Access variable attributes via a wrapper interface.
+Access variable attributes using `Variable:Attribute` names.
 
-**Returns**
-- `_VariableAttributes` wrapper
-
-**Example**
 ```python
 va = sofa.VariableAttributes
 print(va.get("Data.IR:Units").value)
 ```
 
-**Wrap fields**
-- `name` (format `Variable:Attribute`)
-- `value`
-- `type` (always `"VariableAttribute"` here)
-
----
-
 ### `SOFA.Variables`
 
-**Purpose**
-Access variables via a wrapper interface.
+Access SOFA variables through `VariablesWrap` objects.
 
-**Returns**
-- `_Variables` wrapper
-
-**Example**
 ```python
 vars_wrap = sofa.Variables
-print(vars_wrap.get("Data.IR").value.shape)
+ir = vars_wrap["Data.IR"].value
+ir_attrs = vars_wrap["Data.IR"].attributes
 ```
 
-**Wrap fields**
-- `VariablesWrap.value` (numpy array copy)
-- `VariablesWrap.attributes` (mapping of variable attributes)
+### Shared Wrapper Methods
 
----
-
-### Wrapper methods (shared)
-
-All wrappers implement the same access pattern. The methods below apply to
-`Dimensions`, `GlobalAttributes`, `VariableAttributes`, and `Variables`.
+All four wrapper collections implement the same access model:
 
 #### `get(name)`
 
-**Purpose**
-Return a wrap object by name.
-
-**Parameters**
-- `name : str`
-  Item name.
-
-**Returns**
-- Wrap object (`DimensionsWrap`, `AttributesWrap`, or `VariablesWrap`).
-
-**Raises**
-- `ValueError` if the item is not found.
-
-**Example**
-```python
-ir = sofa.Variables.get("Data.IR")
-```
-
----
+Return one wrapped item by name.
+Raises `ValueError` if the item does not exist.
 
 #### `get_all()`
 
-**Purpose**
-Return all items as a name → wrap mapping.
-
-**Returns**
-- `dict[str, Wrap]`
-
-**Example**
-```python
-vars_map = sofa.Variables.get_all()
-```
-
----
+Return a `dict[name, wrap]` for the whole collection.
 
 #### `get_names()`
 
-**Purpose**
-Return a list of item names.
-
-**Returns**
-- `list[str]`
-
-**Example**
-```python
-names = sofa.Variables.get_names()
-```
-
----
+Return the list of available names.
 
 #### `get_values()`
 
-**Purpose**
-Return raw values for all items.
-
-**Returns**
-- `list[Any]` (dimension sizes, attribute values, or numpy arrays)
-
-**Warnings**
-- For `Variables`, this returns copies and can be memory heavy.
-
-**Example**
-```python
-values = sofa.Variables.get_values()
-```
-
----
+Return the raw values of the collection.
+For `Variables`, this can be memory heavy because it materializes NumPy copies.
 
 #### `summary()`
 
-**Purpose**
-Return a formatted summary string.
+Return a formatted text summary of that collection.
 
-**Returns**
-- `str`
+#### `__getitem__(name)`, iteration, and `len(...)`
 
-**Example**
-```python
-print(sofa.Variables.summary())
-```
+The wrappers support dictionary-like access and iteration:
 
----
-
-#### `__getitem__(name)`
-
-**Purpose**
-Alias for `get(name)`.
-
-**Parameters**
-- `name : str`
-
-**Returns**
-- Wrap object
-
-**Raises**
-- `ValueError` if the item is not found.
-
-**Example**
 ```python
 ir = sofa.Variables["Data.IR"]
-```
 
----
-
-#### `__iter__()`
-
-**Purpose**
-Iterate over wrap objects.
-
-**Returns**
-- Iterator of wrap objects
-
-**Example**
-```python
 for dim in sofa.Dimensions:
     print(dim.name, dim.value)
+
+print(len(sofa.GlobalAttributes))
 ```
 
 ---
 
-#### `__len__()`
-
-**Purpose**
-Return the number of items.
-
-**Returns**
-- `int`
-
-**Example**
-```python
-print(len(sofa.Variables))
-```
-
----
-
-## SOFA Main Methods
+## Core SOFA Methods
 
 ### `SOFA.load(path, mode="r", parallel=False, check_sofa_against_conventions=True)`
 
-**Purpose**
-Load a SOFA file and return a `SOFA` instance.
+Load a SOFA file and return a `SOFA` object.
 
-**Parameters**
-- `path : str | pathlib.Path`
-  SOFA file path.
-- `mode : str`
-  netCDF4 open mode (`"r"`, `"r+"`).
-- `parallel : bool`
-  Open in parallel mode if supported by the netCDF build.
-- `check_sofa_against_conventions : bool`
-  If True, validates the file at load.
+Parameters:
+- `path`: path to the `.sofa` file
+- `mode`: netCDF open mode such as `"r"` or `"r+"`
+- `parallel`: open in parallel mode if supported by the local netCDF build
+- `check_sofa_against_conventions`: run convention validation on load
 
-**Returns**
+Returns:
 - `SOFA`
 
-**Raises**
-- `FileNotFoundError` if the file does not exist.
-- `ValueError` if the file extension is not `.sofa`.
-
-**Example**
-```python
-sofa = SOFA.load("example.sofa")
-```
-
-**Notes**
-- Call `sofa.netCDF4_dataset.close()` when you are done with the SOFA object.
-
----
+Use `mode="r"` for normal inspection and clone-based editing.
+Use `mode="r+"` only when you want in-place changes.
 
 ### `SOFA.create_dummy(sofa_conventions, version=None, dim_sizes=None, custom_global_attributes=None, override_default_global_attributes=False)`
 
-**Purpose**
-Create an in-memory SOFA object that follows a convention spec.
+Create an in-memory SOFA dataset from a registered convention specification.
 
-**Parameters**
-- `sofa_conventions : str`
-  Convention name (e.g., `"SimpleFreeFieldHRIR"`).
-- `version : str | None`
-  Convention version. If `None`, the latest version is used.
-- `dim_sizes : dict[str, int] | None`
-  Optional dimension overrides.
-- `custom_global_attributes : dict[str, str] | None`
-  Custom global attributes to set.
-- `override_default_global_attributes : bool`
-  If True, custom attributes override defaults.
+This is useful for:
 
-**Returns**
-- `SOFA` (in-memory object)
+- prototyping
+- examples
+- generating minimal SOFA datasets
 
-**Raises**
-- `ValueError` if the convention or version is unsupported.
-- `ValueError` if `dim_sizes` includes `"S"` (reserved unlimited dim).
+Important behavior:
 
-**Example**
-```python
-sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-```
-
----
-
-### `SOFA.save(path=None, overwrite=False)`
-
-**Purpose**
-Save the SOFA file to disk.
-
-**Parameters**
-- `path : str | pathlib.Path | None`
-  Target path. If `None`, saves to the original path.
-- `overwrite : bool`
-  If True, allows overwriting an existing file.
-
-**Returns**
-- `pathlib.Path`
-
-**Raises**
-- `ValueError` if no SOFA object is loaded or no path is available.
-- `FileExistsError` if the target path exists and overwrite is False.
-
-**Example**
-```python
-sofa_clone = sofa.clone()
-sofa_clone.save("new.sofa")
-```
-
-**Notes**
-- If you overwrite the same file, ensure the original SOFA object is closed first.
-
----
+- the reserved dimension `S` is always unlimited and created internally
+- passing `S` in `dim_sizes` raises `ValueError`
+- any other dimension with size `0` is treated as unlimited
 
 ### `SOFA.clone()`
 
-**Purpose**
-Create an in-memory, writable clone of the SOFA object.
+Create an in-memory writable copy of the current dataset.
 
-**Returns**
-- `SOFA`
+Use `clone()` when you want to:
 
-**Raises**
-- `ValueError` if no SOFA object is loaded.
+- duplicate the current SOFA object as-is
+- make manual edits through the CRUD methods
+- save to a new output path without touching the original file
 
-**Example**
-```python
-sofa_clone = sofa.clone()
-```
-
----
+Each call creates a new independent in-memory dataset.
 
 ### `SOFA.copy_with(dim_sizes=None, global_attributes=None, variable_attributes=None, variables=None)`
 
-**Purpose**
-Create a modified in-memory copy of a SOFA object, with optional dimension and data overrides.
+Create an in-memory copy of the current dataset with explicit overrides.
 
-**Parameters**
-- `dim_sizes : dict[str, int] | None`
-  Dimension size overrides. Only fixed dimensions may be overridden.
-- `global_attributes : dict[str, Any] | None`
-  Global attributes to add or replace.
-- `variable_attributes : dict[str, dict[str, Any]] | None`
-  Per-variable attributes to add or replace.
-- `variables : dict[str, np.ndarray] | None`
-  Variable data overrides. Only existing variable names are supported.
+Use `copy_with()` when you already know the modifications you want to apply.
+It is especially useful for:
 
-**Returns**
-- `SOFA`
+- resizing fixed dimensions and replacing dependent arrays at the same time
+- updating metadata while keeping the rest of the dataset unchanged
+- preparing a derived SOFA object in one expression
 
-**Raises**
-- `ValueError` if the dataset is not loaded, a dimension/variable name is invalid,
-  or a provided array cannot be broadcast to the target variable shape.
+Important behavior:
 
-**Warnings**
-- Resizing fixed dimensions requires providing replacement arrays for dependent variables.
-- Only existing variables can be overridden in this workflow.
+- only fixed dimensions can be overridden
+- overriding a dimension may require replacing variables that depend on it
+- only existing variables can be overridden in this method
+- repeated `copy_with()` calls on the same source object are supported
 
-**Example**
-```python
-sofa_mod = sofa.copy_with(
-    dim_sizes={"N": 512},
-    variables={"Data.IR": new_ir},
-)
-```
+### `SOFA.save(path=None, overwrite=False)`
 
----
+Write the current dataset to disk.
+
+Behavior:
+
+- `path=None` saves back to the original loaded path
+- `path="new.sofa"` writes a new file
+- `overwrite=False` prevents replacing an existing file
+
+Use `save()` after:
+
+- editing a dataset opened with `mode="r+"`
+- creating a clone and preparing an output file
+- creating a modified in-memory dataset with `copy_with()`
+
+When writing from a separate dataset handle to the exact same on-disk path,
+normal filesystem locking rules still apply. In that case, save to a new file
+path or ensure the original writable handle is no longer holding that path open.
 
 ### `SOFA.summary()`
 
-**Purpose**
-Return a formatted summary of global attributes, variables, and variable attributes.
+Return a formatted summary of:
 
-**Returns**
-- `str`
+- global attributes
+- variables
+- variable attributes
 
-**Raises**
-- `ValueError` if no SOFA object is loaded.
-
-**Example**
-```python
-print(sofa.summary())
-```
+Use it for fast inspection of a dataset without manually traversing the
+underlying `netCDF4.Dataset`.
 
 ---
 
-## SOFA CRUD Methods
+## CRUD Methods
+
+These methods operate on a writable `SOFA` object, typically one produced by
+`clone()`, `copy_with()`, `create_dummy()`, or `load(..., mode="r+")`.
 
 ### Dimensions
 
 #### `SOFA.create_dimension(name, value)`
 
-**Purpose**
-Create a new dimension.
+Create a new dimension in the dataset.
 
-**Parameters**
-- `name : str`
-  Dimension name.
-- `value : int`
-  Dimension size.
-
-**Returns**
-- `None`
-
-**Raises**
-- `ValueError` if the dimension already exists.
-
-**Example**
-```python
-sofa_clone.create_dimension("X", 3)
-```
-
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
-
----
+Raises `ValueError` if the dimension already exists.
 
 #### `SOFA.rename_dimension(old_name, new_name)`
 
-**Purpose**
 Rename an existing dimension.
 
-**Parameters**
-- `old_name : str`
-  Existing dimension name.
-- `new_name : str`
-  New dimension name.
+Raises `ValueError` if the original dimension does not exist.
 
-**Returns**
-- `None`
-
-**Raises**
-- `ValueError` if the old dimension does not exist.
-
-**Example**
-```python
-sofa_clone.rename_dimension("M", "Measurements")
-```
-
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
-
----
-
-### Global attributes
+### Global Attributes
 
 #### `SOFA.create_global_attribute(name, value=None)`
 
-**Purpose**
-Create a global attribute.
+Create a new global attribute.
 
-**Parameters**
-- `name : str`
-  Attribute name.
-- `value : str | None`
-  Attribute value. Uses empty string when `None`.
-
-**Returns**
-- `None`
-
-**Raises**
-- `ValueError` if the attribute already exists.
-
-**Example**
-```python
-sofa_clone.create_global_attribute("Title", "My HRTF")
-```
-
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
-
----
+If `value` is `None`, an empty string is stored.
 
 #### `SOFA.modify_global_attribute(name, value)`
 
-**Purpose**
-Modify a global attribute.
+Modify an existing global attribute.
 
-**Parameters**
-- `name : str`
-  Attribute name.
-- `value : str`
-  New attribute value.
-
-**Returns**
-- `None`
-
-**Raises**
-- `ValueError` if the attribute does not exist.
-
-**Example**
-```python
-sofa_clone.modify_global_attribute("Title", "Updated")
-```
-
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
-
----
+Raises `ValueError` if the attribute does not exist.
 
 #### `SOFA.delete_global_attribute(name)`
 
-**Purpose**
 Delete a global attribute.
 
-**Parameters**
-- `name : str`
-  Attribute name.
+Raises `ValueError` if the attribute does not exist.
 
-**Returns**
-- `None`
-
-**Raises**
-- `ValueError` if the attribute does not exist.
-
-**Example**
-```python
-sofa_clone.delete_global_attribute("Comment")
-```
-
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
-
----
-
-### Variable attributes
+### Variable Attributes
 
 #### `SOFA.create_variable_attribute(name, value=None)`
 
-**Purpose**
-Create a variable attribute.
+Create a variable attribute using the `Variable:Attribute` naming pattern.
 
-**Parameters**
-- `name : str`
-  Attribute name in the form `"Variable:Attribute"`.
-- `value : str | None`
-  Attribute value. Uses empty string when `None`.
+Example:
 
-**Returns**
-- `None`
-
-**Raises**
-- `ValueError` if the variable does not exist or the attribute already exists.
-- `ValueError` if `name` is not in `"Variable:Attribute"` format.
-
-**Example**
 ```python
 sofa_clone.create_variable_attribute("Data.IR:Units", "pascal")
 ```
 
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
-
----
-
 #### `SOFA.modify_variable_attribute(name, value)`
 
-**Purpose**
-Modify a variable attribute.
-
-**Parameters**
-- `name : str`
-  Attribute name in the form `"Variable:Attribute"`.
-- `value : str`
-  New attribute value.
-
-**Returns**
-- `None`
-
-**Raises**
-- `ValueError` if the variable or attribute does not exist.
-- `ValueError` if `name` is not in `"Variable:Attribute"` format.
-
-**Example**
-```python
-sofa_clone.modify_variable_attribute("Data.IR:Units", "Pa")
-```
-
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
-
----
+Modify an existing variable attribute.
 
 #### `SOFA.delete_variable_attribute(name)`
 
-**Purpose**
 Delete a variable attribute.
 
-**Parameters**
-- `name : str`
-  Attribute name in the form `"Variable:Attribute"`.
+All variable-attribute methods:
 
-**Returns**
-- `None`
-
-**Raises**
-- `ValueError` if the variable or attribute does not exist.
-- `ValueError` if `name` is not in `"Variable:Attribute"` format.
-
-**Example**
-```python
-sofa_clone.delete_variable_attribute("Data.IR:Units")
-```
-
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
-
----
+- require the `Variable:Attribute` naming pattern
+- raise `ValueError` for invalid names or missing targets
 
 ### Variables
 
 #### `SOFA.create_variable(name, data, dimensions, dtype=None, attributes=None)`
 
-**Purpose**
-Create a variable and optionally set its attributes.
+Create a new variable and optionally assign variable attributes.
 
-**Parameters**
-- `name : str`
-  Variable name.
-- `data : numpy.ndarray | list`
-  Variable data.
-- `dimensions : tuple[str, ...] | list[str]`
-  Dimension names in order.
-- `dtype : str | numpy.dtype | None`
-  Data type for the variable. Defaults to the array dtype.
-- `attributes : dict[str, Any] | None`
-  Optional attributes to set on the variable.
+Behavior:
 
-**Returns**
-- `None`
+- dimensions must already exist
+- data must be broadcastable to the target variable shape
+- the method warns when provided shapes do not match dimension sizes cleanly
 
-**Raises**
-- `ValueError` if the variable already exists.
-- `ValueError` if dimensions are missing.
-- `ValueError` if data cannot be broadcast to the target shape.
+Example:
 
-**Warnings**
-- Warns if data shape does not match declared dimensions.
-
-**Example**
 ```python
-data = np.zeros((sofa_clone.netCDF4_dataset.dimensions["M"].size,))
-sofa_clone.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
+data = np.zeros((sofa_clone.Dimensions["M"].value,))
+sofa_clone.create_variable(
+    "Custom",
+    data,
+    ("M",),
+    attributes={"Units": "unitless"},
+)
 ```
-
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
-
----
 
 #### `SOFA.modify_variable(name, data)`
 
-**Purpose**
-Overwrite data for an existing variable.
+Replace the contents of an existing variable.
 
-**Parameters**
-- `name : str`
-  Variable name.
-- `data : numpy.ndarray | list`
-  New variable data.
-
-**Returns**
-- `None`
-
-**Raises**
-- `ValueError` if the variable does not exist.
-- `ValueError` if data cannot be broadcast to the target shape.
-
-**Warnings**
-- Warns if data shape does not match declared dimensions.
-
-**Example**
-```python
-new_data = np.zeros((100, 2, 256))
-sofa_clone.modify_variable("Data.IR", new_data)
-```
-
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
-
----
+The new data must be broadcastable to the stored variable shape.
 
 #### `SOFA.delete_variable(name)`
 
-**Purpose**
-Delete a variable.
+Delete an existing variable.
 
-**Parameters**
-- `name : str`
-  Variable name.
-
-**Returns**
-- `None`
-
-**Raises**
-- `ValueError` if the variable does not exist.
-
-**Example**
-```python
-sofa_clone.delete_variable("Custom")
-```
-
-**Notes**
-- Requires a writable SOFA object.
-- Prints a status message on success.
+All variable-editing methods raise `ValueError` when the target variable does
+not exist or when the provided data cannot fit the declared dimensions.
 
 ---
 
-## Validation and security
+## Validation and Security
 
 ### `check_sofa_against_conventions(target, convention_name=None, version=None)`
 
-**Purpose**
-Validate a SOFA file or SOFA object against the conventions registry.
+Validate a SOFA file or SOFA object against the local `CONVENTIONS` registry.
 
-**Parameters**
-- `target : str | pathlib.Path | netCDF4.Dataset | SOFA`
-  File path, netCDF4 dataset, or SOFA object.
-- `convention_name : str | None`
-  Convention name to validate against. Defaults to the file metadata.
-- `version : str | None`
-  Convention version. Defaults to the file metadata.
+Accepted targets:
 
-**Returns**
-- `dict`
-  Summary dict: `{ "convention": {"name": ..., "version": ...} }`.
+- file path
+- `netCDF4.Dataset`
+- `SOFA`
 
-**Warnings**
-- Emits warnings for missing mandatory metadata, shape mismatches, and
-  custom (non-standard) attributes.
+The report is warning-oriented.
+Most problems are reported as warnings rather than exceptions, which makes the
+function useful for inspection and diagnostics.
 
-**Example**
-```python
-report = check_sofa_against_conventions("my.sofa")
-```
+Use it to catch issues such as:
 
-**Notes**
-- This function reports most issues as warnings, not exceptions.
-
----
+- missing required metadata
+- shape mismatches
+- non-standard custom attributes
+- convention/version mismatches
 
 ### `check_sofa_security(target=None, hdf5_version=None, min_safe_hdf5="1.14.4", print_report=True, paranoid_mode=False)`
 
-**Purpose**
-Run security checks for SOFA/HDF5 handling.
+Run security-oriented checks related to SOFA and HDF5 handling.
 
-**Parameters**
-- `target : str | pathlib.Path | netCDF4.Dataset | SOFA | None`
-  SOFA file path or object. Required for paranoid mode.
-- `hdf5_version : str | None`
-  HDF5 version to validate. If `None`, attempts auto-detection.
-- `min_safe_hdf5 : str`
-  Minimum acceptable HDF5 version.
-- `print_report : bool`
-  Print a formatted report if True.
-- `paranoid_mode : bool`
-  If True, scans raw file bytes only (no parsing).
-
-**Returns**
-- `dict`
-  Report dictionary with `passed`, `hdf5_version`, and `checks`.
-
-**Raises**
-- `ValueError` in paranoid mode on failure or when no file path is provided.
-
-**Example**
-```python
-report = check_sofa_security("my.sofa", print_report=False)
-```
-
-**Notes**
-- Standard mode returns a report even if checks fail.
-- Paranoid mode raises `ValueError` on failure and never parses the SOFA file.
+Use standard mode when you want a report.
+Use `paranoid_mode=True` when you want a stricter byte-level path that raises
+on failure and avoids normal SOFA parsing.
 
 ---
 
-## ConventionsManager
+## `ConventionsManager`
 
-`ConventionsManager` provides a registry interface for adding, deleting,
-and serializing convention specs without editing `conventions.py`. Registry
-changes live in memory; export to JSON if you need persistence.
+`ConventionsManager` manages the in-memory SOFA conventions registry.
+Use it when you want to inspect, extend, import, export, or remove convention
+specifications without editing `conventions.py` directly.
 
-### `ConventionsManager.available_conventions_specifications()`
+Registry changes are in-memory changes unless you export them.
 
-**Purpose**
-Print a table of available conventions and versions.
+### Available Methods
 
-**Returns**
-- `None`
+#### `ConventionsManager.available_conventions_specifications()`
 
-**Raises**
-- `ValueError` if no conventions are registered.
+Print the registered convention names and their available versions.
 
-**Example**
-```python
-ConventionsManager.available_conventions_specifications()
-```
+#### `ConventionsManager.inspect_sofa_specification(name, version)`
 
----
+Return the specification dictionary for one convention version.
 
-### `ConventionsManager.inspect_sofa_specification(name, version)`
+#### `ConventionsManager.add_convention_specification(name, version, spec, overwrite=False)`
 
-**Purpose**
-Return the spec dict for a convention version.
+Register a new convention specification or replace an existing one.
 
-**Parameters**
-- `name : str`
-  Convention name.
-- `version : str`
-  Convention version.
+The specification must include the required fields used by the registry:
 
-**Returns**
-- `dict`
-  Spec dictionary.
+- `default`
+- `flags`
+- `dimensions`
+- `type`
+- `comment`
 
-**Raises**
-- `KeyError` if the convention or version is not found.
+#### `ConventionsManager.delete_convention_specification_version(name, version)`
 
-**Example**
-```python
-spec = ConventionsManager.inspect_sofa_specification("SimpleFreeFieldHRIR", "1.2")
-```
+Delete one version of a convention.
 
----
+#### `ConventionsManager.delete_convention_specification(name)`
 
-### `ConventionsManager.add_convention_specification(name, version, spec, overwrite=False)`
+Delete a convention and all of its versions.
 
-**Purpose**
-Add or update a convention spec.
+#### `ConventionsManager.export_convention_specification_json(name, version, path)`
 
-**Parameters**
-- `name : str`
-  Convention name.
-- `version : str`
-  Convention version.
-- `spec : Mapping[str, Mapping[str, Any]]`
-  Convention specification.
-- `overwrite : bool`
-  Allow overwriting an existing version.
+Export one convention version to JSON.
 
-**Returns**
-- `None`
+#### `ConventionsManager.add_convention_specification_from_json(path, overwrite=False)`
 
-**Raises**
-- `ValueError` if the version exists and `overwrite=False`.
-- `ValueError` if the spec is missing required fields
-  (`default`, `flags`, `dimensions`, `type`, `comment`).
+Load convention data from JSON.
 
-**Example**
-```python
-ConventionsManager.add_convention_specification(
-    "TempConvention",
-    "0.1",
-    {"GLOBAL:Conventions": {"default": "SOFA", "flags": "rm", "dimensions": None, "type": "attribute", "comment": ""}},
-    overwrite=True,
-)
-```
+Supported payload styles:
+
+- a single convention payload
+- a full registry payload
 
 ---
 
-### `ConventionsManager.delete_convention_specification_version(name, version)`
+## The `CONVENTIONS` Registry
 
-**Purpose**
-Delete a specific convention version.
+The SOFA conventions registry lives in `hrtfpykit.sofa.conventions` as the
+`CONVENTIONS` dictionary.
 
-**Parameters**
-- `name : str`
-- `version : str`
+The hierarchy is:
 
-**Returns**
-- `None`
+- convention name
+- version
+- specification dictionary
 
-**Raises**
-- `KeyError` if the convention or version is not found.
+Each specification entry describes one global attribute, variable, or variable
+attribute using fields such as:
 
-**Example**
-```python
-ConventionsManager.delete_convention_specification_version("TempConvention", "0.1")
-```
+- `default`
+- `flags`
+- `dimensions`
+- `type`
+- `comment`
 
----
+Common flags:
 
-### `ConventionsManager.delete_convention_specification(name)`
+- `m`: mandatory
+- `r`: read-only, must match the registered default
 
-**Purpose**
-Delete all versions for a convention.
-
-**Parameters**
-- `name : str`
-
-**Returns**
-- `None`
-
-**Raises**
-- `KeyError` if the convention is not found.
-
-**Example**
-```python
-ConventionsManager.delete_convention_specification("TempConvention")
-```
+The registry is the local reference used by validation and dummy creation.
 
 ---
 
-### `ConventionsManager.export_convention_specification_json(name, version, path)`
+## Common Pitfalls
 
-**Purpose**
-Export a convention spec to JSON.
-
-**Parameters**
-- `name : str`
-- `version : str`
-- `path : str | pathlib.Path`
-
-**Returns**
-- `None`
-
-**Raises**
-- `KeyError` if the convention or version is not found.
-
-**Example**
-```python
-ConventionsManager.export_convention_specification_json(
-    "SimpleFreeFieldHRIR",
-    "1.2",
-    "spec.json",
-)
-```
+- Opening a file in `mode="r+"` when you only need inspection. Prefer
+  `load(..., mode="r")` plus `clone()` or `copy_with()`.
+- Resizing a fixed dimension without also replacing the variables that depend
+  on that dimension.
+- Using `copy_with()` to add brand-new variables. `copy_with()` only overrides
+  existing variables; use `create_variable()` for new ones.
+- Passing variable attributes without the `Variable:Attribute` naming pattern.
+- Expecting convention validation to raise on every problem. Most validation
+  issues are emitted as warnings.
+- Overwriting the exact same output path from a separate dataset handle instead
+  of saving to a new file path or using the original writable object.
 
 ---
 
-### `ConventionsManager.add_convention_specification_from_json(path, overwrite=False)`
+## Typical Use Cases
 
-**Purpose**
-Import a convention spec or registry from JSON.
-
-**Parameters**
-- `path : str | pathlib.Path`
-- `overwrite : bool`
-  Allow overwriting existing versions.
-
-**Returns**
-- `None`
-
-**Raises**
-- `FileNotFoundError` if the JSON file does not exist.
-- `ValueError` if the JSON payload is invalid.
-
-**Example**
-```python
-ConventionsManager.add_convention_specification_from_json("spec.json")
-```
-
----
-
-## SOFA conventions registry (`CONVENTIONS`)
-
-The SOFA conventions are stored in a Python dictionary in
-`hrtfpykit.sofa.conventions` named `CONVENTIONS`. Each entry maps:
-
-- convention name → version → spec dictionary
-
-Each spec entry describes a **global attribute**, **variable**, or
-**variable attribute** using a common schema:
-
-- `default`: default value required by the convention
-- `flags`: requirement flags (see below)
-- `dimensions`: expected dimension pattern
-- `type`: storage type (`double`, `float`, `int`, `string`, etc.)
-- `comment`: human-readable description
-
-### Flags
-
-Common flags used in the spec:
-
-- `m` (mandatory): the item must exist in the file
-- `r` (read-only): must match the default value
-
-### Dimension strings
-
-Dimension fields are declared in compact form (e.g., `MRN` or `IC, MC`).
-Uppercase letters indicate required dimension types; lowercase letters
-allow the variable size to determine the dimension length.
-
-### Defaults
-
-Defaults represent the expected baseline values for required fields. When
-`r` is present, the value **must** match exactly. For `m` without `r`, the
-field must be present but can differ.
-
-This project ships an up-to-date local registry of available SOFA conventions.
-It is still useful to consult the official SOFA convention documentation for
-additional background and context.
-
----
-
-## Common pitfalls
-
-- **Missing write permissions**: use `SOFA.load(..., mode="r+")` only when
-  you need in-place edits.
-- **Overwriting a file while open**: close the original SOFA object or save to a new path.
-- **Broadcasting errors**: check that your variable data can broadcast to
-  the declared dimensions.
-- **Missing convention metadata**: validation will warn if required fields
-  are missing or inconsistent.
-- **Forgetting to close SOFA objects**: call `sofa.netCDF4_dataset.close()` when done.
-
----
-
-## Use cases
-
-- Validate SOFA files.
-- Inspect SOFA object metadata without using netCDF4 directly.
-- Create minimal in-memory SOFA objects for tests.
-- Export or import convention specs for reproducibility.
+- inspect a SOFA dataset without writing raw `netCDF4` code
+- validate a SOFA file against the local conventions registry
+- prepare an edited in-memory copy and save it as a new file
+- create dummy SOFA datasets for examples or tooling
+- modify convention specifications and export them to JSON
