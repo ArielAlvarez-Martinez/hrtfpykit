@@ -23,6 +23,7 @@ from .dsp import (
 )
 from .metrics import calculate_itd
 from .domain import IR, TF
+from .directivity import ctf_from_hrtf, dtf_from_hrtf
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -393,6 +394,116 @@ class Transform:
             fft_length=transformed_hrtf.fft_length,
         )
         return transformed_hrtf
+
+    def to_ctf(
+        self,
+        weights: bool = False,
+        magnitude_average: str = "log",
+        attenuation: float | None = None,
+    ) -> "HRTF":
+        """Convert the current HRTF into its common transfer function (CTF).
+
+        Parameters
+        ----------
+        weights : bool, optional
+            If ``False``, all source positions contribute equally. If ``True``,
+            diffuse-field weights are derived internally from the HRTF source
+            positions using spherical Voronoi areas.
+        magnitude_average : {"log", "linear"}, optional
+            Rule used to average source magnitudes before the minimum-phase
+            CTF reconstruction. ``"log"`` computes a log-magnitude average
+            (geometric mean in linear magnitude). ``"linear"`` computes a
+            direct linear-magnitude average (arithmetic mean).
+        attenuation : float | None, optional
+            Optional attenuation in dB applied to the CTF magnitude before the
+            minimum-phase reconstruction. If ``None``, no attenuation is
+            applied.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance containing the CTF. The output keeps a
+            singleton compatibility source axis.
+
+        Use Cases
+        ---------
+        - Derive the common spectral component of the current HRTF.
+        - Prepare a CTF object for later DTF decomposition or reconstruction.
+
+        Best Practices
+        --------------
+        - Use ``weights=True`` when the source grid represents a full sphere
+          and you want a diffuse-field-style CTF.
+        - Use ``magnitude_average="log"`` as the default choice for directivity
+          analysis because it is less dominated by large spectral peaks.
+
+        Examples
+        --------
+        >>> ctf = hrtf.transform.to_ctf()
+        >>> ctf = hrtf.transform.to_ctf(weights=True, magnitude_average="linear")
+        """
+        return ctf_from_hrtf(
+            hrtf=self._hrtf,
+            weights=weights,
+            magnitude_average=magnitude_average,
+            attenuation=attenuation,
+        )
+
+    def to_dtf(
+        self,
+        weights: bool = False,
+        magnitude_average: str = "log",
+        attenuation: float | None = None,
+    ) -> "HRTF":
+        """Convert the current HRTF into its directional transfer function (DTF).
+
+        Parameters
+        ----------
+        weights : bool, optional
+            If ``False``, all source positions contribute equally to the
+            internal CTF estimate. If ``True``, diffuse-field weights are
+            derived internally from the HRTF source positions using spherical
+            Voronoi areas.
+        magnitude_average : {"log", "linear"}, optional
+            Rule used to estimate the internal CTF magnitude before the DTF
+            division. ``"log"`` computes a log-magnitude average
+            (geometric mean in linear magnitude). ``"linear"`` computes a
+            direct linear-magnitude average (arithmetic mean).
+        attenuation : float | None, optional
+            Optional attenuation in dB applied to the DTF after the CTF
+            division. If ``None``, no attenuation is applied.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance containing the DTF while preserving the
+            source layout of the current HRTF.
+
+        Use Cases
+        ---------
+        - Remove the common spectral component of the current HRTF while
+          preserving its directional structure.
+        - Prepare DTF data for directivity analysis or later recombination
+          with a CTF.
+
+        Best Practices
+        --------------
+        - Use ``weights=True`` when the source grid represents a full sphere
+          and you want a diffuse-field-style DTF decomposition.
+        - Use ``magnitude_average="log"`` as the default choice for directivity
+          analysis because it is less dominated by large spectral peaks.
+
+        Examples
+        --------
+        >>> dtf = hrtf.transform.to_dtf()
+        >>> dtf = hrtf.transform.to_dtf(weights=True, attenuation=20.0)
+        """
+        return dtf_from_hrtf(
+            hrtf=self._hrtf,
+            weights=weights,
+            magnitude_average=magnitude_average,
+            attenuation=attenuation,
+        )
 
     def modify_ir(
         self,
