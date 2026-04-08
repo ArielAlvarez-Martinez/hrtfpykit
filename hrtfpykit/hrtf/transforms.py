@@ -394,6 +394,63 @@ class Transform:
         )
         return transformed_hrtf
 
+    def modify_ir(
+        self,
+        new_ir: np.ndarray,
+    ) -> "HRTF":
+        """Replace IR values and rebuild TF.
+
+        Parameters
+        ----------
+        new_ir : np.ndarray
+            Time-domain array with the same spatial and ear layout as the
+            current HRTF. The last axis may use a different IR length.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with modified IR values and rebuilt TF data.
+
+        Use Cases
+        ---------
+        - Replace the current HRIR values with edited or externally generated IR data.
+        - Update the IR length while preserving the current source and ear layout.
+
+        Examples
+        --------
+        >>> new_ir = np.zeros_like(hrtf.IR.values)
+        >>> transformed = hrtf.transform.modify_ir(new_ir)
+        """
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+
+        if not isinstance(new_ir, np.ndarray):
+            raise ValueError("new_ir must be a NumPy array")
+        if new_ir.size == 0:
+            raise ValueError("new_ir must be non-empty")
+        if new_ir.ndim == 0:
+            raise ValueError("new_ir must have at least one dimension")
+
+        if ir.values is not None and new_ir.shape[:-1] != ir.values.shape[:-1]:
+            raise ValueError("new_ir leading shape must match the current IR layout")
+        if ir.values is None and transformed_hrtf.TF.values is not None:
+            if new_ir.shape[:-1] != transformed_hrtf.TF.values.shape[:-1]:
+                raise ValueError("new_ir leading shape must match the current TF layout")
+
+        ir.values = np.array(new_ir, copy=True)
+
+        if transformed_hrtf.fft_length is not None:
+            transformed_hrtf.fft_length = max(
+                int(transformed_hrtf.fft_length),
+                int(ir.values.shape[-1]),
+            )
+
+        tf_from_ir(
+            ir,
+            fft_length=transformed_hrtf.fft_length,
+        )
+        return transformed_hrtf
+
     def modify_phase(
         self,
         new_phase: np.ndarray,
