@@ -22,9 +22,9 @@ from .dsp import (
     window,
 )
 from .metrics import calculate_itd
+from .domain import IR, TF
 
 if TYPE_CHECKING:
-    from .domain import IR
     from .hrtf import HRTF
 
 
@@ -396,15 +396,17 @@ class Transform:
 
     def modify_ir(
         self,
-        new_ir: np.ndarray,
+        new_ir: np.ndarray | IR | "HRTF",
     ) -> "HRTF":
         """Replace IR values and rebuild TF.
 
         Parameters
         ----------
-        new_ir : np.ndarray
-            Time-domain array with the same spatial and ear layout as the
-            current HRTF. The last axis may use a different IR length.
+        new_ir : np.ndarray | IR | HRTF
+            Time-domain data used to replace the current IR values. NumPy
+            arrays must keep the same spatial and ear layout as the current
+            HRTF. ``IR`` and ``HRTF`` inputs contribute their IR values, and
+            when available their sample rate.
 
         Returns
         -------
@@ -424,20 +426,37 @@ class Transform:
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
 
-        if not isinstance(new_ir, np.ndarray):
-            raise ValueError("new_ir must be a NumPy array")
-        if new_ir.size == 0:
+        resolved_sample_rate = ir.sample_rate
+        if isinstance(new_ir, np.ndarray):
+            new_ir_values = new_ir
+        elif isinstance(new_ir, self._hrtf.__class__):
+            new_ir_values = new_ir.IR.values
+            if new_ir.IR.sample_rate is not None:
+                resolved_sample_rate = new_ir.IR.sample_rate
+        elif isinstance(new_ir, IR):
+            new_ir_values = new_ir.values
+            if new_ir.sample_rate is not None:
+                resolved_sample_rate = new_ir.sample_rate
+        else:
+            raise ValueError("new_ir must be a NumPy array, IR, or HRTF instance")
+
+        if new_ir_values is None:
+            raise ValueError("IR data is not available")
+        if not isinstance(new_ir_values, np.ndarray):
+            raise ValueError("new_ir values must be a NumPy array")
+        if new_ir_values.size == 0:
             raise ValueError("new_ir must be non-empty")
-        if new_ir.ndim == 0:
+        if new_ir_values.ndim == 0:
             raise ValueError("new_ir must have at least one dimension")
 
-        if ir.values is not None and new_ir.shape[:-1] != ir.values.shape[:-1]:
+        if ir.values is not None and new_ir_values.shape[:-1] != ir.values.shape[:-1]:
             raise ValueError("new_ir leading shape must match the current IR layout")
         if ir.values is None and transformed_hrtf.TF.values is not None:
-            if new_ir.shape[:-1] != transformed_hrtf.TF.values.shape[:-1]:
+            if new_ir_values.shape[:-1] != transformed_hrtf.TF.values.shape[:-1]:
                 raise ValueError("new_ir leading shape must match the current TF layout")
 
-        ir.values = np.array(new_ir, copy=True)
+        ir.values = np.array(new_ir_values, copy=True)
+        ir.sample_rate = resolved_sample_rate
 
         if transformed_hrtf.fft_length is not None:
             transformed_hrtf.fft_length = max(
@@ -487,6 +506,126 @@ class Transform:
             new_phase=new_phase,
             unit=unit,
         )
+        ir_from_tf(
+            tf,
+            frequency_bins=tf.frequency_bins,
+        )
+        return transformed_hrtf
+
+    def modify_tf(
+        self,
+        new_tf: np.ndarray | TF | "HRTF",
+    ) -> "HRTF":
+        """Replace TF values and rebuild IR.
+
+        Parameters
+        ----------
+        new_tf : np.ndarray | TF | HRTF
+            Frequency-domain data used to replace the current TF values. NumPy
+            arrays must keep the same spatial and ear layout as the current
+            HRTF. ``TF`` and ``HRTF`` inputs contribute their TF values, and
+            when available their frequency bins.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with modified TF values and rebuilt IR data.
+
+        Use Cases
+        ---------
+        - Replace the current HRTF values with edited or externally generated TF data.
+        - Update the TF length while preserving the current source and ear layout.
+        - Reuse TF data and frequency bins from another ``TF`` object or ``HRTF`` instance.
+
+        Examples
+        --------
+        >>> new_tf = np.ones_like(hrtf.TF.values, dtype=complex)
+        >>> transformed = hrtf.transform.modify_tf(new_tf)
+        """
+        transformed_hrtf = self._hrtf.clone()
+        tf = transformed_hrtf.TF
+
+        if isinstance(new_tf, np.ndarray):
+            new_tf_values = new_tf
+            new_frequency_bins = None
+        elif isinstance(new_tf, self._hrtf.__class__):
+            new_tf_values = new_tf.TF.values
+            new_frequency_bins = new_tf.TF.frequency_bins
+        elif isinstance(new_tf, TF):
+            new_tf_values = new_tf.values
+            new_frequency_bins = new_tf.frequency_bins
+        else:
+            raise ValueError("new_tf must be a NumPy array, TF, or HRTF instance")
+
+        if new_tf_values is None:
+            raise ValueError("TF data is not available")
+        if not isinstance(new_tf_values, np.ndarray):
+            raise ValueError("new_tf values must be a NumPy array")
+        if new_tf_values.size == 0:
+            raise ValueError("new_tf must be non-empty")
+        if new_tf_values.ndim == 0:
+            raise ValueError("new_tf must have at least one dimension")
+        if new_tf_values.shape[-1] < 2:
+            raise ValueError("new_tf length must contain at least two points")
+
+        if tf.values is not None and new_tf_values.shape[:-1] != tf.values.shape[:-1]:
+            raise ValueError("new_tf leading shape must match the current TF layout")
+        if tf.values is None and transformed_hrtf.IR.values is not None:
+            if new_tf_values.shape[:-1] != transformed_hrtf.IR.values.shape[:-1]:
+                raise ValueError("new_tf leading shape must match the current IR layout")
+
+        tf.values = np.array(new_tf_values, copy=True)
+        if new_frequency_bins is not None:
+            if not isinstance(new_frequency_bins, np.ndarray):
+                raise ValueError("new_tf frequency_bins must be a NumPy array")
+            if new_frequency_bins.ndim != 1:
+                raise ValueError("new_tf frequency_bins must be 1D")
+            if new_frequency_bins.size != tf.values.shape[-1]:
+                raise ValueError("new_tf frequency_bins must match TF length")
+            tf.frequency_bins = np.array(new_frequency_bins, copy=True)
+
+        if tf.frequency_bins is None or tf.frequency_bins.shape[-1] != tf.values.shape[-1]:
+            if tf.frequency_bins is not None:
+                frequency_bins = np.asarray(tf.frequency_bins, dtype=float)
+                if frequency_bins.ndim != 1 or frequency_bins.size < 2:
+                    raise ValueError("frequency_bins must be 1D and contain at least two points")
+                diffs = np.diff(frequency_bins)
+                step = float(diffs[0])
+                if step <= 0.0 or not np.allclose(diffs, step, rtol=1e-5, atol=1e-8):
+                    raise ValueError("frequency_bins must be uniformly spaced and increasing")
+                if float(np.min(frequency_bins)) < 0.0:
+                    sample_rate = step * frequency_bins.size
+                    tf.frequency_bins = np.fft.fftshift(
+                        np.fft.fftfreq(
+                            tf.values.shape[-1],
+                            d=1.0 / sample_rate,
+                        )
+                    )
+                else:
+                    sample_rate = step * (2 * (frequency_bins.size - 1))
+                    tf.frequency_bins = np.fft.rfftfreq(
+                        2 * (tf.values.shape[-1] - 1),
+                        d=1.0 / sample_rate,
+                    )
+            else:
+                sample_rate = transformed_hrtf.IR.sample_rate
+                if sample_rate is None:
+                    raise ValueError(
+                        "sample_rate is required to infer frequency_bins when TF length changes"
+                    )
+                if isinstance(sample_rate, bool):
+                    raise ValueError("sample_rate must be a finite, positive value.")
+                try:
+                    sample_rate = float(sample_rate)
+                except (TypeError, ValueError):
+                    raise ValueError("sample_rate must be a finite, positive value.") from None
+                if not np.isfinite(sample_rate) or sample_rate <= 0.0:
+                    raise ValueError("sample_rate must be a finite, positive value.")
+                tf.frequency_bins = np.fft.rfftfreq(
+                    2 * (tf.values.shape[-1] - 1),
+                    d=1.0 / sample_rate,
+                )
+
         ir_from_tf(
             tf,
             frequency_bins=tf.frequency_bins,
