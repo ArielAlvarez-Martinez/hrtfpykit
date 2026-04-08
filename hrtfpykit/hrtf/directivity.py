@@ -337,3 +337,154 @@ def dtf_from_hrtf(
     )
 
     return dtf_hrtf
+
+
+def hrtf_from_dtf_and_ctf(
+    dtf: "HRTF",
+    ctf: "HRTF",
+) -> "HRTF":
+    """Reconstruct an HRTF from a DTF and a CTF.
+
+    The reconstruction is performed in the frequency domain by multiplying the
+    directional transfer function (DTF) by the common transfer function (CTF).
+    The returned object keeps the source layout of the DTF input and rebuilds
+    its IR representation from the reconstructed TF.
+
+    Parameters
+    ----------
+    dtf : HRTF
+        HRTF object containing the directional transfer function. Its source
+        layout defines the source layout of the reconstructed HRTF.
+    ctf : HRTF
+        HRTF object containing the common transfer function. It is typically a
+        singleton-source compatibility object produced by
+        :func:`ctf_from_hrtf`.
+
+    Returns
+    -------
+    HRTF
+        New HRTF object containing the reconstructed transfer function and
+        impulse response. If the underlying SOFA file provides ``Data.IR``,
+        the reconstructed IR is cropped back to that original stored IR length
+        and the TF is resynchronized with the same FFT length.
+
+    Use Cases
+    ---------
+    - Reconstruct an HRTF after separate CTF and DTF analysis.
+    - Verify that a DTF/CTF decomposition is internally consistent.
+    - Recombine a directional response with a common reference response while
+      staying inside the HRTF API.
+
+    Best Practices
+    --------------
+    - Use a DTF and CTF derived from the same original HRTF and the same FFT
+      grid.
+    - Treat the DTF as the source-layout reference and the CTF as a
+      broadcast-compatible common response.
+    - When comparing reconstructed IRs against the original HRTF, keep in mind
+      that the IR is rebuilt from TF and then cropped to the original stored
+      IR length when that length is available from the SOFA file.
+
+    Examples
+    --------
+    >>> from hrtfpykit.hrtf.directivity import (
+    ...     ctf_from_hrtf,
+    ...     dtf_from_hrtf,
+    ...     hrtf_from_dtf_and_ctf,
+    ... )
+    >>> dtf = dtf_from_hrtf(hrtf)
+    >>> ctf = ctf_from_hrtf(hrtf)
+    >>> hrtf_reconstructed = hrtf_from_dtf_and_ctf(dtf, ctf)
+    """
+    try:
+        dtf_tf = dtf.TF
+        ctf_tf = ctf.TF
+    except AttributeError:
+        raise ValueError("dtf and ctf must be HRTF instances")
+
+    dtf_tf_values = dtf_tf.values
+    ctf_tf_values = ctf_tf.values
+    dtf_frequency_bins = dtf_tf.frequency_bins
+    ctf_frequency_bins = ctf_tf.frequency_bins
+
+    if dtf_tf_values is None:
+        raise ValueError("DTF TF data is not available")
+    if ctf_tf_values is None:
+        raise ValueError("CTF TF data is not available")
+    if not isinstance(dtf_tf_values, np.ndarray):
+        raise ValueError("DTF TF data must be a NumPy array")
+    if not isinstance(ctf_tf_values, np.ndarray):
+        raise ValueError("CTF TF data must be a NumPy array")
+    if dtf_tf_values.size == 0:
+        raise ValueError("DTF TF data must be non-empty")
+    if ctf_tf_values.size == 0:
+        raise ValueError("CTF TF data must be non-empty")
+    if dtf_tf_values.ndim < 2:
+        raise ValueError("DTF TF data must have at least source and frequency dimensions")
+    if ctf_tf_values.ndim < 2:
+        raise ValueError("CTF TF data must have at least source and frequency dimensions")
+    if dtf_tf_values.shape[-1] < 2:
+        raise ValueError("DTF TF data must contain at least two frequency bins")
+    if ctf_tf_values.shape[-1] < 2:
+        raise ValueError("CTF TF data must contain at least two frequency bins")
+    if dtf_frequency_bins is None:
+        raise ValueError("DTF TF frequency_bins are required")
+    if ctf_frequency_bins is None:
+        raise ValueError("CTF TF frequency_bins are required")
+
+    dtf_frequency_bins = np.asarray(dtf_frequency_bins, dtype=float)
+    ctf_frequency_bins = np.asarray(ctf_frequency_bins, dtype=float)
+    if dtf_frequency_bins.shape != ctf_frequency_bins.shape:
+        raise ValueError("DTF and CTF frequency_bins must have the same shape")
+    if not np.allclose(dtf_frequency_bins, ctf_frequency_bins, rtol=1e-8, atol=1e-12):
+        raise ValueError("DTF and CTF frequency_bins must match")
+
+    if ctf_tf_values.shape[-1] != dtf_tf_values.shape[-1]:
+        raise ValueError("DTF and CTF TF lengths must match")
+
+    try:
+        broadcast_shape = np.broadcast_shapes(
+            dtf_tf_values.shape[:-1],
+            ctf_tf_values.shape[:-1],
+        )
+    except ValueError:
+        raise ValueError(
+            "CTF TF leading shape must be broadcastable to the DTF TF leading shape"
+        ) from None
+
+    if broadcast_shape != dtf_tf_values.shape[:-1]:
+        raise ValueError(
+            "CTF TF leading shape must not expand the DTF TF leading shape"
+        )
+
+    hrtf = dtf.clone()
+    hrtf.TF.values = (
+        np.asarray(dtf_tf_values, dtype=np.complex128)
+        * np.asarray(ctf_tf_values, dtype=np.complex128)
+    )
+    hrtf.TF.frequency_bins = np.array(dtf_frequency_bins, copy=True)
+    ir_from_tf(
+        hrtf.TF,
+        frequency_bins=hrtf.TF.frequency_bins,
+    )
+
+    if hrtf.Sofa is not None and hrtf.IR.values is not None:
+        variables = hrtf.Sofa.Variables
+        if variables is not None:
+            try:
+                original_ir_values = np.asarray(variables.get("Data.IR").value)
+            except ValueError:
+                original_ir_values = None
+            if original_ir_values is not None and original_ir_values.ndim >= 1:
+                original_ir_length = int(original_ir_values.shape[-1])
+                if hrtf.IR.values.shape[-1] > original_ir_length:
+                    hrtf.IR.values = np.asarray(
+                        hrtf.IR.values[..., :original_ir_length],
+                        dtype=float,
+                    )
+                    tf_from_ir(
+                        hrtf.IR,
+                        fft_length=hrtf.fft_length,
+                    )
+
+    return hrtf
