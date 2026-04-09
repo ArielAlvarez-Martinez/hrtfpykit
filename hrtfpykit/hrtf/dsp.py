@@ -30,8 +30,13 @@ def signal_duration(
 
     Examples
     --------
+    Measure the duration of a mono signal:
+
     >>> signal_duration(np.zeros(480), sample_rate=48000.0)
     0.01
+
+    Measure the duration of a binaural signal:
+
     >>> signal_duration(np.zeros((2, 960)), sample_rate=48000.0)
     0.02
     """
@@ -81,6 +86,8 @@ def magnitude(tf: np.ndarray | "TF") -> np.ndarray:
 
     Examples
     --------
+    Compute the magnitude of a complex transfer function:
+
     >>> magnitude(np.array([1.0 + 1.0j, 0.0 + 2.0j]))
     array([1.41421356, 2.        ])
     """
@@ -119,10 +126,18 @@ def magnitude_to_db(
 
     Examples
     --------
+    Convert linear magnitudes to dB with a unit reference:
+
     >>> magnitude_to_db(np.array([1.0, 2.0]))
     array([0.        , 6.02059991])
+
+    Use a custom numeric reference during the conversion:
+
     >>> magnitude_to_db(np.array([1.0, 2.0]), reference=2.0)
     array([-6.02059991,  0.        ])
+
+    Normalize against the maximum magnitude in the array:
+
     >>> magnitude_to_db(np.array([1.0, 2.0]), reference="max")
     array([-6.02059991,  0.        ])
     """
@@ -165,8 +180,13 @@ def db_to_magnitude(
 
     Examples
     --------
+    Convert dB values back to linear magnitude:
+
     >>> db_to_magnitude(np.array([0.0, 6.02059991]))
     array([1., 2.])
+
+    Reconstruct linear magnitude with a larger reference:
+
     >>> db_to_magnitude(np.array([-6.02059991, 0.0]), reference=2.0)
     array([1., 2.])
     """
@@ -203,11 +223,19 @@ def magnitude_db(
 
     Examples
     --------
+    Read transfer-function magnitude directly in dB:
+
     >>> tf = np.array([1.0 + 0.0j, 2.0 + 0.0j])
     >>> magnitude_db(tf)
     array([0.        , 6.02059991])
+
+    Use a custom reference magnitude:
+
     >>> magnitude_db(tf, reference=2.0)
     array([-6.02059991,  0.        ])
+
+    Normalize to the maximum TF magnitude:
+
     >>> magnitude_db(tf, reference="max")
     array([-6.02059991,  0.        ])
     """
@@ -232,8 +260,13 @@ def phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
 
     Examples
     --------
+    Read one TF phase in degrees:
+
     >>> phase(np.array([1.0 + 1.0j]), unit="degrees")
     array([45.])
+
+    Read the same TF phase in radians:
+
     >>> np.round(phase(np.array([1.0 + 1.0j]), unit="radians"), 4)
     array([0.7854])
     """
@@ -279,6 +312,8 @@ def modify_phase(
 
     Examples
     --------
+    Replace one TF with zero phase while keeping its magnitude:
+
     >>> tf = np.array([1.0 + 1.0j])
     >>> np.round(modify_phase(tf, np.array([0.0]), unit="degrees"), 4)
     array([1.4142+0.j])
@@ -334,6 +369,8 @@ def modify_magnitude(
 
     Examples
     --------
+    Replace the magnitude while keeping the original phase:
+
     >>> tf = np.array([1.0 + 1.0j])
     >>> np.round(modify_magnitude(tf, np.array([2.0])), 4)
     array([1.4142+1.4142j])
@@ -383,6 +420,8 @@ def real(tf: np.ndarray | "TF") -> np.ndarray:
 
     Examples
     --------
+    Extract the real component of a TF:
+
     >>> real(np.array([1.0 + 2.0j, 3.0 - 4.0j]))
     array([1., 3.])
     """
@@ -414,6 +453,8 @@ def imag(tf: np.ndarray | "TF") -> np.ndarray:
 
     Examples
     --------
+    Extract the imaginary component of a TF:
+
     >>> imag(np.array([1.0 + 2.0j, 3.0 - 4.0j]))
     array([ 2., -4.])
     """
@@ -454,10 +495,15 @@ def upsampling(
 
     Examples
     --------
+    Upsample a short IR and inspect the returned sample rate:
+
     >>> ir = np.array([1.0, 0.0, 0.0, 0.0])
     >>> resampled_ir, sr = upsampling(ir, new_sample_rate=96000.0, sample_rate=48000.0)
     >>> sr
     96000.0
+
+    Confirm that the resampled signal is longer:
+
     >>> resampled_ir.shape[-1] > ir.shape[-1]
     True
     """
@@ -535,10 +581,15 @@ def downsampling(
 
     Examples
     --------
+    Downsample a short IR and inspect the returned sample rate:
+
     >>> ir = np.zeros(8, dtype=float)
     >>> resampled_ir, sr = downsampling(ir, new_sample_rate=24000.0, sample_rate=48000.0)
     >>> sr
     24000.0
+
+    Confirm that the resampled signal is shorter:
+
     >>> resampled_ir.shape[-1] < ir.shape[-1]
     True
     """
@@ -610,8 +661,13 @@ def window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
 
     Examples
     --------
+    Apply a Hann window to a flat IR:
+
     >>> np.round(window(np.ones(4), "hann"), 4)
     array([0.  , 0.75, 0.75, 0.  ])
+
+    Keep a flat IR unchanged with a rectangular window:
+
     >>> window(np.ones(4), "rectangular")
     array([1., 1., 1., 1.])
 
@@ -672,8 +728,13 @@ def padding(
 
     Examples
     --------
+    Append zeros at the end of a signal:
+
     >>> padding(np.array([1.0, 2.0]), padding_length=2, location="end")
     array([1., 2., 0., 0.])
+
+    Prepend a constant value at the start of a signal:
+
     >>> padding(np.array([1.0, 2.0]), padding_length=2, location="start", value=-1.0)
     array([-1., -1.,  1.,  2.])
     """
@@ -747,6 +808,8 @@ def fir_filter(
 
     Examples
     --------
+    Design a short FIR low-pass filter and inspect the output length:
+
     >>> ir = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     >>> filtered = fir_filter(ir, filter="lowpass", sample_rate=48000.0, cutoff=3000.0, num_taps=5)
     >>> filtered.shape
@@ -865,6 +928,8 @@ def iir_filter(
 
     Examples
     --------
+    Apply a Butterworth low-pass filter and inspect the output length:
+
     >>> ir = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     >>> filtered = iir_filter(ir, filter="lowpass", sample_rate=48000.0, cutoff=3000.0, order=4)
     >>> filtered.shape
@@ -949,8 +1014,13 @@ def convolve(
 
     Examples
     --------
+    Convolve two short signals:
+
     >>> convolve(np.array([1.0, 2.0, 3.0]), np.array([1.0, -1.0]))
     array([ 1.,  1.,  1., -3.])
+
+    Keep the first signal length with ``mode="same"``:
+
     >>> convolve(np.array([[1.0, 0.0, 0.0]]), np.array([1.0, 0.5]), mode="same").shape
     (1, 3)
     """
@@ -1093,6 +1163,8 @@ def deconvolve(
 
     Examples
     --------
+    Recover a short target after convolution with a known system:
+
     >>> target = np.array([1.0, 2.0, 3.0])
     >>> system = np.array([1.0, 0.5])
     >>> measured = convolve(target, system, mode="full")
@@ -1249,6 +1321,8 @@ def minimum_phase(
 
     Examples
     --------
+    Convert a short IR into a minimum-phase version and inspect its length:
+
     >>> ir = np.array([1.0, 0.5, 0.25, 0.0])
     >>> minimum_phase(ir).shape
     (4,)
@@ -1359,6 +1433,21 @@ def tf_from_ir(
 ) -> tuple[np.ndarray, np.ndarray, int] | "TF":
     """Compute TF values from IR values using an FFT.
 
+    This function is the forward calculation step from the time domain to the
+    frequency domain. For raw NumPy input it behaves like a pure DSP utility:
+    it applies the optional window, computes a one-sided FFT along the last
+    axis, and returns the resulting TF values, frequency bins, and resolved
+    FFT length.
+
+    When ``ir`` is an ``IR`` object, the function also acts as the main
+    synchronization bridge between ``IR`` and ``TF`` inside an ``HRTF``
+    instance. In that mode it updates the linked ``HRTF.TF`` object in place,
+    rebuilds ``TF.frequency_bins`` from the resolved sample rate and FFT
+    length, and stores the resolved ``fft_length`` on the parent ``HRTF``.
+    That is the expected recalculation step after editing ``IR.values``,
+    changing ``IR.sample_rate``, or applying time-domain transforms that must
+    stay consistent with the frequency-domain representation.
+
     Parameters
     ----------
     ir : np.ndarray | IR
@@ -1378,12 +1467,29 @@ def tf_from_ir(
         For ``IR`` input, returns the updated ``TF`` object linked to the same
         ``HRTF`` instance.
 
+    Use Cases
+    ---------
+    - Rebuild the TF after cropping, padding, windowing, or filtering HRIR
+      data.
+    - Refresh frequency bins after changing the working FFT length.
+    - Convert standalone IR arrays into one-sided spectra outside the HRTF
+      object model.
+
     Examples
     --------
-    >>> ir = np.array([1.0, 0.0, 0.0, 0.0])
-    >>> tf, frequency_bins, fft_length_used = tf_from_ir(ir, sample_rate=48000.0)
-    >>> tf.shape, frequency_bins.shape, fft_length_used
-    ((3,), (3,), 4)
+    Window one measured HRIR, rebuild its TF, and inspect the synchronized FFT length:
+
+    >>> from hrtfpykit import HRTF
+    >>> from hrtfpykit.hrtf.dsp import tf_from_ir
+    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+    >>> edited = hrtf.clone()
+    >>> cutoff = edited.IR.values.shape[-1] // 2
+    >>> edited.IR.values[..., cutoff:] = 0.0
+    >>> tf_from_ir(edited.IR, fft_length=1024, window_name="hann")
+    >>> edited.fft_length
+    1024
+    >>> edited.TF.values.shape[-1]
+    513
     """
     ir_object = None
     if isinstance(ir, np.ndarray):
@@ -1450,6 +1556,22 @@ def ir_from_tf(
 ) -> tuple[np.ndarray, float] | "IR":
     """Compute IR values from TF values using inverse FFT routines.
 
+    This function is the inverse calculation step from the frequency domain to
+    the time domain. For raw NumPy input it behaves like a pure DSP utility:
+    it uses the provided or inferred frequency bins to determine whether the
+    spectrum is one-sided or complete, reconstructs the IR with the
+    appropriate inverse FFT, and returns the IR values together with the
+    resolved sample rate and FFT length.
+
+    When ``tf`` is a ``TF`` object, the function also acts as the main
+    synchronization bridge from ``TF`` back to ``IR`` inside an ``HRTF``
+    instance. In that mode it updates the linked ``HRTF.IR`` object in place,
+    restores ``IR.sample_rate`` from the frequency-bin spacing, and stores the
+    resolved ``fft_length`` on the parent ``HRTF``. That is the expected
+    recalculation step after editing ``TF.values``, changing
+    ``TF.frequency_bins``, or applying magnitude or phase operations that must
+    remain consistent with the time-domain representation.
+
     Parameters
     ----------
     tf : np.ndarray | TF
@@ -1472,13 +1594,27 @@ def ir_from_tf(
         For ``TF`` input, returns the updated ``IR`` object linked to the same
         ``HRTF`` instance.
 
+    Use Cases
+    ---------
+    - Rebuild HRIR data after magnitude-only or phase-only TF edits.
+    - Convert one-sided or complete TF arrays back into the time domain.
+    - Restore sample-rate and FFT metadata from frequency-bin spacing.
+
     Examples
     --------
-    >>> tf = np.array([1.0 + 0.0j, 1.0 + 0.0j, 1.0 + 0.0j])
-    >>> frequency_bins = np.array([0.0, 12000.0, 24000.0])
-    >>> ir, sample_rate, fft_length_used = ir_from_tf(tf, frequency_bins=frequency_bins)
-    >>> ir.shape, sample_rate, fft_length_used
-    ((4,), 48000.0, 4)
+    Edit one measured TF, rebuild the HRIR, and keep the linked metadata synchronized:
+
+    >>> from hrtfpykit import HRTF
+    >>> from hrtfpykit.hrtf.dsp import ir_from_tf
+    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+    >>> edited = hrtf.clone()
+    >>> cutoff_bin = edited.TF.values.shape[-1] // 2
+    >>> edited.TF.values[..., cutoff_bin:] *= 0.5
+    >>> ir_from_tf(edited.TF)
+    >>> edited.IR.sample_rate == hrtf.IR.sample_rate
+    True
+    >>> edited.fft_length == hrtf.fft_length
+    True
     """
     tf_object = None
     if isinstance(tf, np.ndarray):

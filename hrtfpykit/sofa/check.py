@@ -1,17 +1,10 @@
 from typing import Any, Optional, Union
 import pathlib
 import re
-import warnings
 import netCDF4
 import numpy as np
+from .._warnings import SOFAConventionWarning, warn_user
 from .conventions import CONVENTIONS
-
-
-def _formatwarning(message, category, filename, lineno, line=None):
-    return f"{category.__name__}: {message}\n"
-
-
-warnings.formatwarning = _formatwarning
 
 
 HDF5_MIN_SAFE_VERSION = "1.14.4"
@@ -31,13 +24,16 @@ SUSPICIOUS_EXTENSIONS = (
     ".html",
     ".js",
 )
+SUSPICIOUS_EXTENSION_NAMES = "|".join(
+    re.escape(extension.lstrip(".")) for extension in SUSPICIOUS_EXTENSIONS
+)
 URL_PATTERN = re.compile(r"\b(?:https?|ftp|file|s3)://\S+", re.IGNORECASE)
 BARE_DOMAIN_PATTERN = re.compile(
     r"\b(?:[a-z0-9-]+\.)+(?:com|net|org|edu|gov|mil|io|co|info|biz|ai|app|dev|tech|xyz)\b",
     re.IGNORECASE,
 )
 SUSPICIOUS_FILE_PATTERN = re.compile(
-    r"(?i)(?:^|[^a-z0-9_\-\.])([a-z0-9_\-\.]+\.(?:pdf|exe|dll|so|dylib|bat|cmd|ps1|sh|py|ipynb|jar|html|js))(?=$|[^a-z0-9_\-\.])"
+    rf"(?i)(?:^|[^a-z0-9_\-\.])([a-z0-9_\-\.]+\.(?:{SUSPICIOUS_EXTENSION_NAMES}))(?=$|[^a-z0-9_\-\.])"
 )
 
 
@@ -70,9 +66,19 @@ def check_sofa_against_conventions(
     dict
         Summary containing the resolved convention name and version.
 
+    Raises
+    ------
+    ValueError
+        If ``target`` is a SOFA object without a loaded dataset.
+    OSError
+        If ``target`` is a path-like input that cannot be opened as a SOFA
+        dataset.
+
     Examples
     --------
-    >>> check_sofa_against_conventions("my.sofa")
+    Validate a SOFA file against its declared convention:
+
+    >>> check_sofa_against_conventions("my_sofa.sofa")
     {'convention': {'name': 'SimpleFreeFieldHRIR', 'version': '1.2'}}
     """
     dataset, _closer = _resolve_dataset(target)
@@ -81,16 +87,16 @@ def check_sofa_against_conventions(
             convention_name = getattr(dataset, "SOFAConventions", None)
 
         if not convention_name:
-            warnings.warn("Missing SOFAConventions on dataset", UserWarning)
+            warn_user("Missing SOFAConventions on dataset", SOFAConventionWarning)
             return {"convention": {"name": convention_name, "version": version}}
         if convention_name not in CONVENTIONS:
-            warnings.warn(
+            warn_user(
                 (
                     f"Unsupported SOFAConventions '{convention_name}'. "
                     "API may not behave as expected. "
                     f"Supported: {', '.join(sorted(CONVENTIONS.keys()))}"
                 ),
-                UserWarning,
+                SOFAConventionWarning,
             )
             return {"convention": {"name": convention_name, "version": version}}
 
@@ -98,10 +104,10 @@ def check_sofa_against_conventions(
             version = getattr(dataset, "SOFAConventionsVersion", None)
 
         if not version or version not in CONVENTIONS[convention_name]:
-            warnings.warn(
+            warn_user(
                 f"Unsupported or missing SOFAConventionsVersion '{version}' for {convention_name}. "
                 f"Supported: {', '.join(sorted(CONVENTIONS[convention_name].keys()))}",
-                UserWarning,
+                SOFAConventionWarning,
             )
             return {"convention": {"name": convention_name, "version": version}}
 
@@ -136,45 +142,52 @@ def check_sofa_against_conventions(
                 attr_name = kind[1]
                 exists = attr_name in dataset.ncattrs()
                 if "m" in flags and not exists:
-                    warnings.warn(f"Missing global attribute: {attr_name}", UserWarning)
+                    warn_user(
+                        f"Missing global attribute: {attr_name}",
+                        SOFAConventionWarning,
+                    )
                     continue
                 if exists and "r" in flags and default not in ("", None):
                     value = getattr(dataset, attr_name)
                     if not _compare_default(default, value):
-                        warnings.warn(
+                        warn_user(
                             f"Global attribute {attr_name} should be '{default}', got '{value}'",
-                            UserWarning,
+                            SOFAConventionWarning,
                         )
 
             elif kind[0] == "var_attr":
                 var_name, attr_name = kind[1], kind[2]
                 if var_name not in dataset.variables:
                     if "m" in flags:
-                        warnings.warn(
-                            f"Missing variable for attribute: {var_name}", UserWarning
+                        warn_user(
+                            f"Missing variable for attribute: {var_name}",
+                            SOFAConventionWarning,
                         )
                     continue
                 var = dataset.variables[var_name]
                 exists = attr_name in var.ncattrs()
                 if "m" in flags and not exists:
-                    warnings.warn(
+                    warn_user(
                         f"Missing attribute {attr_name} on variable {var_name}",
-                        UserWarning,
+                        SOFAConventionWarning,
                     )
                     continue
                 if exists and "r" in flags and default not in ("", None):
                     value = getattr(var, attr_name)
                     if not _compare_default(default, value):
-                        warnings.warn(
+                        warn_user(
                             f"Attribute {var_name}:{attr_name} should be '{default}', got '{value}'",
-                            UserWarning,
+                            SOFAConventionWarning,
                         )
 
             else:
                 var_name = kind[1]
                 if var_name not in dataset.variables:
                     if "m" in flags:
-                        warnings.warn(f"Missing variable: {var_name}", UserWarning)
+                        warn_user(
+                            f"Missing variable: {var_name}",
+                            SOFAConventionWarning,
+                        )
                     continue
                 var = dataset.variables[var_name]
                 dim_spec = entry.get("dimensions")
@@ -183,27 +196,27 @@ def check_sofa_against_conventions(
                 if "r" in flags and default not in ("", None):
                     value = np.array(var[:])
                     if not _compare_default(default, value):
-                        warnings.warn(
+                        warn_user(
                             f"Variable {var_name} does not match default value",
-                            UserWarning,
+                            SOFAConventionWarning,
                         )
 
         extra_global_attrs = sorted(
             attr for attr in dataset.ncattrs() if attr not in spec_global_attrs
         )
         if extra_global_attrs:
-            warnings.warn(
+            warn_user(
                 f"Custom global attributes found: {extra_global_attrs}",
-                UserWarning,
+                SOFAConventionWarning,
             )
 
         extra_vars = sorted(
             var_name for var_name in dataset.variables.keys() if var_name not in spec_vars
         )
         if extra_vars:
-            warnings.warn(
+            warn_user(
                 f"Custom variables found: {extra_vars}",
-                UserWarning,
+                SOFAConventionWarning,
             )
 
         extra_var_attrs: list[str] = []
@@ -213,9 +226,9 @@ def check_sofa_against_conventions(
                 if full_name not in spec_var_attrs:
                     extra_var_attrs.append(full_name)
         if extra_var_attrs:
-            warnings.warn(
+            warn_user(
                 f"Custom variable attributes found: {sorted(extra_var_attrs)}",
-                UserWarning,
+                SOFAConventionWarning,
             )
 
         extra_dims = sorted(
@@ -224,18 +237,18 @@ def check_sofa_against_conventions(
             if dim_name.upper() not in expected_dim_letters and dim_name.upper() != "S"
         )
         if extra_dims:
-            warnings.warn(
+            warn_user(
                 f"Custom dimensions found: {extra_dims}",
-                UserWarning,
+                SOFAConventionWarning,
             )
 
         missing_dims = sorted(
             dim for dim in expected_dim_letters if dim not in {d.upper() for d in dataset.dimensions.keys()}
         )
         if missing_dims:
-            warnings.warn(
+            warn_user(
                 f"Missing dimensions found: {missing_dims}",
-                UserWarning,
+                SOFAConventionWarning,
             )
 
         return {"convention": {"name": convention_name, "version": version}}
@@ -294,13 +307,19 @@ def check_sofa_security(
     --------
     Standard mode (parses attributes):
 
-    >>> report = check_sofa_security("my.sofa")
+    >>> report = check_sofa_security("my_sofa.sofa", print_report=False)
     >>> report["passed"]
     True
 
     Paranoid mode (raw bytes only, raises on failure):
 
-    >>> check_sofa_security("my.sofa", paranoid_mode=True)
+    >>> report = check_sofa_security(
+    ...     "my_sofa.sofa",
+    ...     print_report=False,
+    ...     paranoid_mode=True,
+    ... )
+    >>> report["passed"]
+    True
     """
     report: dict[str, Any] = {
         "passed": True,
@@ -319,161 +338,164 @@ def check_sofa_security(
 
     dataset = None
     closer = None
-    if not paranoid_mode and target is not None:
-        try:
-            dataset, closer = _resolve_dataset(target)
-        except Exception as exc:
-            _add_check(
-                "attribute_scan",
-                False,
-                f"Unable to open dataset for attribute scan: {exc}",
-            )
-            dataset = None
-
-    if hdf5_version is None:
-        hdf5_version = _detect_hdf5_version()
-
-    report["hdf5_version"] = hdf5_version
-    if hdf5_version is None:
-        _add_check(
-            "hdf5_version_detected",
-            False,
-            "Unable to detect HDF5 library version; cannot assess CVE exposure.",
-        )
-        return report
-
-    _add_check("hdf5_version_detected", True, f"HDF5 version detected: {hdf5_version}")
-
-    version_ok = _version_ge(hdf5_version, min_safe_hdf5)
-    if version_ok is None:
-        _add_check(
-            "hdf5_version_parse",
-            False,
-            f"Could not parse HDF5 version '{hdf5_version}'.",
-        )
-        return report
-
-    _add_check(
-        "hdf5_min_safe_version",
-        version_ok,
-        f"Minimum safe HDF5 version is {min_safe_hdf5}.",
-    )
-
-    _add_check(
-        "risk_memory_corruption_rce",
-        bool(version_ok),
-        "Relies on HDF5 version meeting minimum safety baseline.",
-    )
-    _add_check(
-        "risk_denial_of_service",
-        bool(version_ok),
-        "Relies on HDF5 version meeting minimum safety baseline.",
-    )
-
-    if paranoid_mode:
-        if target is not None and not isinstance(target, (str, pathlib.Path)):
-            raise ValueError("paranoid_mode requires a file path (str or pathlib.Path)")
-        path = _path_from_target(target)
-        if path is None:
-            _add_check(
-                "content_scan",
-                False,
-                "No file path provided for safe content scan.",
-            )
-        else:
+    try:
+        if not paranoid_mode and target is not None:
             try:
-                content = path.read_bytes()
-                text = content.decode(errors="ignore")
-                url_hits = _find_url_hits_in_text(text)
+                dataset, closer = _resolve_dataset(target)
+            except Exception as exc:
+                _add_check(
+                    "attribute_scan",
+                    False,
+                    f"Unable to open dataset for attribute scan: {exc}",
+                )
+                dataset = None
+
+        if hdf5_version is None:
+            hdf5_version = _detect_hdf5_version()
+
+        report["hdf5_version"] = hdf5_version
+        if hdf5_version is None:
+            _add_check(
+                "hdf5_version_detected",
+                False,
+                "Unable to detect HDF5 library version; cannot assess CVE exposure.",
+            )
+            return report
+
+        _add_check("hdf5_version_detected", True, f"HDF5 version detected: {hdf5_version}")
+
+        version_ok = _version_ge(hdf5_version, min_safe_hdf5)
+        if version_ok is None:
+            _add_check(
+                "hdf5_version_parse",
+                False,
+                f"Could not parse HDF5 version '{hdf5_version}'.",
+            )
+            return report
+
+        _add_check(
+            "hdf5_min_safe_version",
+            version_ok,
+            f"Minimum safe HDF5 version is {min_safe_hdf5}.",
+        )
+
+        _add_check(
+            "risk_memory_corruption_rce",
+            bool(version_ok),
+            "Relies on HDF5 version meeting minimum safety baseline.",
+        )
+        _add_check(
+            "risk_denial_of_service",
+            bool(version_ok),
+            "Relies on HDF5 version meeting minimum safety baseline.",
+        )
+
+        if paranoid_mode:
+            if target is not None and not isinstance(target, (str, pathlib.Path)):
+                raise ValueError("paranoid_mode requires a file path (str or pathlib.Path)")
+            path = _path_from_target(target)
+            if path is None:
+                _add_check(
+                    "content_scan",
+                    False,
+                    "No file path provided for safe content scan.",
+                )
+            else:
+                try:
+                    content = path.read_bytes()
+                    text = content.decode(errors="ignore")
+                    url_hits = _find_url_hits_in_text(text)
+                    if url_hits:
+                        _add_check(
+                            "risk_external_links_in_attributes",
+                            False,
+                            f"External links detected in content: {url_hits}",
+                        )
+                    else:
+                        _add_check(
+                            "risk_external_links_in_attributes",
+                            True,
+                            "No external links detected in content.",
+                        )
+
+                    extension_hits = _find_extension_hits_in_text(text)
+                    if extension_hits:
+                        _add_check(
+                            "risk_suspicious_attribute_extensions",
+                            False,
+                            f"Suspicious extensions detected in content: {extension_hits}",
+                        )
+                    else:
+                        _add_check(
+                            "risk_suspicious_attribute_extensions",
+                            True,
+                            "No suspicious extensions detected in content.",
+                        )
+                except Exception as exc:
+                    _add_check(
+                        "content_scan",
+                        False,
+                        f"Unable to scan file content safely: {exc}",
+                    )
+        else:
+            if dataset is None:
+                _add_check(
+                    "attribute_scan",
+                    False,
+                    "No dataset available for attribute scan.",
+                )
+            else:
+                attribute_values = _collect_attribute_strings(dataset)
+                url_hits = _find_url_hits(attribute_values)
                 if url_hits:
                     _add_check(
                         "risk_external_links_in_attributes",
                         False,
-                        f"External links detected in content: {url_hits}",
+                        f"External links detected in attributes: {url_hits}",
                     )
                 else:
                     _add_check(
                         "risk_external_links_in_attributes",
                         True,
-                        "No external links detected in content.",
+                        "No external links detected in attributes.",
                     )
 
-                extension_hits = _find_extension_hits_in_text(text)
+                extension_hits = _find_extension_hits(attribute_values)
                 if extension_hits:
                     _add_check(
                         "risk_suspicious_attribute_extensions",
                         False,
-                        f"Suspicious extensions detected in content: {extension_hits}",
+                        f"Suspicious extensions detected in attributes: {extension_hits}",
                     )
                 else:
                     _add_check(
                         "risk_suspicious_attribute_extensions",
                         True,
-                        "No suspicious extensions detected in content.",
+                        "No suspicious extensions detected in attributes.",
                     )
-            except Exception as exc:
-                _add_check(
-                    "content_scan",
-                    False,
-                    f"Unable to scan file content safely: {exc}",
-                )
-    else:
-        if dataset is None:
-            _add_check(
-                "attribute_scan",
-                False,
-                "No dataset available for attribute scan.",
-            )
-        else:
-            attribute_values = _collect_attribute_strings(dataset)
-            url_hits = _find_url_hits(attribute_values)
-            if url_hits:
-                _add_check(
-                    "risk_external_links_in_attributes",
-                    False,
-                    f"External links detected in attributes: {url_hits}",
-                )
-            else:
-                _add_check(
-                    "risk_external_links_in_attributes",
-                    True,
-                    "No external links detected in attributes.",
-                )
 
-            extension_hits = _find_extension_hits(
-                attribute_values, SUSPICIOUS_EXTENSIONS
-            )
-            if extension_hits:
-                _add_check(
-                    "risk_suspicious_attribute_extensions",
-                    False,
-                    f"Suspicious extensions detected in attributes: {extension_hits}",
-                )
-            else:
-                _add_check(
-                    "risk_suspicious_attribute_extensions",
-                    True,
-                    "No suspicious extensions detected in attributes.",
-                )
+        if paranoid_mode:
+            if print_report:
+                _print_security_report(report, mode="PARANOID")
+            if not report["passed"]:
+                raise ValueError("SOFA security check failed in paranoid mode.")
+            return report
 
-    if closer is not None:
-        closer.close()
-
-    if paranoid_mode:
         if print_report:
-            _print_security_report(report, mode="PARANOID")
-        if not report["passed"]:
-            raise ValueError("SOFA security check failed in paranoid mode.")
+            _print_security_report(report, mode="STANDARD")
+
         return report
+    finally:
+        if closer is not None:
+            closer.close()
 
-    if print_report:
-        _print_security_report(report, mode="STANDARD")
-
-    return report
 
 def _resolve_dataset(target: Union[str, netCDF4.Dataset]):
     if hasattr(target, "netCDF4_dataset"):
-        return target.netCDF4_dataset, None
+        dataset = target.netCDF4_dataset
+        if dataset is None:
+            raise ValueError("Dataset is not loaded")
+        return dataset, None
     if hasattr(target, "variables") and hasattr(target, "ncattrs"):
         return target, None
     ds = netCDF4.Dataset(str(target), "r")
@@ -584,17 +606,11 @@ def _find_url_hits(values: list[tuple[str, str]]) -> list[str]:
     return hits
 
 
-def _find_extension_hits(
-    values: list[tuple[str, str]],
-    extensions: tuple[str, ...],
-) -> list[str]:
+def _find_extension_hits(values: list[tuple[str, str]]) -> list[str]:
     hits: list[str] = []
     for label, text in values:
-        lower = text.lower()
-        for ext in extensions:
-            if ext in lower:
-                hits.append(f"{label}={text}")
-                break
+        if SUSPICIOUS_FILE_PATTERN.search(text):
+            hits.append(f"{label}={text}")
     return hits
 
 
@@ -678,15 +694,15 @@ def _matches_dim_option(var_dims: tuple[str, ...], option: str) -> bool:
 def _warn_dim_mismatch(dataset: netCDF4.Dataset, var_name: str, var, dim_spec: Optional[str]) -> None:
     options = _split_dim_options(dim_spec)
     if options and not any(_matches_dim_option(var.dimensions, opt) for opt in options):
-        warnings.warn(
+        warn_user(
             f"Variable {var_name} has dims {var.dimensions}, expected one of {options}",
-            UserWarning,
+            SOFAConventionWarning,
         )
     for dim_name, size in zip(var.dimensions, var.shape):
         if dim_name in dataset.dimensions:
             if dataset.dimensions[dim_name].size != size:
-                warnings.warn(
+                warn_user(
                     f"Variable {var_name} dimension {dim_name} size {size} "
                     f"does not match Dimensions {dataset.dimensions[dim_name].size}",
-                    UserWarning,
+                    SOFAConventionWarning,
                 )

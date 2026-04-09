@@ -91,16 +91,21 @@ def ctf_from_hrtf(
 
     Examples
     --------
-    >>> from hrtfpykit.hrtf.directivity import ctf_from_hrtf
-    >>> ctf = ctf_from_hrtf(hrtf)
-    >>> ctf.TF.values.shape[0]
-    1
+    Derive a common transfer function and inspect its binaural magnitude:
 
+    >>> from hrtfpykit.hrtf.directivity import ctf_from_hrtf
+    >>> from hrtfpykit import HRTF
+    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
     >>> ctf = ctf_from_hrtf(
     ...     hrtf,
     ...     weights=True,
     ...     magnitude_average="linear",
     ...     attenuation=20.0,
+    ... )
+    >>> ctf.plot_magnitude(
+    ...     positions=ctf.Sources.get_positions(angle_unit="degrees")[0, :2],
+    ...     ear="both",
+    ...     show=False,
     ... )
     """
     try:
@@ -329,16 +334,21 @@ def dtf_from_hrtf(
 
     Examples
     --------
-    >>> from hrtfpykit.hrtf.directivity import dtf_from_hrtf
-    >>> dtf = dtf_from_hrtf(hrtf)
-    >>> dtf.TF.values.shape[0] == hrtf.TF.values.shape[0]
-    True
+    Remove the common transfer component and compare two canonical directions:
 
+    >>> from hrtfpykit.hrtf.directivity import dtf_from_hrtf
+    >>> from hrtfpykit import HRTF
+    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
     >>> dtf = dtf_from_hrtf(
     ...     hrtf,
     ...     weights=True,
     ...     magnitude_average="linear",
     ...     attenuation=20.0,
+    ... )
+    >>> dtf.plot_magnitude(
+    ...     positions=["front", "left"],
+    ...     ear="both",
+    ...     show=False,
     ... )
     """
     try:
@@ -490,14 +500,23 @@ def hrtf_from_dtf_and_ctf(
 
     Examples
     --------
+    Reconstruct an HRTF after separate CTF and DTF analysis:
+
     >>> from hrtfpykit.hrtf.directivity import (
     ...     ctf_from_hrtf,
     ...     dtf_from_hrtf,
     ...     hrtf_from_dtf_and_ctf,
     ... )
+    >>> from hrtfpykit import HRTF
+    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
     >>> dtf = dtf_from_hrtf(hrtf)
     >>> ctf = ctf_from_hrtf(hrtf)
     >>> hrtf_reconstructed = hrtf_from_dtf_and_ctf(dtf, ctf)
+    >>> hrtf_reconstructed.plot_magnitude(
+    ...     positions=["front", "left"],
+    ...     ear="both",
+    ...     show=False,
+    ... )
     """
     try:
         dtf_tf = dtf.TF

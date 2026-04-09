@@ -59,6 +59,11 @@ class ConventionsManager:
         -------
         ConventionsManager.Spec
             Convention specification dictionary.
+
+        Raises
+        ------
+        KeyError
+            If the requested convention name or version is not registered.
         """
         try:
             spec = CONVENTIONS[name][version]
@@ -86,6 +91,12 @@ class ConventionsManager:
             Convention specification to store.
         overwrite : bool, optional
             If True, allow overwriting an existing version.
+
+        Raises
+        ------
+        ValueError
+            If ``spec`` is invalid or if the version already exists and
+            ``overwrite`` is ``False``.
         """
         spec_dict = ConventionsManager._validate_spec(spec)
         if name not in CONVENTIONS:
@@ -104,6 +115,11 @@ class ConventionsManager:
             Convention name.
         version : str
             Convention version to remove.
+
+        Raises
+        ------
+        KeyError
+            If the requested convention version does not exist.
         """
         if name not in CONVENTIONS or version not in CONVENTIONS[name]:
             raise KeyError(f"Convention '{name}' version '{version}' not found")
@@ -119,6 +135,11 @@ class ConventionsManager:
         ----------
         name : str
             Convention name.
+
+        Raises
+        ------
+        KeyError
+            If the requested convention does not exist.
         """
         if name not in CONVENTIONS:
             raise KeyError(f"Convention '{name}' not found")
@@ -138,6 +159,13 @@ class ConventionsManager:
             Convention version.
         path : str | Path
             Destination file path.
+
+        Raises
+        ------
+        KeyError
+            If the requested convention name or version is not registered.
+        OSError
+            If the JSON payload cannot be written to ``path``.
         """
         spec = ConventionsManager.inspect_sofa_specification(name, version)
         payload = {"convention": name, "version": version, "spec": spec}
@@ -160,6 +188,15 @@ class ConventionsManager:
             Path to the JSON file.
         overwrite : bool, optional
             If True, allow overwriting existing versions.
+
+        Raises
+        ------
+        FileNotFoundError
+            If ``path`` does not exist.
+        ValueError
+            If the JSON payload is malformed, contains invalid registry
+            entries, or conflicts with existing versions while
+            ``overwrite`` is ``False``.
         """
         in_path = Path(path)
         if not in_path.exists():
@@ -209,6 +246,12 @@ class ConventionsManager:
         -------
         ConventionsManager.Spec
             Normalized specification dictionary.
+
+        Raises
+        ------
+        ValueError
+            If ``spec`` is not a mapping, an entry is not a mapping, or one
+            or more required fields are missing.
         """
 
         _required_fields = {"default", "flags", "dimensions", "type", "comment"}

@@ -1680,21 +1680,26 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot the default front, back, left, and right positions:
+        Load a measured HRTF and compare two practical listening directions:
 
-        >>> hrtf.plot_magnitude()
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> hrtf.plot_magnitude(
+        ...     positions=["front", "left"],
+        ...     ear="both",
+        ...     show=False,
+        ... )
 
-        Plot left and right positions with both ears:
+        Window one direction before plotting its magnitude on a log-frequency axis:
 
-        >>> hrtf.plot_magnitude(positions=["left", "right"], ear="both")
-
-        Plot one position in linear magnitude with a logarithmic frequency axis:
-
-        >>> hrtf.plot_magnitude(positions="front", unit="linear", x_axis="log")
-
-        Create the figure without showing it immediately:
-
-        >>> hrtf.plot_magnitude(show=False)
+        >>> front = hrtf.select(positions="front")
+        >>> windowed = front.transform.apply_window("hann")
+        >>> windowed.plot_magnitude(
+        ...     positions="front",
+        ...     unit="linear",
+        ...     x_axis="log",
+        ...     show=False,
+        ... )
         """
         accepted_parameters = AcceptedParameters()
         if unit not in accepted_parameters.units:
@@ -1889,21 +1894,24 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot the default front, back, left, and right positions:
+        Load an HRIR set and compare the front and right directions in samples:
 
-        >>> hrtf.plot_amplitude()
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> hrtf.plot_amplitude(
+        ...     positions=["front", "right"],
+        ...     x_axis="samples",
+        ...     show=False,
+        ... )
 
-        Plot two positions using sample index on the x axis:
+        Remove ITD from the front direction and inspect the left-ear waveform:
 
-        >>> hrtf.plot_amplitude(positions=["front", "left"], x_axis="samples")
-
-        Plot a single ear at a named position:
-
-        >>> hrtf.plot_amplitude(positions="right", ear="left")
-
-        Create the figure without showing it immediately:
-
-        >>> hrtf.plot_amplitude(show=False)
+        >>> aligned_front = hrtf.select(positions="front").transform.delete_itd()
+        >>> aligned_front.plot_amplitude(
+        ...     positions="front",
+        ...     ear="left",
+        ...     show=False,
+        ... )
         """
         accepted_parameters = AcceptedParameters()
         if ear not in accepted_parameters.ears:
@@ -2071,30 +2079,22 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot the default front position:
+        Load one direction and inspect its HRIR and HRTF together:
 
-        >>> hrtf.plot_amplitude_and_magnitude()
-
-        Plot one position using sample index and linear magnitude:
-
-        >>> hrtf.plot_amplitude_and_magnitude(
-        ...     position="left",
-        ...     amplitude_x_axis="samples",
-        ...     magnitude_x_axis="linear",
-        ...     magnitude="linear",
-        ... )
-
-        Plot both ears with a logarithmic frequency axis:
-
-        >>> hrtf.plot_amplitude_and_magnitude(
-        ...     position="front",
-        ...     ear="both",
-        ...     magnitude_x_axis="log",
-        ... )
-
-        Create the figure without showing it immediately:
-
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> hrtf.plot_amplitude_and_magnitude(show=False)
+
+        Plot a windowed version of the same direction with both ears and a log-frequency axis:
+
+        >>> windowed = hrtf.transform.apply_window("hann")
+        >>> windowed.plot_amplitude_and_magnitude(
+        ...     ear="both",
+        ...     amplitude_x_axis="samples",
+        ...     magnitude_x_axis="log",
+        ...     magnitude="linear",
+        ...     show=False,
+        ... )
         """
         accepted_parameters = AcceptedParameters()
         if ear not in accepted_parameters.ears:
@@ -2384,19 +2384,18 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot the canonical horizontal plane with default settings:
+        Load a measured HRTF and inspect the horizontal-plane spectrum for the left ear:
 
-        >>> hrtf.plot_spectrum_plane()
+        >>> from hrtfpykit import HRTF
+        >>> from hrtfpykit.plots.plots import AxisOptions, AzimuthAxisOptions, PlotOptions
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> hrtf.plot_spectrum_plane(
+        ...     plane="horizontal",
+        ...     ear="left",
+        ...     show=False,
+        ... )
 
-        Plot the horizontal plane for the left ear only:
-
-        >>> hrtf.plot_spectrum_plane(plane="horizontal", ear="left")
-
-        Plot a non-canonical horizontal plane selected by elevation:
-
-        >>> hrtf.plot_spectrum_plane(plane="horizontal", elevation_angle=10.0)
-
-        Plot the horizontal plane using signed azimuth values:
+        Replot the same plane with a signed azimuth convention for interpretation:
 
         >>> hrtf.plot_spectrum_plane(
         ...     plane="horizontal",
@@ -2405,11 +2404,8 @@ class HRTFPlots:
         ...             azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
         ...         )
         ...     ),
+        ...     show=False,
         ... )
-
-        Create the figure without showing it immediately:
-
-        >>> hrtf.plot_spectrum_plane(show=False)
         """
         accepted_parameters = AcceptedParameters()
         if plane not in ("horizontal", "median"):
@@ -2709,21 +2705,24 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot the front elevation spectrum with default settings:
+        Load a measured HRTF and inspect how the front spectrum changes with elevation:
 
-        >>> hrtf.plot_elevation_spectrum()
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> hrtf.plot_elevation_spectrum(
+        ...     azimuth="front",
+        ...     ear="both",
+        ...     show=False,
+        ... )
 
-        Plot the left-side elevation spectrum for one ear:
+        Inspect the left-side elevation slice for one ear on a log-frequency axis:
 
-        >>> hrtf.plot_elevation_spectrum(azimuth="left", ear="left")
-
-        Plot a numeric azimuth with logarithmic frequency scaling:
-
-        >>> hrtf.plot_elevation_spectrum(azimuth=30.0, x_axis="log")
-
-        Create the figure without showing it immediately:
-
-        >>> hrtf.plot_elevation_spectrum(show=False)
+        >>> hrtf.plot_elevation_spectrum(
+        ...     azimuth="left",
+        ...     ear="left",
+        ...     x_axis="log",
+        ...     show=False,
+        ... )
         """
         accepted_parameters = AcceptedParameters()
         if unit not in accepted_parameters.units:
@@ -2979,14 +2978,16 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_itd_curve()
-        >>> hrtf.plot_itd_curve(elevation_angle=10.0)
+        Load a measured HRTF and inspect its horizontal-plane ITD trend:
+
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_itd_curve(show=False)
-        >>> hrtf.plot_itd_curve(
-        ...     options=PlotOptions(
-        ...         axis=AxisOptions(ylabel="ITD (s)")
-        ...     )
-        ... )
+
+        Remove ITD from the dataset and compare the compensated curve:
+
+        >>> aligned = hrtf.transform.delete_itd()
+        >>> aligned.plot_itd_curve(show=False)
         """
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -3125,15 +3126,16 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_absolute_itd()
-        >>> hrtf.plot_absolute_itd(elevation_angle=10.0)
+        Load a measured HRTF and visualize absolute ITD around the horizontal plane:
+
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_absolute_itd(show=False)
-        >>> hrtf.plot_absolute_itd(
-        ...     options=PlotOptions(
-        ...         axis=AxisOptions(ylabel="ITD (s)"),
-        ...         figure=FigureOptions(title="Horizontal Plane ITD")
-        ...     )
-        ... )
+
+        After ITD compensation, inspect the same polar summary again:
+
+        >>> aligned = hrtf.transform.delete_itd()
+        >>> aligned.plot_absolute_itd(show=False)
         """
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -3285,10 +3287,19 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_ild_plane()
-        >>> hrtf.plot_ild_plane(plane="median")
-        >>> hrtf.plot_ild_plane(elevation_angle=10.0, freq_max=8000.0)
-        >>> hrtf.plot_ild_plane(show=False)
+        Load a measured HRTF and inspect frequency-dependent ILD on the horizontal plane:
+
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> hrtf.plot_ild_plane(
+        ...     plane="horizontal",
+        ...     freq_max=8000.0,
+        ...     show=False,
+        ... )
+
+        Inspect the canonical median plane when you want sagittal ILD structure:
+
+        >>> hrtf.plot_ild_plane(plane="median", show=False)
         """
         accepted_parameters = AcceptedParameters()
         if plane not in ("horizontal", "median"):
@@ -3513,14 +3524,15 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_ild_curve()
-        >>> hrtf.plot_ild_curve(elevation_angle=10.0)
+        Load a measured HRTF and inspect broad-band ILD across the horizontal plane:
+
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_ild_curve(show=False)
-        >>> hrtf.plot_ild_curve(
-        ...     options=PlotOptions(
-        ...         axis=AxisOptions(ylabel="ILD (dB)")
-        ...     )
-        ... )
+
+        Focus on another measured elevation when you want an off-horizontal slice:
+
+        >>> hrtf.plot_ild_curve(elevation_angle=10.0, show=False)
         """
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -3660,15 +3672,15 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_absolute_ild()
-        >>> hrtf.plot_absolute_ild(elevation_angle=10.0)
+        Load a measured HRTF and summarize absolute ILD in a polar view:
+
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_absolute_ild(show=False)
-        >>> hrtf.plot_absolute_ild(
-        ...     options=PlotOptions(
-        ...         axis=AxisOptions(ylabel="ILD (dB)"),
-        ...         figure=FigureOptions(title="Horizontal Plane ILD")
-        ...     )
-        ... )
+
+        Inspect a different elevation when you want a polar view away from the canonical plane:
+
+        >>> hrtf.plot_absolute_ild(elevation_angle=10.0, show=False)
         """
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -3805,8 +3817,16 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_source_grid()
+        Load a measured HRTF and inspect the full source grid:
+
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_source_grid(show=False)
+
+        Plot only the selected horizontal plane to verify a spatial subset:
+
+        >>> horizontal = hrtf.select(plane="horizontal", plane_angle=0.0)
+        >>> horizontal.plot_source_grid(show=False)
         """
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -3906,9 +3926,18 @@ class HRTFPlots:
 
         Examples
         --------
-        >>> hrtf.plot_plane_grid()
-        >>> hrtf.plot_plane_grid(plane="median")
-        >>> hrtf.plot_plane_grid(plane=["horizontal", "median", "frontal"], show=False)
+        Load a measured HRTF and highlight the median plane in the full grid:
+
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> hrtf.plot_plane_grid(plane="median", show=False)
+
+        Compare the three canonical planes in one 3D view:
+
+        >>> hrtf.plot_plane_grid(
+        ...     plane=["horizontal", "median", "frontal"],
+        ...     show=False,
+        ... )
         """
         plot_options = PlotOptions() if options is None else options
         figure_options = (

@@ -32,10 +32,18 @@ def get_position_queries(
 
     Examples
     --------
+    Normalize one named query:
+
     >>> get_position_queries("front")
     ['front']
+
+    Normalize one numeric query:
+
     >>> get_position_queries([0.0, 0.0])
     [array([0., 0.])]
+
+    Normalize multiple numeric queries:
+
     >>> get_position_queries([[0.0, 0.0], [90.0, 0.0]])
     [array([0., 0.]), array([90.,  0.])]
     """
@@ -122,8 +130,13 @@ def get_named_positions(
 
     Examples
     --------
+    Look up the canonical front direction:
+
     >>> get_named_positions()["front"]
     array([0., 0.])
+
+    Look up the left direction in radians:
+
     >>> get_named_positions(angle_unit="radians")["left"]
     array([1.57079633, 0.        ])
     """
@@ -174,10 +187,18 @@ def get_position_alias(
 
     Examples
     --------
+    Resolve the front alias from spherical coordinates:
+
     >>> get_position_alias([0.0, 0.0])
     'front'
+
+    Resolve the left alias from spherical coordinates:
+
     >>> get_position_alias([90.0, 0.0])
     'left'
+
+    Return ``None`` for a non-cardinal direction:
+
     >>> get_position_alias([0.0, 30.0])
     """
     system = str(coordinate_system).strip().lower()
@@ -262,6 +283,10 @@ def get_spherical_positions(
 
     Examples
     --------
+    Load an HRTF and normalize its source grid to spherical coordinates:
+
+    >>> from hrtfpykit import HRTF
+    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
     >>> spherical = get_spherical_positions(hrtf.Sources)
     >>> spherical.shape[-1]
     3
@@ -320,10 +345,18 @@ def spherical_to_cartesian(
 
     Examples
     --------
+    Convert the front direction into cartesian coordinates:
+
     >>> spherical_to_cartesian(np.array([[0.0, 0.0, 1.0]]))
     array([[1., 0., 0.]])
+
+    Convert the left direction into cartesian coordinates:
+
     >>> spherical_to_cartesian(np.array([[90.0, 0.0, 1.0]]))
     array([[0., 1., 0.]])
+
+    Convert the zenith into cartesian coordinates:
+
     >>> spherical_to_cartesian(np.array([[0.0, 90.0, 1.0]]))
     array([[0., 0., 1.]])
     """
@@ -385,10 +418,18 @@ def cartesian_to_spherical(
 
     Examples
     --------
+    Convert the front cartesian point into spherical coordinates:
+
     >>> cartesian_to_spherical(np.array([[1.0, 0.0, 0.0]]))
     array([[0., 0., 1.]])
+
+    Convert the left cartesian point into spherical coordinates:
+
     >>> cartesian_to_spherical(np.array([[0.0, 1.0, 0.0]]))
     array([[90., 0., 1.]])
+
+    Convert the zenith cartesian point into spherical coordinates:
+
     >>> cartesian_to_spherical(np.array([[0.0, 0.0, 1.0]]))
     array([[0., 90., 1.]])
     """
@@ -440,10 +481,18 @@ def cartesian_to_lateral_polar(
 
     Examples
     --------
+    Convert the front cartesian point into lateral-polar coordinates:
+
     >>> cartesian_to_lateral_polar(np.array([[1.0, 0.0, 0.0]]))
     array([[0., 0., 1.]])
+
+    Convert the zenith cartesian point into lateral-polar coordinates:
+
     >>> cartesian_to_lateral_polar(np.array([[0.0, 0.0, 1.0]]))
     array([[0., 90., 1.]])
+
+    Convert the left cartesian point into lateral-polar coordinates:
+
     >>> cartesian_to_lateral_polar(np.array([[0.0, 1.0, 0.0]]))
     array([[90., 0., 1.]])
     """
@@ -500,10 +549,18 @@ def lateral_polar_to_cartesian(
 
     Examples
     --------
+    Convert the front lateral-polar point into cartesian coordinates:
+
     >>> lateral_polar_to_cartesian(np.array([[0.0, 0.0, 1.0]]))
     array([[1., 0., 0.]])
+
+    Convert the zenith lateral-polar point into cartesian coordinates:
+
     >>> lateral_polar_to_cartesian(np.array([[0.0, 90.0, 1.0]]))
     array([[0., 0., 1.]])
+
+    Convert the left lateral-polar point into cartesian coordinates:
+
     >>> lateral_polar_to_cartesian(np.array([[90.0, 0.0, 1.0]]))
     array([[0., 1., 0.]])
     """
@@ -566,8 +623,13 @@ def spherical_to_lateral_polar(
 
     Examples
     --------
+    Convert the front spherical direction into lateral-polar coordinates:
+
     >>> spherical_to_lateral_polar(np.array([[0.0, 0.0, 1.0]]))
     array([[0., 0., 1.]])
+
+    Convert the left spherical direction into lateral-polar coordinates:
+
     >>> spherical_to_lateral_polar(np.array([[90.0, 0.0, 1.0]]))
     array([[90., 0., 1.]])
     """
@@ -602,8 +664,13 @@ def lateral_polar_to_spherical(
 
     Examples
     --------
+    Convert the front lateral-polar direction back into spherical coordinates:
+
     >>> lateral_polar_to_spherical(np.array([[0.0, 0.0, 1.0]]))
     array([[0., 0., 1.]])
+
+    Convert the zenith lateral-polar direction back into spherical coordinates:
+
     >>> lateral_polar_to_spherical(np.array([[0.0, 90.0, 1.0]]))
     array([[0., 90., 1.]])
     """
@@ -644,6 +711,8 @@ def get_closest_position_index(
 
     Examples
     --------
+    Find the front direction inside a small spherical grid:
+
     >>> get_closest_position_index(
     ...     query_position=[0.0, 0.0],
     ...     grid_positions=np.array([[0.0, 0.0, 1.0], [90.0, 0.0, 1.0]]),

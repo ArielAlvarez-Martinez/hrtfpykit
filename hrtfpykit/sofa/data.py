@@ -84,9 +84,17 @@ class _Dimensions(_Data):
         DimensionsWrap
             Wrapped dimension metadata.
 
+        Raises
+        ------
+        ValueError
+            If ``name`` is not present in the dataset dimensions.
+
         Examples
         --------
-        >>> sofa = SOFA.load("my.sofa")
+        Inspect one wrapped dimension:
+
+        >>> from hrtfpykit import SOFA
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
         >>> sofa.Dimensions.get("M").value
         """
         if name not in self._netCDF4_dataset.dimensions:
@@ -98,7 +106,10 @@ class _Dimensions(_Data):
 
         Examples
         --------
-        >>> sofa = SOFA.load("my.sofa")
+        List every available dimension name:
+
+        >>> from hrtfpykit import SOFA
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
         >>> list(sofa.Dimensions.get_all().keys())
         """
         return {
@@ -111,7 +122,10 @@ class _Dimensions(_Data):
 
         Examples
         --------
-        >>> sofa = SOFA.load("my.sofa")
+        Print the dimension summary for one SOFA object:
+
+        >>> from hrtfpykit import SOFA
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
         >>> print(sofa.Dimensions.summary())
         """
         lines = []
@@ -169,10 +183,19 @@ class _AttributesBase(_Data):
         AttributesWrap
             Wrapped attribute metadata.
 
+        Raises
+        ------
+        ValueError
+            If ``name`` does not resolve to an available attribute in the
+            wrapped collection.
+
         Examples
         --------
-        >>> sofa = SOFA.load("my.sofa")
-        >>> sofa.GlobalAttributes.get("Title").value
+        Inspect one wrapped global attribute:
+
+        >>> from hrtfpykit import SOFA
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> sofa.GlobalAttributes.get("SOFAConventions").value
         """
         value = self._get_value(name)
         if value is None:
@@ -189,7 +212,10 @@ class _AttributesBase(_Data):
 
         Examples
         --------
-        >>> sofa = SOFA.load("my.sofa")
+        List every available global attribute:
+
+        >>> from hrtfpykit import SOFA
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
         >>> list(sofa.GlobalAttributes.get_all().keys())
         """
         return {
@@ -233,7 +259,10 @@ class _GlobalAttributes(_AttributesBase):
 
         Examples
         --------
-        >>> sofa = SOFA.load("my.sofa")
+        Print the global attribute summary:
+
+        >>> from hrtfpykit import SOFA
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
         >>> print(sofa.GlobalAttributes.summary())
         """
         items = list(self._iter_items())
@@ -278,7 +307,10 @@ class _VariableAttributes(_AttributesBase):
 
         Examples
         --------
-        >>> sofa = SOFA.load("my.sofa")
+        Print the variable-attribute summary:
+
+        >>> from hrtfpykit import SOFA
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
         >>> print(sofa.VariableAttributes.summary())
         """
         items = list(self._iter_items())
@@ -319,9 +351,17 @@ class _Variables(_Data):
         VariablesWrap
             Wrapped variable data and metadata.
 
+        Raises
+        ------
+        ValueError
+            If ``name`` is not present in the dataset variables.
+
         Examples
         --------
-        >>> sofa = SOFA.load("my.sofa")
+        Inspect one wrapped variable:
+
+        >>> from hrtfpykit import SOFA
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
         >>> sofa.Variables.get("Data.IR").value.shape
         """
         if name not in self._netCDF4_dataset.variables:
@@ -333,7 +373,10 @@ class _Variables(_Data):
 
         Examples
         --------
-        >>> sofa = SOFA.load("my.sofa")
+        List every available variable:
+
+        >>> from hrtfpykit import SOFA
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
         >>> list(sofa.Variables.get_all().keys())
         """
         return {
@@ -345,7 +388,10 @@ class _Variables(_Data):
 
         Examples
         --------
-        >>> sofa = SOFA.load("my.sofa")
+        Print the variable summary for one SOFA object:
+
+        >>> from hrtfpykit import SOFA
+        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
         >>> print(sofa.Variables.summary())
         """
         lines = []

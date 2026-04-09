@@ -49,10 +49,15 @@ def calculate_itd(
 
     Examples
     --------
+    Estimate ITD in samples for a short binaural impulse:
+
     >>> ir = np.array([[[0.0, 0.0, 1.0, 0.0],
     ...                 [0.0, 1.0, 0.0, 0.0]]])
     >>> calculate_itd(ir, sample_rate=48000.0, output="samples")
     array([1])
+
+    Convert the same ITD estimate to seconds:
+
     >>> calculate_itd(ir, sample_rate=48000.0, output="seconds")
     array([2.08333333e-05])
     """
@@ -202,10 +207,15 @@ def calculate_ild(
 
     Examples
     --------
+    Measure the broad-band ILD of a simple binaural impulse:
+
     >>> ir = np.array([[[1.0, 0.0, 0.0, 0.0],
     ...                 [0.5, 0.0, 0.0, 0.0]]])
     >>> calculate_ild(ir, sample_rate=48000.0, mode="broad-band", output="db")
     array([6.02059991])
+
+    Inspect the frequency-dependent ILD shape for the same signal:
+
     >>> calculate_ild(ir, sample_rate=48000.0, mode="frequency-dependent", output="linear").shape
     (1, 3)
     """

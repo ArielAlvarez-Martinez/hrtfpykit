@@ -4,11 +4,11 @@ import importlib.metadata
 import pathlib
 import platform
 import sys
-import warnings
 
 import netCDF4
 import numpy as np
 
+from .._warnings import SOFAShapeWarning, warn_user
 from .check import check_sofa_against_conventions
 
 if TYPE_CHECKING:
@@ -28,12 +28,12 @@ def warn_dimension_shape_mismatch(
     dataset: netCDF4.Dataset,
 ) -> None:
     if len(dimensions) != len(data_shape):
-        warnings.warn(
+        warn_user(
             (
                 f"Variable '{variable_name}' dimensions do not coincide with dataset Dimensions "
                 f"(dims={dimensions}); got shape {data_shape}."
             ),
-            UserWarning,
+            SOFAShapeWarning,
         )
         return
 
@@ -53,12 +53,12 @@ def warn_dimension_shape_mismatch(
             f"{dim_name}={'unlimited' if dataset.dimensions[dim_name].isunlimited() else dataset.dimensions[dim_name].size}"
             for dim_name in dimensions
         )
-        warnings.warn(
+        warn_user(
             (
                 f"Variable '{variable_name}' dimensions do not coincide with dataset Dimensions "
                 f"({dims_desc}); expected shape {tuple(expected_sizes)}, got {data_shape}."
             ),
-            UserWarning,
+            SOFAShapeWarning,
         )
 
 
