@@ -318,6 +318,58 @@ def get_spherical_positions(
     raise ValueError(f"Unsupported target coordinate system: {target_system!r}")
 
 
+def get_source_positions(
+    sources: "Sources",
+    coordinate_system: str,
+    angle_unit: str = "degrees",
+) -> np.ndarray:
+    source_positions = np.asarray(
+        sources.get_positions(angle_unit=angle_unit),
+        dtype=float,
+    )
+    if (
+        source_positions.ndim != 2
+        or source_positions.shape[0] == 0
+        or source_positions.shape[1] != 3
+    ):
+        raise ValueError("Source positions must have shape (M, 3)")
+
+    source_system = str(sources.source_coordinate_system).strip().lower()
+    target_system = str(coordinate_system).strip().lower()
+    if target_system == source_system:
+        return source_positions
+    if target_system == "spherical":
+        return get_spherical_positions(
+            sources=sources,
+            angle_unit=angle_unit,
+        )
+    if target_system == "cartesian":
+        if source_system == "spherical":
+            return spherical_to_cartesian(
+                source_positions,
+                angle_unit=angle_unit,
+            )
+        if source_system == "lateral-polar":
+            return lateral_polar_to_cartesian(
+                source_positions,
+                angle_unit=angle_unit,
+            )
+    if target_system == "lateral-polar":
+        if source_system == "cartesian":
+            return cartesian_to_lateral_polar(
+                source_positions,
+                angle_unit=angle_unit,
+            )
+        if source_system == "spherical":
+            return spherical_to_lateral_polar(
+                source_positions,
+                angle_unit=angle_unit,
+            )
+    raise ValueError(
+        f"Unsupported source coordinate system conversion: {source_system!r} -> {target_system!r}"
+    )
+
+
 def spherical_to_cartesian(
     coordinates: np.ndarray,
     angle_unit: str = "degrees",

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -19,3 +19,18 @@ class Labels:
     elevation: str = "Elevation (degrees)"
     lateral: str = "Lateral (degrees)"
     polar: str = "Polar (degrees)"
+
+
+@dataclass(frozen=True)
+class ThreeDimensionalLabels:
+    xlabel: str = "X (m)"
+    ylabel: str = "Y (m)"
+    zlabel: str = "Z (m)"
+    label_box: dict[str, object] = field(
+        default_factory=lambda: {
+            "boxstyle": "round,pad=0.18",
+            "facecolor": "white",
+            "edgecolor": "none",
+            "alpha": 0.88,
+        }
+    )

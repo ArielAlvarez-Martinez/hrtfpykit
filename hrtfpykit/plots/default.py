@@ -28,6 +28,3 @@ class RC:
     default: float = 10
     axis_title: float = 10
     fig_title: float = 12
-
-
-__all__ = ["Margins", "FigureSize", "RC"]
