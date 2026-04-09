@@ -7,9 +7,6 @@ import matplotlib.pyplot as plt
 from typing import TYPE_CHECKING
 
 from .dsp import (
-    convolve,
-    deconvolve,
-    downsampling,
     fir_filter,
     iir_filter,
     ir_from_tf,
@@ -17,8 +14,8 @@ from .dsp import (
     modify_magnitude,
     modify_phase,
     padding,
+    tf_gain,
     tf_from_ir,
-    upsampling,
     window,
 )
 from .metrics import calculate_itd
@@ -232,157 +229,6 @@ class Transform:
             cutoff=cutoff,
             order=order,
         )
-        tf_from_ir(
-            ir,
-            fft_length=transformed_hrtf.fft_length,
-        )
-        return transformed_hrtf
-
-    def convolve(
-        self,
-        ir_2: np.ndarray | "IR" | "HRTF",
-        mode: str = "same",
-        method: str = "auto",
-    ) -> "HRTF":
-        """Convolve the current IR with another IR and resync TF.
-
-        Parameters
-        ----------
-        ir_2 : np.ndarray | IR | HRTF
-            Second impulse response used in the convolution. When an ``HRTF``
-            instance is provided, its ``IR`` domain is used.
-        mode : {"full", "same", "valid"}, default="same"
-            Convolution output mode passed to the DSP layer. The default keeps
-            the current IR length.
-        method : {"auto", "direct", "fft"}, default="auto"
-            Convolution method passed to the DSP layer.
-
-        Returns
-        -------
-        HRTF
-            A new HRTF instance with convolved IR values and refreshed TF data.
-
-        Use Cases
-        ---------
-        - Cascade the current HRIR with another measured or designed IR.
-        - Apply one IR to every source and ear through broadcasting.
-        - Use another HRTF object's IR data as the convolution target.
-
-        Examples
-        --------
-        Convolve one direction with a short room response:
-
-        >>> import numpy as np
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> room_ir = np.array([1.0, 0.4, 0.1], dtype=float)
-        >>> colored = hrtf.transform.convolve(room_ir)
-        >>> colored.plot_amplitude(positions="front", show=False)
-        """
-        transformed_hrtf = self._hrtf.clone()
-        ir = transformed_hrtf.IR
-        if ir.values is None:
-            raise ValueError("IR data is not available")
-
-        if isinstance(ir_2, self._hrtf.__class__):
-            ir_2_values = ir_2.IR
-        else:
-            ir_2_values = ir_2
-
-        ir.values = convolve(
-            ir_1=ir,
-            ir_2=ir_2_values,
-            mode=mode,
-            method=method,
-        )
-
-        if transformed_hrtf.fft_length is not None:
-            transformed_hrtf.fft_length = max(
-                int(transformed_hrtf.fft_length),
-                int(ir.values.shape[-1]),
-            )
-
-        tf_from_ir(
-            ir,
-            fft_length=transformed_hrtf.fft_length,
-        )
-        return transformed_hrtf
-
-    def compensate(
-        self,
-        ir_2: np.ndarray | "IR" | "HRTF",
-        fft_length: int | None = None,
-        output_length: int | None = None,
-        regularization: float = 1e-8,
-    ) -> "HRTF":
-        """Remove an IR from the current IR through regularized deconvolution.
-
-        Parameters
-        ----------
-        ir_2 : np.ndarray | IR | HRTF
-            IR to remove from the current IR. When an ``HRTF`` instance is
-            provided, its ``IR`` domain is used.
-        fft_length : int | None, default=None
-            FFT length used by the DSP deconvolution step.
-        output_length : int | None, default=None
-            Number of samples returned in the compensated IR. When omitted, the
-            current IR length is used.
-        regularization : float, default=1e-8
-            Positive stabilization value passed to the DSP deconvolution step.
-
-        Returns
-        -------
-        HRTF
-            A new HRTF instance with compensated IR values and refreshed TF
-            data.
-
-        Use Cases
-        ---------
-        - Remove a known room or device IR from the current HRIR.
-        - Use another HRTF object's IR data as the compensation reference.
-
-        Examples
-        --------
-        Remove a known room response after convolution:
-
-        >>> import numpy as np
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> room_ir = np.array([1.0, 0.4, 0.1], dtype=float)
-        >>> measured = hrtf.transform.convolve(room_ir)
-        >>> corrected = measured.transform.compensate(
-        ...     room_ir,
-        ...     output_length=hrtf.IR.ir_length,
-        ... )
-        >>> corrected.plot_magnitude(positions="front", show=False)
-        """
-        transformed_hrtf = self._hrtf.clone()
-        ir = transformed_hrtf.IR
-        if ir.values is None:
-            raise ValueError("IR data is not available")
-
-        if isinstance(ir_2, self._hrtf.__class__):
-            ir_2_values = ir_2.IR
-        else:
-            ir_2_values = ir_2
-
-        if output_length is None:
-            output_length = int(ir.values.shape[-1])
-
-        ir.values = deconvolve(
-            ir_1=ir,
-            ir_2=ir_2_values,
-            fft_length=fft_length,
-            output_length=output_length,
-            regularization=regularization,
-        )
-
-        if transformed_hrtf.fft_length is not None:
-            transformed_hrtf.fft_length = max(
-                int(transformed_hrtf.fft_length),
-                int(ir.values.shape[-1]),
-            )
-
         tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
@@ -820,7 +666,7 @@ class Transform:
         ----------
         new_magnitude : np.ndarray
             Magnitude array with the same TF layout as the current HRTF.
-        scale : {"linear", "lineal", "db"}, default="linear"
+        scale : {"linear", "db"}, default="linear"
             Magnitude scale used by ``new_magnitude``.
 
         Returns
@@ -856,88 +702,60 @@ class Transform:
         )
         return transformed_hrtf
 
-    def upsampling(self, new_sample_rate: float) -> "HRTF":
-        """Upsample IR values to a higher sample rate and resync TF.
+    def apply_gain(
+        self,
+        gain: float | np.ndarray,
+        scale: str = "db",
+    ) -> "HRTF":
+        """Apply a TF-domain gain and rebuild IR.
 
         Parameters
         ----------
-        new_sample_rate : float
-            Target sample rate in Hz. It must be higher than the current IR
-            sample rate.
+        gain : float | np.ndarray
+            Gain applied to the current TF magnitude while preserving phase.
+            Scalar gains affect every source, ear, and bin equally. Array
+            gains must be broadcast-compatible with the current TF shape. In
+            ``scale="db"``, negative values attenuate and positive values
+            amplify.
+        scale : {"linear", "db"}, default="db"
+            Scale used by ``gain``.
 
         Returns
         -------
         HRTF
-            A new HRTF instance with resampled IR values and refreshed TF data.
+            A new HRTF instance with gain-adjusted TF values and rebuilt IR
+            data.
 
         Use Cases
         ---------
-        - Increase temporal resolution for analysis or rendering.
+        - Apply a global attenuation or amplification in the frequency domain.
+        - Create controlled level offsets while preserving the original phase.
+        - Apply broadcastable per-ear or per-bin gains when TF shapes match.
 
         Examples
         --------
-        Upsample one measured direction for higher temporal resolution:
+        Attenuate one selected direction by 6 dB:
 
         >>> from hrtfpykit import HRTF
         >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> upsampled = hrtf.transform.upsampling(96000.0)
-        >>> upsampled.IR.sample_rate
-        96000.0
+        >>> quieter = hrtf.transform.apply_gain(-6.0, scale="db")
+        >>> quieter.plot_magnitude(positions="front", show=False)
+
+        Apply a gentle linear gain boost to the whole TF:
+
+        >>> louder = hrtf.transform.apply_gain(1.1, scale="linear")
+        >>> louder.plot_magnitude(positions="front", show=False)
         """
         transformed_hrtf = self._hrtf.clone()
-        ir = transformed_hrtf.IR
-        resampled_ir, resampled_sample_rate = upsampling(
-            ir,
-            new_sample_rate=new_sample_rate,
+        tf = transformed_hrtf.TF
+        tf.values = tf_gain(
+            tf,
+            gain=gain,
+            scale=scale,
         )
-        ir.values = resampled_ir
-        ir.sample_rate = resampled_sample_rate
-        tf_from_ir(
-            ir,
-            fft_length=transformed_hrtf.fft_length,
-        )
-        return transformed_hrtf
-
-    def downsampling(self, new_sample_rate: float) -> "HRTF":
-        """Downsample IR values to a lower sample rate and resync TF.
-
-        Parameters
-        ----------
-        new_sample_rate : float
-            Target sample rate in Hz. It must be lower than the current IR
-            sample rate.
-
-        Returns
-        -------
-        HRTF
-            A new HRTF instance with resampled IR values and refreshed TF data.
-
-        Use Cases
-        ---------
-        - Reduce processing and storage footprint.
-        - Match external systems that require lower sample rates.
-
-        Examples
-        --------
-        Downsample one measured direction to a lighter working rate:
-
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> downsampled = hrtf.transform.downsampling(24000.0)
-        >>> downsampled.IR.sample_rate
-        24000.0
-        """
-        transformed_hrtf = self._hrtf.clone()
-        ir = transformed_hrtf.IR
-        resampled_ir, resampled_sample_rate = downsampling(
-            ir,
-            new_sample_rate=new_sample_rate,
-        )
-        ir.values = resampled_ir
-        ir.sample_rate = resampled_sample_rate
-        tf_from_ir(
-            ir,
-            fft_length=transformed_hrtf.fft_length,
+        ir_from_tf(
+            tf,
+            frequency_bins=tf.frequency_bins,
         )
         return transformed_hrtf
 

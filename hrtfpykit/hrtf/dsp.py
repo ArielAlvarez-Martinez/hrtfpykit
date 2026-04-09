@@ -359,8 +359,7 @@ def modify_magnitude(
     new_magnitude : np.ndarray
         Magnitude array with the same shape as the TF values.
     scale : str, default="linear"
-        Scale of ``new_magnitude``. Supported values are ``linear``,
-        ``lineal``, and ``db``.
+        Scale of ``new_magnitude``. Supported values are ``linear`` and ``db``.
 
     Returns
     -------
@@ -391,18 +390,102 @@ def modify_magnitude(
         raise ValueError("new_magnitude must match TF shape")
 
     scale_key = str(scale).strip().lower()
-    if scale_key in {"linear", "lineal"}:
+    if scale_key == "linear":
         magnitude_values = new_magnitude_values
     elif scale_key in {"db", "decibel", "decibels"}:
         magnitude_values = db_to_magnitude(new_magnitude_values)
     else:
-        raise ValueError("scale must be one of: linear, lineal, db")
+        raise ValueError("scale must be one of: linear, db")
 
     if np.any(magnitude_values < 0.0):
         raise ValueError("new_magnitude must be non-negative")
 
     phase_values = np.angle(tf_values)
     return magnitude_values * np.exp(1j * phase_values)
+
+
+def tf_gain(
+    tf: np.ndarray | "TF",
+    gain: float | np.ndarray,
+    scale: str = "db",
+) -> np.ndarray:
+    """Apply a scalar or broadcastable gain to TF values.
+
+    Parameters
+    ----------
+    tf : np.ndarray | TF
+        Frequency-domain array or ``TF`` object with ``.values``.
+    gain : float | np.ndarray
+        Gain applied to the TF magnitude while preserving phase. Scalar gains
+        affect every source, ear, and bin equally. Array gains must be
+        broadcast-compatible with the TF shape. In ``scale="db"``, negative
+        values attenuate and positive values amplify.
+    scale : {"linear", "db"}, default="db"
+        Scale used by ``gain``.
+
+    Returns
+    -------
+    np.ndarray
+        Complex TF values after gain application, with the same shape as the
+        input TF.
+
+    Notes
+    -----
+    This function is a generic TF-domain gain utility. It multiplies the
+    existing complex TF by a real gain factor and therefore preserves the
+    original phase.
+
+    In ``scale="db"``, the gain is converted with ``10 ** (gain / 20)``. In
+    ``scale="linear"``, gain values must be non-negative. Use negative dB to
+    attenuate and positive dB to amplify.
+
+    Examples
+    --------
+    Attenuate every TF bin by 6 dB:
+
+    >>> tf = np.array([1.0 + 0.0j, 2.0 + 0.0j])
+    >>> np.round(tf_gain(tf, -6.0, scale="db"), 4)
+    array([0.5012+0.j, 1.0024+0.j])
+
+    Apply a bin-dependent linear gain:
+
+    >>> tf = np.array([1.0 + 0.0j, 1.0j])
+    >>> np.round(tf_gain(tf, np.array([1.0, 0.5]), scale="linear"), 4)
+    array([1.+0.j , 0.+0.5j])
+    """
+    if isinstance(tf, np.ndarray):
+        tf_values = tf
+    else:
+        if not hasattr(tf, "values"):
+            raise ValueError("tf must be a NumPy array or a TF instance")
+        tf_values = tf.values
+    if tf_values is None:
+        raise ValueError("TF data is not available")
+    if not isinstance(tf_values, np.ndarray):
+        raise ValueError("TF data must be a NumPy array")
+
+    gain_values = np.asarray(gain, dtype=float)
+    if gain_values.size == 0:
+        raise ValueError("gain must be non-empty")
+    if not np.all(np.isfinite(gain_values)):
+        raise ValueError("gain must contain only finite values")
+
+    scale_key = str(scale).strip().lower()
+    if scale_key == "linear":
+        if np.any(gain_values < 0.0):
+            raise ValueError("linear gain values must be non-negative")
+        gain_factor = gain_values
+    elif scale_key in {"db", "decibel", "decibels"}:
+        gain_factor = db_to_magnitude(gain_values, reference=1.0)
+    else:
+        raise ValueError("scale must be one of: linear, db")
+
+    try:
+        gain_factor = np.broadcast_to(gain_factor, tf_values.shape)
+    except ValueError:
+        raise ValueError("gain must be broadcast-compatible with TF shape") from None
+
+    return tf_values * gain_factor
 
 
 def real(tf: np.ndarray | "TF") -> np.ndarray:
@@ -1012,6 +1095,23 @@ def convolve(
         Convolved values with the broadcast leading shape of ``ir_1`` and
         ``ir_2`` and the output length implied by ``mode``.
 
+    Notes
+    -----
+    This is a generic time-domain linear convolution utility. It does not
+    apply any HRTF-specific interpretation beyond broadcasting and operating
+    along the last axis.
+
+    In particular, this function is not equivalent to frequency-domain
+    recomposition helpers such as multiplying a DTF by a CTF on an existing
+    FFT grid. Those workflows correspond to circular convolution on the chosen
+    FFT length, while this function performs linear convolution and then
+    applies the requested ``mode``.
+
+    When ``mode="same"``, SciPy returns the centered portion of the linear
+    convolution with the length of ``ir_1``. That crop is often convenient for
+    signal processing, but it discards boundary samples and therefore should
+    not be treated as an exact inverse-friendly decomposition step.
+
     Examples
     --------
     Convolve two short signals:
@@ -1160,6 +1260,25 @@ def deconvolve(
     np.ndarray
         Deconvolved values with the broadcast leading shape of ``ir_1`` and
         ``ir_2`` and the requested ``output_length``.
+
+    Notes
+    -----
+    This is a generic regularized deconvolution utility under a matched
+    linear time-invariant model, that is, a situation where ``ir_1`` can be
+    approximated as the convolution of a target signal with ``ir_2``.
+
+    In controlled DSP workflows this is useful for de-embedding a known
+    system response or approximately undoing a synthetic convolution. In
+    contrast, it should not be interpreted as a general room-removal method
+    for arbitrary non-anechoic HRTF measurements. Real room effects are often
+    direction-dependent, truncated, noisy, or only approximately described by
+    one shared IR, and in those cases the recovered signal is only an
+    approximation.
+
+    The ``regularization`` term intentionally trades exact inversion for
+    stability. It limits blow-up near spectral nulls, but it also means the
+    output is not expected to perfectly reproduce the original target even
+    when the model is close.
 
     Examples
     --------

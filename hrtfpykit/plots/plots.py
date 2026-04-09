@@ -1645,7 +1645,9 @@ class HRTFPlots:
         positions : str | list | tuple | np.ndarray, default=("front", "back", "left", "right")
             One position or a collection of positions. Named aliases such as
             ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
-            Up to four positions can be shown in one figure.
+            Numeric queries must use spherical coordinates in degrees as
+            ``[azimuth, elevation]``, for example ``[0.0, 0.0]`` for the front
+            direction. Up to four positions can be shown in one figure.
         x_axis : {"linear", "log"}, default="linear"
             Frequency scale used on the x axis.
         unit : {"db", "linear"}, default="db"
@@ -1687,6 +1689,14 @@ class HRTFPlots:
         >>> hrtf.plot_magnitude(
         ...     positions=["front", "left"],
         ...     ear="both",
+        ...     show=False,
+        ... )
+
+        Plot two explicit spherical directions using ``[azimuth, elevation]`` queries:
+
+        >>> hrtf.plot_magnitude(
+        ...     positions=[[0.0, 0.0], [90.0, 0.0]],
+        ...     ear="left",
         ...     show=False,
         ... )
 
@@ -1868,7 +1878,9 @@ class HRTFPlots:
         positions : str | list | tuple | np.ndarray, default=("front", "back", "left", "right")
             One position or a collection of positions. Named aliases such as
             ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
-            Up to four positions can be shown in one figure.
+            Numeric queries must use spherical coordinates in degrees as
+            ``[azimuth, elevation]``, for example ``[0.0, 0.0]`` for the front
+            direction. Up to four positions can be shown in one figure.
         ear : {"left", "right", "both"}, default="both"
             Ear channel to display. When ``"both"`` is selected, left and right
             ear waveforms are drawn together in each subplot.
@@ -1901,6 +1913,14 @@ class HRTFPlots:
         >>> hrtf.plot_amplitude(
         ...     positions=["front", "right"],
         ...     x_axis="samples",
+        ...     show=False,
+        ... )
+
+        Plot two explicit spherical directions in the time domain:
+
+        >>> hrtf.plot_amplitude(
+        ...     positions=[[0.0, 0.0], [270.0, 0.0]],
+        ...     ear="both",
         ...     show=False,
         ... )
 
@@ -2045,7 +2065,8 @@ class HRTFPlots:
         position : str | list | np.ndarray, default="front"
             Position query to plot. Exactly one position is accepted. Named
             aliases such as ``"front"``, ``"back"``, ``"left"``, and ``"right"``
-            are accepted.
+            are accepted. Numeric queries must use spherical coordinates in
+            degrees as ``[azimuth, elevation]``, for example ``[0.0, 0.0]``.
         ear : {"left", "right", "both"}, default="both"
             Ear channel to display in both subplots.
         amplitude_x_axis : {"time", "samples"}, default="time"
@@ -2093,6 +2114,14 @@ class HRTFPlots:
         ...     amplitude_x_axis="samples",
         ...     magnitude_x_axis="log",
         ...     magnitude="linear",
+        ...     show=False,
+        ... )
+
+        Plot one explicit spherical direction using an ``[azimuth, elevation]`` query:
+
+        >>> hrtf.plot_amplitude_and_magnitude(
+        ...     position=[90.0, 0.0],
+        ...     ear="left",
         ...     show=False,
         ... )
         """
