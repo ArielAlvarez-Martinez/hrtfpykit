@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from .default import FigureSize, Margins, RC
+from .labels import Labels
+from .titles import Titles
 from ..hrtf.coordinates import (
     cartesian_to_lateral_polar,
     cartesian_to_spherical,
@@ -30,75 +33,6 @@ from ..hrtf.sources import Sources
 
 if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
-
-
-@dataclass(frozen=True)
-class Margins:
-    top: float = 0.9
-    bottom: float = 0.1
-    left: float = 0.1
-    right: float = 0.9
-    wspace: float = 0.35
-    hspace: float = 0.35
-
-
-@dataclass(frozen=True)
-class FigSizeDefault:
-    width: float = 8
-    height: float = 6
-
-
-@dataclass(frozen=True)
-class Rc:
-    legend_title: float = 10
-    legend: float = 9
-    ticks: float = 7
-    axis_labels: float = 9
-    default: float = 10
-    axis_title: float = 10
-    fig_title: float = 12
-
-
-@dataclass(frozen=True)
-class Labels:
-    frequency: str = "Frequency(kHz)"
-    magnitude_db: str = "Magnitude (dB)"
-    magnitude_linear: str = "Magnitude"
-    ild: str = "ILD (dB)"
-    itd: str = "ITD (s)"
-    time: str = "Time (s)"
-    samples: str = "Samples"
-    impulse_response: str = "Amplitude"
-    itd_seconds: str = "Absolute ITD (s)"
-    ild_db: str = "Absolute ILD (dB)"
-    azimuth: str = "Azimuth (degrees)"
-    elevation: str = "Elevation (degrees)"
-    lateral: str = "Lateral (degrees)"
-    polar: str = "Polar (degrees)"
-
-
-@dataclass(frozen=True)
-class Titles:
-    spherical_alias: str = "{name} : [Azimuth= {az}°, Elevation= {el}°]"
-    spherical_position: str = "Position : [Azimuth= {az}°, Elevation= {el}°]"
-    cartesian_alias: str = "{name} : [x= {x}, y= {y}, z= {z}]"
-    cartesian_position: str = "Position : [x= {x}, y= {y}, z= {z}]"
-    lateral_polar_alias: str = "{name} : [Lateral= {lateral}°, Polar= {polar}°]"
-    lateral_polar_position: str = "Position : [Lateral= {lateral}°, Polar= {polar}°]"
-    horizontal_plane: str = "Horizontal Plane"
-    horizontal_plane_elevation: str = "Horizontal Plane : [Elevation= {angle}°]"
-    median_plane: str = "Median Plane"
-    elevation_spectrum: str = "Elevation Spectrum : [Azimuth= {angle}°]"
-
-
-@dataclass(frozen=True)
-class AcceptedParameters:
-    units: tuple[str, str] = ("db", "linear")
-    ears: tuple[str, str, str] = ("left", "right", "both")
-    x_axes: tuple[str, str] = ("time", "samples")
-    frequency_x_axes: tuple[str, str] = ("log", "linear")
-    planes: tuple[str, str, str] = ("horizontal", "median", "frontal")
-
 
 @dataclass(frozen=True)
 class FigureOptions:
@@ -668,7 +602,7 @@ class LayoutFigure:
 
 
 def configure_rc() -> None:
-    rc = Rc()
+    rc = RC()
     plt.rcParams.update(
         {
             "font.size": rc.default,
@@ -690,8 +624,8 @@ class Layout:
     cols: int = 1
     positions: tuple[str, ...] = ("main",)
     figsize: tuple[float, float] = (
-        FigSizeDefault().width,
-        FigSizeDefault().height,
+        FigureSize().width,
+        FigureSize().height,
     )
     sharex: bool = False
     sharey: bool = False
@@ -747,8 +681,8 @@ class Layout1(Layout):
     cols = 1
     positions = ("main",)
     figsize = (
-        FigSizeDefault().width,
-        FigSizeDefault().height,
+        FigureSize().width,
+        FigureSize().height,
     )
     figure_title_offset = 0.08
     subplot_title_y = 0.90
@@ -760,8 +694,8 @@ class Layout2Vertical(Layout):
     cols = 1
     positions = ("top", "bottom")
     figsize = (
-        FigSizeDefault().width,
-        FigSizeDefault().height,
+        FigureSize().width,
+        FigureSize().height,
     )
     sharex = True
     figure_title_offset = 0.08
@@ -780,8 +714,8 @@ class Layout3(Layout):
     cols = 2
     positions = ("top_left", "top_right", "bottom_left", "bottom_right")
     figsize = (
-        FigSizeDefault().width + 2,
-        FigSizeDefault().height + 1,
+        FigureSize().width + 2,
+        FigureSize().height + 1,
     )
     figure_title_offset = 0.08
     subplot_title_y = 0.98
@@ -1252,7 +1186,7 @@ class Axis:
         if axis not in {"x", "y", "z"}:
             raise ValueError("axis accepts 'x', 'y', or 'z'")
         x_axis_key = str(x_axis).strip().lower()
-        if x_axis_key not in AcceptedParameters().frequency_x_axes:
+        if x_axis_key not in {"log", "linear"}:
             raise ValueError("x_axis accepts log or linear")
         requested_freq_min = (
             frequency_axis_options.freq_min if freq_min is None else freq_min
@@ -1711,20 +1645,17 @@ class HRTFPlots:
         ...     show=False,
         ... )
         """
-        accepted_parameters = AcceptedParameters()
-        if unit not in accepted_parameters.units:
+        if unit not in {"db", "linear"}:
             raise AttributeError(
-                f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
+                "unit accepts : db or linear"
             )
-        if x_axis not in accepted_parameters.frequency_x_axes:
+        if x_axis not in {"log", "linear"}:
             raise AttributeError(
-                "x_axis accepts "
-                f"{accepted_parameters.frequency_x_axes[0]} or "
-                f"{accepted_parameters.frequency_x_axes[1]}"
+                "x_axis accepts log or linear"
             )
-        if ear not in accepted_parameters.ears:
+        if ear not in {"left", "right", "both"}:
             raise AttributeError(
-                f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
+                "ear accepts left, right or both"
             )
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -1933,14 +1864,13 @@ class HRTFPlots:
         ...     show=False,
         ... )
         """
-        accepted_parameters = AcceptedParameters()
-        if ear not in accepted_parameters.ears:
+        if ear not in {"left", "right", "both"}:
             raise AttributeError(
-                f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
+                "ear accepts left, right or both"
             )
-        if x_axis not in accepted_parameters.x_axes:
+        if x_axis not in {"time", "samples"}:
             raise AttributeError(
-                f"x_axis accepts : {accepted_parameters.x_axes[0]} or {accepted_parameters.x_axes[1]}"
+                "x_axis accepts : time or samples"
             )
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -2125,26 +2055,21 @@ class HRTFPlots:
         ...     show=False,
         ... )
         """
-        accepted_parameters = AcceptedParameters()
-        if ear not in accepted_parameters.ears:
+        if ear not in {"left", "right", "both"}:
             raise AttributeError(
-                f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
+                "ear accepts left, right or both"
             )
-        if amplitude_x_axis not in accepted_parameters.x_axes:
+        if amplitude_x_axis not in {"time", "samples"}:
             raise AttributeError(
-                "amplitude_x_axis accepts : "
-                f"{accepted_parameters.x_axes[0]} or {accepted_parameters.x_axes[1]}"
+                "amplitude_x_axis accepts : time or samples"
             )
-        if magnitude_x_axis not in accepted_parameters.frequency_x_axes:
+        if magnitude_x_axis not in {"log", "linear"}:
             raise AttributeError(
-                "magnitude_x_axis accepts "
-                f"{accepted_parameters.frequency_x_axes[0]} or "
-                f"{accepted_parameters.frequency_x_axes[1]}"
+                "magnitude_x_axis accepts log or linear"
             )
-        if magnitude not in accepted_parameters.units:
+        if magnitude not in {"db", "linear"}:
             raise AttributeError(
-                "magnitude accepts : "
-                f"{accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
+                "magnitude accepts : db or linear"
             )
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -2436,7 +2361,6 @@ class HRTFPlots:
         ...     show=False,
         ... )
         """
-        accepted_parameters = AcceptedParameters()
         if plane not in ("horizontal", "median"):
             raise AttributeError(
                 "plot_spectrum_plane plane accepts horizontal or median"
@@ -2446,19 +2370,17 @@ class HRTFPlots:
         elevation_angle = float(elevation_angle)
         if not np.isfinite(elevation_angle):
             raise AttributeError("elevation_angle must be a finite value")
-        if unit not in accepted_parameters.units:
+        if unit not in {"db", "linear"}:
             raise AttributeError(
-                f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
+                "unit accepts : db or linear"
             )
-        if x_axis not in accepted_parameters.frequency_x_axes:
+        if x_axis not in {"log", "linear"}:
             raise AttributeError(
-                "x_axis accepts "
-                f"{accepted_parameters.frequency_x_axes[0]} or "
-                f"{accepted_parameters.frequency_x_axes[1]}"
+                "x_axis accepts log or linear"
             )
-        if ear not in accepted_parameters.ears:
+        if ear not in {"left", "right", "both"}:
             raise AttributeError(
-                f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
+                "ear accepts left, right or both"
             )
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -2753,20 +2675,17 @@ class HRTFPlots:
         ...     show=False,
         ... )
         """
-        accepted_parameters = AcceptedParameters()
-        if unit not in accepted_parameters.units:
+        if unit not in {"db", "linear"}:
             raise AttributeError(
-                f"unit accepts : {accepted_parameters.units[0]} or {accepted_parameters.units[1]}"
+                "unit accepts : db or linear"
             )
-        if x_axis not in accepted_parameters.frequency_x_axes:
+        if x_axis not in {"log", "linear"}:
             raise AttributeError(
-                "x_axis accepts "
-                f"{accepted_parameters.frequency_x_axes[0]} or "
-                f"{accepted_parameters.frequency_x_axes[1]}"
+                "x_axis accepts log or linear"
             )
-        if ear not in accepted_parameters.ears:
+        if ear not in {"left", "right", "both"}:
             raise AttributeError(
-                f"ear accepts {accepted_parameters.ears[0]}, {accepted_parameters.ears[1]} or {accepted_parameters.ears[2]}"
+                "ear accepts left, right or both"
             )
         plot_options = PlotOptions() if options is None else options
         figure_options = (
@@ -3330,7 +3249,6 @@ class HRTFPlots:
 
         >>> hrtf.plot_ild_plane(plane="median", show=False)
         """
-        accepted_parameters = AcceptedParameters()
         if plane not in ("horizontal", "median"):
             raise AttributeError("plot_ild_plane plane accepts horizontal or median")
         if isinstance(elevation_angle, bool):
