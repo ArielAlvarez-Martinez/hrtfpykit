@@ -17,7 +17,6 @@ class Layout:
     sharey: bool = False
     figure_title_offset: float = 0.07
     subplot_title_y: float = 0.92
-    projection: str | None = None
 
 
 @dataclass(frozen=True)
@@ -32,7 +31,6 @@ class Layout_1(Layout):
     sharey: bool = False
     figure_title_offset: float = 0.08
     subplot_title_y: float = 0.90
-    projection: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,7 +45,6 @@ class Layout_2Vertical(Layout):
     sharey: bool = False
     figure_title_offset: float = 0.08
     subplot_title_y: float = 0.90
-    projection: str | None = None
 
 
 @dataclass(frozen=True)
@@ -64,7 +61,6 @@ class Layout_2Horizontal(Layout):
     sharey: bool = False
     figure_title_offset: float = 0.08
     subplot_title_y: float = 0.98
-    projection: str | None = None
 
 
 @dataclass(frozen=True)
@@ -81,4 +77,3 @@ class Layout_3(Layout):
     sharey: bool = False
     figure_title_offset: float = 0.08
     subplot_title_y: float = 0.98
-    projection: str | None = None

@@ -16,7 +16,6 @@ from .axis import (
     SampleAxis,
     TimeAxis,
 )
-from .colorbar import ColorBar
 from .default import Margins
 from .figure import Figure
 from .labels import Labels
@@ -242,8 +241,8 @@ class HRTFPlots:
                 figsize=figure_options.figsize or Layout_3().figsize,
                 margins=resolved_margins,
             )
-        layout = Figure(resolved_layout)
-        subplot_axis_options = layout.get_subplots_axis_options(plot_options)
+        figure = Figure(resolved_layout)
+        subplot_axis_options = figure.get_subplots_axis_options(plot_options)
 
         frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
@@ -274,7 +273,7 @@ class HRTFPlots:
         magnitude_legend_location = "upper right" if x_axis == "linear" else "upper left"
 
         for index, (_, selected_positions) in enumerate(selected_position_info):
-            ax = layout.get_axis(index)
+            ax = figure.get_ax(index)
             resolved_axis_options = axis_options.merge(subplot_axis_options.get(index))
             if not titles and resolved_axis_options.title is None:
                 resolved_axis_options = resolved_axis_options.merge(AxisOptions(title=""))
@@ -306,8 +305,18 @@ class HRTFPlots:
             if ear == "both":
                 if y_values.ndim < 2 or y_values.shape[0] < 2:
                     raise ValueError("Both ears requested but TF data does not contain two ear channels")
-                ax.plot(frequency_khz, y_values[0, :], color='blue')
-                ax.plot(frequency_khz, y_values[1, :], color='red')
+                figure.create_two_dimension(
+                    ax=ax,
+                    x=frequency_khz,
+                    y=y_values[0, :],
+                    color="blue",
+                )
+                figure.create_two_dimension(
+                    ax=ax,
+                    x=frequency_khz,
+                    y=y_values[1, :],
+                    color="red",
+                )
             else:
                 if y_values.ndim == 1:
                     selected_y_values = y_values.reshape(-1)
@@ -316,7 +325,12 @@ class HRTFPlots:
                     if y_values.shape[0] <= ear_index:
                         raise ValueError(f"Requested ear '{ear}' is not available in TF data")
                     selected_y_values = np.asarray(y_values[ear_index], dtype=float).reshape(-1)
-                ax.plot(frequency_khz, selected_y_values, color='blue')
+                figure.create_two_dimension(
+                    ax=ax,
+                    x=frequency_khz,
+                    y=selected_y_values,
+                    color="blue",
+                )
 
             frequency_axis.apply(
                 ax=ax,
@@ -369,14 +383,14 @@ class HRTFPlots:
             if grid_enabled:
                 ax.grid(True)
 
-        if position_count < layout.axes.size:
-            layout.hide_unused_axes(position_count)
+        if position_count < figure.axes.size:
+            figure.hide_unused_axes(position_count)
 
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         if show and plot_options.show:
@@ -505,8 +519,8 @@ class HRTFPlots:
                 figsize=figure_options.figsize or Layout_3().figsize,
                 margins=resolved_margins,
             )
-        layout = Figure(resolved_layout)
-        subplot_axis_options = layout.get_subplots_axis_options(plot_options)
+        figure = Figure(resolved_layout)
+        subplot_axis_options = figure.get_subplots_axis_options(plot_options)
 
         ir_values = np.asarray(self.IR.values, dtype=float)
         if ir_values.ndim < 2 or ir_values.shape[-1] == 0:
@@ -518,7 +532,7 @@ class HRTFPlots:
             x_values = sample_indexes
 
         for index, selected_position_query in enumerate(position_queries):
-            ax = layout.get_axis(index)
+            ax = figure.get_ax(index)
             resolved_axis_options = axis_options.merge(subplot_axis_options.get(index))
             if not titles and resolved_axis_options.title is None:
                 resolved_axis_options = resolved_axis_options.merge(AxisOptions(title=""))
@@ -532,8 +546,18 @@ class HRTFPlots:
             if ear == "both":
                 if y_values.ndim < 2 or y_values.shape[0] < 2:
                     raise ValueError("Both ears requested but IR data does not contain two ear channels")
-                ax.plot(x_values, y_values[0, :], color="blue")
-                ax.plot(x_values, y_values[1, :], color="red")
+                figure.create_two_dimension(
+                    ax=ax,
+                    x=x_values,
+                    y=y_values[0, :],
+                    color="blue",
+                )
+                figure.create_two_dimension(
+                    ax=ax,
+                    x=x_values,
+                    y=y_values[1, :],
+                    color="red",
+                )
             else:
                 if y_values.ndim == 1:
                     selected_y_values = y_values.reshape(-1)
@@ -542,7 +566,12 @@ class HRTFPlots:
                     if y_values.shape[0] <= ear_index:
                         raise ValueError(f"Requested ear '{ear}' is not available in IR data")
                     selected_y_values = np.asarray(y_values[ear_index], dtype=float).reshape(-1)
-                ax.plot(x_values, selected_y_values, color="blue")
+                figure.create_two_dimension(
+                    ax=ax,
+                    x=x_values,
+                    y=selected_y_values,
+                    color="blue",
+                )
 
             if x_axis == "time":
                 TimeAxis.apply(
@@ -600,14 +629,14 @@ class HRTFPlots:
             if grid_enabled:
                 ax.grid(True)
 
-        if position_count < layout.axes.size:
-            layout.hide_unused_axes(position_count)
+        if position_count < figure.axes.size:
+            figure.hide_unused_axes(position_count)
 
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         if show and plot_options.show:
@@ -740,14 +769,14 @@ class HRTFPlots:
             )
         selected_position_query = position_queries[0]
 
-        layout = Figure(
+        figure = Figure(
             Layout_2Vertical(
                 figsize=(8, 8) if figure_options.figsize is None else figure_options.figsize,
                 margins=resolved_margins,
                 sharex=False,
             )
         )
-        subplot_axis_options = layout.get_subplots_axis_options(plot_options)
+        subplot_axis_options = figure.get_subplots_axis_options(plot_options)
 
         top_axis_options = axis_options.merge(subplot_axis_options.get(0))
         bottom_axis_options = axis_options.merge(subplot_axis_options.get(1))
@@ -771,14 +800,24 @@ class HRTFPlots:
         )
         ir_y_values = np.asarray(ir_values[idxs], dtype=float)
 
-        ir_ax = layout.get_axis("top")
+        ir_ax = figure.get_ax("top")
         if ear == "both":
             if ir_y_values.ndim < 2 or ir_y_values.shape[0] < 2:
                 raise ValueError(
                     "Both ears requested but IR data does not contain two ear channels"
                 )
-            ir_ax.plot(x_values, ir_y_values[0, :], color="blue")
-            ir_ax.plot(x_values, ir_y_values[1, :], color="red")
+            figure.create_two_dimension(
+                ax=ir_ax,
+                x=x_values,
+                y=ir_y_values[0, :],
+                color="blue",
+            )
+            figure.create_two_dimension(
+                ax=ir_ax,
+                x=x_values,
+                y=ir_y_values[1, :],
+                color="red",
+            )
         else:
             if ir_y_values.ndim == 1:
                 selected_ir_y_values = ir_y_values.reshape(-1)
@@ -792,7 +831,12 @@ class HRTFPlots:
                     ir_y_values[ear_index],
                     dtype=float,
                 ).reshape(-1)
-            ir_ax.plot(x_values, selected_ir_y_values, color="blue")
+            figure.create_two_dimension(
+                ax=ir_ax,
+                x=x_values,
+                y=selected_ir_y_values,
+                color="blue",
+            )
 
         if amplitude_x_axis == "time":
             TimeAxis.apply(
@@ -894,14 +938,24 @@ class HRTFPlots:
             tf_values = tf_magnitude
         magnitude_y_values = np.asarray(tf_values[idxs][..., frequency_mask], dtype=float)
 
-        magnitude_ax = layout.get_axis("bottom")
+        magnitude_ax = figure.get_ax("bottom")
         if ear == "both":
             if magnitude_y_values.ndim < 2 or magnitude_y_values.shape[0] < 2:
                 raise ValueError(
                     "Both ears requested but TF data does not contain two ear channels"
                 )
-            magnitude_ax.plot(frequency_khz, magnitude_y_values[0, :], color="blue")
-            magnitude_ax.plot(frequency_khz, magnitude_y_values[1, :], color="red")
+            figure.create_two_dimension(
+                ax=magnitude_ax,
+                x=frequency_khz,
+                y=magnitude_y_values[0, :],
+                color="blue",
+            )
+            figure.create_two_dimension(
+                ax=magnitude_ax,
+                x=frequency_khz,
+                y=magnitude_y_values[1, :],
+                color="red",
+            )
         else:
             if magnitude_y_values.ndim == 1:
                 selected_magnitude_y_values = magnitude_y_values.reshape(-1)
@@ -915,7 +969,12 @@ class HRTFPlots:
                     magnitude_y_values[ear_index],
                     dtype=float,
                 ).reshape(-1)
-            magnitude_ax.plot(frequency_khz, selected_magnitude_y_values, color="blue")
+            figure.create_two_dimension(
+                ax=magnitude_ax,
+                x=frequency_khz,
+                y=selected_magnitude_y_values,
+                color="blue",
+            )
 
         magnitude_legend_location = (
             "upper right" if magnitude_x_axis == "linear" else "upper left"
@@ -989,16 +1048,16 @@ class HRTFPlots:
 
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         elif titles:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 Titles.create_position_title(selected_positions=selected_positions),
             )
         if show and plot_options.show:
@@ -1159,8 +1218,8 @@ class HRTFPlots:
                 figsize=figure_options.figsize or Layout_1().figsize,
                 margins=resolved_margins,
             )
-        layout = Figure(resolved_layout)
-        subplot_axis_options = layout.get_subplots_axis_options(plot_options)
+        figure = Figure(resolved_layout)
+        subplot_axis_options = figure.get_subplots_axis_options(plot_options)
 
         if plane_key == "horizontal":
             indices, real_plane_elevation = get_horizontal_plane(
@@ -1260,15 +1319,11 @@ class HRTFPlots:
             Labels.magnitude_db if unit == "db" else Labels.magnitude_linear
         )
         heatmap_colormap = "jet" if heatmap_options.cmap is None else str(heatmap_options.cmap)
-        if heatmap_colormap not in ColorBar.colormaps:
-            raise ValueError(
-                f"heatmap cmap accepts: {', '.join(ColorBar.colormaps)}"
-            )
 
         for subplot_index, (subplot_position, spectrum_matrix, default_subplot_title) in enumerate(
             zip(subplot_positions, spectrum_matrices, default_subplot_titles)
         ):
-            ax = layout.get_axis(subplot_position)
+            ax = figure.get_ax(subplot_position)
             resolved_axis_options = axis_options.merge(subplot_axis_options.get(subplot_index))
             subplot_plane_axis_values = (
                 AzimuthAnglesAxis.transform_values(
@@ -1281,12 +1336,15 @@ class HRTFPlots:
             subplot_sort_indices = np.argsort(subplot_plane_axis_values)
             sorted_subplot_plane_axis_values = subplot_plane_axis_values[subplot_sort_indices]
             sorted_spectrum_matrix = spectrum_matrix[subplot_sort_indices, :]
-            mesh = ax.pcolormesh(
-                frequency_khz,
-                sorted_subplot_plane_axis_values,
-                sorted_spectrum_matrix,
+            mesh = figure.create_heatmap(
+                ax=ax,
+                x=frequency_khz,
+                y=sorted_subplot_plane_axis_values,
+                values=sorted_spectrum_matrix,
+                label=colorbar_label,
+                options=heatmap_options,
+                colormap=heatmap_colormap,
                 shading="auto",
-                cmap=heatmap_colormap,
                 vmin=vmin,
                 vmax=vmax,
             )
@@ -1329,26 +1387,18 @@ class HRTFPlots:
             )
             if grid_enabled:
                 ax.grid(True)
-            ColorBar.create(
-                fig=layout.fig,
-                ax=ax,
-                mesh=mesh,
-                label=colorbar_label,
-                options=heatmap_options,
-                colormap=heatmap_colormap,
-            )
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         elif titles:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 Titles.create_plane_title(
                     plane=plane_key,
                     elevation_angle=real_plane_elevation,
@@ -1492,8 +1542,8 @@ class HRTFPlots:
                 figsize=figure_options.figsize or Layout_1().figsize,
                 margins=resolved_margins,
             )
-        layout = Figure(resolved_layout)
-        subplot_axis_options = layout.get_subplots_axis_options(plot_options)
+        figure = Figure(resolved_layout)
+        subplot_axis_options = figure.get_subplots_axis_options(plot_options)
 
         spherical_positions = get_source_positions(
             sources=self.Sources,
@@ -1589,22 +1639,21 @@ class HRTFPlots:
             Labels.magnitude_db if unit == "db" else Labels.magnitude_linear
         )
         heatmap_colormap = "jet" if heatmap_options.cmap is None else str(heatmap_options.cmap)
-        if heatmap_colormap not in ColorBar.colormaps:
-            raise ValueError(
-                f"heatmap cmap accepts: {', '.join(ColorBar.colormaps)}"
-            )
 
         for subplot_index, (subplot_position, spectrum_matrix, default_subplot_title) in enumerate(
             zip(subplot_positions, spectrum_matrices, default_subplot_titles)
         ):
-            ax = layout.get_axis(subplot_position)
+            ax = figure.get_ax(subplot_position)
             resolved_axis_options = axis_options.merge(subplot_axis_options.get(subplot_index))
-            mesh = ax.pcolormesh(
-                frequency_khz,
-                sorted_elevation_values,
-                spectrum_matrix,
+            mesh = figure.create_heatmap(
+                ax=ax,
+                x=frequency_khz,
+                y=sorted_elevation_values,
+                values=spectrum_matrix,
+                label=colorbar_label,
+                options=heatmap_options,
+                colormap=heatmap_colormap,
                 shading="auto",
-                cmap=heatmap_colormap,
                 vmin=vmin,
                 vmax=vmax,
             )
@@ -1639,26 +1688,18 @@ class HRTFPlots:
             )
             if grid_enabled:
                 ax.grid(True)
-            ColorBar.create(
-                fig=layout.fig,
-                ax=ax,
-                mesh=mesh,
-                label=colorbar_label,
-                options=heatmap_options,
-                colormap=heatmap_colormap,
-            )
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         elif titles:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 Titles.create_elevation_spectrum_title(real_azimuth=real_azimuth),
             )
         if show and plot_options.show:
@@ -1772,16 +1813,17 @@ class HRTFPlots:
         sorted_azimuth_values = transformed_azimuth_values[sort_indices]
         sorted_itd_values = horizontal_itd_values[sort_indices]
 
-        layout = Figure(
+        figure = Figure(
             Layout_1(
                 figsize=figure_options.figsize or Layout_1().figsize,
                 margins=resolved_margins,
             )
         )
-        ax = layout.get_axis("main")
-        ax.plot(
-            sorted_azimuth_values,
-            sorted_itd_values,
+        ax = figure.get_ax("main")
+        figure.create_two_dimension(
+            ax=ax,
+            x=sorted_azimuth_values,
+            y=sorted_itd_values,
             color="steelblue",
             linewidth=2.0,
         )
@@ -1803,16 +1845,16 @@ class HRTFPlots:
             ax.grid(True)
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         elif titles:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 Titles.create_plane_title(
                     plane="horizontal",
                     elevation_angle=real_elevation,
@@ -1910,18 +1952,19 @@ class HRTFPlots:
             elevation=elevation_angle,
         )
 
-        layout = Figure(
+        figure = Figure(
             Layout_1(
                 figsize=(6, 7) if figure_options.figsize is None else figure_options.figsize,
                 margins=resolved_margins,
-                projection="polar",
-            )
+            ),
+            projection="polar",
         )
-        ax = layout.get_axis("main")
+        ax = figure.get_ax("main")
 
-        ax.plot(
-            theta_values,
-            radial_values,
+        figure.create_two_dimension(
+            ax=ax,
+            x=theta_values,
+            y=radial_values,
             color="steelblue",
             linewidth=2.0,
         )
@@ -1959,16 +2002,16 @@ class HRTFPlots:
         ax.yaxis.label.set_verticalalignment("bottom")
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         elif titles:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 Titles.create_plane_title(
                     plane="horizontal",
                     elevation_angle=real_elevation,
@@ -2086,7 +2129,7 @@ class HRTFPlots:
         ):
             raise ValueError("elevation_angle only applies when plane='horizontal'")
 
-        layout = Figure(
+        figure = Figure(
             Layout_1(
                 figsize=figure_options.figsize or Layout_1().figsize,
                 margins=resolved_margins,
@@ -2159,7 +2202,7 @@ class HRTFPlots:
         if plane_matrix.ndim != 2:
             raise ValueError("Frequency-dependent ILD values must have shape (M, F)")
 
-        ax = layout.get_axis("main")
+        ax = figure.get_ax("main")
         resolved_axis_options = axis_options
         subplot_plane_axis_values = (
             AzimuthAnglesAxis.transform_values(
@@ -2172,16 +2215,15 @@ class HRTFPlots:
         subplot_sort_indices = np.argsort(subplot_plane_axis_values)
         sorted_subplot_plane_axis_values = subplot_plane_axis_values[subplot_sort_indices]
         sorted_plane_matrix = plane_matrix[subplot_sort_indices, :]
-        mesh = ax.pcolormesh(
-            frequency_khz,
-            sorted_subplot_plane_axis_values,
-            sorted_plane_matrix,
+        mesh = figure.create_heatmap(
+            ax=ax,
+            x=frequency_khz,
+            y=sorted_subplot_plane_axis_values,
+            values=sorted_plane_matrix,
+            label=Labels.ild,
+            options=heatmap_options,
+            colormap="jet" if heatmap_options.cmap is None else str(heatmap_options.cmap),
             shading="auto",
-            cmap=(
-                ColorBar.colormaps[
-                    "jet" if heatmap_options.cmap is None else str(heatmap_options.cmap)
-                ]
-            ),
             vmin=float(np.min(sorted_plane_matrix)),
             vmax=float(np.max(sorted_plane_matrix)),
         )
@@ -2216,26 +2258,18 @@ class HRTFPlots:
         )
         if grid_enabled:
             ax.grid(True)
-        ColorBar.create(
-            fig=layout.fig,
-            ax=ax,
-            mesh=mesh,
-            label=Labels.ild,
-            options=heatmap_options,
-            colormap="jet" if heatmap_options.cmap is None else str(heatmap_options.cmap),
-        )
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         elif titles:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 Titles.create_plane_title(
                     plane=plane_key,
                     elevation_angle=real_plane_elevation,
@@ -2352,16 +2386,17 @@ class HRTFPlots:
         sorted_azimuth_values = transformed_azimuth_values[sort_indices]
         sorted_ild_values = horizontal_ild_values[sort_indices]
 
-        layout = Figure(
+        figure = Figure(
             Layout_1(
                 figsize=figure_options.figsize or Layout_1().figsize,
                 margins=resolved_margins,
             )
         )
-        ax = layout.get_axis("main")
-        ax.plot(
-            sorted_azimuth_values,
-            sorted_ild_values,
+        ax = figure.get_ax("main")
+        figure.create_two_dimension(
+            ax=ax,
+            x=sorted_azimuth_values,
+            y=sorted_ild_values,
             color="steelblue",
             linewidth=2.0,
         )
@@ -2383,16 +2418,16 @@ class HRTFPlots:
             ax.grid(True)
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         elif titles:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 Titles.create_plane_title(
                     plane="horizontal",
                     elevation_angle=real_elevation,
@@ -2490,18 +2525,19 @@ class HRTFPlots:
             elevation=elevation_angle,
         )
 
-        layout = Figure(
+        figure = Figure(
             Layout_1(
                 figsize=(6, 7) if figure_options.figsize is None else figure_options.figsize,
                 margins=resolved_margins,
-                projection="polar",
-            )
+            ),
+            projection="polar",
         )
-        ax = layout.get_axis("main")
+        ax = figure.get_ax("main")
 
-        ax.plot(
-            theta_values,
-            radial_values,
+        figure.create_two_dimension(
+            ax=ax,
+            x=theta_values,
+            y=radial_values,
             color="steelblue",
             linewidth=2.0,
         )
@@ -2539,16 +2575,16 @@ class HRTFPlots:
         ax.yaxis.label.set_verticalalignment("bottom")
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         elif titles:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 Titles.create_plane_title(
                     plane="horizontal",
                     elevation_angle=real_elevation,
@@ -2624,22 +2660,23 @@ class HRTFPlots:
             coordinate_system="cartesian",
             angle_unit="degrees",
         )
-        layout = Figure(
+        figure = Figure(
             Layout_1(
                 figsize=(6, 7) if figure_options.figsize is None else figure_options.figsize,
                 margins=resolved_margins,
-                projection="3d",
-            )
+            ),
+            projection="3d",
         )
-        ax = layout.get_axis("main")
+        ax = figure.get_ax("main")
 
         x_values = np.asarray(cartesian_positions[:, 0], dtype=float)
         y_values = np.asarray(cartesian_positions[:, 1], dtype=float)
         z_values = np.asarray(cartesian_positions[:, 2], dtype=float)
-        ax.scatter(
-            x_values,
-            y_values,
-            z_values,
+        figure.create_three_dimension(
+            ax=ax,
+            x=x_values,
+            y=y_values,
+            z=z_values,
             s=28.0,
             color="steelblue",
             edgecolors="black",
@@ -2661,16 +2698,16 @@ class HRTFPlots:
 
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         elif titles:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 "Source Grid",
             )
         if show and plot_options.show:
@@ -2764,23 +2801,24 @@ class HRTFPlots:
             coordinate_system="cartesian",
             angle_unit="degrees",
         )
-        layout = Figure(
+        figure = Figure(
             Layout_1(
                 figsize=(6, 7) if figure_options.figsize is None else figure_options.figsize,
                 margins=resolved_margins,
-                projection="3d",
-            )
+            ),
+            projection="3d",
         )
-        ax = layout.get_axis("main")
+        ax = figure.get_ax("main")
 
         x_values = np.asarray(cartesian_positions[:, 0], dtype=float)
         y_values = np.asarray(cartesian_positions[:, 1], dtype=float)
         z_values = np.asarray(cartesian_positions[:, 2], dtype=float)
 
-        ax.scatter(
-            x_values,
-            y_values,
-            z_values,
+        figure.create_three_dimension(
+            ax=ax,
+            x=x_values,
+            y=y_values,
+            z=z_values,
             s=18.0,
             color="#9ecae1",
             edgecolors="none",
@@ -2825,10 +2863,11 @@ class HRTFPlots:
                     angle_unit="degrees",
                 )
             plane_positions = np.asarray(cartesian_positions[indices], dtype=float)
-            ax.scatter(
-                plane_positions[:, 0],
-                plane_positions[:, 1],
-                plane_positions[:, 2],
+            figure.create_three_dimension(
+                ax=ax,
+                x=plane_positions[:, 0],
+                y=plane_positions[:, 1],
+                z=plane_positions[:, 2],
                 s=34.0,
                 color=plane_colors[plane_key],
                 edgecolors="black",
@@ -2861,9 +2900,9 @@ class HRTFPlots:
 
         if figure_options.title is not None:
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 figure_options.title,
             )
         elif titles:
@@ -2872,9 +2911,9 @@ class HRTFPlots:
             else:
                 resolved_figure_title = "Plane Grid"
             Titles.create_figure_title(
-                layout.fig,
-                layout.axes,
-                layout.figure_title_y,
+                figure.fig,
+                figure.axes,
+                figure.figure_title_y,
                 resolved_figure_title,
             )
         if show and plot_options.show:

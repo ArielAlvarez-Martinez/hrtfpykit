@@ -6,15 +6,21 @@ import numpy as np
 from .default import FigureSize, RC
 from .layouts import Layout
 from .options import AxisOptions, PlotOptions
+from .types import Heatmap, ThreeDimension, TwoDimension
 
 
 class Figure:
     shared_x_visible: bool = True
 
-    def __init__(self, layout: Layout):
+    def __init__(self, layout: Layout, projection: str | None = None):
         self.layout = layout.code
         self.positions = layout.positions
-        self.fig, self.axes, self.figure_title_y = self.create(layout)
+        self.projection = projection
+        self.figure_title_y = min(
+            layout.margins.top + layout.figure_title_offset,
+            0.98,
+        )
+        self.fig, self.axes = self.create(layout, projection=projection)
 
     @staticmethod
     def configure_rc() -> None:
@@ -34,15 +40,18 @@ class Figure:
         )
 
     @staticmethod
-    def create(layout: Layout) -> tuple[plt.Figure, np.ndarray, float]:
+    def create(
+        layout: Layout,
+        projection: str | None = None,
+    ) -> tuple[plt.Figure, np.ndarray]:
         Figure.configure_rc()
         if isinstance(layout.figsize, FigureSize):
             resolved_figsize = (layout.figsize.width, layout.figsize.height)
         else:
             resolved_figsize = layout.figsize
         subplot_kwargs: dict[str, object] = {}
-        if layout.projection is not None:
-            subplot_kwargs["subplot_kw"] = {"projection": layout.projection}
+        if projection is not None:
+            subplot_kwargs["subplot_kw"] = {"projection": projection}
         fig, axes = plt.subplots(
             layout.rows,
             layout.cols,
@@ -60,7 +69,6 @@ class Figure:
             wspace=layout.margins.wspace,
             hspace=layout.margins.hspace,
         )
-        figure_title_y = min(layout.margins.top + layout.figure_title_offset, 0.98)
         reshaped_axes = np.asarray(axes, dtype=object).reshape(-1)
         for ax in reshaped_axes:
             setattr(ax, "hrtfpykit_subplot_title_y", 1.0)
@@ -69,9 +77,9 @@ class Figure:
                 "hrtfpykit_subplot_title_y_with_figure_title",
                 layout.subplot_title_y,
             )
-        return fig, reshaped_axes, figure_title_y
+        return fig, reshaped_axes
 
-    def get_axis(self, position: int | str = 0) -> plt.Axes:
+    def get_ax(self, position: int | str = 0) -> plt.Axes:
         if isinstance(position, str):
             if position not in self.positions:
                 raise ValueError(
@@ -118,3 +126,43 @@ class Figure:
                 )
             subplot_axis_options[subplot_index] = subplot_options
         return subplot_axis_options
+
+    def create_two_dimension(self, ax: plt.Axes, x, y, **kwargs):
+        return TwoDimension.create(
+            ax=ax,
+            x=x,
+            y=y,
+            **kwargs,
+        )
+
+    def create_heatmap(
+        self,
+        ax: plt.Axes,
+        x,
+        y,
+        values,
+        label: str | None = None,
+        options=None,
+        colormap: str | None = None,
+        **kwargs,
+    ):
+        return Heatmap.create(
+            ax=ax,
+            x=x,
+            y=y,
+            values=values,
+            fig=self.fig,
+            label=label,
+            options=options,
+            colormap=colormap,
+            **kwargs,
+        )
+
+    def create_three_dimension(self, ax: plt.Axes, x, y, z, **kwargs):
+        return ThreeDimension.create(
+            ax=ax,
+            x=x,
+            y=y,
+            z=z,
+            **kwargs,
+        )
