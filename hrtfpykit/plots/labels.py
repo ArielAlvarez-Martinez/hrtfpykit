@@ -1,36 +1,52 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class Labels:
-    frequency: str = "Frequency(kHz)"
-    magnitude_db: str = "Magnitude (dB)"
-    magnitude_linear: str = "Magnitude"
-    ild: str = "ILD (dB)"
-    itd: str = "ITD (s)"
-    time: str = "Time (s)"
-    samples: str = "Samples"
-    impulse_response: str = "Amplitude"
-    itd_seconds: str = "Absolute ITD (s)"
-    ild_db: str = "Absolute ILD (dB)"
-    azimuth: str = "Azimuth (degrees)"
-    elevation: str = "Elevation (degrees)"
-    lateral: str = "Lateral (degrees)"
-    polar: str = "Polar (degrees)"
-
-
-@dataclass(frozen=True)
-class ThreeDimensionalLabels:
-    xlabel: str = "X (m)"
-    ylabel: str = "Y (m)"
-    zlabel: str = "Z (m)"
-    label_box: dict[str, object] = field(
-        default_factory=lambda: {
-            "boxstyle": "round,pad=0.18",
-            "facecolor": "white",
-            "edgecolor": "none",
-            "alpha": 0.88,
-        }
+    frequency = "Frequency(kHz)"
+    magnitude_db = "Magnitude (dB)"
+    magnitude_linear = "Magnitude"
+    ild = "ILD (dB)"
+    itd = "ITD (s)"
+    time = "Time (s)"
+    samples = "Samples"
+    impulse_response = "Amplitude"
+    itd_seconds = "Absolute ITD (s)"
+    ild_db = "Absolute ILD (dB)"
+    azimuth = "Azimuth (degrees)"
+    elevation = "Elevation (degrees)"
+    lateral = "Lateral (degrees)"
+    polar = "Polar (degrees)"
+    frequency_tick_labels_log = (
+        "0.25",
+        "0.5",
+        "1",
+        "2",
+        "4",
+        "8",
+        "16",
+        "20",
     )
+    frequency_tick_labels_linear = (
+        "2",
+        "4",
+        "6",
+        "8",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18",
+        "20",
+    )
+    three_d_x_label = "X (m)"
+    three_d_y_label = "Y (m)"
+    three_d_z_label = "Z (m)"
+    label_box = {
+        "boxstyle": "round,pad=0.18",
+        "facecolor": "white",
+        "edgecolor": "none",
+        "alpha": 0.88,
+    }

@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .labels import ThreeDimensionalLabels
+from .labels import Labels
 from ..hrtf.coordinates import spherical_to_cartesian
 from ..hrtf.sources import Sources
 
@@ -35,14 +35,13 @@ class ThreeDimensional1(ThreeDimensional):
         ax: plt.Axes,
         cartesian_positions: np.ndarray,
     ) -> float:
-        labels = ThreeDimensionalLabels()
         x_values = np.asarray(cartesian_positions[:, 0], dtype=float)
         y_values = np.asarray(cartesian_positions[:, 1], dtype=float)
         z_values = np.asarray(cartesian_positions[:, 2], dtype=float)
 
-        ax.set_xlabel(labels.xlabel)
-        ax.set_ylabel(labels.ylabel)
-        ax.set_zlabel(labels.zlabel)
+        ax.set_xlabel(Labels.three_d_x_label)
+        ax.set_ylabel(Labels.three_d_y_label)
+        ax.set_zlabel(Labels.three_d_z_label)
         ax.view_init(
             elev=ThreeDimensional1.view_elev,
             azim=ThreeDimensional1.view_azim,
@@ -70,7 +69,6 @@ class ThreeDimensional1(ThreeDimensional):
         sources: Sources,
         axis_half_span: float,
     ) -> None:
-        labels = ThreeDimensionalLabels()
         _, front_position = sources.get_position_index(
             np.array([0.0, 0.0], dtype=float),
             coordinate_system="spherical",
@@ -117,7 +115,7 @@ class ThreeDimensional1(ThreeDimensional):
             fontsize=11,
             ha="left",
             va="center",
-            bbox=labels.label_box,
+            bbox=Labels.label_box,
         )
 
         ax.quiver(
@@ -145,7 +143,7 @@ class ThreeDimensional1(ThreeDimensional):
             fontsize=11,
             ha="left",
             va="bottom",
-            bbox=labels.label_box,
+            bbox=Labels.label_box,
         )
 
         ax.quiver(
@@ -170,5 +168,5 @@ class ThreeDimensional1(ThreeDimensional):
             fontsize=11,
             ha="left",
             va="bottom",
-            bbox=labels.label_box,
+            bbox=Labels.label_box,
         )
