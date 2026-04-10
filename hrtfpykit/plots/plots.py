@@ -21,6 +21,7 @@ from .default import Margins
 from .figure import Figure
 from .labels import Labels
 from .layouts import Layout_1, Layout_2Horizontal, Layout_2Vertical, Layout_3
+from .legends import Ear
 from .options import (
     AxisOptions,
     AzimuthAxisOptions,
@@ -117,7 +118,7 @@ class HRTFPlots:
     ) -> None:
         """Plot HRTF magnitude responses for up to four source positions.
 
-        This method draws one to four magnitude-response panels selected from
+        This method draws one to four magnitude-response subplots selected from
         the current source grid. Positions are always resolved in spherical
         coordinates and may be provided numerically or through the supported
         aliases such as ``"front"`` and ``"left"``.
@@ -145,12 +146,12 @@ class HRTFPlots:
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
         options : PlotOptions | None, default=None
-            Optional figure, axis, legend, frequency-axis, and per-panel overrides.
+            Optional figure, axis, legend, frequency-axis, and per-subplot overrides.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
             If ``False``, suppress generated default subplot titles. Explicit
-            titles provided through axis or panel options are still shown.
+            titles provided through axis or subplot options are still shown.
 
         Returns
         -------
@@ -242,7 +243,7 @@ class HRTFPlots:
                 margins=resolved_margins,
             )
         layout = Figure(resolved_layout)
-        panel_axis_options = layout.get_panel_axis_options(plot_options)
+        subplot_axis_options = layout.get_subplots_axis_options(plot_options)
 
         frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
@@ -274,7 +275,7 @@ class HRTFPlots:
 
         for index, (_, selected_positions) in enumerate(selected_position_info):
             ax = layout.get_axis(index)
-            resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
+            resolved_axis_options = axis_options.merge(subplot_axis_options.get(index))
             if not titles and resolved_axis_options.title is None:
                 resolved_axis_options = resolved_axis_options.merge(AxisOptions(title=""))
             frequency_axis = (
@@ -329,13 +330,44 @@ class HRTFPlots:
                 unit=unit,
                 options=resolved_axis_options,
             )
-            layout.apply_panel(
-                ax=ax,
+            default_subplot_title = Titles.create_position_title(
                 selected_positions=selected_positions,
-                ear=ear,
-                options=resolved_axis_options,
-                legend_location=magnitude_legend_location,
             )
+            resolved_subplot_title = (
+                default_subplot_title
+                if resolved_axis_options.title is None
+                else resolved_axis_options.title
+            )
+            Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
+            shared_x_visible = (
+                Figure.shared_x_visible
+                if resolved_axis_options.shared_x_visible is None
+                else resolved_axis_options.shared_x_visible
+            )
+            if shared_x_visible:
+                ax.tick_params(axis="x", which="both", labelbottom=True)
+            legend_options = resolved_axis_options.legend
+            legend_enabled = (
+                True
+                if legend_options is None or legend_options.enabled is None
+                else legend_options.enabled
+            )
+            if legend_enabled:
+                resolved_legend_location = (
+                    magnitude_legend_location
+                    if legend_options is None or legend_options.location is None
+                    else legend_options.location
+                )
+                legend_labels = None if legend_options is None else legend_options.labels
+                Ear.apply(
+                    ax=ax,
+                    ear=ear,
+                    location=resolved_legend_location,
+                    labels=legend_labels,
+                )
+            grid_enabled = True if resolved_axis_options.grid is None else resolved_axis_options.grid
+            if grid_enabled:
+                ax.grid(True)
 
         if position_count < layout.axes.size:
             layout.hide_unused_axes(position_count)
@@ -381,12 +413,12 @@ class HRTFPlots:
         x_axis : {"time", "samples"}, default="time"
             Horizontal axis used for the waveform plot.
         options : PlotOptions | None, default=None
-            Optional figure, axis, legend, and per-panel overrides.
+            Optional figure, axis, legend, and per-subplot overrides.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
             If ``False``, suppress generated default subplot titles. Explicit
-            titles provided through axis or panel options are still shown.
+            titles provided through axis or subplot options are still shown.
 
         Returns
         -------
@@ -474,7 +506,7 @@ class HRTFPlots:
                 margins=resolved_margins,
             )
         layout = Figure(resolved_layout)
-        panel_axis_options = layout.get_panel_axis_options(plot_options)
+        subplot_axis_options = layout.get_subplots_axis_options(plot_options)
 
         ir_values = np.asarray(self.IR.values, dtype=float)
         if ir_values.ndim < 2 or ir_values.shape[-1] == 0:
@@ -487,7 +519,7 @@ class HRTFPlots:
 
         for index, selected_position_query in enumerate(position_queries):
             ax = layout.get_axis(index)
-            resolved_axis_options = axis_options.merge(panel_axis_options.get(index))
+            resolved_axis_options = axis_options.merge(subplot_axis_options.get(index))
             if not titles and resolved_axis_options.title is None:
                 resolved_axis_options = resolved_axis_options.merge(AxisOptions(title=""))
             idxs, selected_positions = self.Sources.get_position_index(
@@ -529,13 +561,44 @@ class HRTFPlots:
                 axis="y",
                 options=resolved_axis_options,
             )
-            layout.apply_panel(
-                ax=ax,
+            default_subplot_title = Titles.create_position_title(
                 selected_positions=selected_positions,
-                position_coordinate_system="spherical",
-                ear=ear,
-                options=resolved_axis_options,
             )
+            resolved_subplot_title = (
+                default_subplot_title
+                if resolved_axis_options.title is None
+                else resolved_axis_options.title
+            )
+            Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
+            shared_x_visible = (
+                Figure.shared_x_visible
+                if resolved_axis_options.shared_x_visible is None
+                else resolved_axis_options.shared_x_visible
+            )
+            if shared_x_visible:
+                ax.tick_params(axis="x", which="both", labelbottom=True)
+            legend_options = resolved_axis_options.legend
+            legend_enabled = (
+                True
+                if legend_options is None or legend_options.enabled is None
+                else legend_options.enabled
+            )
+            if legend_enabled:
+                resolved_legend_location = (
+                    "upper right"
+                    if legend_options is None or legend_options.location is None
+                    else legend_options.location
+                )
+                legend_labels = None if legend_options is None else legend_options.labels
+                Ear.apply(
+                    ax=ax,
+                    ear=ear,
+                    location=resolved_legend_location,
+                    labels=legend_labels,
+                )
+            grid_enabled = True if resolved_axis_options.grid is None else resolved_axis_options.grid
+            if grid_enabled:
+                ax.grid(True)
 
         if position_count < layout.axes.size:
             layout.hide_unused_axes(position_count)
@@ -565,10 +628,10 @@ class HRTFPlots:
     ) -> None:
         """Plot amplitude and magnitude views for a single source position.
 
-        This method creates a two-panel summary for one source direction. The
-        top panel shows the HRIR amplitude response and the bottom panel shows
+        This method creates a two-subplot summary for one source direction. The
+        top subplot shows the HRIR amplitude response and the bottom subplot shows
         the corresponding HRTF magnitude response for the same position. The
-        amplitude panel uses ``amplitude_x_axis`` and the magnitude panel uses
+        amplitude subplot uses ``amplitude_x_axis`` and the magnitude subplot uses
         ``magnitude_x_axis``.
 
         Parameters
@@ -589,9 +652,9 @@ class HRTFPlots:
         reference : float | {"max"}, default=1.0
             Reference used when ``magnitude="db"`` for the magnitude subplot.
         options : PlotOptions | None, default=None
-            Optional figure, axis, legend, frequency-axis, and panel overrides.
+            Optional figure, axis, legend, frequency-axis, and subplot overrides.
             Frequency-range control for the magnitude subplot should be passed
-            through ``options.axis.frequency_axis`` or the bottom-panel axis
+            through ``options.axis.frequency_axis`` or the bottom-subplot axis
             override.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
@@ -607,7 +670,7 @@ class HRTFPlots:
         ---------
         - Inspect time-domain and frequency-domain behavior for the same direction.
         - Compare left and right ear waveform and magnitude structure together.
-        - Create a compact two-panel summary for one position.
+        - Create a compact two-subplot summary for one position.
 
         Examples
         --------
@@ -684,12 +747,12 @@ class HRTFPlots:
                 sharex=False,
             )
         )
-        panel_axis_options = layout.get_panel_axis_options(plot_options)
+        subplot_axis_options = layout.get_subplots_axis_options(plot_options)
 
-        top_axis_options = axis_options.merge(panel_axis_options.get(0))
-        bottom_axis_options = axis_options.merge(panel_axis_options.get(1))
-        top_axis_panel_options = top_axis_options.merge(AxisOptions(title=""))
-        bottom_axis_panel_options = bottom_axis_options.merge(AxisOptions(title=""))
+        top_axis_options = axis_options.merge(subplot_axis_options.get(0))
+        bottom_axis_options = axis_options.merge(subplot_axis_options.get(1))
+        top_subplot_axis_options = top_axis_options.merge(AxisOptions(title=""))
+        bottom_subplot_axis_options = bottom_axis_options.merge(AxisOptions(title=""))
 
         idxs, selected_positions = self.Sources.get_position_index(
             selected_position_query,
@@ -746,14 +809,52 @@ class HRTFPlots:
         AmplitudeAxis.apply(
             ax=ir_ax,
             axis="y",
-            options=top_axis_panel_options,
+            options=top_subplot_axis_options,
         )
-        layout.apply_panel(
-            ax=ir_ax,
+        default_top_subplot_title = Titles.create_position_title(
             selected_positions=selected_positions,
-            ear=ear,
-            options=top_axis_panel_options,
         )
+        resolved_top_subplot_title = (
+            default_top_subplot_title
+            if top_subplot_axis_options.title is None
+            else top_subplot_axis_options.title
+        )
+        Titles.create_subplots_titles(ax=ir_ax, title=resolved_top_subplot_title)
+        shared_x_visible = (
+            Figure.shared_x_visible
+            if top_subplot_axis_options.shared_x_visible is None
+            else top_subplot_axis_options.shared_x_visible
+        )
+        if shared_x_visible:
+            ir_ax.tick_params(axis="x", which="both", labelbottom=True)
+        top_legend_options = top_subplot_axis_options.legend
+        top_legend_enabled = (
+            True
+            if top_legend_options is None or top_legend_options.enabled is None
+            else top_legend_options.enabled
+        )
+        if top_legend_enabled:
+            resolved_legend_location = (
+                "upper right"
+                if top_legend_options is None or top_legend_options.location is None
+                else top_legend_options.location
+            )
+            legend_labels = (
+                None if top_legend_options is None else top_legend_options.labels
+            )
+            Ear.apply(
+                ax=ir_ax,
+                ear=ear,
+                location=resolved_legend_location,
+                labels=legend_labels,
+            )
+        grid_enabled = (
+            True
+            if top_subplot_axis_options.grid is None
+            else top_subplot_axis_options.grid
+        )
+        if grid_enabled:
+            ir_ax.grid(True)
 
         frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
@@ -834,15 +935,57 @@ class HRTFPlots:
             ax=magnitude_ax,
             axis="y",
             unit=magnitude,
-            options=bottom_axis_panel_options,
+            options=bottom_subplot_axis_options,
         )
-        layout.apply_panel(
-            ax=magnitude_ax,
+        default_bottom_subplot_title = Titles.create_position_title(
             selected_positions=selected_positions,
-            ear=ear,
-            options=bottom_axis_panel_options,
-            legend_location=magnitude_legend_location,
         )
+        resolved_bottom_subplot_title = (
+            default_bottom_subplot_title
+            if bottom_subplot_axis_options.title is None
+            else bottom_subplot_axis_options.title
+        )
+        Titles.create_subplots_titles(
+            ax=magnitude_ax,
+            title=resolved_bottom_subplot_title,
+        )
+        shared_x_visible = (
+            Figure.shared_x_visible
+            if bottom_subplot_axis_options.shared_x_visible is None
+            else bottom_subplot_axis_options.shared_x_visible
+        )
+        if shared_x_visible:
+            magnitude_ax.tick_params(axis="x", which="both", labelbottom=True)
+        bottom_legend_options = bottom_subplot_axis_options.legend
+        bottom_legend_enabled = (
+            True
+            if bottom_legend_options is None
+            or bottom_legend_options.enabled is None
+            else bottom_legend_options.enabled
+        )
+        if bottom_legend_enabled:
+            resolved_legend_location = (
+                magnitude_legend_location
+                if bottom_legend_options is None
+                or bottom_legend_options.location is None
+                else bottom_legend_options.location
+            )
+            legend_labels = (
+                None if bottom_legend_options is None else bottom_legend_options.labels
+            )
+            Ear.apply(
+                ax=magnitude_ax,
+                ear=ear,
+                location=resolved_legend_location,
+                labels=legend_labels,
+            )
+        grid_enabled = (
+            True
+            if bottom_subplot_axis_options.grid is None
+            else bottom_subplot_axis_options.grid
+        )
+        if grid_enabled:
+            magnitude_ax.grid(True)
 
         if figure_options.title is not None:
             Titles.create_figure_title(
@@ -898,7 +1041,7 @@ class HRTFPlots:
         unit : {"db", "linear"}, default="db"
             Magnitude representation used for the heatmap values.
         ear : {"left", "right", "both"}, default="both"
-            Ear channel to display. When ``"both"`` is selected, a separate panel
+            Ear channel to display. When ``"both"`` is selected, a separate subplot
             is created for each ear.
         reference : float | {"max"}, default="max"
             Reference used when ``unit="db"``. ``"max"`` normalizes the plotted
@@ -908,15 +1051,15 @@ class HRTFPlots:
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
         options : PlotOptions | None, default=None
-            Optional figure, axis, heatmap, and panel overrides. For the
+            Optional figure, axis, heatmap, and subplot overrides. For the
             horizontal plane, ``options.axis.azimuth_axis`` can be used to choose
             the azimuth plotting convention, for example ``"-180-180"`` or
             ``"0-360"``.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
-            If ``False``, suppress generated default panel and figure titles.
-            Explicit titles provided through figure, axis, or panel options are
+            If ``False``, suppress generated default subplot and figure titles.
+            Explicit titles provided through figure, axis, or subplot options are
             still shown.
 
         Returns
@@ -1017,7 +1160,7 @@ class HRTFPlots:
                 margins=resolved_margins,
             )
         layout = Figure(resolved_layout)
-        panel_axis_options = layout.get_panel_axis_options(plot_options)
+        subplot_axis_options = layout.get_subplots_axis_options(plot_options)
 
         if plane_key == "horizontal":
             indices, real_plane_elevation = get_horizontal_plane(
@@ -1096,8 +1239,8 @@ class HRTFPlots:
                     "Both ears requested but TF data does not contain two ear channels"
                 )
             spectrum_matrices = [plane_values[:, 0, :], plane_values[:, 1, :]]
-            panel_positions = ["left", "right"]
-            default_panel_titles = ["Left Ear", "Right Ear"]
+            subplot_positions = ["left", "right"]
+            default_subplot_titles = ["Left Ear", "Right Ear"]
         else:
             if plane_values.shape[1] == 1:
                 ear_index = 0
@@ -1108,8 +1251,8 @@ class HRTFPlots:
                         f"Requested ear '{ear}' is not available in TF data"
                     )
             spectrum_matrices = [plane_values[:, ear_index, :]]
-            panel_positions = ["main"]
-            default_panel_titles = [f"{ear.capitalize()} Ear"]
+            subplot_positions = ["main"]
+            default_subplot_titles = [f"{ear.capitalize()} Ear"]
 
         vmin = min(float(np.min(matrix)) for matrix in spectrum_matrices)
         vmax = max(float(np.max(matrix)) for matrix in spectrum_matrices)
@@ -1122,12 +1265,12 @@ class HRTFPlots:
                 f"heatmap cmap accepts: {', '.join(ColorBar.colormaps)}"
             )
 
-        for panel_index, (panel_position, spectrum_matrix, default_panel_title) in enumerate(
-            zip(panel_positions, spectrum_matrices, default_panel_titles)
+        for subplot_index, (subplot_position, spectrum_matrix, default_subplot_title) in enumerate(
+            zip(subplot_positions, spectrum_matrices, default_subplot_titles)
         ):
-            ax = layout.get_axis(panel_position)
-            resolved_axis_options = axis_options.merge(panel_axis_options.get(panel_index))
-            panel_plane_axis_values = (
+            ax = layout.get_axis(subplot_position)
+            resolved_axis_options = axis_options.merge(subplot_axis_options.get(subplot_index))
+            subplot_plane_axis_values = (
                 AzimuthAnglesAxis.transform_values(
                     values=plane_axis_values,
                     options=resolved_axis_options,
@@ -1135,12 +1278,12 @@ class HRTFPlots:
                 if plane_key == "horizontal"
                 else np.asarray(plane_axis_values, dtype=float)
             )
-            panel_sort_indices = np.argsort(panel_plane_axis_values)
-            sorted_panel_plane_axis_values = panel_plane_axis_values[panel_sort_indices]
-            sorted_spectrum_matrix = spectrum_matrix[panel_sort_indices, :]
+            subplot_sort_indices = np.argsort(subplot_plane_axis_values)
+            sorted_subplot_plane_axis_values = subplot_plane_axis_values[subplot_sort_indices]
+            sorted_spectrum_matrix = spectrum_matrix[subplot_sort_indices, :]
             mesh = ax.pcolormesh(
                 frequency_khz,
-                sorted_panel_plane_axis_values,
+                sorted_subplot_plane_axis_values,
                 sorted_spectrum_matrix,
                 shading="auto",
                 cmap=heatmap_colormap,
@@ -1163,18 +1306,18 @@ class HRTFPlots:
                 AzimuthAnglesAxis.apply(
                     ax=ax,
                     axis="y",
-                    values=sorted_panel_plane_axis_values,
+                    values=sorted_subplot_plane_axis_values,
                     options=resolved_axis_options,
                 )
             else:
                 PolarAnglesAxis.apply(
                     ax=ax,
                     axis="y",
-                    values=sorted_panel_plane_axis_values,
+                    values=sorted_subplot_plane_axis_values,
                     options=resolved_axis_options,
                 )
             resolved_title = (
-                default_panel_title
+                default_subplot_title
                 if resolved_axis_options.title is None
                 else resolved_axis_options.title
             )
@@ -1245,7 +1388,7 @@ class HRTFPlots:
         unit : {"db", "linear"}, default="db"
             Magnitude representation used for the heatmap values.
         ear : {"left", "right", "both"}, default="both"
-            Ear channel to display. When ``"both"`` is selected, a separate panel
+            Ear channel to display. When ``"both"`` is selected, a separate subplot
             is created for each ear.
         reference : float | {"max"}, default="max"
             Reference used when ``unit="db"``. ``"max"`` normalizes the plotted
@@ -1255,12 +1398,12 @@ class HRTFPlots:
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
         options : PlotOptions | None, default=None
-            Optional figure, axis, heatmap, and panel overrides.
+            Optional figure, axis, heatmap, and subplot overrides.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
-            If ``False``, suppress generated default panel and figure titles.
-            Explicit titles provided through figure, axis, or panel options are
+            If ``False``, suppress generated default subplot and figure titles.
+            Explicit titles provided through figure, axis, or subplot options are
             still shown.
 
         Returns
@@ -1350,7 +1493,7 @@ class HRTFPlots:
                 margins=resolved_margins,
             )
         layout = Figure(resolved_layout)
-        panel_axis_options = layout.get_panel_axis_options(plot_options)
+        subplot_axis_options = layout.get_subplots_axis_options(plot_options)
 
         spherical_positions = get_source_positions(
             sources=self.Sources,
@@ -1425,8 +1568,8 @@ class HRTFPlots:
                     "Both ears requested but TF data does not contain two ear channels"
                 )
             spectrum_matrices = [slice_values[:, 0, :], slice_values[:, 1, :]]
-            panel_positions = ["left", "right"]
-            default_panel_titles = ["Left Ear", "Right Ear"]
+            subplot_positions = ["left", "right"]
+            default_subplot_titles = ["Left Ear", "Right Ear"]
         else:
             if slice_values.shape[1] == 1:
                 ear_index = 0
@@ -1437,8 +1580,8 @@ class HRTFPlots:
                         f"Requested ear '{ear}' is not available in TF data"
                     )
             spectrum_matrices = [slice_values[:, ear_index, :]]
-            panel_positions = ["main"]
-            default_panel_titles = [f"{ear.capitalize()} Ear"]
+            subplot_positions = ["main"]
+            default_subplot_titles = [f"{ear.capitalize()} Ear"]
 
         vmin = min(float(np.min(matrix)) for matrix in spectrum_matrices)
         vmax = max(float(np.max(matrix)) for matrix in spectrum_matrices)
@@ -1451,11 +1594,11 @@ class HRTFPlots:
                 f"heatmap cmap accepts: {', '.join(ColorBar.colormaps)}"
             )
 
-        for panel_index, (panel_position, spectrum_matrix, default_panel_title) in enumerate(
-            zip(panel_positions, spectrum_matrices, default_panel_titles)
+        for subplot_index, (subplot_position, spectrum_matrix, default_subplot_title) in enumerate(
+            zip(subplot_positions, spectrum_matrices, default_subplot_titles)
         ):
-            ax = layout.get_axis(panel_position)
-            resolved_axis_options = axis_options.merge(panel_axis_options.get(panel_index))
+            ax = layout.get_axis(subplot_position)
+            resolved_axis_options = axis_options.merge(subplot_axis_options.get(subplot_index))
             mesh = ax.pcolormesh(
                 frequency_khz,
                 sorted_elevation_values,
@@ -1484,7 +1627,7 @@ class HRTFPlots:
                 options=resolved_axis_options,
             )
             resolved_title = (
-                default_panel_title
+                default_subplot_title
                 if resolved_axis_options.title is None
                 else resolved_axis_options.title
             )
@@ -2018,7 +2161,7 @@ class HRTFPlots:
 
         ax = layout.get_axis("main")
         resolved_axis_options = axis_options
-        panel_plane_axis_values = (
+        subplot_plane_axis_values = (
             AzimuthAnglesAxis.transform_values(
                 values=plane_axis_values,
                 options=resolved_axis_options,
@@ -2026,12 +2169,12 @@ class HRTFPlots:
             if plane_key == "horizontal"
             else np.asarray(plane_axis_values, dtype=float)
         )
-        panel_sort_indices = np.argsort(panel_plane_axis_values)
-        sorted_panel_plane_axis_values = panel_plane_axis_values[panel_sort_indices]
-        sorted_plane_matrix = plane_matrix[panel_sort_indices, :]
+        subplot_sort_indices = np.argsort(subplot_plane_axis_values)
+        sorted_subplot_plane_axis_values = subplot_plane_axis_values[subplot_sort_indices]
+        sorted_plane_matrix = plane_matrix[subplot_sort_indices, :]
         mesh = ax.pcolormesh(
             frequency_khz,
-            sorted_panel_plane_axis_values,
+            sorted_subplot_plane_axis_values,
             sorted_plane_matrix,
             shading="auto",
             cmap=(
@@ -2058,14 +2201,14 @@ class HRTFPlots:
             AzimuthAnglesAxis.apply(
                 ax=ax,
                 axis="y",
-                values=sorted_panel_plane_axis_values,
+                values=sorted_subplot_plane_axis_values,
                 options=resolved_axis_options,
             )
         else:
             PolarAnglesAxis.apply(
                 ax=ax,
                 axis="y",
-                values=sorted_panel_plane_axis_values,
+                values=sorted_subplot_plane_axis_values,
                 options=resolved_axis_options,
             )
         grid_enabled = (
@@ -2389,7 +2532,7 @@ class HRTFPlots:
         if axis_options.ylabel is not None:
             resolved_radial_label = axis_options.ylabel
         else:
-            resolved_radial_label = Labels().ild_db
+            resolved_radial_label = Labels.ild_db
         ax.set_ylabel(resolved_radial_label, rotation=0)
         ax.yaxis.set_label_coords(0.5, ax.title.get_position()[1], transform=ax.transAxes)
         ax.yaxis.label.set_horizontalalignment("center")

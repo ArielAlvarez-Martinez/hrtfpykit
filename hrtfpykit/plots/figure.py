@@ -4,10 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .default import FigureSize, RC
-from .legends import Ear
 from .layouts import Layout
 from .options import AxisOptions, PlotOptions
-from .titles import Titles
 
 
 class Figure:
@@ -94,69 +92,29 @@ class Figure:
         for ax in self.axes[used_axes:]:
             ax.set_visible(False)
 
-    def get_panel_axis_options(
+    def get_subplots_axis_options(
         self,
         plot_options: PlotOptions,
     ) -> dict[int, AxisOptions]:
-        panel_axis_options: dict[int, AxisOptions] = {}
-        if plot_options.panels is None:
-            return panel_axis_options
-        for panel, panel_options in plot_options.panels.items():
-            if isinstance(panel, str):
-                if panel not in self.positions:
+        subplot_axis_options: dict[int, AxisOptions] = {}
+        if plot_options.subplots is None:
+            return subplot_axis_options
+        for subplot, subplot_options in plot_options.subplots.items():
+            if isinstance(subplot, str):
+                if subplot not in self.positions:
                     raise ValueError(
-                        f"panel accepts: {', '.join(self.positions)}"
+                        f"subplot accepts: {', '.join(self.positions)}"
                     )
-                panel_index = self.positions.index(panel)
+                subplot_index = self.positions.index(subplot)
             else:
-                panel_index = int(panel)
-                if panel_index < 0 or panel_index >= self.axes.size:
+                subplot_index = int(subplot)
+                if subplot_index < 0 or subplot_index >= self.axes.size:
                     raise ValueError(
-                        f"panel index must be between 0 and {self.axes.size - 1}"
+                        f"subplot index must be between 0 and {self.axes.size - 1}"
                     )
-            if panel_index in panel_axis_options:
+            if subplot_index in subplot_axis_options:
                 raise ValueError(
-                    f"panel override for subplot {panel_index} is duplicated"
+                    f"subplot override for subplot {subplot_index} is duplicated"
                 )
-            panel_axis_options[panel_index] = panel_options
-        return panel_axis_options
-
-    def apply_panel(
-        self,
-        ax: plt.Axes,
-        selected_positions: np.ndarray,
-        ear: str,
-        options: AxisOptions | None = None,
-        legend_location: str = "upper right",
-    ) -> None:
-        axis_options = AxisOptions() if options is None else options
-        legend_options = axis_options.legend
-        shared_x_visible = (
-            Figure.shared_x_visible
-            if axis_options.shared_x_visible is None
-            else axis_options.shared_x_visible
-        )
-        default_title = Titles.create_position_title(
-            selected_positions=selected_positions,
-        )
-        resolved_title = default_title if axis_options.title is None else axis_options.title
-        Titles.create_subplots_titles(ax=ax, title=resolved_title)
-        if shared_x_visible:
-            ax.tick_params(axis="x", which="both", labelbottom=True)
-        legend_enabled = True if legend_options is None or legend_options.enabled is None else legend_options.enabled
-        if legend_enabled:
-            resolved_legend_location = (
-                legend_location
-                if legend_options is None or legend_options.location is None
-                else legend_options.location
-            )
-            legend_labels = None if legend_options is None else legend_options.labels
-            Ear.apply(
-                ax=ax,
-                ear=ear,
-                location=resolved_legend_location,
-                labels=legend_labels,
-            )
-        grid_enabled = True if axis_options.grid is None else axis_options.grid
-        if grid_enabled:
-            ax.grid(True)
+            subplot_axis_options[subplot_index] = subplot_options
+        return subplot_axis_options

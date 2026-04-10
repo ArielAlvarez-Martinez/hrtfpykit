@@ -154,5 +154,5 @@ class PlotOptions:
     figure: FigureOptions | None = None
     axis: AxisOptions | None = None
     heatmap: HeatmapOptions | None = None
-    panels: dict[int | str, AxisOptions] | None = None
+    subplots: dict[int | str, AxisOptions] | None = None
     show: bool = True
