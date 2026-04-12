@@ -8,6 +8,7 @@ from scipy import signal
 from .dsp import iir_filter, magnitude_to_db, tf_from_ir
 
 if TYPE_CHECKING:
+    from .hrtf import HRTF
     from .domain import IR
 
 
@@ -292,3 +293,117 @@ def calculate_ild(
     if output_key == "linear":
         return ild_linear
     return magnitude_to_db(ild_linear)
+
+
+def calculate_itd_difference(
+    hrtf_a: "HRTF",
+    hrtf_b: "HRTF",
+    method: str = "threshold",
+    output: str = "seconds",
+    thresh_level: float = -10.0,
+    upper_cut_freq: float = 3000.0,
+    filter_order: int = 10,
+) -> np.ndarray:
+    """Compute absolute per-position ITD differences between two HRTFs.
+
+    The metric estimates ITD independently for each input HRTF using the same
+    estimator configuration and returns the absolute difference between both
+    ITD vectors. The output therefore represents the magnitude of ITD change
+    per source position.
+
+    Parameters
+    ----------
+    hrtf_a : HRTF
+        Reference HRTF object used for comparison. Must share the same source
+        grid (same source positions) as ``hrtf_b``.
+    hrtf_b : HRTF
+        Compared HRTF object used for comparison. Must share the same source
+        grid (same source positions) as ``hrtf_a``.
+    method : {"threshold", "maxiacce"}, default="threshold"
+        ITD estimator passed to :func:`calculate_itd`.
+    output : {"seconds", "samples"}, default="seconds"
+        Unit of returned absolute ITD differences.
+    thresh_level : float, default=-10.0
+        Threshold offset in dB used by ``method="threshold"``.
+    upper_cut_freq : float, default=3000.0
+        Low-pass cutoff in Hz passed to :func:`calculate_itd`.
+    filter_order : int, default=10
+        Butterworth low-pass order passed to :func:`calculate_itd`.
+
+    Returns
+    -------
+    np.ndarray
+        Absolute ITD differences per position with shape ``[positions]`` (or
+        the corresponding leading source shape for selected subsets).
+
+    Use Cases
+    ---------
+    - Quantify per-position ITD changes after individualization.
+    - Compare ITD impact of two processing pipelines.
+    - Build position-wise ITD error curves relative to a reference HRTF.
+
+    Notes
+    -----
+    Both HRTFs must have the same source grid. If source positions differ,
+    this function raises a ``ValueError``.
+
+    Examples
+    --------
+    >>> from hrtfpykit.hrtf.metrics import calculate_itd_difference
+    >>> itd_diff = calculate_itd_difference(hrtf_a, hrtf_b)
+    >>> itd_diff.shape
+    (hrtf_a.IR.values.shape[0],)
+    """
+    for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
+        if not hasattr(hrtf, "IR") or not hasattr(hrtf, "Sources"):
+            raise ValueError(f"{label} must be an HRTF instance")
+        if hrtf.IR.values is None:
+            raise ValueError(f"{label} IR data is not available")
+        if hrtf.IR.sample_rate is None:
+            raise ValueError(f"{label} IR sample_rate is required")
+
+    output_key = str(output).strip().lower()
+    if output_key not in {"seconds", "samples"}:
+        raise ValueError("output must be one of: seconds, samples")
+    if output_key == "samples" and not np.isclose(
+        float(hrtf_a.IR.sample_rate),
+        float(hrtf_b.IR.sample_rate),
+        atol=1e-12,
+        rtol=0.0,
+    ):
+        raise ValueError(
+            "output='samples' requires equal sample_rate in both HRTFs"
+        )
+
+    source_positions_a = np.asarray(hrtf_a.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    source_positions_b = np.asarray(hrtf_b.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    if source_positions_a.shape != source_positions_b.shape:
+        raise ValueError("HRTFs must have the same number of source positions")
+    if not np.allclose(source_positions_a, source_positions_b, atol=1e-8, rtol=0.0):
+        raise ValueError("HRTFs must share the same source positions for ITD difference")
+
+    itd_a = np.asarray(
+        calculate_itd(
+            hrtf_a.IR,
+            method=method,
+            output=output_key,
+            thresh_level=thresh_level,
+            upper_cut_freq=upper_cut_freq,
+            filter_order=filter_order,
+        ),
+        dtype=float,
+    )
+    itd_b = np.asarray(
+        calculate_itd(
+            hrtf_b.IR,
+            method=method,
+            output=output_key,
+            thresh_level=thresh_level,
+            upper_cut_freq=upper_cut_freq,
+            filter_order=filter_order,
+        ),
+        dtype=float,
+    )
+    if itd_a.shape != itd_b.shape:
+        raise ValueError("Calculated ITD arrays must have matching shapes")
+    return np.abs(itd_a - itd_b)

@@ -60,15 +60,6 @@ def ctf_from_hrtf(
     - Export a common binaural response while preserving compatibility with the
       HRTF API.
 
-    Best Practices
-    --------------
-    - Use ``weights=True`` when the source grid represents a full sphere and
-      you want a diffuse-field-style CTF.
-    - Use ``magnitude_average="log"`` as the default choice for directivity
-      analysis because it is less dominated by large spectral peaks.
-    - Treat the returned singleton source axis as a compatibility axis, not as
-      a real directional measurement.
-
     Design Notes
     ------------
     - The CTF is estimated in the frequency domain, so its inverse FFT length
@@ -305,15 +296,6 @@ def dtf_from_hrtf(
     - Export an HRTF-shaped directional response that remains compatible with
       the rest of the HRTF API.
 
-    Best Practices
-    --------------
-    - Use ``weights=True`` when the source grid represents a full sphere and
-      you want a diffuse-field-style DTF decomposition.
-    - Use ``magnitude_average="log"`` as the default choice for directivity
-      analysis because it is less dominated by large spectral peaks.
-    - Interpret ``attenuation`` as a playback or export headroom control for
-      the DTF itself, not as part of the CTF estimation.
-
     Design Notes
     ------------
     - The DTF division is carried out on the active TF grid, so the raw
@@ -473,15 +455,6 @@ def hrtf_from_dtf_and_ctf(
     - Verify that a DTF/CTF decomposition is internally consistent.
     - Recombine a directional response with a common reference response while
       staying inside the HRTF API.
-
-    Best Practices
-    --------------
-    - Use a DTF and CTF derived from the same original HRTF and the same FFT
-      grid.
-    - Treat the DTF as the source-layout reference and the CTF as a
-      broadcast-compatible common response.
-    - Treat the DTF as the time-domain reference as well: the reconstruction
-      keeps the DTF source layout and the DTF IR support.
 
     Design Notes
     ------------
