@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Layout definitions used to build plot figure grids."""
+
 from dataclasses import dataclass, field
 
 from .default import FigureSize, Margins
@@ -7,6 +9,8 @@ from .default import FigureSize, Margins
 
 @dataclass(frozen=True)
 class Layout:
+    """Base layout configuration for subplot geometry and spacing."""
+
     code: int
     rows: int
     cols: int
@@ -21,6 +25,8 @@ class Layout:
 
 @dataclass(frozen=True)
 class Layout_1(Layout):
+    """Single-subplot layout with one position named ``main``."""
+
     code: int = 1
     rows: int = 1
     cols: int = 1
@@ -35,6 +41,8 @@ class Layout_1(Layout):
 
 @dataclass(frozen=True)
 class Layout_2Vertical(Layout):
+    """Two-row vertical layout with ``top`` and ``bottom`` positions."""
+
     code: int = 21
     rows: int = 2
     cols: int = 1
@@ -49,6 +57,8 @@ class Layout_2Vertical(Layout):
 
 @dataclass(frozen=True)
 class Layout_2Horizontal(Layout):
+    """Two-column horizontal layout with ``left`` and ``right`` positions."""
+
     code: int = 22
     rows: int = 1
     cols: int = 2
@@ -65,6 +75,8 @@ class Layout_2Horizontal(Layout):
 
 @dataclass(frozen=True)
 class Layout_3(Layout):
+    """Four-subplot 2x2 layout used for up to four position views."""
+
     code: int = 3
     rows: int = 2
     cols: int = 2

@@ -8,21 +8,15 @@ from matplotlib.ticker import FixedFormatter, FixedLocator
 
 from .axis_helpers import apply_frequency_axis, build_frequency_axis
 from .labels import Labels
-from .options import (
-    AxisOptions,
-    AzimuthAxisOptions,
-    AzimuthPolarAxisOptions,
-    FrequencyAxisOptions,
-    RadialPolarAxisOptions,
-)
 
 
 class Axis(ABC):
-    """Base abstraction for axis-formatting strategies."""
+    """Base contract for all plotting axis formatters."""
 
     @staticmethod
     @abstractmethod
     def apply(*args, **kwargs) -> None:
+        """Apply axis formatting for the concrete axis formatter."""
         raise NotImplementedError
 
     @staticmethod
@@ -30,20 +24,20 @@ class Axis(ABC):
         ax: plt.Axes,
         axis: str,
         default_label: str,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply a resolved label to an axis dimension.
+        """Apply x, y, or z axis labels with a default fallback.
 
         Parameters
         ----------
         ax : plt.Axes
-            Matplotlib axis that receives the label.
+            Target Matplotlib axis.
         axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
+            Axis selector: ``"x"``, ``"y"``, or ``"z"``.
         default_label : str
-            Label used when no override is provided in ``options``.
-        options : AxisOptions | None, default=None
-            Axis options that may provide ``xlabel`` or ``ylabel`` overrides.
+            Default label used when ``label`` is not provided.
+        label : str | None, default=None
+            Optional explicit label.
 
         Returns
         -------
@@ -51,41 +45,30 @@ class Axis(ABC):
 
         Use Cases
         ---------
-        - Apply consistent labels across multiple plotting methods.
-        - Respect user overrides while keeping stable defaults.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> Axis.apply_label(ax=ax, axis="x", default_label="Frequency (kHz)")
+        - Apply shared axis labels from plot-specific axis classes.
+        - Keep 2D and 3D label assignment in one utility.
         """
-        axis_options = AxisOptions() if options is None else options
         if axis not in {"x", "y", "z"}:
             raise ValueError("axis accepts 'x', 'y', or 'z'")
+        resolved_label = default_label if label is None else str(label)
         if axis == "x":
-            set_label = ax.set_xlabel
-            resolved_label = (
-                default_label if axis_options.xlabel is None else axis_options.xlabel
-            )
-        elif axis == "y":
-            set_label = ax.set_ylabel
-            resolved_label = (
-                default_label if axis_options.ylabel is None else axis_options.ylabel
-            )
-        else:
-            set_label = getattr(ax, "set_zlabel", None)
-            if set_label is None:
-                raise ValueError("z-axis labeling requires a matplotlib 3D axis")
-            resolved_label = default_label
-        set_label(resolved_label)
+            ax.set_xlabel(resolved_label)
+            return
+        if axis == "y":
+            ax.set_ylabel(resolved_label)
+            return
+        set_zlabel = getattr(ax, "set_zlabel", None)
+        if set_zlabel is None:
+            raise ValueError("z-axis labeling requires a matplotlib 3D axis")
+        set_zlabel(resolved_label)
 
 
 class DirectionAxis(Axis, ABC):
-    """Base class for directional axes that use angular ticks."""
+    """Base formatter for directional angle axes."""
 
     @classmethod
     def get_tick_step(cls) -> float:
+        """Return the directional tick-step value used by the axis class."""
         raise NotImplementedError
 
     @staticmethod
@@ -96,27 +79,26 @@ class DirectionAxis(Axis, ABC):
         values: np.ndarray | None = None,
         tick_step: float | None = None,
         default_limits: tuple[float, float] | None = None,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply directional limits and ticks to an axis.
+        """Apply directional limits and ticks for angle-like axes.
 
         Parameters
         ----------
         ax : plt.Axes
-            Matplotlib axis that receives directional formatting.
+            Target Matplotlib axis.
         axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
+            Axis selector: ``"x"``, ``"y"``, or ``"z"``.
         default_label : str
-            Label applied when no axis-label override is provided.
+            Default label text.
         values : np.ndarray | None, default=None
-            Direction values used to compute limits and internal ticks.
-            When ``None``, ``default_limits`` are used if provided.
+            Direction values used to resolve limits and interior ticks.
         tick_step : float | None, default=None
             Tick spacing in axis units.
         default_limits : tuple[float, float] | None, default=None
             Fallback limits used when ``values`` is not provided.
-        options : AxisOptions | None, default=None
-            Axis options used for label overrides.
+        label : str | None, default=None
+            Optional explicit label.
 
         Returns
         -------
@@ -124,21 +106,8 @@ class DirectionAxis(Axis, ABC):
 
         Use Cases
         ---------
-        - Format azimuth, elevation, or polar-angle axes.
-        - Keep directional ticks consistent across different plots.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> DirectionAxis.apply_direction(
-        ...     ax=ax,
-        ...     axis="x",
-        ...     default_label="Azimuth",
-        ...     values=np.array([-90.0, 0.0, 90.0]),
-        ...     tick_step=30.0,
-        ... )
+        - Format azimuth, elevation, and polar axes with one shared logic path.
+        - Keep endpoint labels clean by placing only interior major ticks.
         """
         resolved_tick_step = 20.0 if tick_step is None else float(tick_step)
         if resolved_tick_step <= 0.0:
@@ -147,7 +116,7 @@ class DirectionAxis(Axis, ABC):
             ax=ax,
             axis=axis,
             default_label=default_label,
-            options=options,
+            label=label,
         )
         if axis == "x":
             set_limits = ax.set_xlim
@@ -230,8 +199,9 @@ class DirectionAxis(Axis, ABC):
         axis_object.set_major_locator(FixedLocator(tick_positions))
         axis_object.set_major_formatter(FixedFormatter(tick_labels))
 
+
 class FrequencyLogAxis(Axis):
-    """Log-frequency axis formatter."""
+    """Log-frequency axis formatter with standard HRTF-oriented ticks."""
 
     frequency_ticks: tuple[float, ...] = (
         250,
@@ -249,36 +219,36 @@ class FrequencyLogAxis(Axis):
         frequency_bins: np.ndarray | None = None,
         freq_min: float | None = None,
         freq_max: float | None = None,
-        options: FrequencyAxisOptions | None = None,
-    ) -> FrequencyAxisOptions:
-        """Build resolved options for a logarithmic frequency axis.
+        ticks: tuple[float, ...] | list[float] | None = None,
+        labels: tuple[str, ...] | list[str] | None = None,
+        margin_ratio: float = 0.03,
+    ) -> dict[str, float | tuple[float, ...] | tuple[str, ...]]:
+        """Build validated configuration for logarithmic frequency axes.
 
         Parameters
         ----------
         frequency_bins : np.ndarray | None, default=None
-            Frequency bins in Hz used to resolve default bounds.
+            Frequency bins in Hz used to infer limits when not provided.
         freq_min : float | None, default=None
             Minimum frequency in Hz.
         freq_max : float | None, default=None
             Maximum frequency in Hz.
-        options : FrequencyAxisOptions | None, default=None
-            Additional frequency-axis options.
+        ticks : tuple[float, ...] | list[float] | None, default=None
+            Tick positions in Hz.
+        labels : tuple[str, ...] | list[str] | None, default=None
+            Tick labels matching ``ticks``.
+        margin_ratio : float, default=0.03
+            Relative axis margin.
 
         Returns
         -------
-        FrequencyAxisOptions
-            Resolved logarithmic frequency-axis options.
+        dict[str, float | tuple[float, ...] | tuple[str, ...]]
+            Frequency-axis configuration dictionary.
 
         Use Cases
         ---------
-        - Build consistent log-frequency settings for spectrum plots.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> opts = FrequencyLogAxis.build(frequency_bins=np.linspace(20.0, 20000.0, 100))
-        >>> float(opts.freq_min) > 0.0
-        True
+        - Configure log-frequency axes for magnitude or spectrum plots.
+        - Keep frequency tick policy consistent across plot methods.
         """
         return build_frequency_axis(
             scale="log",
@@ -287,7 +257,9 @@ class FrequencyLogAxis(Axis):
             frequency_bins=frequency_bins,
             freq_min=freq_min,
             freq_max=freq_max,
-            options=options,
+            ticks=ticks,
+            labels=labels,
+            margin_ratio=margin_ratio,
         )
 
     @staticmethod
@@ -295,46 +267,42 @@ class FrequencyLogAxis(Axis):
         ax: plt.Axes,
         axis: str,
         label: str | None = None,
-        options: FrequencyAxisOptions | None = None,
+        config: dict[str, float | tuple[float, ...] | tuple[str, ...]] | None = None,
     ) -> None:
-        """Apply logarithmic frequency formatting to a Matplotlib axis.
+        """Apply a logarithmic frequency-axis configuration.
 
         Parameters
         ----------
         ax : plt.Axes
-            Target axis.
+            Target Matplotlib axis.
         axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
+            Axis selector: ``"x"``, ``"y"``, or ``"z"``.
         label : str | None, default=None
             Optional axis label.
-        options : FrequencyAxisOptions | None, default=None
-            Resolved frequency-axis options.
+        config : dict[str, float | tuple[float, ...] | tuple[str, ...]] | None
+            Configuration produced by :meth:`build`.
 
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Format spectrum axes in log-frequency scale.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> FrequencyLogAxis.apply(ax=ax, axis="x", label="Frequency (kHz)", options=FrequencyAxisOptions(freq_min=20.0, freq_max=20000.0, ticks=(100.0, 1000.0, 10000.0), labels=("0.1", "1", "10"), margin_ratio=0.0))
         """
+        if config is None:
+            raise ValueError("config is required")
         apply_frequency_axis(
             scale="log",
             ax=ax,
             axis=axis,
             label=label,
-            options=options,
+            freq_min=float(config["freq_min"]),
+            freq_max=float(config["freq_max"]),
+            ticks=tuple(config["ticks"]),  # type: ignore[arg-type]
+            labels=tuple(config["labels"]),  # type: ignore[arg-type]
+            margin_ratio=float(config["margin_ratio"]),
         )
 
 
 class FrequencyLinearAxis(Axis):
-    """Linear-frequency axis formatter."""
+    """Linear-frequency axis formatter with standard HRTF-oriented ticks."""
 
     frequency_ticks: tuple[float, ...] = (
         2000,
@@ -354,36 +322,31 @@ class FrequencyLinearAxis(Axis):
         frequency_bins: np.ndarray | None = None,
         freq_min: float | None = None,
         freq_max: float | None = None,
-        options: FrequencyAxisOptions | None = None,
-    ) -> FrequencyAxisOptions:
-        """Build resolved options for a linear frequency axis.
+        ticks: tuple[float, ...] | list[float] | None = None,
+        labels: tuple[str, ...] | list[str] | None = None,
+        margin_ratio: float = 0.03,
+    ) -> dict[str, float | tuple[float, ...] | tuple[str, ...]]:
+        """Build validated configuration for linear frequency axes.
 
         Parameters
         ----------
         frequency_bins : np.ndarray | None, default=None
-            Frequency bins in Hz used to resolve default bounds.
+            Frequency bins in Hz used to infer limits when not provided.
         freq_min : float | None, default=None
             Minimum frequency in Hz.
         freq_max : float | None, default=None
             Maximum frequency in Hz.
-        options : FrequencyAxisOptions | None, default=None
-            Additional frequency-axis options.
+        ticks : tuple[float, ...] | list[float] | None, default=None
+            Tick positions in Hz.
+        labels : tuple[str, ...] | list[str] | None, default=None
+            Tick labels matching ``ticks``.
+        margin_ratio : float, default=0.03
+            Relative axis margin.
 
         Returns
         -------
-        FrequencyAxisOptions
-            Resolved linear frequency-axis options.
-
-        Use Cases
-        ---------
-        - Build consistent linear-frequency settings for heatmaps.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> opts = FrequencyLinearAxis.build(frequency_bins=np.linspace(0.0, 20000.0, 100))
-        >>> float(opts.freq_max) >= float(opts.freq_min)
-        True
+        dict[str, float | tuple[float, ...] | tuple[str, ...]]
+            Frequency-axis configuration dictionary.
         """
         return build_frequency_axis(
             scale="linear",
@@ -392,7 +355,9 @@ class FrequencyLinearAxis(Axis):
             frequency_bins=frequency_bins,
             freq_min=freq_min,
             freq_max=freq_max,
-            options=options,
+            ticks=ticks,
+            labels=labels,
+            margin_ratio=margin_ratio,
         )
 
     @staticmethod
@@ -400,41 +365,37 @@ class FrequencyLinearAxis(Axis):
         ax: plt.Axes,
         axis: str,
         label: str | None = None,
-        options: FrequencyAxisOptions | None = None,
+        config: dict[str, float | tuple[float, ...] | tuple[str, ...]] | None = None,
     ) -> None:
-        """Apply linear frequency formatting to a Matplotlib axis.
+        """Apply a linear frequency-axis configuration.
 
         Parameters
         ----------
         ax : plt.Axes
-            Target axis.
+            Target Matplotlib axis.
         axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
+            Axis selector: ``"x"``, ``"y"``, or ``"z"``.
         label : str | None, default=None
             Optional axis label.
-        options : FrequencyAxisOptions | None, default=None
-            Resolved frequency-axis options.
+        config : dict[str, float | tuple[float, ...] | tuple[str, ...]] | None
+            Configuration produced by :meth:`build`.
 
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Format frequency axes in linear scale.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> FrequencyLinearAxis.apply(ax=ax, axis="x", label="Frequency (kHz)", options=FrequencyAxisOptions(freq_min=0.0, freq_max=8000.0, ticks=(1000.0, 2000.0), labels=("1", "2"), margin_ratio=0.0))
         """
+        if config is None:
+            raise ValueError("config is required")
         apply_frequency_axis(
             scale="linear",
             ax=ax,
             axis=axis,
             label=label,
-            options=options,
+            freq_min=float(config["freq_min"]),
+            freq_max=float(config["freq_max"]),
+            ticks=tuple(config["ticks"]),  # type: ignore[arg-type]
+            labels=tuple(config["labels"]),  # type: ignore[arg-type]
+            margin_ratio=float(config["margin_ratio"]),
         )
 
 
@@ -446,44 +407,11 @@ class MagnitudeAxis(Axis):
         ax: plt.Axes,
         axis: str,
         unit: str,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply magnitude label formatting.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            Target axis.
-        axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
-        unit : str
-            Magnitude unit. Expected values are ``"db"`` or ``"linear"``.
-        options : AxisOptions | None, default=None
-            Axis options that may override label text.
-
-        Returns
-        -------
-        None
-
-        Use Cases
-        ---------
-        - Label magnitude responses in dB or linear scale.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> MagnitudeAxis.apply(ax=ax, axis="y", unit="db")
-        """
-        default_label = (
-            Labels.magnitude_db if unit == "db" else Labels.magnitude_linear
-        )
-        Axis.apply_label(
-            ax=ax,
-            axis=axis,
-            default_label=default_label,
-            options=options,
-        )
+        """Apply magnitude axis labeling for linear or decibel units."""
+        default_label = Labels.magnitude_db if unit == "db" else Labels.magnitude_linear
+        Axis.apply_label(ax=ax, axis=axis, default_label=default_label, label=label)
 
 
 class AmplitudeAxis(Axis):
@@ -493,38 +421,14 @@ class AmplitudeAxis(Axis):
     def apply(
         ax: plt.Axes,
         axis: str,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply impulse-response amplitude label formatting.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            Target axis.
-        axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
-        options : AxisOptions | None, default=None
-            Axis options that may override label text.
-
-        Returns
-        -------
-        None
-
-        Use Cases
-        ---------
-        - Label HRIR amplitude plots consistently.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> AmplitudeAxis.apply(ax=ax, axis="y")
-        """
+        """Apply impulse-response amplitude label on the selected axis."""
         Axis.apply_label(
             ax=ax,
             axis=axis,
             default_label=Labels.impulse_response,
-            options=options,
+            label=label,
         )
 
 
@@ -535,39 +439,10 @@ class TimeAxis(Axis):
     def apply(
         ax: plt.Axes,
         axis: str,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply time label formatting.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            Target axis.
-        axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
-        options : AxisOptions | None, default=None
-            Axis options that may override label text.
-
-        Returns
-        -------
-        None
-
-        Use Cases
-        ---------
-        - Label waveform plots in seconds.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> TimeAxis.apply(ax=ax, axis="x")
-        """
-        Axis.apply_label(
-            ax=ax,
-            axis=axis,
-            default_label=Labels.time,
-            options=options,
-        )
+        """Apply time label on the selected axis."""
+        Axis.apply_label(ax=ax, axis=axis, default_label=Labels.time, label=label)
 
 
 class SampleAxis(Axis):
@@ -577,85 +452,40 @@ class SampleAxis(Axis):
     def apply(
         ax: plt.Axes,
         axis: str,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply sample-index label formatting.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            Target axis.
-        axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
-        options : AxisOptions | None, default=None
-            Axis options that may override label text.
-
-        Returns
-        -------
-        None
-
-        Use Cases
-        ---------
-        - Label waveform plots in samples.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> SampleAxis.apply(ax=ax, axis="x")
-        """
-        Axis.apply_label(
-            ax=ax,
-            axis=axis,
-            default_label=Labels.samples,
-            options=options,
-        )
+        """Apply sample-index label on the selected axis."""
+        Axis.apply_label(ax=ax, axis=axis, default_label=Labels.samples, label=label)
 
 
 class XAxis(Axis):
-    """3D X-axis label and limit formatter."""
+    """3D x-axis label and symmetric-limit formatter."""
 
     @staticmethod
     def apply(
         ax: plt.Axes,
         center: float | None = None,
         half_span: float | None = None,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply X-axis label and optional symmetric limits.
+        """Apply x-axis label and optionally symmetric limits around a center.
 
         Parameters
         ----------
         ax : plt.Axes
-            Target axis.
+            Target Matplotlib axis.
         center : float | None, default=None
-            Axis center value.
+            Center value for x-axis limits.
         half_span : float | None, default=None
-            Positive half span around ``center``.
-        options : AxisOptions | None, default=None
-            Axis options that may override label text.
+            Positive half-span used to create symmetric limits.
+        label : str | None, default=None
+            Optional explicit label.
 
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Configure symmetric 3D X limits around a computed center.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig = plt.figure()
-        >>> ax = fig.add_subplot(111, projection="3d")
-        >>> XAxis.apply(ax=ax, center=0.0, half_span=1.0)
         """
-        Axis.apply_label(
-            ax=ax,
-            axis="x",
-            default_label=Labels.three_d_x_label,
-            options=options,
-        )
+        Axis.apply_label(ax=ax, axis="x", default_label=Labels.three_d_x_label, label=label)
         if center is None and half_span is None:
             return
         if center is None or half_span is None:
@@ -666,56 +496,37 @@ class XAxis(Axis):
             raise ValueError("x-axis center must be finite")
         if not np.isfinite(resolved_half_span) or resolved_half_span <= 0.0:
             raise ValueError("x-axis half_span must be a finite, positive value")
-        ax.set_xlim(
-            resolved_center - resolved_half_span,
-            resolved_center + resolved_half_span,
-        )
+        ax.set_xlim(resolved_center - resolved_half_span, resolved_center + resolved_half_span)
 
 
 class YAxis(Axis):
-    """3D Y-axis label and limit formatter."""
+    """3D y-axis label and symmetric-limit formatter."""
 
     @staticmethod
     def apply(
         ax: plt.Axes,
         center: float | None = None,
         half_span: float | None = None,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply Y-axis label and optional symmetric limits.
+        """Apply y-axis label and optionally symmetric limits around a center.
 
         Parameters
         ----------
         ax : plt.Axes
-            Target axis.
+            Target Matplotlib axis.
         center : float | None, default=None
-            Axis center value.
+            Center value for y-axis limits.
         half_span : float | None, default=None
-            Positive half span around ``center``.
-        options : AxisOptions | None, default=None
-            Axis options that may override label text.
+            Positive half-span used to create symmetric limits.
+        label : str | None, default=None
+            Optional explicit label.
 
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Configure symmetric 3D Y limits around a computed center.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig = plt.figure()
-        >>> ax = fig.add_subplot(111, projection="3d")
-        >>> YAxis.apply(ax=ax, center=0.0, half_span=1.0)
         """
-        Axis.apply_label(
-            ax=ax,
-            axis="y",
-            default_label=Labels.three_d_y_label,
-            options=options,
-        )
+        Axis.apply_label(ax=ax, axis="y", default_label=Labels.three_d_y_label, label=label)
         if center is None and half_span is None:
             return
         if center is None or half_span is None:
@@ -726,56 +537,37 @@ class YAxis(Axis):
             raise ValueError("y-axis center must be finite")
         if not np.isfinite(resolved_half_span) or resolved_half_span <= 0.0:
             raise ValueError("y-axis half_span must be a finite, positive value")
-        ax.set_ylim(
-            resolved_center - resolved_half_span,
-            resolved_center + resolved_half_span,
-        )
+        ax.set_ylim(resolved_center - resolved_half_span, resolved_center + resolved_half_span)
 
 
 class ZAxis(Axis):
-    """3D Z-axis label and limit formatter."""
+    """3D z-axis label and symmetric-limit formatter."""
 
     @staticmethod
     def apply(
         ax: plt.Axes,
         center: float | None = None,
         half_span: float | None = None,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply Z-axis label and optional symmetric limits.
+        """Apply z-axis label and optionally symmetric limits around a center.
 
         Parameters
         ----------
         ax : plt.Axes
-            Target axis.
+            Target Matplotlib axis.
         center : float | None, default=None
-            Axis center value.
+            Center value for z-axis limits.
         half_span : float | None, default=None
-            Positive half span around ``center``.
-        options : AxisOptions | None, default=None
-            Axis options that may override label text.
+            Positive half-span used to create symmetric limits.
+        label : str | None, default=None
+            Optional explicit label.
 
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Configure symmetric 3D Z limits around a computed center.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig = plt.figure()
-        >>> ax = fig.add_subplot(111, projection="3d")
-        >>> ZAxis.apply(ax=ax, center=0.0, half_span=1.0)
         """
-        Axis.apply_label(
-            ax=ax,
-            axis="z",
-            default_label=Labels.three_d_z_label,
-            options=options,
-        )
+        Axis.apply_label(ax=ax, axis="z", default_label=Labels.three_d_z_label, label=label)
         if center is None and half_span is None:
             return
         if center is None or half_span is None:
@@ -789,14 +581,11 @@ class ZAxis(Axis):
         set_zlim = getattr(ax, "set_zlim", None)
         if set_zlim is None:
             raise ValueError("z-axis limits require a matplotlib 3D axis")
-        set_zlim(
-            resolved_center - resolved_half_span,
-            resolved_center + resolved_half_span,
-        )
+        set_zlim(resolved_center - resolved_half_span, resolved_center + resolved_half_span)
 
 
 class AzimuthAnglesAxis(DirectionAxis):
-    """Azimuth-axis formatter for cartesian and polar-style ranges."""
+    """Azimuth-axis formatter with configurable signed or unsigned range."""
 
     direction_tick_step: float = 20.0
     azimuth_range_modes: tuple[str, str] = ("0-360", "-180-180")
@@ -805,82 +594,42 @@ class AzimuthAnglesAxis(DirectionAxis):
 
     @classmethod
     def get_tick_step(cls) -> float:
+        """Return azimuth tick spacing in degrees."""
         return cls.direction_tick_step
 
     @staticmethod
-    def get_range_mode(
-        options: AxisOptions | None = None,
-    ) -> str:
-        """Resolve azimuth range mode from axis options.
-
-        Parameters
-        ----------
-        options : AxisOptions | None, default=None
-            Axis options that may include ``azimuth_axis.range_mode``.
-
-        Returns
-        -------
-        str
-            Resolved range mode: ``"0-360"`` or ``"-180-180"``.
-
-        Use Cases
-        ---------
-        - Keep azimuth transformation and tick logic consistent.
-
-        Examples
-        --------
-        >>> AzimuthAnglesAxis.get_range_mode()
-        '0-360'
-        """
-        axis_options = AxisOptions() if options is None else options
-        azimuth_axis_options = (
-            AzimuthAxisOptions()
-            if axis_options.azimuth_axis is None
-            else axis_options.azimuth_axis
-        )
+    def get_range_mode(range_mode: str | None = None) -> str:
+        """Resolve and validate azimuth range mode."""
         resolved_range_mode = (
             AzimuthAnglesAxis.azimuth_range_modes[0]
-            if azimuth_axis_options.range_mode is None
-            else str(azimuth_axis_options.range_mode).strip()
+            if range_mode is None
+            else str(range_mode).strip()
         )
         if resolved_range_mode not in AzimuthAnglesAxis.azimuth_range_modes:
-            raise ValueError(
-                "azimuth axis range_mode accepts "
-                f"{AzimuthAnglesAxis.azimuth_range_modes[0]} or {AzimuthAnglesAxis.azimuth_range_modes[1]}"
-            )
+            raise ValueError("azimuth range_mode accepts 0-360 or -180-180")
         return resolved_range_mode
 
     @staticmethod
     def transform_values(
         values: np.ndarray,
-        options: AxisOptions | None = None,
+        range_mode: str | None = None,
     ) -> np.ndarray:
-        """Transform azimuth values into the configured range mode.
+        """Transform azimuth values to the selected range convention.
 
         Parameters
         ----------
         values : np.ndarray
             Input azimuth values in degrees.
-        options : AxisOptions | None, default=None
-            Axis options that control azimuth range mode.
+        range_mode : str | None, default=None
+            ``"0-360"`` or ``"-180-180"``.
 
         Returns
         -------
         np.ndarray
-            Transformed azimuth values in the selected range convention.
-
-        Use Cases
-        ---------
-        - Convert source azimuths before sorting or plotting.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> AzimuthAnglesAxis.transform_values(np.array([270.0]))
-        array([270.])
+            Transformed azimuth values in degrees.
         """
         resolved_values = np.asarray(values, dtype=float)
-        resolved_range_mode = AzimuthAnglesAxis.get_range_mode(options=options)
+        resolved_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=range_mode)
         if resolved_range_mode == AzimuthAnglesAxis.azimuth_range_modes[0]:
             return np.mod(resolved_values, 360.0)
         transformed_values = np.mod(resolved_values + 180.0, 360.0) - 180.0
@@ -892,40 +641,15 @@ class AzimuthAnglesAxis(DirectionAxis):
         ax: plt.Axes,
         axis: str,
         values: np.ndarray | None = None,
-        options: AxisOptions | None = None,
+        range_mode: str | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply azimuth-axis directional formatting.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            Target axis.
-        axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
-        values : np.ndarray | None, default=None
-            Azimuth values used to resolve limits and ticks.
-        options : AxisOptions | None, default=None
-            Axis options including azimuth range mode and label overrides.
-
-        Returns
-        -------
-        None
-
-        Use Cases
-        ---------
-        - Format horizontal-plane azimuth axes in signed or unsigned mode.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> AzimuthAnglesAxis.apply(ax=ax, axis="x")
-        """
-        resolved_range_mode = AzimuthAnglesAxis.get_range_mode(options=options)
+        """Apply azimuth-axis formatting using the selected range mode."""
+        resolved_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=range_mode)
         transformed_values = (
             None
             if values is None
-            else AzimuthAnglesAxis.transform_values(values=values, options=options)
+            else AzimuthAnglesAxis.transform_values(values=values, range_mode=resolved_range_mode)
         )
         DirectionAxis.apply_direction(
             ax=ax,
@@ -938,55 +662,34 @@ class AzimuthAnglesAxis(DirectionAxis):
                 if resolved_range_mode == AzimuthAnglesAxis.azimuth_range_modes[0]
                 else AzimuthAnglesAxis.azimuth_limits_signed
             ),
-            options=options,
+            label=label,
         )
 
 
 class AzimuthAnglesAxisPolarProjection(Axis):
-    """Azimuth-axis formatter for polar projections."""
+    """Azimuth formatter for polar projection axes."""
 
     @staticmethod
     def apply(
         ax: plt.Axes,
-        options: AxisOptions | None = None,
+        tick_step: float = 30.0,
     ) -> None:
-        """Apply azimuth ticks and orientation on a polar axis.
+        """Apply polar-theta ticks with north-up orientation.
 
         Parameters
         ----------
         ax : plt.Axes
             Target polar axis.
-        options : AxisOptions | None, default=None
-            Axis options containing ``azimuth_polar_axis.tick_step``.
+        tick_step : float, default=30.0
+            Angular tick spacing in degrees.
 
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Configure angular ticks for absolute ITD/ILD polar curves.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig = plt.figure()
-        >>> ax = fig.add_subplot(111, projection="polar")
-        >>> AzimuthAnglesAxisPolarProjection.apply(ax=ax)
         """
         if getattr(ax, "name", "") != "polar":
             raise ValueError("AzimuthAnglesAxisPolarProjection requires a polar axis")
-        axis_options = AxisOptions() if options is None else options
-        azimuth_polar_axis_options = (
-            AzimuthPolarAxisOptions()
-            if axis_options.azimuth_polar_axis is None
-            else axis_options.azimuth_polar_axis
-        )
-        resolved_tick_step = (
-            30.0
-            if azimuth_polar_axis_options.tick_step is None
-            else float(azimuth_polar_axis_options.tick_step)
-        )
+        resolved_tick_step = float(tick_step)
         if not np.isfinite(resolved_tick_step) or resolved_tick_step <= 0.0:
             raise ValueError("tick_step must be a finite, positive value")
         theta_ticks = np.arange(0.0, 360.0, resolved_tick_step, dtype=float)
@@ -996,27 +699,36 @@ class AzimuthAnglesAxisPolarProjection(Axis):
 
 
 class RadialAxisPolarProjection(Axis):
-    """Radial-axis formatter for polar projections."""
+    """Radial-axis formatter for polar projection axes."""
 
     @staticmethod
     def apply(
         ax: plt.Axes,
         radial_values: np.ndarray,
         radial_label_default: str,
-        options: AxisOptions | None = None,
+        tick_step: float = 1.0,
+        tick_label_style: str = "integer",
+        label_position: float = 350.0,
+        label: str | None = None,
     ) -> None:
-        """Apply radial limits, ticks, and radial label on a polar axis.
+        """Apply radial limits, ticks, and labels for polar plots.
 
         Parameters
         ----------
         ax : plt.Axes
             Target polar axis.
         radial_values : np.ndarray
-            Values used to resolve radial maximum and tick spacing.
+            Radial data values used to resolve axis limits.
         radial_label_default : str
-            Default radial label.
-        options : AxisOptions | None, default=None
-            Axis options that may provide radial-axis settings and ylabel override.
+            Default radial-axis label.
+        tick_step : float, default=1.0
+            Radial tick spacing.
+        tick_label_style : str, default="integer"
+            Tick-label formatting mode: ``"integer"`` or ``"decimal_comma_4"``.
+        label_position : float, default=350.0
+            Radial label angular position in degrees.
+        label : str | None, default=None
+            Optional explicit radial-axis label.
 
         Returns
         -------
@@ -1024,24 +736,11 @@ class RadialAxisPolarProjection(Axis):
 
         Use Cases
         ---------
-        - Format radial scale for absolute ITD and ILD polar plots.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> import matplotlib.pyplot as plt
-        >>> fig = plt.figure()
-        >>> ax = fig.add_subplot(111, projection="polar")
-        >>> RadialAxisPolarProjection.apply(ax=ax, radial_values=np.array([0.1, 0.2]), radial_label_default="Value")
+        - Format absolute ITD and ILD polar plots.
+        - Keep radial labels and ticks consistent between metrics.
         """
         if getattr(ax, "name", "") != "polar":
             raise ValueError("RadialAxisPolarProjection requires a polar axis")
-        resolved_axis_options = AxisOptions() if options is None else options
-        radial_polar_axis_options = (
-            RadialPolarAxisOptions()
-            if resolved_axis_options.radial_polar_axis is None
-            else resolved_axis_options.radial_polar_axis
-        )
         resolved_radial_values = np.asarray(radial_values, dtype=float).reshape(-1)
         if resolved_radial_values.size == 0:
             radial_max = 0.0
@@ -1050,36 +749,21 @@ class RadialAxisPolarProjection(Axis):
                 raise ValueError("radial_values must contain finite values")
             radial_max = float(np.max(resolved_radial_values))
 
-        resolved_radial_tick_step = (
-            1.0
-            if radial_polar_axis_options.tick_step is None
-            else float(radial_polar_axis_options.tick_step)
-        )
-        if (
-            not np.isfinite(resolved_radial_tick_step)
-            or resolved_radial_tick_step <= 0.0
-        ):
+        resolved_tick_step = float(tick_step)
+        if not np.isfinite(resolved_tick_step) or resolved_tick_step <= 0.0:
             raise ValueError("radial_tick_step must be a finite, positive value")
-        resolved_tick_label_style = (
-            "integer"
-            if radial_polar_axis_options.tick_label_style is None
-            else str(radial_polar_axis_options.tick_label_style).strip()
-        )
+        resolved_tick_label_style = str(tick_label_style).strip()
         if resolved_tick_label_style not in {"integer", "decimal_comma_4"}:
-            raise ValueError(
-                "radial_tick_label_style accepts integer or decimal_comma_4"
-            )
+            raise ValueError("radial_tick_label_style accepts integer or decimal_comma_4")
+
         if np.isclose(radial_max, 0.0):
-            resolved_radial_max = resolved_radial_tick_step
+            resolved_radial_max = resolved_tick_step
         else:
-            resolved_radial_max = (
-                np.ceil((radial_max * 1.1) / resolved_radial_tick_step)
-                * resolved_radial_tick_step
-            )
+            resolved_radial_max = np.ceil((radial_max * 1.1) / resolved_tick_step) * resolved_tick_step
         radial_ticks = np.arange(
-            resolved_radial_tick_step,
-            resolved_radial_max + (0.5 * resolved_radial_tick_step),
-            resolved_radial_tick_step,
+            resolved_tick_step,
+            resolved_radial_max + (0.5 * resolved_tick_step),
+            resolved_tick_step,
             dtype=float,
         )
         ax.set_ylim(0.0, resolved_radial_max)
@@ -1090,19 +774,11 @@ class RadialAxisPolarProjection(Axis):
             radial_tick_labels = [f"{int(np.rint(tick))}" for tick in radial_ticks]
         ax.set_yticklabels(radial_tick_labels)
 
-        resolved_rlabel_position = (
-            350.0
-            if radial_polar_axis_options.label_position is None
-            else float(radial_polar_axis_options.label_position)
-        )
-        if not np.isfinite(resolved_rlabel_position):
+        resolved_label_position = float(label_position)
+        if not np.isfinite(resolved_label_position):
             raise ValueError("rlabel_position must be finite")
-        ax.set_rlabel_position(resolved_rlabel_position)
-        resolved_radial_label = (
-            radial_label_default
-            if resolved_axis_options.ylabel is None
-            else resolved_axis_options.ylabel
-        )
+        ax.set_rlabel_position(resolved_label_position)
+        resolved_radial_label = radial_label_default if label is None else str(label)
         ax.set_ylabel(resolved_radial_label, rotation=0)
         ax.yaxis.set_label_coords(0.5, ax.title.get_position()[1], transform=ax.transAxes)
         ax.yaxis.label.set_horizontalalignment("center")
@@ -1110,12 +786,13 @@ class RadialAxisPolarProjection(Axis):
 
 
 class ElevationAnglesAxis(DirectionAxis):
-    """Elevation-axis directional formatter."""
+    """Elevation-axis formatter."""
 
     elevation_tick_step: float = 10.0
 
     @classmethod
     def get_tick_step(cls) -> float:
+        """Return elevation tick spacing in degrees."""
         return cls.elevation_tick_step
 
     @staticmethod
@@ -1123,53 +800,28 @@ class ElevationAnglesAxis(DirectionAxis):
         ax: plt.Axes,
         axis: str,
         values: np.ndarray | None = None,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply elevation-axis directional formatting.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            Target axis.
-        axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
-        values : np.ndarray | None, default=None
-            Elevation values used to resolve limits and ticks.
-        options : AxisOptions | None, default=None
-            Axis options that may override axis labels.
-
-        Returns
-        -------
-        None
-
-        Use Cases
-        ---------
-        - Format elevation axes in elevation-spectrum heatmaps.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> ElevationAnglesAxis.apply(ax=ax, axis="y")
-        """
+        """Apply elevation-axis labeling, limits, and ticks."""
         DirectionAxis.apply_direction(
             ax=ax,
             axis=axis,
             default_label=Labels.elevation,
             values=values,
             tick_step=ElevationAnglesAxis.elevation_tick_step,
-            options=options,
+            label=label,
         )
 
 
 class PolarAnglesAxis(DirectionAxis):
-    """Polar-angle directional formatter."""
+    """Lateral-polar angle axis formatter."""
 
     direction_tick_step: float = 20.0
     polar_limits: tuple[float, float] = (-90.0, 270.0)
 
     @classmethod
     def get_tick_step(cls) -> float:
+        """Return polar-angle tick spacing in degrees."""
         return cls.direction_tick_step
 
     @staticmethod
@@ -1177,35 +829,9 @@ class PolarAnglesAxis(DirectionAxis):
         ax: plt.Axes,
         axis: str,
         values: np.ndarray | None = None,
-        options: AxisOptions | None = None,
+        label: str | None = None,
     ) -> None:
-        """Apply polar-angle directional formatting.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            Target axis.
-        axis : str
-            Axis dimension: ``"x"``, ``"y"``, or ``"z"``.
-        values : np.ndarray | None, default=None
-            Polar-angle values used to resolve limits and ticks.
-        options : AxisOptions | None, default=None
-            Axis options that may override axis labels.
-
-        Returns
-        -------
-        None
-
-        Use Cases
-        ---------
-        - Format median-plane polar-angle axes in heatmaps.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> fig, ax = plt.subplots()
-        >>> PolarAnglesAxis.apply(ax=ax, axis="y")
-        """
+        """Apply lateral-polar axis labeling, limits, and ticks."""
         DirectionAxis.apply_direction(
             ax=ax,
             axis=axis,
@@ -1213,5 +839,5 @@ class PolarAnglesAxis(DirectionAxis):
             values=values,
             tick_step=PolarAnglesAxis.direction_tick_step,
             default_limits=PolarAnglesAxis.polar_limits,
-            options=options,
+            label=label,
         )

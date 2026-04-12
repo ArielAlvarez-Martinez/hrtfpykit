@@ -5,7 +5,6 @@ import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
 
 from .labels import Labels
-from .options import FrequencyAxisOptions
 from ..hrtf.coordinates import spherical_to_cartesian
 from ..hrtf.sources import Sources
 
@@ -17,76 +16,57 @@ def build_frequency_axis(
     frequency_bins: np.ndarray | None = None,
     freq_min: float | None = None,
     freq_max: float | None = None,
-    options: FrequencyAxisOptions | None = None,
-) -> FrequencyAxisOptions:
-    """Build resolved frequency-axis options for plotting.
-
-    This function resolves frequency-axis limits, visible ticks, labels, and
-    margin ratio for linear or logarithmic frequency plots. Explicit arguments
-    override values provided through ``options``.
+    ticks: tuple[float, ...] | list[float] | None = None,
+    labels: tuple[str, ...] | list[str] | None = None,
+    margin_ratio: float = 0.03,
+) -> dict[str, float | tuple[float, ...] | tuple[str, ...]]:
+    """Build validated frequency-axis configuration values.
 
     Parameters
     ----------
     scale : str
-        Frequency-axis scale. Supported values are ``"linear"`` and ``"log"``.
+        Frequency scale mode. Supported values are ``"linear"`` and ``"log"``.
     default_ticks : tuple[float, ...]
-        Default tick positions in Hz used when no custom ticks are provided.
+        Default tick positions in Hz used when ``ticks`` is not provided.
     default_labels : tuple[str, ...]
-        Default tick labels associated with ``default_ticks``.
+        Default tick labels used when both ``ticks`` and ``labels`` are not provided.
     frequency_bins : np.ndarray | None, default=None
-        Available frequency bins in Hz. Used to resolve bounds when ``freq_min``
-        or ``freq_max`` are not explicitly provided.
+        Frequency-bin vector in Hz used to infer ``freq_min`` and ``freq_max`` when
+        they are not explicitly provided.
     freq_min : float | None, default=None
-        Minimum frequency in Hz. If omitted, it is resolved from
-        ``frequency_bins`` or options.
+        Lower frequency bound in Hz.
     freq_max : float | None, default=None
-        Maximum frequency in Hz. If omitted, it is resolved from
-        ``frequency_bins`` or options.
-    options : FrequencyAxisOptions | None, default=None
-        Additional axis options that may provide bounds, ticks, labels, and
-        margin ratio.
+        Upper frequency bound in Hz.
+    ticks : tuple[float, ...] | list[float] | None, default=None
+        Explicit tick positions in Hz.
+    labels : tuple[str, ...] | list[str] | None, default=None
+        Explicit tick labels.
+    margin_ratio : float, default=0.03
+        Relative axis margin used later by axis-application utilities.
 
     Returns
     -------
-    FrequencyAxisOptions
-        A fully resolved frequency-axis configuration with visible ticks and
-        labels inside the selected frequency range.
+    dict[str, float | tuple[float, ...] | tuple[str, ...]]
+        Dictionary with ``ticks``, ``labels``, ``freq_min``, ``freq_max``, and
+        ``margin_ratio`` after validation and range filtering.
 
     Use Cases
     ---------
-    - Resolve final axis bounds from data before plotting a frequency response.
-    - Filter default/custom ticks to the selected frequency interval.
-    - Build reusable frequency-axis settings for multiple subplots.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> bins = np.linspace(0.0, 20000.0, 513)
-    >>> axis_options = build_frequency_axis(
-    ...     scale="linear",
-    ...     default_ticks=(2000.0, 4000.0, 8000.0),
-    ...     default_labels=("2", "4", "8"),
-    ...     frequency_bins=bins,
-    ... )
-    >>> float(axis_options.freq_min) >= 0.0
-    True
+    - Create one shared frequency-axis config for multiple subplots.
+    - Validate frequency bounds and labels before rendering.
+    - Filter visible ticks to the selected frequency range.
     """
-    frequency_axis_options = FrequencyAxisOptions() if options is None else options
     resolved_frequency_bins = None
     if frequency_bins is not None:
         resolved_frequency_bins = np.asarray(frequency_bins, dtype=float)
         if resolved_frequency_bins.ndim != 1 or resolved_frequency_bins.size == 0:
             raise ValueError("frequency_bins must be a non-empty 1D array")
-    requested_freq_min = (
-        frequency_axis_options.freq_min if freq_min is None else freq_min
-    )
-    if requested_freq_min is None:
+
+    if freq_min is None:
         if resolved_frequency_bins is None:
             raise ValueError("freq_min is required when frequency_bins are not provided")
         if scale == "log":
-            positive_frequency_bins = resolved_frequency_bins[
-                resolved_frequency_bins > 0.0
-            ]
+            positive_frequency_bins = resolved_frequency_bins[resolved_frequency_bins > 0.0]
             if positive_frequency_bins.size == 0:
                 raise ValueError(
                     "frequency_bins must include a positive value for logarithmic frequency axis"
@@ -95,21 +75,16 @@ def build_frequency_axis(
         else:
             resolved_freq_min = float(np.min(resolved_frequency_bins))
     else:
-        resolved_freq_min = float(requested_freq_min)
-    requested_freq_max = (
-        frequency_axis_options.freq_max if freq_max is None else freq_max
-    )
-    if requested_freq_max is None:
+        resolved_freq_min = float(freq_min)
+
+    if freq_max is None:
         if resolved_frequency_bins is None:
             raise ValueError("freq_max is required when frequency_bins are not provided")
         resolved_freq_max = float(np.max(resolved_frequency_bins))
     else:
-        resolved_freq_max = float(requested_freq_max)
-    resolved_margin_ratio = (
-        0.03
-        if frequency_axis_options.margin_ratio is None
-        else float(frequency_axis_options.margin_ratio)
-    )
+        resolved_freq_max = float(freq_max)
+
+    resolved_margin_ratio = float(margin_ratio)
     if not np.isfinite(resolved_freq_min) or not np.isfinite(resolved_freq_max):
         raise ValueError("freq_min and freq_max must be finite values")
     if resolved_freq_min >= resolved_freq_max:
@@ -121,19 +96,16 @@ def build_frequency_axis(
 
     resolved_ticks = (
         tuple(float(tick) for tick in default_ticks)
-        if frequency_axis_options.ticks is None
-        else tuple(float(tick) for tick in frequency_axis_options.ticks)
+        if ticks is None
+        else tuple(float(tick) for tick in ticks)
     )
-    resolved_labels = (
-        tuple(str(label) for label in default_labels)
-        if frequency_axis_options.labels is None
-        and frequency_axis_options.ticks is None
-        else (
-            tuple(f"{tick / 1000.0:g}" for tick in resolved_ticks)
-            if frequency_axis_options.labels is None
-            else tuple(str(label) for label in frequency_axis_options.labels)
-        )
-    )
+    if labels is None and ticks is None:
+        resolved_labels = tuple(str(label) for label in default_labels)
+    elif labels is None:
+        resolved_labels = tuple(f"{tick / 1000.0:g}" for tick in resolved_ticks)
+    else:
+        resolved_labels = tuple(str(label) for label in labels)
+
     if len(resolved_ticks) != len(resolved_labels):
         raise ValueError("frequency axis ticks and labels must have the same length")
     if scale == "log" and any(tick <= 0.0 for tick in resolved_ticks):
@@ -144,13 +116,13 @@ def build_frequency_axis(
         for tick, tick_label in zip(resolved_ticks, resolved_labels)
         if resolved_freq_min <= tick <= resolved_freq_max
     )
-    return FrequencyAxisOptions(
-        ticks=tuple(tick for tick, _ in visible_pairs),
-        labels=tuple(tick_label for _, tick_label in visible_pairs),
-        freq_min=resolved_freq_min,
-        freq_max=resolved_freq_max,
-        margin_ratio=resolved_margin_ratio,
-    )
+    return {
+        "ticks": tuple(tick for tick, _ in visible_pairs),
+        "labels": tuple(tick_label for _, tick_label in visible_pairs),
+        "freq_min": resolved_freq_min,
+        "freq_max": resolved_freq_max,
+        "margin_ratio": resolved_margin_ratio,
+    }
 
 
 def apply_frequency_axis(
@@ -158,26 +130,34 @@ def apply_frequency_axis(
     ax: plt.Axes,
     axis: str,
     label: str | None = None,
-    options: FrequencyAxisOptions | None = None,
+    freq_min: float | None = None,
+    freq_max: float | None = None,
+    ticks: tuple[float, ...] | list[float] | None = None,
+    labels: tuple[str, ...] | list[str] | None = None,
+    margin_ratio: float = 0.03,
 ) -> None:
-    """Apply resolved frequency-axis formatting to a Matplotlib axis.
-
-    The function sets frequency scale, limits, ticks, labels, and disables
-    minor tick formatting for the requested axis dimension.
+    """Apply frequency-axis scaling, limits, ticks, and labels to an axis.
 
     Parameters
     ----------
     scale : str
-        Frequency-axis scale. Supported values are ``"linear"`` and ``"log"``.
+        Frequency scale mode. Supported values are ``"linear"`` and ``"log"``.
     ax : plt.Axes
-        Matplotlib axis where formatting will be applied.
+        Target Matplotlib axis.
     axis : str
-        Axis dimension to format: ``"x"``, ``"y"``, or ``"z"``.
+        Axis selector: ``"x"``, ``"y"``, or ``"z"``.
     label : str | None, default=None
-        Optional axis label. If provided, it is set on the target axis.
-    options : FrequencyAxisOptions | None, default=None
-        Resolved frequency-axis options containing frequency bounds in Hz,
-        ticks in Hz, labels, and margin ratio.
+        Optional axis label. When ``None``, the existing axis label is preserved.
+    freq_min : float | None, default=None
+        Lower frequency bound in Hz.
+    freq_max : float | None, default=None
+        Upper frequency bound in Hz.
+    ticks : tuple[float, ...] | list[float] | None, default=None
+        Tick positions in Hz.
+    labels : tuple[str, ...] | list[str] | None, default=None
+        Tick labels matching ``ticks``.
+    margin_ratio : float, default=0.03
+        Relative margin applied around axis limits.
 
     Returns
     -------
@@ -185,35 +165,23 @@ def apply_frequency_axis(
 
     Use Cases
     ---------
-    - Apply consistent frequency formatting to linear spectrum plots.
-    - Apply logarithmic frequency formatting in Bode-like plots.
-    - Reuse one frequency-axis configuration across multiple axes.
-
-    Examples
-    --------
-    >>> import matplotlib.pyplot as plt
-    >>> fig, ax = plt.subplots()
-    >>> apply_frequency_axis(
-    ...     scale="linear",
-    ...     ax=ax,
-    ...     axis="x",
-    ...     label="Frequency (kHz)",
-    ...     options=FrequencyAxisOptions(
-    ...         freq_min=200.0,
-    ...         freq_max=8000.0,
-    ...         ticks=(500.0, 1000.0, 2000.0, 4000.0, 8000.0),
-    ...         labels=("0.5", "1", "2", "4", "8"),
-    ...         margin_ratio=0.0,
-    ...     ),
-    ... )
+    - Apply consistent frequency formatting in linear and logarithmic plots.
+    - Reuse validated tick/label configs across plot methods.
+    - Disable minor ticks and scientific offset text for frequency axes.
     """
     if axis not in {"x", "y", "z"}:
         raise ValueError("axis accepts 'x', 'y', or 'z'")
-    resolved_frequency_axis = FrequencyAxisOptions() if options is None else options
-    ticks_khz = [tick / 1000.0 for tick in resolved_frequency_axis.ticks or ()]
-    resolved_freq_min_khz = float(resolved_frequency_axis.freq_min) / 1000.0
-    resolved_freq_max_khz = float(resolved_frequency_axis.freq_max) / 1000.0
-    margin_ratio = float(resolved_frequency_axis.margin_ratio)
+    if freq_min is None or freq_max is None:
+        raise ValueError("freq_min and freq_max are required")
+    resolved_ticks = tuple(float(tick) for tick in (ticks or ()))
+    resolved_labels = tuple(str(value) for value in (labels or ()))
+    if len(resolved_ticks) != len(resolved_labels):
+        raise ValueError("frequency axis ticks and labels must have the same length")
+
+    resolved_freq_min_khz = float(freq_min) / 1000.0
+    resolved_freq_max_khz = float(freq_max) / 1000.0
+    ticks_khz = [tick / 1000.0 for tick in resolved_ticks]
+    resolved_margin_ratio = float(margin_ratio)
 
     if axis == "x":
         axis_object = ax.xaxis
@@ -241,17 +209,17 @@ def apply_frequency_axis(
         set_scale("log")
         log_min = np.log10(resolved_freq_min_khz)
         log_max = np.log10(resolved_freq_max_khz)
-        margin_log = (log_max - log_min) * margin_ratio
+        margin_log = (log_max - log_min) * resolved_margin_ratio
         axis_min = 10 ** (log_min - margin_log)
         axis_max = 10 ** (log_max + margin_log)
     else:
         set_scale("linear")
-        margin_linear = (resolved_freq_max_khz - resolved_freq_min_khz) * margin_ratio
+        margin_linear = (resolved_freq_max_khz - resolved_freq_min_khz) * resolved_margin_ratio
         axis_min = resolved_freq_min_khz - margin_linear
         axis_max = resolved_freq_max_khz + margin_linear
     set_limits(axis_min, axis_max)
     axis_object.set_major_locator(FixedLocator(ticks_khz))
-    axis_object.set_major_formatter(FixedFormatter(resolved_frequency_axis.labels or ()))
+    axis_object.set_major_formatter(FixedFormatter(resolved_labels))
     axis_object.set_minor_locator(NullLocator())
     axis_object.set_minor_formatter(NullFormatter())
     if hasattr(axis_object, "offsetText"):
@@ -261,35 +229,24 @@ def apply_frequency_axis(
 def resolve_three_dimensional_axis_geometry(
     cartesian_positions: np.ndarray,
 ) -> tuple[float, float, float, float]:
-    """Resolve center and symmetric span for a 3D source-grid axis.
-
-    The function computes axis centers for X, Y, and Z and a shared half-span
-    so all three dimensions use the same visual extent.
+    """Resolve center coordinates and half-span for equal 3D axis limits.
 
     Parameters
     ----------
     cartesian_positions : np.ndarray
-        Cartesian source positions with shape ``(N, 3)``.
+        Source positions with shape ``(N, 3)`` in Cartesian coordinates.
 
     Returns
     -------
     tuple[float, float, float, float]
-        ``(x_center, y_center, z_center, axis_half_span)``.
+        ``(x_center, y_center, z_center, axis_half_span)`` where
+        ``axis_half_span`` is derived from the maximum span among x, y, and z
+        dimensions, with a minimum total span of ``1.0``.
 
     Use Cases
     ---------
-    - Keep 3D plots visually balanced across all dimensions.
-    - Build equal-span bounds for source-grid visualization.
-    - Reuse one geometry computation before applying X/Y/Z axis logic.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> x_center, y_center, z_center, half_span = resolve_three_dimensional_axis_geometry(
-    ...     np.array([[1.0, 0.0, 0.0], [-1.0, 0.5, 0.2], [0.2, -0.4, -0.8]])
-    ... )
-    >>> half_span > 0.0
-    True
+    - Build equal-scale 3D source-grid views.
+    - Keep x/y/z ranges symmetric around the data center.
     """
     resolved_cartesian_positions = np.asarray(cartesian_positions, dtype=float)
     if (
@@ -323,19 +280,16 @@ def create_sources_grid_direction_markers(
     sources: Sources,
     axis_half_span: float,
 ) -> None:
-    """Draw front, right, and up direction markers on a 3D source grid.
-
-    The markers are derived from nearest source positions in spherical
-    coordinates and rendered as quiver arrows with text labels.
+    """Draw front, right, and up direction arrows on a 3D source-grid axis.
 
     Parameters
     ----------
     ax : plt.Axes
-        Matplotlib 3D axis where markers are drawn.
+        Target 3D Matplotlib axis.
     sources : Sources
-        Source container used to query canonical directions.
+        Sources container used to resolve canonical spherical directions.
     axis_half_span : float
-        Positive half-span used to scale marker arrow length and text offsets.
+        Half-span used to scale arrow lengths and label offsets.
 
     Returns
     -------
@@ -343,17 +297,8 @@ def create_sources_grid_direction_markers(
 
     Use Cases
     ---------
-    - Add orientation cues to a 3D source-grid scatter plot.
-    - Make front/right/up directions explicit in interactive views.
-    - Keep marker size proportional to axis span.
-
-    Examples
-    --------
-    >>> import matplotlib.pyplot as plt
-    >>> fig = plt.figure()
-    >>> ax = fig.add_subplot(111, projection="3d")
-    >>> # sources must be an initialized Sources instance from hrtfpykit.
-    >>> # create_sources_grid_direction_markers(ax=ax, sources=sources, axis_half_span=1.0)
+    - Annotate 3D source-grid plots with orientation cues.
+    - Keep direction markers visually proportional to axis size.
     """
     resolved_axis_half_span = float(axis_half_span)
     if not np.isfinite(resolved_axis_half_span) or resolved_axis_half_span <= 0.0:
@@ -422,23 +367,17 @@ def create_sources_grid_direction_markers(
         linewidth=arrow_linewidth,
         arrow_length_ratio=arrow_length_ratio,
     )
+    right_label_position = right_tail + right_direction * (
+        arrow_delta_radius + arrow_label_offset_ratio * resolved_axis_half_span
+    )
+    right_label_position[2] += right_label_vertical_offset_ratio * resolved_axis_half_span
     ax.text(
-        *(
-            right_tail
-            + right_direction
-            * (
-                arrow_delta_radius
-                + arrow_label_offset_ratio * resolved_axis_half_span
-            )
-            + np.array(
-                [0.0, 0.0, right_label_vertical_offset_ratio * resolved_axis_half_span]
-            )
-        ),
+        *right_label_position,
         "Right",
         color=arrow_color,
         fontweight="bold",
         fontsize=11,
-        ha="left",
+        ha="center",
         va="bottom",
         bbox=Labels.label_box,
     )
@@ -463,7 +402,7 @@ def create_sources_grid_direction_markers(
         color=arrow_color,
         fontweight="bold",
         fontsize=11,
-        ha="left",
+        ha="center",
         va="bottom",
         bbox=Labels.label_box,
     )

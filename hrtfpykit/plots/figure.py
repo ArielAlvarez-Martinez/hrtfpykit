@@ -5,7 +5,6 @@ import numpy as np
 
 from .default import FigureSize, RC
 from .layouts import Layout
-from .options import AxisOptions, PlotOptions
 from .types import Heatmap, ThreeDimension, TwoDimension
 
 
@@ -215,58 +214,6 @@ class Figure:
         for ax in self.axes[used_axes:]:
             ax.set_visible(False)
 
-    def get_subplots_axis_options(
-        self,
-        plot_options: PlotOptions,
-    ) -> dict[int, AxisOptions]:
-        """Resolve subplot-specific axis options indexed by subplot position.
-
-        Parameters
-        ----------
-        plot_options : PlotOptions
-            Plot options that may contain subplot overrides in ``subplots``.
-
-        Returns
-        -------
-        dict[int, AxisOptions]
-            Mapping from subplot index to axis options.
-
-        Use Cases
-        ---------
-        - Apply per-subplot labels, titles, grids, and legends.
-        - Convert named subplot keys into concrete indices.
-
-        Examples
-        --------
-        >>> from hrtfpykit.plots.options import PlotOptions
-        >>> from hrtfpykit.plots.layouts import Layout_1
-        >>> figure = Figure(Layout_1())
-        >>> figure.get_subplots_axis_options(PlotOptions())
-        {}
-        """
-        subplot_axis_options: dict[int, AxisOptions] = {}
-        if plot_options.subplots is None:
-            return subplot_axis_options
-        for subplot, subplot_options in plot_options.subplots.items():
-            if isinstance(subplot, str):
-                if subplot not in self.positions:
-                    raise ValueError(
-                        f"subplot accepts: {', '.join(self.positions)}"
-                    )
-                subplot_index = self.positions.index(subplot)
-            else:
-                subplot_index = int(subplot)
-                if subplot_index < 0 or subplot_index >= self.axes.size:
-                    raise ValueError(
-                        f"subplot index must be between 0 and {self.axes.size - 1}"
-                    )
-            if subplot_index in subplot_axis_options:
-                raise ValueError(
-                    f"subplot override for subplot {subplot_index} is duplicated"
-                )
-            subplot_axis_options[subplot_index] = subplot_options
-        return subplot_axis_options
-
     def create_two_dimension(self, ax: plt.Axes, x, y, **kwargs):
         """Create a 2D line plot on the provided axis.
 
@@ -312,8 +259,12 @@ class Figure:
         y,
         values,
         label: str | None = None,
-        options=None,
         colormap: str | None = None,
+        colorbar: bool = True,
+        colorbar_location: str | None = None,
+        colorbar_fraction: float | None = None,
+        colorbar_pad: float | None = None,
+        colorbar_label: str | None = None,
         **kwargs,
     ):
         """Create a heatmap on the provided axis.
@@ -330,10 +281,18 @@ class Figure:
             Heatmap values.
         label : str | None, default=None
             Colorbar label.
-        options : object, default=None
-            Heatmap options object passed to ``Heatmap.create``.
         colormap : str | None, default=None
             Colormap name.
+        colorbar : bool, default=True
+            Whether to render the heatmap colorbar.
+        colorbar_location : str | None, default=None
+            Colorbar location.
+        colorbar_fraction : float | None, default=None
+            Colorbar width fraction.
+        colorbar_pad : float | None, default=None
+            Colorbar padding.
+        colorbar_label : str | None, default=None
+            Colorbar label override.
         **kwargs
             Extra Matplotlib pcolormesh arguments.
 
@@ -361,8 +320,12 @@ class Figure:
             values=values,
             fig=self.fig,
             label=label,
-            options=options,
             colormap=colormap,
+            colorbar=colorbar,
+            colorbar_location=colorbar_location,
+            colorbar_fraction=colorbar_fraction,
+            colorbar_pad=colorbar_pad,
+            colorbar_label=colorbar_label,
             **kwargs,
         )
 

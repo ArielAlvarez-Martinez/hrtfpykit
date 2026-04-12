@@ -11,6 +11,8 @@ from ..hrtf.coordinates import get_position_alias
 
 @dataclass(frozen=True)
 class Titles:
+    """Central title templates and title helpers for plot methods."""
+
     spherical_alias = "{name} : [Azimuth= {az}°, Elevation= {el}°]"
     spherical_position = "Position : [Azimuth= {az}°, Elevation= {el}°]"
     cartesian_alias = "{name} : [x= {x}, y= {y}, z= {z}]"
@@ -26,6 +28,18 @@ class Titles:
     def create_position_title(
         selected_positions: np.ndarray,
     ) -> str:
+        """Create a subplot title for a spherical source position.
+
+        Parameters
+        ----------
+        selected_positions : np.ndarray
+            Position values as ``[azimuth, elevation]`` in degrees.
+
+        Returns
+        -------
+        str
+            Formatted position title, optionally using a known alias.
+        """
         position_alias = get_position_alias(
             selected_positions,
             coordinate_system="spherical",
@@ -49,6 +63,20 @@ class Titles:
         plane: str,
         elevation_angle: float = 0.0,
     ) -> str:
+        """Create a figure title for horizontal or median plane plots.
+
+        Parameters
+        ----------
+        plane : str
+            Plane name. Supported values are ``"horizontal"`` and ``"median"``.
+        elevation_angle : float, default=0.0
+            Horizontal-plane elevation in degrees.
+
+        Returns
+        -------
+        str
+            Formatted plane title.
+        """
         plane_key = str(plane).strip().lower()
         if plane_key == "horizontal":
             if np.isclose(float(elevation_angle), 0.0, atol=1e-8, rtol=0.0):
@@ -64,6 +92,7 @@ class Titles:
     def create_elevation_spectrum_title(
         real_azimuth: float,
     ) -> str:
+        """Create a figure title for elevation-spectrum plots."""
         return Titles.elevation_spectrum.format(angle=float(real_azimuth))
 
     @staticmethod
@@ -71,6 +100,7 @@ class Titles:
         ax: Axes,
         title: str,
     ) -> None:
+        """Apply a subplot title on a single axis."""
         ax.set_title(title)
 
     @staticmethod
@@ -80,6 +110,23 @@ class Titles:
         figure_title_y: float,
         title: str,
     ) -> None:
+        """Apply a centered figure title based on visible subplot bounds.
+
+        Parameters
+        ----------
+        fig : MatplotlibFigure
+            Target Matplotlib figure.
+        axes : np.ndarray
+            Array of subplot axes used to compute visible bounds.
+        figure_title_y : float
+            Vertical figure-title position in figure coordinates.
+        title : str
+            Figure title text.
+
+        Returns
+        -------
+        None
+        """
         visible_axes = tuple(ax for ax in axes if ax.get_visible())
         figure_title_x = 0.5
         if visible_axes:

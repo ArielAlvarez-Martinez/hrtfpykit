@@ -7,10 +7,10 @@ from matplotlib.lines import Line2D
 from mpl_toolkits.mplot3d.art3d import Path3DCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from .options import HeatmapOptions
-
 
 class TwoDimension:
+    """2D line-plot primitive wrapper."""
+
     @staticmethod
     def create(
         ax: Axes,
@@ -18,12 +18,32 @@ class TwoDimension:
         y,
         **kwargs,
     ) -> list[Line2D]:
+        """Create a 2D line plot on a non-3D axis.
+
+        Parameters
+        ----------
+        ax : Axes
+            Target Matplotlib axis.
+        x : array-like
+            X-axis values.
+        y : array-like
+            Y-axis values.
+        **kwargs
+            Additional arguments forwarded to ``Axes.plot``.
+
+        Returns
+        -------
+        list[Line2D]
+            Line artists returned by Matplotlib.
+        """
         if getattr(ax, "name", "") == "3d":
             raise ValueError("TwoDimension does not accept 3d axes")
         return ax.plot(x, y, **kwargs)
 
 
 class Heatmap:
+    """Heatmap primitive wrapper with optional colorbar support."""
+
     colormaps: dict[str, str] = {
         "viridis": "viridis",
         "magma": "magma",
@@ -42,13 +62,52 @@ class Heatmap:
         values,
         fig: plt.Figure | None = None,
         label: str | None = None,
-        options: HeatmapOptions | None = None,
         colormap: str | None = None,
+        colorbar: bool = True,
+        colorbar_location: str | None = None,
+        colorbar_fraction: float | None = None,
+        colorbar_pad: float | None = None,
+        colorbar_label: str | None = None,
         **kwargs,
     ) -> QuadMesh:
+        """Create a heatmap and optionally attach a colorbar.
+
+        Parameters
+        ----------
+        ax : Axes
+            Target Matplotlib axis.
+        x : array-like
+            X-axis coordinates.
+        y : array-like
+            Y-axis coordinates.
+        values : array-like
+            Heatmap matrix values.
+        fig : plt.Figure | None, default=None
+            Figure used for colorbar creation when enabled.
+        label : str | None, default=None
+            Default colorbar label.
+        colormap : str | None, default=None
+            Colormap name.
+        colorbar : bool, default=True
+            Whether to draw a colorbar.
+        colorbar_location : str | None, default=None
+            Colorbar side/location used by ``append_axes``.
+        colorbar_fraction : float | None, default=None
+            Relative colorbar size.
+        colorbar_pad : float | None, default=None
+            Padding between axis and colorbar.
+        colorbar_label : str | None, default=None
+            Colorbar label override.
+        **kwargs
+            Additional arguments forwarded to ``Axes.pcolormesh``.
+
+        Returns
+        -------
+        QuadMesh
+            Heatmap artist returned by Matplotlib.
+        """
         if getattr(ax, "name", "") == "3d":
             raise ValueError("Heatmap does not accept 3d axes")
-        heatmap_options = HeatmapOptions() if options is None else options
         resolved_colormap = "jet" if colormap is None else str(colormap)
         if resolved_colormap not in Heatmap.colormaps:
             raise ValueError(
@@ -61,31 +120,26 @@ class Heatmap:
             cmap=Heatmap.colormaps[resolved_colormap],
             **kwargs,
         )
-        colorbar_enabled = (
-            True if heatmap_options.colorbar is None else heatmap_options.colorbar
-        )
-        if not colorbar_enabled:
+        if not bool(colorbar):
             return mesh
         if fig is None:
             raise ValueError("fig is required when colorbar is enabled")
         resolved_location = (
             Heatmap.colorbar_location
-            if heatmap_options.colorbar_location is None
-            else heatmap_options.colorbar_location
+            if colorbar_location is None
+            else colorbar_location
         )
         resolved_fraction = (
             Heatmap.colorbar_fraction
-            if heatmap_options.colorbar_fraction is None
-            else heatmap_options.colorbar_fraction
+            if colorbar_fraction is None
+            else colorbar_fraction
         )
         resolved_pad = (
             Heatmap.colorbar_pad
-            if heatmap_options.colorbar_pad is None
-            else heatmap_options.colorbar_pad
+            if colorbar_pad is None
+            else colorbar_pad
         )
-        resolved_label = (
-            label if heatmap_options.colorbar_label is None else heatmap_options.colorbar_label
-        )
+        resolved_label = label if colorbar_label is None else colorbar_label
         divider = make_axes_locatable(ax)
         colorbar_size = f"{float(resolved_fraction) * 100.0:.1f}%"
         cax = divider.append_axes(
@@ -98,6 +152,8 @@ class Heatmap:
 
 
 class ThreeDimension:
+    """3D scatter-plot primitive wrapper."""
+
     @staticmethod
     def create(
         ax: Axes,
@@ -111,6 +167,36 @@ class ThreeDimension:
         depthshade: bool = True,
         **kwargs,
     ) -> Path3DCollection:
+        """Create a 3D scatter plot on a 3D axis.
+
+        Parameters
+        ----------
+        ax : Axes
+            Target Matplotlib axis with ``3d`` projection.
+        x : array-like
+            X coordinates.
+        y : array-like
+            Y coordinates.
+        z : array-like
+            Z coordinates.
+        s : float, default=28.0
+            Marker size.
+        color : str, default="steelblue"
+            Marker face color.
+        edgecolors : str, default="black"
+            Marker edge color.
+        linewidths : float, default=0.4
+            Marker edge width.
+        depthshade : bool, default=True
+            Whether to apply depth shading.
+        **kwargs
+            Additional arguments forwarded to ``Axes.scatter``.
+
+        Returns
+        -------
+        Path3DCollection
+            Scatter artist returned by Matplotlib.
+        """
         if getattr(ax, "name", "") != "3d":
             raise ValueError("ThreeDimension requires a 3d projection")
         return ax.scatter(

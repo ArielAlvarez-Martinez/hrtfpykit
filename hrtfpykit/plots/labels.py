@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+"""Default label constants used by plotting axes and annotations."""
+
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class Labels:
+    """Container with default text labels and tick-label presets for plots."""
+
     frequency = "Frequency(kHz)"
     magnitude_db = "Magnitude (dB)"
     magnitude_linear = "Magnitude"

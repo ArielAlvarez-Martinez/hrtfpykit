@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Helpers for preparing polar-plot curve data."""
+
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -17,6 +19,43 @@ def create_horizontal_plane_curve(
     values: np.ndarray,
     elevation: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    """Create sorted polar-curve data for a horizontal-plane slice.
+
+    The function selects the nearest available horizontal plane, extracts
+    azimuth angles and per-source values for that plane, sorts by azimuth,
+    and returns arrays ready for polar plotting.
+
+    Parameters
+    ----------
+    hrtf : HRTF
+        HRTF instance that provides source positions and plane selection.
+    values : np.ndarray
+        Per-source metric values aligned with the source grid.
+    elevation : float, default=0.0
+        Requested horizontal-plane elevation in degrees.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, np.ndarray, float]
+        ``(theta_values, radial_values, sorted_plane_values, real_elevation)``,
+        where ``theta_values`` are in radians for Matplotlib polar axes,
+        ``radial_values`` are optionally closed for continuous curves,
+        ``sorted_plane_values`` are the sorted per-azimuth values, and
+        ``real_elevation`` is the resolved plane elevation.
+
+    Use Cases
+    ---------
+    - Build absolute ITD polar curves for the horizontal plane.
+    - Build absolute ILD polar curves for the horizontal plane.
+    - Reuse one plane-extraction path for different scalar metrics.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> # hrtf must be a valid HRTF instance
+    >>> # values must have one value per source
+    >>> # theta, radial, sorted_values, real_elev = create_horizontal_plane_curve(hrtf, values=np.ones(100))
+    """
     indices, real_elevation = get_horizontal_plane(
         hrtf=hrtf,
         elevation=elevation,

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+"""Legend helpers used by plot methods."""
+
 from abc import ABC, abstractmethod
 
 import matplotlib.pyplot as plt
 
 
 class Legends(ABC):
+    """Abstract base class for legend strategies."""
+
     @staticmethod
     @abstractmethod
     def apply(ax: plt.Axes, *args, **kwargs) -> None:
@@ -13,6 +17,8 @@ class Legends(ABC):
 
 
 class Ear(Legends):
+    """Legend strategy for left/right/both ear plot traces."""
+
     location: str = "upper left"
 
     @staticmethod
@@ -22,6 +28,37 @@ class Ear(Legends):
         location: str | None = None,
         labels: tuple[str, ...] | list[str] | None = None,
     ) -> None:
+        """Apply ear legend labels to the target axis.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            Target axis where the legend is rendered.
+        ear : str
+            Ear selection mode: ``"left"``, ``"right"``, or ``"both"``.
+        location : str | None, default=None
+            Legend location string. Uses class default when omitted.
+        labels : tuple[str, ...] | list[str] | None, default=None
+            Optional custom labels. Label count must match the selected
+            ``ear`` mode.
+
+        Returns
+        -------
+        None
+
+        Use Cases
+        ---------
+        - Add consistent ear legends for waveform and magnitude plots.
+        - Override default left/right labels in custom figures.
+
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> fig, ax = plt.subplots()
+        >>> ax.plot([0, 1], [0, 1])
+        >>> ax.plot([0, 1], [1, 0])
+        >>> Ear.apply(ax=ax, ear="both")
+        """
         default_labels_by_ear = {
             "both": ["Left Ear", "Right Ear"],
             "left": ["Left Ear"],

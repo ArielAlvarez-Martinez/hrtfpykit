@@ -30,19 +30,6 @@ from .figure import Figure
 from .labels import Labels
 from .layouts import Layout_1, Layout_2Horizontal, Layout_2Vertical, Layout_3
 from .legends import Ear
-from .options import (
-    AxisOptions,
-    AzimuthAxisOptions,
-    AzimuthPolarAxisOptions,
-    FigureOptions,
-    FrequencyAxisOptions,
-    HeatmapOptions,
-    LegendOptions,
-    PolarCurveStyleOptions,
-    PlotOptions,
-    Scatter3DStyleOptions,
-    RadialPolarAxisOptions,
-)
 from .polar import create_horizontal_plane_curve
 from .titles import Titles
 from ..hrtf.coordinates import (
@@ -74,7 +61,6 @@ class HRTFPlots:
         reference: float | str = 1.0,
         freq_min: float | None = None,
         freq_max: float | None = None,
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -107,13 +93,12 @@ class HRTFPlots:
             Minimum frequency in Hz included in the plot.
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, legend, frequency-axis, and per-subplot overrides.
+            In horizontal-plane mode, azimuth is displayed with the signed
+            ``-180 .. 180`` convention.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
-            If ``False``, suppress generated default subplot titles. Explicit
-            titles provided through axis or subplot options are still shown.
+            If ``False``, suppress generated default subplot titles.
 
         Returns
         -------
@@ -168,16 +153,7 @@ class HRTFPlots:
             raise AttributeError(
                 "ear accepts left, right or both"
             )
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = (
-            plot_options.axis if plot_options.axis is not None else AxisOptions()
-        )
+        resolved_margins = Margins()
 
         if self.TF.values is None or self.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
@@ -191,21 +167,20 @@ class HRTFPlots:
 
         if position_count == 1:
             resolved_layout = Layout_1(
-                figsize=figure_options.figsize or Layout_1().figsize,
+                figsize=Layout_1().figsize,
                 margins=resolved_margins,
             )
         elif position_count == 2:
             resolved_layout = Layout_2Vertical(
-                figsize=figure_options.figsize or Layout_2Vertical().figsize,
+                figsize=Layout_2Vertical().figsize,
                 margins=resolved_margins,
             )
         else:
             resolved_layout = Layout_3(
-                figsize=figure_options.figsize or Layout_3().figsize,
+                figsize=Layout_3().figsize,
                 margins=resolved_margins,
             )
         figure = Figure(resolved_layout)
-        subplot_axis_options = figure.get_subplots_axis_options(plot_options)
 
         frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
@@ -237,9 +212,6 @@ class HRTFPlots:
 
         for index, (_, selected_positions) in enumerate(selected_position_info):
             ax = figure.get_ax(index)
-            resolved_axis_options = axis_options.merge(subplot_axis_options.get(index))
-            if not titles and resolved_axis_options.title is None:
-                resolved_axis_options = resolved_axis_options.merge(AxisOptions(title=""))
             frequency_axis = (
                 FrequencyLogAxis if x_axis == "log" else FrequencyLinearAxis
             )
@@ -247,20 +219,15 @@ class HRTFPlots:
                 frequency_bins=frequency_bins_hz,
                 freq_min=freq_min,
                 freq_max=freq_max,
-                options=resolved_axis_options.frequency_axis,
-            )
+                )
             frequency_mask = (
-                (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
-                & (frequency_bins_hz <= float(resolved_frequency_axis.freq_max))
+                (frequency_bins_hz >= float(resolved_frequency_axis["freq_min"]))
+                & (frequency_bins_hz <= float(resolved_frequency_axis["freq_max"]))
             )
             if not np.any(frequency_mask):
                 raise ValueError("Selected frequency range produced no TF bins")
             frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
-            frequency_label = (
-                Labels.frequency
-                if resolved_axis_options.xlabel is None
-                else resolved_axis_options.xlabel
-            )
+            frequency_label = Labels.frequency
             idxs = int(selected_position_info[index][0])
             selected_positions = np.asarray(selected_positions, dtype=float)
             y_values = np.asarray(tf_values[idxs][..., frequency_mask], dtype=float)
@@ -299,64 +266,23 @@ class HRTFPlots:
                 ax=ax,
                 axis="x",
                 label=frequency_label,
-                options=resolved_frequency_axis,
+                config=resolved_frequency_axis,
             )
-            MagnitudeAxis.apply(
-                ax=ax,
-                axis="y",
-                unit=unit,
-                options=resolved_axis_options,
-            )
+            MagnitudeAxis.apply(ax=ax, axis="y", unit=unit)
             default_subplot_title = Titles.create_position_title(
                 selected_positions=selected_positions,
             )
-            resolved_subplot_title = (
-                default_subplot_title
-                if resolved_axis_options.title is None
-                else resolved_axis_options.title
-            )
+            resolved_subplot_title = default_subplot_title if titles else ""
             Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
-            shared_x_visible = (
-                Figure.shared_x_visible
-                if resolved_axis_options.shared_x_visible is None
-                else resolved_axis_options.shared_x_visible
-            )
-            if shared_x_visible:
+            if Figure.shared_x_visible:
                 ax.tick_params(axis="x", which="both", labelbottom=True)
-            legend_options = resolved_axis_options.legend
-            legend_enabled = (
-                True
-                if legend_options is None or legend_options.enabled is None
-                else legend_options.enabled
-            )
-            if legend_enabled:
-                resolved_legend_location = (
-                    magnitude_legend_location
-                    if legend_options is None or legend_options.location is None
-                    else legend_options.location
-                )
-                legend_labels = None if legend_options is None else legend_options.labels
-                Ear.apply(
-                    ax=ax,
-                    ear=ear,
-                    location=resolved_legend_location,
-                    labels=legend_labels,
-                )
-            grid_enabled = True if resolved_axis_options.grid is None else resolved_axis_options.grid
-            if grid_enabled:
-                ax.grid(True)
+            Ear.apply(ax=ax, ear=ear, location=magnitude_legend_location, labels=None)
+            ax.grid(True)
 
         if position_count < figure.axes.size:
             figure.hide_unused_axes(position_count)
 
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        if show and plot_options.show:
+        if show:
             plt.show()
         return None
 
@@ -365,7 +291,6 @@ class HRTFPlots:
         positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
         ear: str = "both",
         x_axis: str = "time",
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -389,13 +314,10 @@ class HRTFPlots:
             ear waveforms are drawn together in each subplot.
         x_axis : {"time", "samples"}, default="time"
             Horizontal axis used for the waveform plot.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, legend, and per-subplot overrides.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
-            If ``False``, suppress generated default subplot titles. Explicit
-            titles provided through axis or subplot options are still shown.
+            If ``False``, suppress generated default subplot titles.
 
         Returns
         -------
@@ -444,16 +366,7 @@ class HRTFPlots:
             raise AttributeError(
                 "x_axis accepts : time or samples"
             )
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = (
-            plot_options.axis if plot_options.axis is not None else AxisOptions()
-        )
+        resolved_margins = Margins()
 
         if self.IR.values is None:
             raise ValueError("IR data is not available")
@@ -469,21 +382,20 @@ class HRTFPlots:
 
         if position_count == 1:
             resolved_layout = Layout_1(
-                figsize=figure_options.figsize or Layout_1().figsize,
+                figsize=Layout_1().figsize,
                 margins=resolved_margins,
             )
         elif position_count == 2:
             resolved_layout = Layout_2Vertical(
-                figsize=figure_options.figsize or Layout_2Vertical().figsize,
+                figsize=Layout_2Vertical().figsize,
                 margins=resolved_margins,
             )
         else:
             resolved_layout = Layout_3(
-                figsize=figure_options.figsize or Layout_3().figsize,
+                figsize=Layout_3().figsize,
                 margins=resolved_margins,
             )
         figure = Figure(resolved_layout)
-        subplot_axis_options = figure.get_subplots_axis_options(plot_options)
 
         ir_values = np.asarray(self.IR.values, dtype=float)
         if ir_values.ndim < 2 or ir_values.shape[-1] == 0:
@@ -496,9 +408,6 @@ class HRTFPlots:
 
         for index, selected_position_query in enumerate(position_queries):
             ax = figure.get_ax(index)
-            resolved_axis_options = axis_options.merge(subplot_axis_options.get(index))
-            if not titles and resolved_axis_options.title is None:
-                resolved_axis_options = resolved_axis_options.merge(AxisOptions(title=""))
             idxs, selected_positions = self.Sources.get_position_index(
                 selected_position_query,
                 coordinate_system="spherical",
@@ -537,72 +446,24 @@ class HRTFPlots:
                 )
 
             if x_axis == "time":
-                TimeAxis.apply(
-                    ax=ax,
-                    axis="x",
-                    options=resolved_axis_options,
-                )
+                TimeAxis.apply(ax=ax, axis="x")
             else:
-                SampleAxis.apply(
-                    ax=ax,
-                    axis="x",
-                    options=resolved_axis_options,
-                )
-            AmplitudeAxis.apply(
-                ax=ax,
-                axis="y",
-                options=resolved_axis_options,
-            )
+                SampleAxis.apply(ax=ax, axis="x")
+            AmplitudeAxis.apply(ax=ax, axis="y")
             default_subplot_title = Titles.create_position_title(
                 selected_positions=selected_positions,
             )
-            resolved_subplot_title = (
-                default_subplot_title
-                if resolved_axis_options.title is None
-                else resolved_axis_options.title
-            )
+            resolved_subplot_title = default_subplot_title if titles else ""
             Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
-            shared_x_visible = (
-                Figure.shared_x_visible
-                if resolved_axis_options.shared_x_visible is None
-                else resolved_axis_options.shared_x_visible
-            )
-            if shared_x_visible:
+            if Figure.shared_x_visible:
                 ax.tick_params(axis="x", which="both", labelbottom=True)
-            legend_options = resolved_axis_options.legend
-            legend_enabled = (
-                True
-                if legend_options is None or legend_options.enabled is None
-                else legend_options.enabled
-            )
-            if legend_enabled:
-                resolved_legend_location = (
-                    "upper right"
-                    if legend_options is None or legend_options.location is None
-                    else legend_options.location
-                )
-                legend_labels = None if legend_options is None else legend_options.labels
-                Ear.apply(
-                    ax=ax,
-                    ear=ear,
-                    location=resolved_legend_location,
-                    labels=legend_labels,
-                )
-            grid_enabled = True if resolved_axis_options.grid is None else resolved_axis_options.grid
-            if grid_enabled:
-                ax.grid(True)
+            Ear.apply(ax=ax, ear=ear, location="upper right", labels=None)
+            ax.grid(True)
 
         if position_count < figure.axes.size:
             figure.hide_unused_axes(position_count)
 
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        if show and plot_options.show:
+        if show:
             plt.show()
         return None
 
@@ -614,7 +475,6 @@ class HRTFPlots:
         magnitude_x_axis: str = "linear",
         magnitude: str = "db",
         reference: float | str = 1.0,
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -643,16 +503,10 @@ class HRTFPlots:
             Magnitude representation used on the bottom subplot.
         reference : float | {"max"}, default=1.0
             Reference used when ``magnitude="db"`` for the magnitude subplot.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, legend, frequency-axis, and subplot overrides.
-            Frequency-range control for the magnitude subplot should be passed
-            through ``options.axis.frequency_axis`` or the bottom-subplot axis
-            override.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
-            If ``False``, suppress generated default subplot and figure titles.
-            Explicit subplot and figure titles provided through options are still shown.
+            If ``False``, suppress the generated default figure title.
 
         Returns
         -------
@@ -708,16 +562,7 @@ class HRTFPlots:
             raise AttributeError(
                 "magnitude accepts : db or linear"
             )
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = (
-            plot_options.axis if plot_options.axis is not None else AxisOptions()
-        )
+        resolved_margins = Margins()
 
         if self.IR.values is None:
             raise ValueError("IR data is not available")
@@ -735,25 +580,11 @@ class HRTFPlots:
 
         figure = Figure(
             Layout_2Vertical(
-                figsize=(8, 8) if figure_options.figsize is None else figure_options.figsize,
+                figsize=(8, 8),
                 margins=resolved_margins,
                 sharex=False,
             )
         )
-        subplot_axis_options = figure.get_subplots_axis_options(plot_options)
-
-        top_axis_options = axis_options.merge(subplot_axis_options.get(0))
-        bottom_axis_options = axis_options.merge(subplot_axis_options.get(1))
-        top_subplot_axis_options = top_axis_options
-        bottom_subplot_axis_options = bottom_axis_options
-        if not titles and top_subplot_axis_options.title is None:
-            top_subplot_axis_options = top_subplot_axis_options.merge(
-                AxisOptions(title="")
-            )
-        if not titles and bottom_subplot_axis_options.title is None:
-            bottom_subplot_axis_options = bottom_subplot_axis_options.merge(
-                AxisOptions(title="")
-            )
 
         idxs, selected_positions = self.Sources.get_position_index(
             selected_position_query,
@@ -811,66 +642,14 @@ class HRTFPlots:
             )
 
         if amplitude_x_axis == "time":
-            TimeAxis.apply(
-                ax=ir_ax,
-                axis="x",
-                options=top_axis_options,
-            )
+            TimeAxis.apply(ax=ir_ax, axis="x")
         else:
-            SampleAxis.apply(
-                ax=ir_ax,
-                axis="x",
-                options=top_axis_options,
-            )
-        AmplitudeAxis.apply(
-            ax=ir_ax,
-            axis="y",
-            options=top_subplot_axis_options,
-        )
-        default_top_subplot_title = Titles.create_position_title(
-            selected_positions=selected_positions,
-        )
-        resolved_top_subplot_title = (
-            default_top_subplot_title
-            if top_subplot_axis_options.title is None
-            else top_subplot_axis_options.title
-        )
-        Titles.create_subplots_titles(ax=ir_ax, title=resolved_top_subplot_title)
-        shared_x_visible = (
-            Figure.shared_x_visible
-            if top_subplot_axis_options.shared_x_visible is None
-            else top_subplot_axis_options.shared_x_visible
-        )
-        if shared_x_visible:
+            SampleAxis.apply(ax=ir_ax, axis="x")
+        AmplitudeAxis.apply(ax=ir_ax, axis="y")
+        if Figure.shared_x_visible:
             ir_ax.tick_params(axis="x", which="both", labelbottom=True)
-        top_legend_options = top_subplot_axis_options.legend
-        top_legend_enabled = (
-            True
-            if top_legend_options is None or top_legend_options.enabled is None
-            else top_legend_options.enabled
-        )
-        if top_legend_enabled:
-            resolved_legend_location = (
-                "upper right"
-                if top_legend_options is None or top_legend_options.location is None
-                else top_legend_options.location
-            )
-            legend_labels = (
-                None if top_legend_options is None else top_legend_options.labels
-            )
-            Ear.apply(
-                ax=ir_ax,
-                ear=ear,
-                location=resolved_legend_location,
-                labels=legend_labels,
-            )
-        grid_enabled = (
-            True
-            if top_subplot_axis_options.grid is None
-            else top_subplot_axis_options.grid
-        )
-        if grid_enabled:
-            ir_ax.grid(True)
+        Ear.apply(ax=ir_ax, ear=ear, location="upper right", labels=None)
+        ir_ax.grid(True)
 
         frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
@@ -882,11 +661,10 @@ class HRTFPlots:
         )
         resolved_frequency_axis = magnitude_frequency_axis.build(
             frequency_bins=frequency_bins_hz,
-            options=bottom_axis_options.frequency_axis,
-        )
+            )
         frequency_mask = (
-            (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
-            & (frequency_bins_hz <= float(resolved_frequency_axis.freq_max))
+            (frequency_bins_hz >= float(resolved_frequency_axis["freq_min"]))
+            & (frequency_bins_hz <= float(resolved_frequency_axis["freq_max"]))
         )
         if not np.any(frequency_mask):
             raise ValueError("Selected frequency range produced no TF bins")
@@ -951,88 +729,27 @@ class HRTFPlots:
         magnitude_legend_location = (
             "upper right" if magnitude_x_axis == "linear" else "upper left"
         )
-        frequency_label = (
-            Labels.frequency
-            if bottom_axis_options.xlabel is None
-            else bottom_axis_options.xlabel
-        )
+        frequency_label = Labels.frequency
         magnitude_frequency_axis.apply(
             ax=magnitude_ax,
             axis="x",
             label=frequency_label,
-            options=resolved_frequency_axis,
+            config=resolved_frequency_axis,
         )
-        MagnitudeAxis.apply(
-            ax=magnitude_ax,
-            axis="y",
-            unit=magnitude,
-            options=bottom_subplot_axis_options,
-        )
-        default_bottom_subplot_title = Titles.create_position_title(
-            selected_positions=selected_positions,
-        )
-        resolved_bottom_subplot_title = (
-            default_bottom_subplot_title
-            if bottom_subplot_axis_options.title is None
-            else bottom_subplot_axis_options.title
-        )
-        Titles.create_subplots_titles(
-            ax=magnitude_ax,
-            title=resolved_bottom_subplot_title,
-        )
-        shared_x_visible = (
-            Figure.shared_x_visible
-            if bottom_subplot_axis_options.shared_x_visible is None
-            else bottom_subplot_axis_options.shared_x_visible
-        )
-        if shared_x_visible:
+        MagnitudeAxis.apply(ax=magnitude_ax, axis="y", unit=magnitude)
+        if Figure.shared_x_visible:
             magnitude_ax.tick_params(axis="x", which="both", labelbottom=True)
-        bottom_legend_options = bottom_subplot_axis_options.legend
-        bottom_legend_enabled = (
-            True
-            if bottom_legend_options is None
-            or bottom_legend_options.enabled is None
-            else bottom_legend_options.enabled
-        )
-        if bottom_legend_enabled:
-            resolved_legend_location = (
-                magnitude_legend_location
-                if bottom_legend_options is None
-                or bottom_legend_options.location is None
-                else bottom_legend_options.location
-            )
-            legend_labels = (
-                None if bottom_legend_options is None else bottom_legend_options.labels
-            )
-            Ear.apply(
-                ax=magnitude_ax,
-                ear=ear,
-                location=resolved_legend_location,
-                labels=legend_labels,
-            )
-        grid_enabled = (
-            True
-            if bottom_subplot_axis_options.grid is None
-            else bottom_subplot_axis_options.grid
-        )
-        if grid_enabled:
-            magnitude_ax.grid(True)
+        Ear.apply(ax=magnitude_ax, ear=ear, location=magnitude_legend_location, labels=None)
+        magnitude_ax.grid(True)
 
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        elif titles:
+        if titles:
             Titles.create_figure_title(
                 figure.fig,
                 figure.axes,
                 figure.figure_title_y,
                 Titles.create_position_title(selected_positions=selected_positions),
             )
-        if show and plot_options.show:
+        if show:
             plt.show()
         return None
 
@@ -1044,9 +761,9 @@ class HRTFPlots:
         unit: str = "db",
         ear: str = "both",
         reference: float | str = "max",
+        colormap: str = "jet",
         freq_min: float | None = None,
         freq_max: float | None = None,
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -1077,21 +794,16 @@ class HRTFPlots:
         reference : float | {"max"}, default="max"
             Reference used when ``unit="db"``. ``"max"`` normalizes the plotted
             plane to its maximum value.
+        colormap : str, default="jet"
+            Matplotlib colormap name used for the heatmap.
         freq_min : float | None, default=None
             Minimum frequency in Hz included in the plot.
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, heatmap, and subplot overrides. For the
-            horizontal plane, ``options.axis.azimuth_axis`` can be used to choose
-            the azimuth plotting convention, for example ``"-180-180"`` or
-            ``"0-360"``.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
             If ``False``, suppress generated default subplot and figure titles.
-            Explicit titles provided through figure, axis, or subplot options are
-            still shown.
 
         Returns
         -------
@@ -1109,7 +821,6 @@ class HRTFPlots:
         Load a measured HRTF and inspect the horizontal-plane spectrum for the left ear:
 
         >>> from hrtfpykit import HRTF
-        >>> from hrtfpykit.plots.options import AxisOptions, AzimuthAxisOptions, PlotOptions
         >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_spectrum_plane(
         ...     plane="horizontal",
@@ -1121,11 +832,6 @@ class HRTFPlots:
 
         >>> hrtf.plot_spectrum_plane(
         ...     plane="horizontal",
-        ...     options=PlotOptions(
-        ...         axis=AxisOptions(
-        ...             azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
-        ...         )
-        ...     ),
         ...     show=False,
         ... )
         """
@@ -1150,22 +856,9 @@ class HRTFPlots:
             raise AttributeError(
                 "ear accepts left, right or both"
             )
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = AxisOptions(
-            azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
-        ).merge(plot_options.axis)
-        heatmap_options = HeatmapOptions(cmap="jet").merge(plot_options.heatmap)
-        heatmap_frequency_axis_options = (
-            FrequencyAxisOptions()
-            if axis_options.frequency_axis is None
-            else axis_options.frequency_axis
-        ).merge(FrequencyAxisOptions(margin_ratio=0.0))
+        resolved_margins = Margins()
+        azimuth_range_mode = "-180-180"
+        heatmap_margin_ratio = 0.0
 
         if self.TF.values is None or self.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
@@ -1182,16 +875,15 @@ class HRTFPlots:
             )
         if ear == "both":
             resolved_layout = Layout_2Horizontal(
-                figsize=figure_options.figsize or Layout_2Horizontal().figsize,
+                figsize=Layout_2Horizontal().figsize,
                 margins=resolved_margins,
             )
         else:
             resolved_layout = Layout_1(
-                figsize=figure_options.figsize or Layout_1().figsize,
+                figsize=Layout_1().figsize,
                 margins=resolved_margins,
             )
         figure = Figure(resolved_layout)
-        subplot_axis_options = figure.get_subplots_axis_options(plot_options)
 
         if plane_key == "horizontal":
             indices, real_plane_elevation = get_horizontal_plane(
@@ -1234,11 +926,11 @@ class HRTFPlots:
             frequency_bins=frequency_bins_hz,
             freq_min=freq_min,
             freq_max=freq_max,
-            options=heatmap_frequency_axis_options,
+            margin_ratio=heatmap_margin_ratio,
         )
         frequency_mask = (
-            (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
-            & (frequency_bins_hz <= float(resolved_frequency_axis.freq_max))
+            (frequency_bins_hz >= float(resolved_frequency_axis["freq_min"]))
+            & (frequency_bins_hz <= float(resolved_frequency_axis["freq_max"]))
         )
         if not np.any(frequency_mask):
             raise ValueError("Selected frequency range produced no TF bins")
@@ -1290,17 +982,14 @@ class HRTFPlots:
         colorbar_label = (
             Labels.magnitude_db if unit == "db" else Labels.magnitude_linear
         )
-        heatmap_colormap = "jet" if heatmap_options.cmap is None else str(heatmap_options.cmap)
-
         for subplot_index, (subplot_position, spectrum_matrix, default_subplot_title) in enumerate(
             zip(subplot_positions, spectrum_matrices, default_subplot_titles)
         ):
             ax = figure.get_ax(subplot_position)
-            resolved_axis_options = axis_options.merge(subplot_axis_options.get(subplot_index))
             subplot_plane_axis_values = (
                 AzimuthAnglesAxis.transform_values(
                     values=plane_axis_values,
-                    options=resolved_axis_options,
+                    range_mode=azimuth_range_mode,
                 )
                 if plane_key == "horizontal"
                 else np.asarray(plane_axis_values, dtype=float)
@@ -1314,59 +1003,35 @@ class HRTFPlots:
                 y=sorted_subplot_plane_axis_values,
                 values=sorted_spectrum_matrix,
                 label=colorbar_label,
-                options=heatmap_options,
-                colormap=heatmap_colormap,
+                colormap=colormap,
                 shading="auto",
                 vmin=vmin,
                 vmax=vmax,
             )
             ax.margins(x=0.0, y=0.0)
-            frequency_label = (
-                Labels.frequency
-                if resolved_axis_options.xlabel is None
-                else resolved_axis_options.xlabel
-            )
+            frequency_label = Labels.frequency
             frequency_axis.apply(
                 ax=ax,
                 axis="x",
                 label=frequency_label,
-                options=resolved_frequency_axis,
+                config=resolved_frequency_axis,
             )
             if plane_key == "horizontal":
                 AzimuthAnglesAxis.apply(
                     ax=ax,
                     axis="y",
                     values=sorted_subplot_plane_axis_values,
-                    options=resolved_axis_options,
+                    range_mode=azimuth_range_mode,
                 )
             else:
                 PolarAnglesAxis.apply(
                     ax=ax,
                     axis="y",
                     values=sorted_subplot_plane_axis_values,
-                    options=resolved_axis_options,
                 )
-            resolved_title = (
-                default_subplot_title
-                if resolved_axis_options.title is None
-                else resolved_axis_options.title
-            )
-            if not titles and resolved_axis_options.title is None:
-                resolved_title = ""
+            resolved_title = default_subplot_title if titles else ""
             Titles.create_subplots_titles(ax=ax, title=resolved_title)
-            grid_enabled = (
-                False if resolved_axis_options.grid is None else resolved_axis_options.grid
-            )
-            if grid_enabled:
-                ax.grid(True)
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        elif titles:
+        if titles:
             Titles.create_figure_title(
                 figure.fig,
                 figure.axes,
@@ -1376,7 +1041,7 @@ class HRTFPlots:
                     elevation_angle=real_plane_elevation,
                 ),
             )
-        if show and plot_options.show:
+        if show:
             plt.show()
         return None
 
@@ -1387,9 +1052,9 @@ class HRTFPlots:
         unit: str = "db",
         ear: str = "both",
         reference: float | str = "max",
+        colormap: str = "jet",
         freq_min: float | None = None,
         freq_max: float | None = None,
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -1415,18 +1080,16 @@ class HRTFPlots:
         reference : float | {"max"}, default="max"
             Reference used when ``unit="db"``. ``"max"`` normalizes the plotted
             slice to its maximum value.
+        colormap : str, default="jet"
+            Matplotlib colormap name used for the heatmap.
         freq_min : float | None, default=None
             Minimum frequency in Hz included in the plot.
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, heatmap, and subplot overrides.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
             If ``False``, suppress generated default subplot and figure titles.
-            Explicit titles provided through figure, axis, or subplot options are
-            still shown.
 
         Returns
         -------
@@ -1471,22 +1134,8 @@ class HRTFPlots:
             raise AttributeError(
                 "ear accepts left, right or both"
             )
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = (
-            plot_options.axis if plot_options.axis is not None else AxisOptions()
-        )
-        heatmap_options = HeatmapOptions(cmap="jet").merge(plot_options.heatmap)
-        heatmap_frequency_axis_options = (
-            FrequencyAxisOptions()
-            if axis_options.frequency_axis is None
-            else axis_options.frequency_axis
-        ).merge(FrequencyAxisOptions(margin_ratio=0.0))
+        resolved_margins = Margins()
+        heatmap_margin_ratio = 0.0
 
         if self.TF.values is None or self.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
@@ -1506,16 +1155,15 @@ class HRTFPlots:
 
         if ear == "both":
             resolved_layout = Layout_2Horizontal(
-                figsize=figure_options.figsize or Layout_2Horizontal().figsize,
+                figsize=Layout_2Horizontal().figsize,
                 margins=resolved_margins,
             )
         else:
             resolved_layout = Layout_1(
-                figsize=figure_options.figsize or Layout_1().figsize,
+                figsize=Layout_1().figsize,
                 margins=resolved_margins,
             )
         figure = Figure(resolved_layout)
-        subplot_axis_options = figure.get_subplots_axis_options(plot_options)
 
         spherical_positions = get_source_positions(
             sources=self.Sources,
@@ -1552,11 +1200,11 @@ class HRTFPlots:
             frequency_bins=frequency_bins_hz,
             freq_min=freq_min,
             freq_max=freq_max,
-            options=heatmap_frequency_axis_options,
+            margin_ratio=heatmap_margin_ratio,
         )
         frequency_mask = (
-            (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
-            & (frequency_bins_hz <= float(resolved_frequency_axis.freq_max))
+            (frequency_bins_hz >= float(resolved_frequency_axis["freq_min"]))
+            & (frequency_bins_hz <= float(resolved_frequency_axis["freq_max"]))
         )
         if not np.any(frequency_mask):
             raise ValueError("Selected frequency range produced no TF bins")
@@ -1610,78 +1258,50 @@ class HRTFPlots:
         colorbar_label = (
             Labels.magnitude_db if unit == "db" else Labels.magnitude_linear
         )
-        heatmap_colormap = "jet" if heatmap_options.cmap is None else str(heatmap_options.cmap)
-
         for subplot_index, (subplot_position, spectrum_matrix, default_subplot_title) in enumerate(
             zip(subplot_positions, spectrum_matrices, default_subplot_titles)
         ):
             ax = figure.get_ax(subplot_position)
-            resolved_axis_options = axis_options.merge(subplot_axis_options.get(subplot_index))
             figure.create_heatmap(
                 ax=ax,
                 x=frequency_khz,
                 y=sorted_elevation_values,
                 values=spectrum_matrix,
                 label=colorbar_label,
-                options=heatmap_options,
-                colormap=heatmap_colormap,
+                colormap=colormap,
                 shading="auto",
                 vmin=vmin,
                 vmax=vmax,
             )
             ax.margins(x=0.0, y=0.0)
-            frequency_label = (
-                Labels.frequency
-                if resolved_axis_options.xlabel is None
-                else resolved_axis_options.xlabel
-            )
+            frequency_label = Labels.frequency
             frequency_axis.apply(
                 ax=ax,
                 axis="x",
                 label=frequency_label,
-                options=resolved_frequency_axis,
+                config=resolved_frequency_axis,
             )
             ElevationAnglesAxis.apply(
                 ax=ax,
                 axis="y",
                 values=sorted_elevation_values,
-                options=resolved_axis_options,
             )
-            resolved_title = (
-                default_subplot_title
-                if resolved_axis_options.title is None
-                else resolved_axis_options.title
-            )
-            if not titles and resolved_axis_options.title is None:
-                resolved_title = ""
+            resolved_title = default_subplot_title if titles else ""
             Titles.create_subplots_titles(ax=ax, title=resolved_title)
-            grid_enabled = (
-                False if resolved_axis_options.grid is None else resolved_axis_options.grid
-            )
-            if grid_enabled:
-                ax.grid(True)
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        elif titles:
+        if titles:
             Titles.create_figure_title(
                 figure.fig,
                 figure.axes,
                 figure.figure_title_y,
                 Titles.create_elevation_spectrum_title(real_azimuth=real_azimuth),
             )
-        if show and plot_options.show:
+        if show:
             plt.show()
         return None
 
     def plot_itd_curve(
         self: "HRTF",
         elevation_angle: float = 0.0,
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -1699,8 +1319,6 @@ class HRTFPlots:
         elevation_angle : float, default=0.0
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, and margin overrides. The azimuth axis is
             configured by default to use the signed ``-180 .. 180`` range.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
@@ -1730,16 +1348,8 @@ class HRTFPlots:
         >>> aligned = hrtf.transform.delete_itd()
         >>> aligned.plot_itd_curve(show=False)
         """
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = AxisOptions(
-            azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
-        ).merge(plot_options.axis)
+        resolved_margins = Margins()
+        azimuth_range_mode = "-180-180"
 
         if self.IR.values is None:
             raise ValueError("IR data is not available")
@@ -1776,7 +1386,7 @@ class HRTFPlots:
         azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
         transformed_azimuth_values = AzimuthAnglesAxis.transform_values(
             values=azimuth_values,
-            options=axis_options,
+            range_mode=azimuth_range_mode,
         )
         if itd_values.shape[0] != self.Sources.get_positions(angle_unit="degrees").shape[0]:
             raise ValueError("ITD values must match the number of source positions")
@@ -1787,7 +1397,7 @@ class HRTFPlots:
 
         figure = Figure(
             Layout_1(
-                figsize=figure_options.figsize or Layout_1().figsize,
+                figsize=Layout_1().figsize,
                 margins=resolved_margins,
             )
         )
@@ -1804,25 +1414,15 @@ class HRTFPlots:
             ax=ax,
             axis="x",
             values=sorted_azimuth_values,
-            options=axis_options,
+            range_mode=azimuth_range_mode,
         )
         Axis.apply_label(
             ax=ax,
             axis="y",
             default_label=Labels.itd,
-            options=axis_options,
         )
-        grid_enabled = True if axis_options.grid is None else axis_options.grid
-        if grid_enabled:
-            ax.grid(True)
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        elif titles:
+        ax.grid(True)
+        if titles:
             Titles.create_figure_title(
                 figure.fig,
                 figure.axes,
@@ -1832,14 +1432,13 @@ class HRTFPlots:
                     elevation_angle=real_elevation,
                 ),
             )
-        if show and plot_options.show:
+        if show:
             plt.show()
         return None
 
     def plot_absolute_itd(
         self: "HRTF",
         elevation_angle: float = 0.0,
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -1855,17 +1454,13 @@ class HRTFPlots:
         elevation_angle : float, default=0.0
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, margin, and polar-curve-style overrides.
-            ``options.axis.ylabel`` controls the radial-axis label shown at the
-            top of the polar subplot, and ``options.polar_curve`` controls
-            curve style (for example color and linewidth).
+            The polar azimuth axis uses 30-degree ticks and north-up
+            orientation.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title. The
-            radial-axis label remains controlled by ``options.axis.ylabel`` or
-            the method default label.
+            If ``False``, suppress the generated default figure title.
+            The radial label defaults to ``Labels.itd_seconds``.
 
         Returns
         -------
@@ -1890,28 +1485,13 @@ class HRTFPlots:
         >>> aligned = hrtf.transform.delete_itd()
         >>> aligned.plot_absolute_itd(show=False)
         """
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = (
-            AxisOptions(
-                azimuth_polar_axis=AzimuthPolarAxisOptions(tick_step=30.0),
-                radial_polar_axis=RadialPolarAxisOptions(
-                    tick_step=2e-4,
-                    tick_label_style="decimal_comma_4",
-                    label_position=350.0,
-                ),
-            ).merge(plot_options.axis)
-        )
-        polar_curve_style_options = (
-            PolarCurveStyleOptions(color="steelblue", linewidth=2.0).merge(
-                plot_options.polar_curve
-            )
-        )
+        resolved_margins = Margins()
+        polar_tick_step = 30.0
+        radial_tick_step = 2e-4
+        radial_tick_label_style = "decimal_comma_4"
+        radial_label_position = 350.0
+        polar_curve_color = "steelblue"
+        polar_curve_linewidth = 2.0
 
         if self.IR.values is None:
             raise ValueError("IR data is not available")
@@ -1940,7 +1520,7 @@ class HRTFPlots:
 
         figure = Figure(
             Layout_1(
-                figsize=(6, 7) if figure_options.figsize is None else figure_options.figsize,
+                figsize=(6, 7),
                 margins=resolved_margins,
             ),
             projection="polar",
@@ -1951,27 +1531,22 @@ class HRTFPlots:
             ax=ax,
             x=theta_values,
             y=radial_values,
-            color=polar_curve_style_options.color,
-            linewidth=polar_curve_style_options.linewidth,
+            color=polar_curve_color,
+            linewidth=polar_curve_linewidth,
         )
         AzimuthAnglesAxisPolarProjection.apply(
             ax=ax,
-            options=axis_options,
+            tick_step=polar_tick_step,
         )
         RadialAxisPolarProjection.apply(
             ax=ax,
             radial_values=sorted_itd_values,
             radial_label_default=Labels.itd_seconds,
-            options=axis_options,
+            tick_step=radial_tick_step,
+            tick_label_style=radial_tick_label_style,
+            label_position=radial_label_position,
         )
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        elif titles:
+        if titles:
             Titles.create_figure_title(
                 figure.fig,
                 figure.axes,
@@ -1981,9 +1556,8 @@ class HRTFPlots:
                     elevation_angle=real_elevation,
                 ),
             )
-        grid_enabled = True if axis_options.grid is None else axis_options.grid
-        ax.grid(grid_enabled)
-        if show and plot_options.show:
+        ax.grid(True)
+        if show:
             plt.show()
         return None
 
@@ -1991,9 +1565,9 @@ class HRTFPlots:
         self: "HRTF",
         plane: str = "horizontal",
         elevation_angle: float = 0.0,
+        colormap: str = "jet",
         freq_min: float | None = None,
         freq_max: float | None = None,
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -2014,15 +1588,14 @@ class HRTFPlots:
             Target elevation used when ``plane="horizontal"``. The nearest
             available horizontal plane in the grid is selected. This parameter
             is not used for the median plane.
+            In horizontal-plane mode, azimuth is displayed with the signed
+            ``-180 .. 180`` convention.
+        colormap : str, default="jet"
+            Matplotlib colormap name used for the heatmap.
         freq_min : float | None, default=None
             Minimum frequency in Hz included in the plot.
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, heatmap, and margin overrides. For the
-            horizontal plane, the azimuth axis is configured by default to use
-            the signed ``-180 .. 180`` convention, where positive values are
-            on the left side and negative values are on the right side.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
@@ -2061,23 +1634,9 @@ class HRTFPlots:
         elevation_angle = float(elevation_angle)
         if not np.isfinite(elevation_angle):
             raise AttributeError("elevation_angle must be a finite value")
-
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = AxisOptions(
-            azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
-        ).merge(plot_options.axis)
-        heatmap_options = HeatmapOptions(cmap="jet").merge(plot_options.heatmap)
-        heatmap_frequency_axis_options = (
-            FrequencyAxisOptions()
-            if axis_options.frequency_axis is None
-            else axis_options.frequency_axis
-        ).merge(FrequencyAxisOptions(margin_ratio=0.0))
+        resolved_margins = Margins()
+        azimuth_range_mode = "-180-180"
+        heatmap_margin_ratio = 0.0
 
         if self.IR.values is None:
             raise ValueError("IR data is not available")
@@ -2095,7 +1654,7 @@ class HRTFPlots:
 
         figure = Figure(
             Layout_1(
-                figsize=figure_options.figsize or Layout_1().figsize,
+                figsize=Layout_1().figsize,
                 margins=resolved_margins,
             )
         )
@@ -2142,11 +1701,11 @@ class HRTFPlots:
             frequency_bins=frequency_bins_hz,
             freq_min=freq_min,
             freq_max=freq_max,
-            options=heatmap_frequency_axis_options,
+            margin_ratio=heatmap_margin_ratio,
         )
         frequency_mask = (
-            (frequency_bins_hz >= float(resolved_frequency_axis.freq_min))
-            & (frequency_bins_hz <= float(resolved_frequency_axis.freq_max))
+            (frequency_bins_hz >= float(resolved_frequency_axis["freq_min"]))
+            & (frequency_bins_hz <= float(resolved_frequency_axis["freq_max"]))
         )
         if not np.any(frequency_mask):
             raise ValueError("Selected frequency range produced no TF bins")
@@ -2167,11 +1726,10 @@ class HRTFPlots:
             raise ValueError("Frequency-dependent ILD values must have shape (M, F)")
 
         ax = figure.get_ax("main")
-        resolved_axis_options = axis_options
         subplot_plane_axis_values = (
             AzimuthAnglesAxis.transform_values(
                 values=plane_axis_values,
-                options=resolved_axis_options,
+                range_mode=azimuth_range_mode,
             )
             if plane_key == "horizontal"
             else np.asarray(plane_axis_values, dtype=float)
@@ -2185,51 +1743,33 @@ class HRTFPlots:
             y=sorted_subplot_plane_axis_values,
             values=sorted_plane_matrix,
             label=Labels.ild,
-            options=heatmap_options,
-            colormap="jet" if heatmap_options.cmap is None else str(heatmap_options.cmap),
+            colormap=colormap,
             shading="auto",
             vmin=float(np.min(sorted_plane_matrix)),
             vmax=float(np.max(sorted_plane_matrix)),
         )
         ax.margins(x=0.0, y=0.0)
-        frequency_label = (
-            Labels.frequency
-            if resolved_axis_options.xlabel is None
-            else resolved_axis_options.xlabel
-        )
+        frequency_label = Labels.frequency
         FrequencyLinearAxis.apply(
             ax=ax,
             axis="x",
             label=frequency_label,
-            options=resolved_frequency_axis,
+            config=resolved_frequency_axis,
         )
         if plane_key == "horizontal":
             AzimuthAnglesAxis.apply(
                 ax=ax,
                 axis="y",
                 values=sorted_subplot_plane_axis_values,
-                options=resolved_axis_options,
+                range_mode=azimuth_range_mode,
             )
         else:
             PolarAnglesAxis.apply(
                 ax=ax,
                 axis="y",
                 values=sorted_subplot_plane_axis_values,
-                options=resolved_axis_options,
             )
-        grid_enabled = (
-            False if resolved_axis_options.grid is None else resolved_axis_options.grid
-        )
-        if grid_enabled:
-            ax.grid(True)
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        elif titles:
+        if titles:
             Titles.create_figure_title(
                 figure.fig,
                 figure.axes,
@@ -2239,14 +1779,13 @@ class HRTFPlots:
                     elevation_angle=real_plane_elevation,
                 ),
             )
-        if show and plot_options.show:
+        if show:
             plt.show()
         return None
 
     def plot_ild_curve(
         self: "HRTF",
         elevation_angle: float = 0.0,
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -2264,8 +1803,6 @@ class HRTFPlots:
         elevation_angle : float, default=0.0
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, and margin overrides. The azimuth axis is
             configured by default to use the signed ``-180 .. 180`` range.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
@@ -2294,16 +1831,8 @@ class HRTFPlots:
 
         >>> hrtf.plot_ild_curve(elevation_angle=10.0, show=False)
         """
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = AxisOptions(
-            azimuth_axis=AzimuthAxisOptions(range_mode="-180-180")
-        ).merge(plot_options.axis)
+        resolved_margins = Margins()
+        azimuth_range_mode = "-180-180"
 
         if self.IR.values is None:
             raise ValueError("IR data is not available")
@@ -2341,7 +1870,7 @@ class HRTFPlots:
         azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
         transformed_azimuth_values = AzimuthAnglesAxis.transform_values(
             values=azimuth_values,
-            options=axis_options,
+            range_mode=azimuth_range_mode,
         )
         if ild_values.shape[0] != self.Sources.get_positions(angle_unit="degrees").shape[0]:
             raise ValueError("ILD values must match the number of source positions")
@@ -2352,7 +1881,7 @@ class HRTFPlots:
 
         figure = Figure(
             Layout_1(
-                figsize=figure_options.figsize or Layout_1().figsize,
+                figsize=Layout_1().figsize,
                 margins=resolved_margins,
             )
         )
@@ -2369,25 +1898,15 @@ class HRTFPlots:
             ax=ax,
             axis="x",
             values=sorted_azimuth_values,
-            options=axis_options,
+            range_mode=azimuth_range_mode,
         )
         Axis.apply_label(
             ax=ax,
             axis="y",
             default_label=Labels.ild,
-            options=axis_options,
         )
-        grid_enabled = True if axis_options.grid is None else axis_options.grid
-        if grid_enabled:
-            ax.grid(True)
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        elif titles:
+        ax.grid(True)
+        if titles:
             Titles.create_figure_title(
                 figure.fig,
                 figure.axes,
@@ -2397,14 +1916,13 @@ class HRTFPlots:
                     elevation_angle=real_elevation,
                 ),
             )
-        if show and plot_options.show:
+        if show:
             plt.show()
         return None
 
     def plot_absolute_ild(
         self: "HRTF",
         elevation_angle: float = 0.0,
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -2420,17 +1938,13 @@ class HRTFPlots:
         elevation_angle : float, default=0.0
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, margin, and polar-curve-style overrides.
-            ``options.axis.ylabel`` controls the radial-axis label shown at the
-            top of the polar subplot, and ``options.polar_curve`` controls
-            curve style (for example color and linewidth).
+            The polar azimuth axis uses 30-degree ticks and north-up
+            orientation.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title. The
-            radial-axis label remains controlled by ``options.axis.ylabel`` or
-            the method default label.
+            If ``False``, suppress the generated default figure title.
+            The radial label defaults to ``Labels.ild_db``.
 
         Returns
         -------
@@ -2454,28 +1968,13 @@ class HRTFPlots:
 
         >>> hrtf.plot_absolute_ild(elevation_angle=10.0, show=False)
         """
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = (
-            AxisOptions(
-                azimuth_polar_axis=AzimuthPolarAxisOptions(tick_step=30.0),
-                radial_polar_axis=RadialPolarAxisOptions(
-                    tick_step=5.0,
-                    tick_label_style="integer",
-                    label_position=350.0,
-                ),
-            ).merge(plot_options.axis)
-        )
-        polar_curve_style_options = (
-            PolarCurveStyleOptions(color="steelblue", linewidth=2.0).merge(
-                plot_options.polar_curve
-            )
-        )
+        resolved_margins = Margins()
+        polar_tick_step = 30.0
+        radial_tick_step = 5.0
+        radial_tick_label_style = "integer"
+        radial_label_position = 350.0
+        polar_curve_color = "steelblue"
+        polar_curve_linewidth = 2.0
 
         if self.IR.values is None:
             raise ValueError("IR data is not available")
@@ -2505,7 +2004,7 @@ class HRTFPlots:
 
         figure = Figure(
             Layout_1(
-                figsize=(6, 7) if figure_options.figsize is None else figure_options.figsize,
+                figsize=(6, 7),
                 margins=resolved_margins,
             ),
             projection="polar",
@@ -2516,27 +2015,22 @@ class HRTFPlots:
             ax=ax,
             x=theta_values,
             y=radial_values,
-            color=polar_curve_style_options.color,
-            linewidth=polar_curve_style_options.linewidth,
+            color=polar_curve_color,
+            linewidth=polar_curve_linewidth,
         )
         AzimuthAnglesAxisPolarProjection.apply(
             ax=ax,
-            options=axis_options,
+            tick_step=polar_tick_step,
         )
         RadialAxisPolarProjection.apply(
             ax=ax,
             radial_values=sorted_ild_values,
             radial_label_default=Labels.ild_db,
-            options=axis_options,
+            tick_step=radial_tick_step,
+            tick_label_style=radial_tick_label_style,
+            label_position=radial_label_position,
         )
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        elif titles:
+        if titles:
             Titles.create_figure_title(
                 figure.fig,
                 figure.axes,
@@ -2546,15 +2040,13 @@ class HRTFPlots:
                     elevation_angle=real_elevation,
                 ),
             )
-        grid_enabled = True if axis_options.grid is None else axis_options.grid
-        ax.grid(grid_enabled)
-        if show and plot_options.show:
+        ax.grid(True)
+        if show:
             plt.show()
         return None
 
     def plot_source_grid(
         self: "HRTF",
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -2568,14 +2060,10 @@ class HRTFPlots:
 
         Parameters
         ----------
-        options : PlotOptions | None, default=None
-            Optional figure, axis, margin, and 3D scatter-style overrides.
-            ``options.scatter_3d_style`` controls source-grid scatter styling.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title. Explicit
-            figure titles provided through ``options.figure.title`` are still shown.
+            If ``False``, suppress the generated default figure title.
 
         Returns
         -------
@@ -2601,25 +2089,12 @@ class HRTFPlots:
         >>> horizontal = hrtf.select(plane="horizontal", plane_angle=0.0)
         >>> horizontal.plot_source_grid(show=False)
         """
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = (
-            plot_options.axis if plot_options.axis is not None else AxisOptions()
-        )
-        source_grid_scatter_style_options = (
-            Scatter3DStyleOptions(
-                s=28.0,
-                color="steelblue",
-                edgecolors="black",
-                linewidths=0.4,
-                depthshade=True,
-            ).merge(plot_options.scatter_3d_style)
-        )
+        resolved_margins = Margins()
+        source_grid_scatter_size = 28.0
+        source_grid_scatter_color = "steelblue"
+        source_grid_scatter_edgecolors = "black"
+        source_grid_scatter_linewidths = 0.4
+        source_grid_scatter_depthshade = True
 
         cartesian_positions = get_source_positions(
             sources=self.Sources,
@@ -2628,7 +2103,7 @@ class HRTFPlots:
         )
         figure = Figure(
             Layout_1(
-                figsize=(6, 7) if figure_options.figsize is None else figure_options.figsize,
+                figsize=(6, 7),
                 margins=resolved_margins,
             ),
             projection="3d",
@@ -2643,13 +2118,11 @@ class HRTFPlots:
             x=x_values,
             y=y_values,
             z=z_values,
-            s=source_grid_scatter_style_options.s,
-            color=source_grid_scatter_style_options.color,
-            edgecolors=source_grid_scatter_style_options.edgecolors,
-            linewidths=source_grid_scatter_style_options.linewidths,
-            depthshade=source_grid_scatter_style_options.depthshade,
-            alpha=source_grid_scatter_style_options.alpha,
-            label=source_grid_scatter_style_options.label,
+            s=source_grid_scatter_size,
+            color=source_grid_scatter_color,
+            edgecolors=source_grid_scatter_edgecolors,
+            linewidths=source_grid_scatter_linewidths,
+            depthshade=source_grid_scatter_depthshade,
         )
         x_center, y_center, z_center, axis_half_span = resolve_three_dimensional_axis_geometry(
             cartesian_positions=cartesian_positions
@@ -2658,20 +2131,17 @@ class HRTFPlots:
             ax=ax,
             center=x_center,
             half_span=axis_half_span,
-            options=axis_options,
-        )
+            )
         YAxis.apply(
             ax=ax,
             center=y_center,
             half_span=axis_half_span,
-            options=axis_options,
-        )
+            )
         ZAxis.apply(
             ax=ax,
             center=z_center,
             half_span=axis_half_span,
-            options=axis_options,
-        )
+            )
         ax.set_box_aspect((1.0, 1.0, 1.0))
         create_sources_grid_direction_markers(
             ax=ax,
@@ -2679,31 +2149,21 @@ class HRTFPlots:
             axis_half_span=axis_half_span,
         )
 
-        grid_enabled = True if axis_options.grid is None else axis_options.grid
-        ax.grid(grid_enabled)
-
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        elif titles:
+        ax.grid(True)
+        if titles:
             Titles.create_figure_title(
                 figure.fig,
                 figure.axes,
                 figure.figure_title_y,
                 "Source Grid",
             )
-        if show and plot_options.show:
+        if show:
             plt.show()
         return None
 
     def plot_plane_grid(
         self: "HRTF",
         plane: str | list[str] | tuple[str, ...] = "horizontal",
-        options: PlotOptions | None = None,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -2722,14 +2182,10 @@ class HRTFPlots:
             ``"median"``, and ``"frontal"``. A single string highlights one
             plane, while a list or tuple highlights multiple planes in the same
             figure.
-        options : PlotOptions | None, default=None
-            Optional figure, axis, legend, margin, and 3D scatter-style overrides.
-            ``options.scatter_3d_style`` controls background source-grid scatter styling.
         show : bool, default=True
             If ``True``, call ``matplotlib.pyplot.show()`` before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title. Explicit
-            figure titles provided through ``options.figure.title`` are still shown.
+            If ``False``, suppress the generated default figure title.
 
         Returns
         -------
@@ -2757,29 +2213,13 @@ class HRTFPlots:
         ...     show=False,
         ... )
         """
-        plot_options = PlotOptions() if options is None else options
-        figure_options = (
-            plot_options.figure if plot_options.figure is not None else FigureOptions()
-        )
-        resolved_margins = (
-            figure_options.margins if figure_options.margins is not None else Margins()
-        )
-        axis_options = (
-            plot_options.axis if plot_options.axis is not None else AxisOptions()
-        )
-        legend_options = (
-            LegendOptions() if axis_options.legend is None else axis_options.legend
-        )
-        source_grid_scatter_style_options = (
-            Scatter3DStyleOptions(
-                s=18.0,
-                color="#9ecae1",
-                edgecolors="none",
-                depthshade=True,
-                alpha=0.55,
-                label="Source Grid",
-            ).merge(plot_options.scatter_3d_style)
-        )
+        resolved_margins = Margins()
+        source_grid_scatter_size = 18.0
+        source_grid_scatter_color = "#9ecae1"
+        source_grid_scatter_edgecolors = "none"
+        source_grid_scatter_depthshade = True
+        source_grid_scatter_alpha = 0.55
+        source_grid_scatter_label = "Source Grid"
         raw_planes = [plane] if isinstance(plane, str) else list(plane)
         if len(raw_planes) == 0:
             raise ValueError("plane must contain at least one value")
@@ -2799,7 +2239,7 @@ class HRTFPlots:
         )
         figure = Figure(
             Layout_1(
-                figsize=(6, 7) if figure_options.figsize is None else figure_options.figsize,
+                figsize=(6, 7),
                 margins=resolved_margins,
             ),
             projection="3d",
@@ -2815,13 +2255,12 @@ class HRTFPlots:
             x=x_values,
             y=y_values,
             z=z_values,
-            s=source_grid_scatter_style_options.s,
-            color=source_grid_scatter_style_options.color,
-            edgecolors=source_grid_scatter_style_options.edgecolors,
-            linewidths=source_grid_scatter_style_options.linewidths,
-            depthshade=source_grid_scatter_style_options.depthshade,
-            alpha=source_grid_scatter_style_options.alpha,
-            label=source_grid_scatter_style_options.label,
+            s=source_grid_scatter_size,
+            color=source_grid_scatter_color,
+            edgecolors=source_grid_scatter_edgecolors,
+            depthshade=source_grid_scatter_depthshade,
+            alpha=source_grid_scatter_alpha,
+            label=source_grid_scatter_label,
         )
 
         plane_colors = {
@@ -2880,20 +2319,17 @@ class HRTFPlots:
             ax=ax,
             center=x_center,
             half_span=axis_half_span,
-            options=axis_options,
-        )
+            )
         YAxis.apply(
             ax=ax,
             center=y_center,
             half_span=axis_half_span,
-            options=axis_options,
-        )
+            )
         ZAxis.apply(
             ax=ax,
             center=z_center,
             half_span=axis_half_span,
-            options=axis_options,
-        )
+            )
         ax.set_box_aspect((1.0, 1.0, 1.0))
         create_sources_grid_direction_markers(
             ax=ax,
@@ -2901,26 +2337,9 @@ class HRTFPlots:
             axis_half_span=axis_half_span,
         )
 
-        grid_enabled = True if axis_options.grid is None else axis_options.grid
-        ax.grid(grid_enabled)
-
-        legend_enabled = True if legend_options.enabled is None else legend_options.enabled
-        if legend_enabled:
-            resolved_legend_location = (
-                "upper right"
-                if legend_options.location is None
-                else legend_options.location
-            )
-            ax.legend(loc=resolved_legend_location)
-
-        if figure_options.title is not None:
-            Titles.create_figure_title(
-                figure.fig,
-                figure.axes,
-                figure.figure_title_y,
-                figure_options.title,
-            )
-        elif titles:
+        ax.grid(True)
+        ax.legend(loc="upper right")
+        if titles:
             if len(resolved_planes) == 1:
                 resolved_figure_title = plane_titles[resolved_planes[0]]
             else:
@@ -2931,6 +2350,6 @@ class HRTFPlots:
                 figure.figure_title_y,
                 resolved_figure_title,
             )
-        if show and plot_options.show:
+        if show:
             plt.show()
         return None
