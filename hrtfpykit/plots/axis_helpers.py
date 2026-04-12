@@ -19,6 +19,58 @@ def build_frequency_axis(
     freq_max: float | None = None,
     options: FrequencyAxisOptions | None = None,
 ) -> FrequencyAxisOptions:
+    """Build resolved frequency-axis options for plotting.
+
+    This function resolves frequency-axis limits, visible ticks, labels, and
+    margin ratio for linear or logarithmic frequency plots. Explicit arguments
+    override values provided through ``options``.
+
+    Parameters
+    ----------
+    scale : str
+        Frequency-axis scale. Supported values are ``"linear"`` and ``"log"``.
+    default_ticks : tuple[float, ...]
+        Default tick positions in Hz used when no custom ticks are provided.
+    default_labels : tuple[str, ...]
+        Default tick labels associated with ``default_ticks``.
+    frequency_bins : np.ndarray | None, default=None
+        Available frequency bins in Hz. Used to resolve bounds when ``freq_min``
+        or ``freq_max`` are not explicitly provided.
+    freq_min : float | None, default=None
+        Minimum frequency in Hz. If omitted, it is resolved from
+        ``frequency_bins`` or options.
+    freq_max : float | None, default=None
+        Maximum frequency in Hz. If omitted, it is resolved from
+        ``frequency_bins`` or options.
+    options : FrequencyAxisOptions | None, default=None
+        Additional axis options that may provide bounds, ticks, labels, and
+        margin ratio.
+
+    Returns
+    -------
+    FrequencyAxisOptions
+        A fully resolved frequency-axis configuration with visible ticks and
+        labels inside the selected frequency range.
+
+    Use Cases
+    ---------
+    - Resolve final axis bounds from data before plotting a frequency response.
+    - Filter default/custom ticks to the selected frequency interval.
+    - Build reusable frequency-axis settings for multiple subplots.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> bins = np.linspace(0.0, 20000.0, 513)
+    >>> axis_options = build_frequency_axis(
+    ...     scale="linear",
+    ...     default_ticks=(2000.0, 4000.0, 8000.0),
+    ...     default_labels=("2", "4", "8"),
+    ...     frequency_bins=bins,
+    ... )
+    >>> float(axis_options.freq_min) >= 0.0
+    True
+    """
     frequency_axis_options = FrequencyAxisOptions() if options is None else options
     resolved_frequency_bins = None
     if frequency_bins is not None:
@@ -108,6 +160,53 @@ def apply_frequency_axis(
     label: str | None = None,
     options: FrequencyAxisOptions | None = None,
 ) -> None:
+    """Apply resolved frequency-axis formatting to a Matplotlib axis.
+
+    The function sets frequency scale, limits, ticks, labels, and disables
+    minor tick formatting for the requested axis dimension.
+
+    Parameters
+    ----------
+    scale : str
+        Frequency-axis scale. Supported values are ``"linear"`` and ``"log"``.
+    ax : plt.Axes
+        Matplotlib axis where formatting will be applied.
+    axis : str
+        Axis dimension to format: ``"x"``, ``"y"``, or ``"z"``.
+    label : str | None, default=None
+        Optional axis label. If provided, it is set on the target axis.
+    options : FrequencyAxisOptions | None, default=None
+        Resolved frequency-axis options containing frequency bounds in Hz,
+        ticks in Hz, labels, and margin ratio.
+
+    Returns
+    -------
+    None
+
+    Use Cases
+    ---------
+    - Apply consistent frequency formatting to linear spectrum plots.
+    - Apply logarithmic frequency formatting in Bode-like plots.
+    - Reuse one frequency-axis configuration across multiple axes.
+
+    Examples
+    --------
+    >>> import matplotlib.pyplot as plt
+    >>> fig, ax = plt.subplots()
+    >>> apply_frequency_axis(
+    ...     scale="linear",
+    ...     ax=ax,
+    ...     axis="x",
+    ...     label="Frequency (kHz)",
+    ...     options=FrequencyAxisOptions(
+    ...         freq_min=200.0,
+    ...         freq_max=8000.0,
+    ...         ticks=(500.0, 1000.0, 2000.0, 4000.0, 8000.0),
+    ...         labels=("0.5", "1", "2", "4", "8"),
+    ...         margin_ratio=0.0,
+    ...     ),
+    ... )
+    """
     if axis not in {"x", "y", "z"}:
         raise ValueError("axis accepts 'x', 'y', or 'z'")
     resolved_frequency_axis = FrequencyAxisOptions() if options is None else options
@@ -162,6 +261,36 @@ def apply_frequency_axis(
 def resolve_three_dimensional_axis_geometry(
     cartesian_positions: np.ndarray,
 ) -> tuple[float, float, float, float]:
+    """Resolve center and symmetric span for a 3D source-grid axis.
+
+    The function computes axis centers for X, Y, and Z and a shared half-span
+    so all three dimensions use the same visual extent.
+
+    Parameters
+    ----------
+    cartesian_positions : np.ndarray
+        Cartesian source positions with shape ``(N, 3)``.
+
+    Returns
+    -------
+    tuple[float, float, float, float]
+        ``(x_center, y_center, z_center, axis_half_span)``.
+
+    Use Cases
+    ---------
+    - Keep 3D plots visually balanced across all dimensions.
+    - Build equal-span bounds for source-grid visualization.
+    - Reuse one geometry computation before applying X/Y/Z axis logic.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> x_center, y_center, z_center, half_span = resolve_three_dimensional_axis_geometry(
+    ...     np.array([[1.0, 0.0, 0.0], [-1.0, 0.5, 0.2], [0.2, -0.4, -0.8]])
+    ... )
+    >>> half_span > 0.0
+    True
+    """
     resolved_cartesian_positions = np.asarray(cartesian_positions, dtype=float)
     if (
         resolved_cartesian_positions.ndim != 2
@@ -194,6 +323,38 @@ def create_sources_grid_direction_markers(
     sources: Sources,
     axis_half_span: float,
 ) -> None:
+    """Draw front, right, and up direction markers on a 3D source grid.
+
+    The markers are derived from nearest source positions in spherical
+    coordinates and rendered as quiver arrows with text labels.
+
+    Parameters
+    ----------
+    ax : plt.Axes
+        Matplotlib 3D axis where markers are drawn.
+    sources : Sources
+        Source container used to query canonical directions.
+    axis_half_span : float
+        Positive half-span used to scale marker arrow length and text offsets.
+
+    Returns
+    -------
+    None
+
+    Use Cases
+    ---------
+    - Add orientation cues to a 3D source-grid scatter plot.
+    - Make front/right/up directions explicit in interactive views.
+    - Keep marker size proportional to axis span.
+
+    Examples
+    --------
+    >>> import matplotlib.pyplot as plt
+    >>> fig = plt.figure()
+    >>> ax = fig.add_subplot(111, projection="3d")
+    >>> # sources must be an initialized Sources instance from hrtfpykit.
+    >>> # create_sources_grid_direction_markers(ax=ax, sources=sources, axis_half_span=1.0)
+    """
     resolved_axis_half_span = float(axis_half_span)
     if not np.isfinite(resolved_axis_half_span) or resolved_axis_half_span <= 0.0:
         raise ValueError("axis_half_span must be a finite, positive value")

@@ -12,7 +12,7 @@ from .planes import (
     get_horizontal_plane,
     get_median_plane,
 )
-from ..plots.plots import HRTFPlots
+from ..plots.hrtf_plots import HRTFPlots
 from ..sofa import SOFA
 from .sources import Sources
 from .domain import IR, TF
@@ -392,4 +392,3 @@ class HRTF(HRTFPlots):
             hrtf.fft_length = fft_length_used
             hrtf.SOFAConventions = convention
             return hrtf
-

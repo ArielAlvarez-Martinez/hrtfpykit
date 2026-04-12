@@ -71,6 +71,48 @@ class AzimuthAxisOptions:
 
 
 @dataclass(frozen=True)
+class AzimuthPolarAxisOptions:
+    tick_step: float | None = None
+
+    def merge(
+        self,
+        options: AzimuthPolarAxisOptions | None = None,
+    ) -> AzimuthPolarAxisOptions:
+        if options is None:
+            return self
+        return AzimuthPolarAxisOptions(
+            tick_step=self.tick_step if options.tick_step is None else options.tick_step,
+        )
+
+
+@dataclass(frozen=True)
+class RadialPolarAxisOptions:
+    tick_step: float | None = None
+    tick_label_style: str | None = None
+    label_position: float | None = None
+
+    def merge(
+        self,
+        options: RadialPolarAxisOptions | None = None,
+    ) -> RadialPolarAxisOptions:
+        if options is None:
+            return self
+        return RadialPolarAxisOptions(
+            tick_step=self.tick_step if options.tick_step is None else options.tick_step,
+            tick_label_style=(
+                self.tick_label_style
+                if options.tick_label_style is None
+                else options.tick_label_style
+            ),
+            label_position=(
+                self.label_position
+                if options.label_position is None
+                else options.label_position
+            ),
+        )
+
+
+@dataclass(frozen=True)
 class AxisOptions:
     xlabel: str | None = None
     ylabel: str | None = None
@@ -80,6 +122,8 @@ class AxisOptions:
     legend: LegendOptions | None = None
     frequency_axis: FrequencyAxisOptions | None = None
     azimuth_axis: AzimuthAxisOptions | None = None
+    azimuth_polar_axis: AzimuthPolarAxisOptions | None = None
+    radial_polar_axis: RadialPolarAxisOptions | None = None
 
     def merge(self, options: AxisOptions | None = None) -> AxisOptions:
         if options is None:
@@ -95,6 +139,16 @@ class AxisOptions:
             if self.azimuth_axis is None
             else self.azimuth_axis
         )
+        base_azimuth_polar_axis = (
+            AzimuthPolarAxisOptions()
+            if self.azimuth_polar_axis is None
+            else self.azimuth_polar_axis
+        )
+        base_radial_polar_axis = (
+            RadialPolarAxisOptions()
+            if self.radial_polar_axis is None
+            else self.radial_polar_axis
+        )
         return AxisOptions(
             xlabel=self.xlabel if options.xlabel is None else options.xlabel,
             ylabel=self.ylabel if options.ylabel is None else options.ylabel,
@@ -108,6 +162,8 @@ class AxisOptions:
             legend=base_legend.merge(options.legend),
             frequency_axis=base_frequency_axis.merge(options.frequency_axis),
             azimuth_axis=base_azimuth_axis.merge(options.azimuth_axis),
+            azimuth_polar_axis=base_azimuth_polar_axis.merge(options.azimuth_polar_axis),
+            radial_polar_axis=base_radial_polar_axis.merge(options.radial_polar_axis),
         )
 
 
@@ -150,9 +206,49 @@ class HeatmapOptions:
 
 
 @dataclass(frozen=True)
+class PolarCurveStyleOptions:
+    color: str | None = None
+    linewidth: float | None = None
+
+    def merge(self, options: PolarCurveStyleOptions | None = None) -> PolarCurveStyleOptions:
+        if options is None:
+            return self
+        return PolarCurveStyleOptions(
+            color=self.color if options.color is None else options.color,
+            linewidth=self.linewidth if options.linewidth is None else options.linewidth,
+        )
+
+
+@dataclass(frozen=True)
+class Scatter3DStyleOptions:
+    s: float | None = None
+    color: str | None = None
+    edgecolors: str | None = None
+    linewidths: float | None = None
+    depthshade: bool | None = None
+    alpha: float | None = None
+    label: str | None = None
+
+    def merge(self, options: Scatter3DStyleOptions | None = None) -> Scatter3DStyleOptions:
+        if options is None:
+            return self
+        return Scatter3DStyleOptions(
+            s=self.s if options.s is None else options.s,
+            color=self.color if options.color is None else options.color,
+            edgecolors=self.edgecolors if options.edgecolors is None else options.edgecolors,
+            linewidths=self.linewidths if options.linewidths is None else options.linewidths,
+            depthshade=self.depthshade if options.depthshade is None else options.depthshade,
+            alpha=self.alpha if options.alpha is None else options.alpha,
+            label=self.label if options.label is None else options.label,
+        )
+
+
+@dataclass(frozen=True)
 class PlotOptions:
     figure: FigureOptions | None = None
     axis: AxisOptions | None = None
     heatmap: HeatmapOptions | None = None
+    polar_curve: PolarCurveStyleOptions | None = None
+    scatter_3d_style: Scatter3DStyleOptions | None = None
     subplots: dict[int | str, AxisOptions] | None = None
     show: bool = True

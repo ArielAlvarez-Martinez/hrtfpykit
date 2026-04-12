@@ -12,9 +12,6 @@ if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
 
 
-POLAR_THETA_TICK_STEP: float = 30.0
-
-
 def create_horizontal_plane_curve(
     hrtf: "HRTF",
     values: np.ndarray,
