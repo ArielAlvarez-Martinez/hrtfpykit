@@ -26,6 +26,7 @@ class Titles:
     left_ear = "Left Ear"
     right_ear = "Right Ear"
     compare_itd_difference = "ITD Difference"
+    compare_ild_difference = "ILD Difference"
 
     @staticmethod
     def create_position_title(

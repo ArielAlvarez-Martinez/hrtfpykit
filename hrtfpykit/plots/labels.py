@@ -50,6 +50,8 @@ class Labels:
     three_d_z_label = "Z (m)"
     compare_itd_difference_seconds = "ITD Difference (s)"
     compare_itd_difference_samples = "ITD Difference (samples)"
+    compare_ild_difference_db = "ILD Difference (dB)"
+    compare_ild_difference_linear = "ILD Difference (linear)"
     label_box = {
         "boxstyle": "round,pad=0.18",
         "facecolor": "white",

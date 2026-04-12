@@ -27,7 +27,7 @@ from .titles import Titles
 from .._warnings import HRTFPyKitWarning, warn_user
 from ..hrtf.coordinates import get_position_queries, get_source_positions
 from ..hrtf.dsp import magnitude_to_db
-from ..hrtf.metrics import ild, itd
+from ..hrtf.metrics import ild, ild_difference, itd
 from ..hrtf.planes import get_horizontal_plane
 from .polar import create_horizontal_plane_curve
 
@@ -1600,7 +1600,60 @@ def compare_itd_difference(
     show: bool = True,
     titles: bool = True,
 ) -> None:
-    """Plot ITD difference across positions as azimuth-elevation scatter."""
+    """Plot signed ITD differences between two HRTFs across source positions.
+
+    The function computes per-position ITD for both inputs and plots the
+    signed difference ``itd_a - itd_b`` as a color-coded scatter map over
+    azimuth (x-axis) and elevation (y-axis).
+
+    Parameters
+    ----------
+    hrtf_a : HRTF
+        First HRTF used in the signed subtraction.
+    hrtf_b : HRTF
+        Second HRTF used in the signed subtraction.
+    method : {"threshold", "maxiacce"}, default="threshold"
+        ITD estimator passed to :func:`itd`.
+    output : {"seconds", "samples"}, default="seconds"
+        Unit of ITD values and colorbar label.
+    thresh_level : float, default=-10.0
+        Threshold offset in dB for ``method="threshold"``.
+    upper_cut_freq : float, default=3000.0
+        Low-pass cutoff in Hz used before ITD estimation.
+    filter_order : int, default=10
+        Butterworth low-pass filter order used in ITD estimation.
+    azimuth_range_mode : {"0-360", "-180-180"}, default="0-360"
+        Azimuth convention applied on the x-axis.
+    colormap : str, default="jet"
+        Matplotlib colormap name used for marker coloring.
+    show : bool, default=True
+        If ``True``, calls ``matplotlib.pyplot.show()``.
+    titles : bool, default=True
+        If ``True``, applies the figure title.
+
+    Returns
+    -------
+    None
+
+    Use Cases
+    ---------
+    - Visualize where two HRTFs differ most in ITD across the source grid.
+    - Inspect directional ITD shifts between baseline and individualized HRTFs.
+    - Compare two processing pipelines using a spatial ITD error map.
+
+    Examples
+    --------
+    >>> from hrtfpykit.plots.compare import compare_itd_difference
+    >>> compare_itd_difference(h1, h2, show=False)
+    >>> compare_itd_difference(
+    ...     h1,
+    ...     h2,
+    ...     output="samples",
+    ...     azimuth_range_mode="-180-180",
+    ...     colormap="viridis",
+    ...     show=False,
+    ... )
+    """
     for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
         if not hasattr(hrtf, "IR") or not hasattr(hrtf, "Sources"):
             raise ValueError(f"{label} must be an HRTF instance")
@@ -1675,7 +1728,7 @@ def compare_itd_difference(
 
     figure = Figure(
         Layout_1(
-            figsize=Layout_1().figsize,
+            figsize=(12, 6),
             margins=Margins(),
         )
     )
@@ -1724,6 +1777,159 @@ def compare_itd_difference(
             figure.axes,
             figure.figure_title_y,
             Titles.compare_itd_difference,
+        )
+    if show:
+        plt.show()
+
+
+def compare_ild_difference(
+    hrtf_a: "HRTF",
+    hrtf_b: "HRTF",
+    mode: str = "broad-band",
+    output: str = "db",
+    fft_length: int | None = None,
+    epsilon: float = 1e-12,
+    azimuth_range_mode: str = "-180-180",
+    colormap: str = "jet",
+    show: bool = True,
+    titles: bool = True,
+) -> None:
+    """Plot absolute ILD differences between two HRTFs across source positions.
+
+    The function computes per-position ILD differences using
+    :func:`ild_difference` and displays them as a color-coded scatter map over
+    azimuth (x-axis) and elevation (y-axis).
+
+    Parameters
+    ----------
+    hrtf_a : HRTF
+        First HRTF used for ILD comparison.
+    hrtf_b : HRTF
+        Second HRTF used for ILD comparison.
+    mode : {"broad-band", "frequency-dependent"}, default="broad-band"
+        ILD mode passed to :func:`ild_difference`.
+    output : {"db", "linear"}, default="db"
+        ILD output representation and colorbar label style.
+    fft_length : int | None, default=None
+        Optional FFT length used when ``mode="frequency-dependent"``.
+    epsilon : float, default=1e-12
+        Positive floor passed to :func:`ild_difference`.
+    azimuth_range_mode : {"0-360", "-180-180"}, default="-180-180"
+        Azimuth convention applied on the x-axis.
+    colormap : str, default="jet"
+        Matplotlib colormap name used for marker coloring.
+    show : bool, default=True
+        If ``True``, calls ``matplotlib.pyplot.show()``.
+    titles : bool, default=True
+        If ``True``, applies the figure title.
+
+    Returns
+    -------
+    None
+
+    Use Cases
+    ---------
+    - Visualize where two HRTFs differ most in ILD across the source grid.
+    - Compare broad-band ILD changes introduced by individualization pipelines.
+    - Inspect frequency-dependent ILD differences collapsed per position.
+
+    Examples
+    --------
+    >>> from hrtfpykit.plots.compare import compare_ild_difference
+    >>> compare_ild_difference(h1, h2, show=False)
+    >>> compare_ild_difference(
+    ...     h1,
+    ...     h2,
+    ...     mode="frequency-dependent",
+    ...     output="db",
+    ...     colormap="plasma",
+    ...     show=False,
+    ... )
+    """
+    difference_values = np.asarray(
+        ild_difference(
+            hrtf_a=hrtf_a,
+            hrtf_b=hrtf_b,
+            mode=mode,
+            output=output,
+            fft_length=fft_length,
+            epsilon=epsilon,
+        ),
+        dtype=float,
+    ).reshape(-1)
+
+    spherical_positions = np.asarray(
+        get_source_positions(
+            sources=hrtf_a.Sources,
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        ),
+        dtype=float,
+    )
+    if spherical_positions.ndim != 2 or spherical_positions.shape[1] < 2:
+        raise ValueError("Source positions must have shape (N, 3) in spherical coordinates")
+    if spherical_positions.shape[0] != difference_values.shape[0]:
+        raise ValueError("ILD difference values must match number of source positions")
+
+    azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
+    elevation_values = np.asarray(spherical_positions[:, 1], dtype=float)
+    transformed_azimuth_values = AzimuthAnglesAxis.transform_values(
+        values=azimuth_values,
+        range_mode=azimuth_range_mode,
+    )
+
+    figure = Figure(
+        Layout_1(
+            figsize=(12, 6),
+            margins=Margins(),
+        )
+    )
+    ax = figure.get_ax("main")
+    output_key = str(output).strip().lower()
+    colorbar_label = (
+        Labels.compare_ild_difference_db
+        if output_key == "db"
+        else Labels.compare_ild_difference_linear
+    )
+    scatter = ax.scatter(
+        transformed_azimuth_values,
+        elevation_values,
+        c=difference_values,
+        cmap=colormap,
+        s=32.0,
+        edgecolors="black",
+        linewidths=0.25,
+        vmin=float(np.min(difference_values)),
+        vmax=float(np.max(difference_values)),
+    )
+    figure.fig.colorbar(scatter, ax=ax, label=colorbar_label)
+    AzimuthAnglesAxis.apply(
+        ax=ax,
+        axis="x",
+        values=transformed_azimuth_values,
+        range_mode=azimuth_range_mode,
+    )
+    x_min = float(np.min(transformed_azimuth_values))
+    x_max = float(np.max(transformed_azimuth_values))
+    x_span = x_max - x_min
+    x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
+    ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    ElevationAnglesAxis.apply(
+        ax=ax,
+        axis="y",
+        values=elevation_values,
+    )
+    y_min = float(np.min(elevation_values))
+    y_max = float(np.max(elevation_values))
+    y_span = y_max - y_min
+    y_padding = 2.0 if np.isclose(y_span, 0.0) else max(2.0, 0.04 * y_span)
+    ax.set_ylim(y_min - y_padding, y_max + y_padding)
+    if titles:
+        Titles.create_figure_title(
+            figure.fig,
+            figure.axes,
+            figure.figure_title_y,
+            Titles.compare_ild_difference,
         )
     if show:
         plt.show()
