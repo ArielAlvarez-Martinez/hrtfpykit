@@ -6,6 +6,7 @@ import numpy as np
 from scipy import signal
 
 from .dsp import iir_filter, magnitude_to_db, tf_from_ir
+from .planes import get_horizontal_plane, get_median_plane
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -523,3 +524,234 @@ def ild_difference(
     if ild_a.shape != ild_b.shape:
         raise ValueError("Calculated ILD arrays must have matching shapes")
     return np.abs(ild_a - ild_b)
+
+
+def lsd(
+    hrtf_a: "HRTF",
+    hrtf_b: "HRTF",
+    ear: str = "left",
+    plane: str = "all",
+    elevation: float = 0.0,
+    frequency: float | None = None,
+    reduction: str = "none",
+    epsilon: float = 1e-12,
+) -> np.ndarray | float:
+    """Compute log-spectral distortion (LSD) between two HRTFs in dB.
+
+    This method compares two HRTFs using one selected ear and computes
+    spectral differences in the logarithmic (dB) domain. It supports:
+    full-grid evaluation, plane-restricted evaluation (horizontal/median),
+    single-frequency selection, and multiple reduction modes.
+
+    Parameters
+    ----------
+    hrtf_a : HRTF
+        First HRTF used in the comparison.
+    hrtf_b : HRTF
+        Second HRTF used in the comparison.
+    ear : {"left", "right"}, default="left"
+        Ear channel to evaluate. ``"left"`` maps to index 0 and ``"right"``
+        maps to index 1.
+    plane : {"all", "horizontal", "median"}, default="all"
+        Spatial subset of source positions:
+        - ``"all"`` uses the full source grid.
+        - ``"horizontal"`` uses the nearest available horizontal plane at
+          ``elevation``.
+        - ``"median"`` uses the canonical median plane.
+    elevation : float, default=0.0
+        Requested elevation in degrees used only when
+        ``plane="horizontal"``.
+    frequency : float | None, default=None
+        Frequency selection in Hz:
+        - ``None`` uses all frequency bins.
+        - A finite float selects the nearest available frequency bin.
+    reduction : {"none", "locations", "frequencies", "both"}, default="none"
+        Aggregation mode applied after dB difference computation:
+        - ``"none"``:
+          returns absolute dB differences per selected position and frequency.
+        - ``"locations"``:
+          returns RMS over locations for each selected frequency.
+        - ``"frequencies"``:
+          returns RMS over frequencies for each selected location.
+        - ``"both"``:
+          returns one global RMS value across all selected locations and
+          frequencies.
+    epsilon : float, default=1e-12
+        Positive lower bound applied to magnitudes before conversion to dB.
+        This avoids invalid values from ``log10(0)``.
+
+    Returns
+    -------
+    np.ndarray | float
+        LSD values in dB. Output shape depends on ``reduction`` and on whether
+        a single frequency was selected:
+        - ``reduction="none"``:
+          ``(positions, frequencies)`` or ``(positions,)`` for one frequency.
+        - ``reduction="locations"``:
+          ``(frequencies,)`` or ``float`` for one frequency.
+        - ``reduction="frequencies"``:
+          ``(positions,)``.
+        - ``reduction="both"``:
+          ``float``.
+
+    Use Cases
+    ---------
+    - Compare two full HRTFs across all positions and all frequencies.
+    - Evaluate LSD per frequency while averaging across spatial locations.
+    - Evaluate LSD per location while averaging across frequencies.
+    - Inspect LSD in a specific horizontal elevation plane.
+    - Inspect LSD in the canonical median plane at one target frequency.
+
+    Examples
+    --------
+    Full LSD map across all positions and frequencies for the left ear:
+
+    >>> lsd_map = lsd(hrtf_a, hrtf_b, ear="left", reduction="none")
+    >>> lsd_map.ndim
+    2
+
+    Per-frequency LSD averaged across locations:
+
+    >>> lsd_per_frequency = lsd(
+    ...     hrtf_a,
+    ...     hrtf_b,
+    ...     ear="left",
+    ...     reduction="locations",
+    ... )
+
+    Per-location LSD averaged across frequencies in a horizontal plane:
+
+    >>> lsd_per_location = lsd(
+    ...     hrtf_a,
+    ...     hrtf_b,
+    ...     ear="right",
+    ...     plane="horizontal",
+    ...     elevation=0.0,
+    ...     reduction="frequencies",
+    ... )
+
+    Global scalar LSD at one selected frequency in the median plane:
+
+    >>> lsd_scalar = lsd(
+    ...     hrtf_a,
+    ...     hrtf_b,
+    ...     ear="left",
+    ...     plane="median",
+    ...     frequency=4000.0,
+    ...     reduction="both",
+    ... )
+    """
+    for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
+        if not hasattr(hrtf, "TF") or not hasattr(hrtf, "Sources"):
+            raise ValueError(f"{label} must be an HRTF instance")
+        if hrtf.TF.values is None:
+            raise ValueError(f"{label} TF data is not available")
+        if hrtf.TF.frequency_bins is None:
+            raise ValueError(f"{label} TF frequency_bins are required")
+
+    ear_key = str(ear).strip().lower()
+    if ear_key not in {"left", "right"}:
+        raise ValueError("ear must be one of: left, right")
+    ear_index = 0 if ear_key == "left" else 1
+
+    plane_key = str(plane).strip().lower()
+    if plane_key not in {"all", "horizontal", "median"}:
+        raise ValueError("plane must be one of: all, horizontal, median")
+
+    reduction_key = str(reduction).strip().lower()
+    if reduction_key not in {"none", "locations", "frequencies", "both"}:
+        raise ValueError("reduction must be one of: none, locations, frequencies, both")
+
+    if isinstance(epsilon, bool):
+        raise ValueError("epsilon must be a finite, positive value.")
+    try:
+        epsilon = float(epsilon)
+    except (TypeError, ValueError):
+        raise ValueError("epsilon must be a finite, positive value.") from None
+    if not np.isfinite(epsilon) or epsilon <= 0.0:
+        raise ValueError("epsilon must be a finite, positive value.")
+
+    source_positions_a = np.asarray(hrtf_a.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    source_positions_b = np.asarray(hrtf_b.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    if source_positions_a.shape != source_positions_b.shape:
+        raise ValueError("HRTFs must have the same number of source positions")
+    if not np.allclose(source_positions_a, source_positions_b, atol=1e-8, rtol=0.0):
+        raise ValueError("HRTFs must share the same source positions for LSD")
+
+    tf_a = np.asarray(hrtf_a.TF.values)
+    tf_b = np.asarray(hrtf_b.TF.values)
+    if tf_a.ndim != 3 or tf_b.ndim != 3:
+        raise ValueError("TF values must have shape (positions, ears, frequency_bins)")
+    if tf_a.shape != tf_b.shape:
+        raise ValueError("HRTFs must have matching TF shapes for LSD")
+    if tf_a.shape[0] != source_positions_a.shape[0]:
+        raise ValueError("TF positions axis must match source positions count")
+    if tf_a.shape[1] < 2:
+        raise ValueError("TF ear axis must contain at least two channels (0=left, 1=right)")
+
+    frequency_bins_a = np.asarray(hrtf_a.TF.frequency_bins, dtype=float).reshape(-1)
+    frequency_bins_b = np.asarray(hrtf_b.TF.frequency_bins, dtype=float).reshape(-1)
+    if frequency_bins_a.shape != frequency_bins_b.shape:
+        raise ValueError("HRTFs must have matching TF frequency_bins")
+    if not np.allclose(frequency_bins_a, frequency_bins_b, atol=1e-8, rtol=0.0):
+        raise ValueError("HRTFs must share the same TF frequency_bins for LSD")
+    if frequency_bins_a.size != tf_a.shape[-1]:
+        raise ValueError("TF frequency axis length must match frequency_bins length")
+
+    if plane_key == "all":
+        selected_positions = np.arange(source_positions_a.shape[0], dtype=int)
+    elif plane_key == "horizontal":
+        selected_positions, _ = get_horizontal_plane(hrtf=hrtf_a, elevation=float(elevation))
+    else:
+        selected_positions, _ = get_median_plane(hrtf=hrtf_a, azimuth=0.0)
+    selected_positions = np.asarray(selected_positions, dtype=int).reshape(-1)
+    if selected_positions.size == 0:
+        raise ValueError("Selected plane has no source positions")
+
+    if frequency is None:
+        selected_frequency_indices = np.arange(frequency_bins_a.size, dtype=int)
+    else:
+        if isinstance(frequency, bool):
+            raise ValueError("frequency must be a finite value")
+        target_frequency = float(frequency)
+        if not np.isfinite(target_frequency):
+            raise ValueError("frequency must be a finite value")
+        nearest_frequency_index = int(np.argmin(np.abs(frequency_bins_a - target_frequency)))
+        selected_frequency_indices = np.array([nearest_frequency_index], dtype=int)
+
+    tf_values_a = np.asarray(
+        tf_a[selected_positions, ear_index, :][:, selected_frequency_indices],
+        dtype=complex,
+    )
+    tf_values_b = np.asarray(
+        tf_b[selected_positions, ear_index, :][:, selected_frequency_indices],
+        dtype=complex,
+    )
+    if tf_values_a.shape != tf_values_b.shape:
+        raise ValueError("Selected TF slices must have matching shapes")
+
+    magnitude_a = np.maximum(np.abs(tf_values_a), epsilon)
+    magnitude_b = np.maximum(np.abs(tf_values_b), epsilon)
+    db_values_a = magnitude_to_db(magnitude_a)
+    db_values_b = magnitude_to_db(magnitude_b)
+    difference_db = db_values_a - db_values_b
+
+    if reduction_key == "none":
+        absolute_difference_db = np.abs(difference_db)
+        if absolute_difference_db.shape[-1] == 1:
+            return absolute_difference_db[:, 0]
+        return absolute_difference_db
+
+    if reduction_key == "locations":
+        rms_over_locations = np.sqrt(np.mean(np.square(difference_db), axis=0))
+        if rms_over_locations.size == 1:
+            return float(rms_over_locations[0])
+        return rms_over_locations
+
+    if reduction_key == "frequencies":
+        if difference_db.shape[-1] == 1:
+            raise ValueError("reduction='frequencies' requires multiple selected frequencies")
+        rms_over_frequencies = np.sqrt(np.mean(np.square(difference_db), axis=-1))
+        return rms_over_frequencies
+
+    return float(np.sqrt(np.mean(np.square(difference_db))))
