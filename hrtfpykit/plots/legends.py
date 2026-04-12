@@ -86,6 +86,14 @@ class Subjects(Legends):
     bbox_to_anchor: tuple[float, float] | None = None
 
     @staticmethod
+    def create_default_labels(
+        count: int,
+    ) -> list[str]:
+        if count <= 0:
+            raise ValueError("count must be positive")
+        return [f"subject_{index + 1}" for index in range(count)]
+
+    @staticmethod
     def apply(
         ax: plt.Axes,
         labels: tuple[str, ...] | list[str],

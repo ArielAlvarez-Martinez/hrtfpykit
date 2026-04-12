@@ -16,6 +16,7 @@ from .axis import (
     RadialAxisPolarProjection,
     SampleAxis,
     TimeAxis,
+    ElevationAnglesAxis,
 )
 from .default import Margins
 from .figure import Figure
@@ -24,7 +25,7 @@ from .layouts import Layout_1, Layout_2Horizontal, Layout_2Vertical, Layout_3
 from .legends import Subjects
 from .titles import Titles
 from .._warnings import HRTFPyKitWarning, warn_user
-from ..hrtf.coordinates import get_position_queries
+from ..hrtf.coordinates import get_position_queries, get_source_positions
 from ..hrtf.dsp import magnitude_to_db
 from ..hrtf.metrics import ild, itd
 from ..hrtf.planes import get_horizontal_plane
@@ -141,7 +142,7 @@ def compare_magnitude(
         raise ValueError("ear='both' accepts exactly one position")
 
     if legends is None:
-        resolved_legends = [f"subject_{index + 1}" for index in range(hrtf_count)]
+        resolved_legends = Subjects.create_default_labels(hrtf_count)
     else:
         resolved_legends = [str(value) for value in legends]
         if len(resolved_legends) != hrtf_count:
@@ -331,8 +332,8 @@ def compare_magnitude(
 
     if ear == "both":
         for axis_name, ear_index, subplot_title in (
-            ("left", 0, "Left Ear"),
-            ("right", 1, "Right Ear"),
+            ("left", 0, Titles.left_ear),
+            ("right", 1, Titles.right_ear),
         ):
             ax = figure.get_ax(axis_name)
             for subject_index in range(hrtf_count):
@@ -516,7 +517,7 @@ def compare_amplitude(
         raise ValueError("ear='both' accepts exactly one position")
 
     if legends is None:
-        resolved_legends = [f"subject_{index + 1}" for index in range(hrtf_count)]
+        resolved_legends = Subjects.create_default_labels(hrtf_count)
     else:
         resolved_legends = [str(value) for value in legends]
         if len(resolved_legends) != hrtf_count:
@@ -619,7 +620,7 @@ def compare_amplitude(
             margins=resolved_margins,
         )
     figure = Figure(resolved_layout)
-    resolved_legend_location = "upper right" if legend_location is None else str(legend_location)
+    resolved_legend_location = Subjects.location if legend_location is None else str(legend_location)
     resolved_legend_bbox_to_anchor = (
         None
         if legend_bbox_to_anchor is None
@@ -631,8 +632,8 @@ def compare_amplitude(
 
     if ear == "both":
         for axis_name, ear_index, subplot_title in (
-            ("left", 0, "Left Ear"),
-            ("right", 1, "Right Ear"),
+            ("left", 0, Titles.left_ear),
+            ("right", 1, Titles.right_ear),
         ):
             ax = figure.get_ax(axis_name)
             for subject_index in range(hrtf_count):
@@ -792,7 +793,7 @@ def compare_absolute_itd(
         raise ValueError("elevation_angle must be a finite value")
 
     if legends is None:
-        resolved_legends = [f"subject_{index + 1}" for index in range(hrtf_count)]
+        resolved_legends = Subjects.create_default_labels(hrtf_count)
     else:
         resolved_legends = [str(value) for value in legends]
         if len(resolved_legends) != hrtf_count:
@@ -904,7 +905,7 @@ def compare_absolute_itd(
         tick_label_style="decimal_comma_4",
         label_position=350.0,
     )
-    resolved_legend_location = "upper right" if legend_location is None else str(legend_location)
+    resolved_legend_location = Subjects.location if legend_location is None else str(legend_location)
     resolved_legend_bbox_to_anchor = (
         (1.08, 1.08)
         if legend_bbox_to_anchor is None
@@ -1011,7 +1012,7 @@ def compare_absolute_ild(
         raise ValueError("elevation_angle must be a finite value")
 
     if legends is None:
-        resolved_legends = [f"subject_{index + 1}" for index in range(hrtf_count)]
+        resolved_legends = Subjects.create_default_labels(hrtf_count)
     else:
         resolved_legends = [str(value) for value in legends]
         if len(resolved_legends) != hrtf_count:
@@ -1124,7 +1125,7 @@ def compare_absolute_ild(
         tick_label_style="integer",
         label_position=350.0,
     )
-    resolved_legend_location = "upper right" if legend_location is None else str(legend_location)
+    resolved_legend_location = Subjects.location if legend_location is None else str(legend_location)
     resolved_legend_bbox_to_anchor = (
         (1.08, 1.08)
         if legend_bbox_to_anchor is None
@@ -1231,7 +1232,7 @@ def compare_itd_curve(
         raise ValueError("elevation_angle must be a finite value")
 
     if legends is None:
-        resolved_legends = [f"subject_{index + 1}" for index in range(hrtf_count)]
+        resolved_legends = Subjects.create_default_labels(hrtf_count)
     else:
         resolved_legends = [str(value) for value in legends]
         if len(resolved_legends) != hrtf_count:
@@ -1339,7 +1340,7 @@ def compare_itd_curve(
         axis="y",
         default_label=Labels.itd,
     )
-    resolved_legend_location = "upper right" if legend_location is None else str(legend_location)
+    resolved_legend_location = Subjects.location if legend_location is None else str(legend_location)
     resolved_legend_bbox_to_anchor = (
         None
         if legend_bbox_to_anchor is None
@@ -1446,7 +1447,7 @@ def compare_ild_curve(
         raise ValueError("elevation_angle must be a finite value")
 
     if legends is None:
-        resolved_legends = [f"subject_{index + 1}" for index in range(hrtf_count)]
+        resolved_legends = Subjects.create_default_labels(hrtf_count)
     else:
         resolved_legends = [str(value) for value in legends]
         if len(resolved_legends) != hrtf_count:
@@ -1555,7 +1556,7 @@ def compare_ild_curve(
         axis="y",
         default_label=Labels.ild,
     )
-    resolved_legend_location = "upper right" if legend_location is None else str(legend_location)
+    resolved_legend_location = Subjects.location if legend_location is None else str(legend_location)
     resolved_legend_bbox_to_anchor = (
         None
         if legend_bbox_to_anchor is None
@@ -1581,6 +1582,148 @@ def compare_ild_curve(
                 plane="horizontal",
                 elevation_angle=reference_real_elevation,
             ),
+        )
+    if show:
+        plt.show()
+
+
+def compare_itd_difference(
+    hrtf_a: "HRTF",
+    hrtf_b: "HRTF",
+    method: str = "threshold",
+    output: str = "seconds",
+    thresh_level: float = -10.0,
+    upper_cut_freq: float = 3000.0,
+    filter_order: int = 10,
+    azimuth_range_mode: str = "0-360",
+    colormap: str = "jet",
+    show: bool = True,
+    titles: bool = True,
+) -> None:
+    """Plot ITD difference across positions as azimuth-elevation scatter."""
+    for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
+        if not hasattr(hrtf, "IR") or not hasattr(hrtf, "Sources"):
+            raise ValueError(f"{label} must be an HRTF instance")
+        if hrtf.IR.values is None:
+            raise ValueError(f"{label} IR data is not available")
+        if hrtf.IR.sample_rate is None:
+            raise ValueError(f"{label} IR sample_rate is required")
+
+    output_key = str(output).strip().lower()
+    if output_key not in {"seconds", "samples"}:
+        raise ValueError("output must be one of: seconds, samples")
+    if output_key == "samples" and not np.isclose(
+        float(hrtf_a.IR.sample_rate),
+        float(hrtf_b.IR.sample_rate),
+        atol=1e-12,
+        rtol=0.0,
+    ):
+        raise ValueError("output='samples' requires equal sample_rate in both HRTFs")
+
+    source_positions_a = np.asarray(hrtf_a.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    source_positions_b = np.asarray(hrtf_b.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    if source_positions_a.shape != source_positions_b.shape:
+        raise ValueError("HRTFs must have the same number of source positions")
+    if not np.allclose(source_positions_a, source_positions_b, atol=1e-8, rtol=0.0):
+        raise ValueError("HRTFs must share the same source positions for ITD difference")
+
+    itd_a = np.asarray(
+        itd(
+            hrtf_a.IR,
+            method=method,
+            output=output_key,
+            thresh_level=thresh_level,
+            upper_cut_freq=upper_cut_freq,
+            filter_order=filter_order,
+        ),
+        dtype=float,
+    )
+    itd_b = np.asarray(
+        itd(
+            hrtf_b.IR,
+            method=method,
+            output=output_key,
+            thresh_level=thresh_level,
+            upper_cut_freq=upper_cut_freq,
+            filter_order=filter_order,
+        ),
+        dtype=float,
+    )
+    if itd_a.shape != itd_b.shape:
+        raise ValueError("Calculated ITD arrays must have matching shapes")
+    difference_values = np.asarray(itd_a - itd_b, dtype=float).reshape(-1)
+
+    spherical_positions = np.asarray(
+        get_source_positions(
+            sources=hrtf_a.Sources,
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        ),
+        dtype=float,
+    )
+    if spherical_positions.ndim != 2 or spherical_positions.shape[1] < 2:
+        raise ValueError("Source positions must have shape (N, 3) in spherical coordinates")
+    if spherical_positions.shape[0] != difference_values.shape[0]:
+        raise ValueError("ITD difference values must match number of source positions")
+
+    azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
+    elevation_values = np.asarray(spherical_positions[:, 1], dtype=float)
+    transformed_azimuth_values = AzimuthAnglesAxis.transform_values(
+        values=azimuth_values,
+        range_mode=azimuth_range_mode,
+    )
+
+    figure = Figure(
+        Layout_1(
+            figsize=Layout_1().figsize,
+            margins=Margins(),
+        )
+    )
+    ax = figure.get_ax("main")
+    colorbar_label = (
+        Labels.compare_itd_difference_seconds
+        if output_key == "seconds"
+        else Labels.compare_itd_difference_samples
+    )
+    scatter = ax.scatter(
+        transformed_azimuth_values,
+        elevation_values,
+        c=difference_values,
+        cmap=colormap,
+        s=32.0,
+        edgecolors="black",
+        linewidths=0.25,
+        vmin=float(np.min(difference_values)),
+        vmax=float(np.max(difference_values)),
+    )
+    figure.fig.colorbar(scatter, ax=ax, label=colorbar_label)
+    AzimuthAnglesAxis.apply(
+        ax=ax,
+        axis="x",
+        values=transformed_azimuth_values,
+        range_mode=azimuth_range_mode,
+    )
+    x_min = float(np.min(transformed_azimuth_values))
+    x_max = float(np.max(transformed_azimuth_values))
+    x_span = x_max - x_min
+    x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
+    ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    ElevationAnglesAxis.apply(
+        ax=ax,
+        axis="y",
+        values=elevation_values,
+    )
+    y_min = float(np.min(elevation_values))
+    y_max = float(np.max(elevation_values))
+    y_span = y_max - y_min
+    y_padding = 2.0 if np.isclose(y_span, 0.0) else max(2.0, 0.04 * y_span)
+    ax.set_ylim(y_min - y_padding, y_max + y_padding)
+    if titles:
+        Titles.create_figure_title(
+            figure.fig,
+            figure.axes,
+            figure.figure_title_y,
+            Titles.compare_itd_difference,
         )
     if show:
         plt.show()

@@ -23,6 +23,9 @@ class Titles:
     horizontal_plane_elevation = "Horizontal Plane : [Elevation= {angle}°]"
     median_plane = "Median Plane"
     elevation_spectrum = "Elevation Spectrum : [Azimuth= {angle}°]"
+    left_ear = "Left Ear"
+    right_ear = "Right Ear"
+    compare_itd_difference = "ITD Difference"
 
     @staticmethod
     def create_position_title(
