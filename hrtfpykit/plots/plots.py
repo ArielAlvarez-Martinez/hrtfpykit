@@ -8,11 +8,13 @@ from .axis import (
     AmplitudeAxis,
     Axis,
     AzimuthAnglesAxis,
+    AzimuthAnglesAxisPolarProjection,
     ElevationAnglesAxis,
     FrequencyLinearAxis,
     FrequencyLogAxis,
     MagnitudeAxis,
     PolarAnglesAxis,
+    RadialAxisPolarProjection,
     SampleAxis,
     TimeAxis,
     XAxis,
@@ -37,6 +39,7 @@ from .options import (
     LegendOptions,
     PlotOptions,
 )
+from .polar import POLAR_THETA_TICK_STEP, create_horizontal_plane_curve
 from .titles import Titles
 from ..hrtf.coordinates import (
     get_named_positions,
@@ -55,57 +58,6 @@ from ..hrtf.planes import (
 
 if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
-
-
-class Polar:
-    theta_tick_step: float = 30.0
-
-    @staticmethod
-    def create_horizontal_plane_curve(
-        hrtf: "HRTF",
-        values: np.ndarray,
-        elevation: float = 0.0,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-        indices, real_elevation = get_horizontal_plane(
-            hrtf=hrtf,
-            elevation=elevation,
-            angle_unit="degrees",
-        )
-        if indices.size == 0:
-            raise ValueError("Horizontal plane does not contain any source positions")
-
-        spherical_positions = get_source_positions(
-            sources=hrtf.Sources,
-            coordinate_system="spherical",
-            angle_unit="degrees",
-        )[indices]
-        azimuth_values = np.mod(np.asarray(spherical_positions[:, 0], dtype=float), 360.0)
-        plane_values = np.asarray(values, dtype=float)[indices]
-        if plane_values.ndim != 1:
-            plane_values = np.asarray(plane_values, dtype=float).reshape(-1)
-
-        sort_indices = np.argsort(azimuth_values)
-        sorted_azimuth_values = azimuth_values[sort_indices]
-        sorted_plane_values = plane_values[sort_indices]
-        if sorted_azimuth_values.size > 1:
-            theta_values = np.deg2rad(
-                np.concatenate(
-                    (
-                        sorted_azimuth_values,
-                        np.array([sorted_azimuth_values[0] + 360.0], dtype=float),
-                    )
-                )
-            )
-            radial_values = np.concatenate(
-                (
-                    sorted_plane_values,
-                    np.array([sorted_plane_values[0]], dtype=float),
-                )
-            )
-        else:
-            theta_values = np.deg2rad(sorted_azimuth_values)
-            radial_values = sorted_plane_values
-        return theta_values, radial_values, sorted_plane_values, float(real_elevation)
 
 
 class HRTFPlots:
@@ -1954,7 +1906,7 @@ class HRTFPlots:
                 dtype=float,
             )
         )
-        theta_values, radial_values, sorted_itd_values, real_elevation = Polar.create_horizontal_plane_curve(
+        theta_values, radial_values, sorted_itd_values, real_elevation = create_horizontal_plane_curve(
             hrtf=self,
             values=itd_values,
             elevation=elevation_angle,
@@ -1976,38 +1928,19 @@ class HRTFPlots:
             color="steelblue",
             linewidth=2.0,
         )
-        ax.set_theta_zero_location("N")
-        theta_ticks = np.arange(0.0, 360.0, Polar.theta_tick_step, dtype=float)
-        ax.set_xticks(np.deg2rad(theta_ticks))
-        ax.set_xticklabels([f"{int(tick)}°" for tick in theta_ticks])
-        radial_max = float(np.max(sorted_itd_values)) if sorted_itd_values.size > 0 else 0.0
-        radial_tick_step = 2e-4
-        if np.isclose(radial_max, 0.0):
-            resolved_radial_max = radial_tick_step
-        else:
-            resolved_radial_max = (
-                np.ceil((radial_max * 1.1) / radial_tick_step) * radial_tick_step
-            )
-        radial_ticks = np.arange(
-            radial_tick_step,
-            resolved_radial_max + (0.5 * radial_tick_step),
-            radial_tick_step,
-            dtype=float,
+        AzimuthAnglesAxisPolarProjection.apply(
+            ax=ax,
+            tick_step=POLAR_THETA_TICK_STEP,
         )
-        ax.set_ylim(0.0, resolved_radial_max)
-        ax.set_yticks(radial_ticks)
-        ax.set_yticklabels(
-            [f"{tick:0.4f}".replace(".", ",") for tick in radial_ticks]
+        RadialAxisPolarProjection.apply(
+            ax=ax,
+            radial_values=sorted_itd_values,
+            radial_tick_step=2e-4,
+            radial_label_default=Labels.itd_seconds,
+            radial_tick_label_style="decimal_comma_4",
+            rlabel_position=350.0,
+            options=axis_options,
         )
-        ax.set_rlabel_position(350.0)
-        if axis_options.ylabel is not None:
-            resolved_radial_label = axis_options.ylabel
-        else:
-            resolved_radial_label = Labels.itd_seconds
-        ax.set_ylabel(resolved_radial_label, rotation=0)
-        ax.yaxis.set_label_coords(0.5, ax.title.get_position()[1], transform=ax.transAxes)
-        ax.yaxis.label.set_horizontalalignment("center")
-        ax.yaxis.label.set_verticalalignment("bottom")
         if figure_options.title is not None:
             Titles.create_figure_title(
                 figure.fig,
@@ -2527,7 +2460,7 @@ class HRTFPlots:
                 dtype=float,
             )
         )
-        theta_values, radial_values, sorted_ild_values, real_elevation = Polar.create_horizontal_plane_curve(
+        theta_values, radial_values, sorted_ild_values, real_elevation = create_horizontal_plane_curve(
             hrtf=self,
             values=ild_values,
             elevation=elevation_angle,
@@ -2549,38 +2482,19 @@ class HRTFPlots:
             color="steelblue",
             linewidth=2.0,
         )
-        ax.set_theta_zero_location("N")
-        theta_ticks = np.arange(0.0, 360.0, Polar.theta_tick_step, dtype=float)
-        ax.set_xticks(np.deg2rad(theta_ticks))
-        ax.set_xticklabels([f"{int(tick)}°" for tick in theta_ticks])
-        radial_max = float(np.max(sorted_ild_values)) if sorted_ild_values.size > 0 else 0.0
-        radial_tick_step = 5.0
-        if np.isclose(radial_max, 0.0):
-            resolved_radial_max = radial_tick_step
-        else:
-            resolved_radial_max = (
-                np.ceil((radial_max * 1.1) / radial_tick_step) * radial_tick_step
-            )
-        radial_ticks = np.arange(
-            radial_tick_step,
-            resolved_radial_max + (0.5 * radial_tick_step),
-            radial_tick_step,
-            dtype=float,
+        AzimuthAnglesAxisPolarProjection.apply(
+            ax=ax,
+            tick_step=POLAR_THETA_TICK_STEP,
         )
-        ax.set_ylim(0.0, resolved_radial_max)
-        ax.set_yticks(radial_ticks)
-        ax.set_yticklabels(
-            [f"{int(np.rint(tick))}" for tick in radial_ticks]
+        RadialAxisPolarProjection.apply(
+            ax=ax,
+            radial_values=sorted_ild_values,
+            radial_tick_step=5.0,
+            radial_label_default=Labels.ild_db,
+            radial_tick_label_style="integer",
+            rlabel_position=350.0,
+            options=axis_options,
         )
-        ax.set_rlabel_position(350.0)
-        if axis_options.ylabel is not None:
-            resolved_radial_label = axis_options.ylabel
-        else:
-            resolved_radial_label = Labels.ild_db
-        ax.set_ylabel(resolved_radial_label, rotation=0)
-        ax.yaxis.set_label_coords(0.5, ax.title.get_position()[1], transform=ax.transAxes)
-        ax.yaxis.label.set_horizontalalignment("center")
-        ax.yaxis.label.set_verticalalignment("bottom")
         if figure_options.title is not None:
             Titles.create_figure_title(
                 figure.fig,

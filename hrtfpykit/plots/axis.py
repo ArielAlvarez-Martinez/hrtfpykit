@@ -472,6 +472,91 @@ class AzimuthAnglesAxis(DirectionAxis):
         )
 
 
+class AzimuthAnglesAxisPolarProjection(Axis):
+    @staticmethod
+    def apply(
+        ax: plt.Axes,
+        tick_step: float = 30.0,
+    ) -> None:
+        if getattr(ax, "name", "") != "polar":
+            raise ValueError("AzimuthAnglesAxisPolarProjection requires a polar axis")
+        resolved_tick_step = float(tick_step)
+        if not np.isfinite(resolved_tick_step) or resolved_tick_step <= 0.0:
+            raise ValueError("tick_step must be a finite, positive value")
+        theta_ticks = np.arange(0.0, 360.0, resolved_tick_step, dtype=float)
+        ax.set_theta_zero_location("N")
+        ax.set_xticks(np.deg2rad(theta_ticks))
+        ax.set_xticklabels([f"{int(np.rint(tick))}°" for tick in theta_ticks])
+
+
+class RadialAxisPolarProjection(Axis):
+    @staticmethod
+    def apply(
+        ax: plt.Axes,
+        radial_values: np.ndarray,
+        radial_tick_step: float,
+        radial_label_default: str,
+        radial_tick_label_style: str = "integer",
+        rlabel_position: float = 350.0,
+        options: AxisOptions | None = None,
+    ) -> None:
+        if getattr(ax, "name", "") != "polar":
+            raise ValueError("RadialAxisPolarProjection requires a polar axis")
+        resolved_axis_options = AxisOptions() if options is None else options
+        resolved_radial_values = np.asarray(radial_values, dtype=float).reshape(-1)
+        if resolved_radial_values.size == 0:
+            radial_max = 0.0
+        else:
+            if not np.all(np.isfinite(resolved_radial_values)):
+                raise ValueError("radial_values must contain finite values")
+            radial_max = float(np.max(resolved_radial_values))
+
+        resolved_radial_tick_step = float(radial_tick_step)
+        if (
+            not np.isfinite(resolved_radial_tick_step)
+            or resolved_radial_tick_step <= 0.0
+        ):
+            raise ValueError("radial_tick_step must be a finite, positive value")
+        if radial_tick_label_style not in {"integer", "decimal_comma_4"}:
+            raise ValueError(
+                "radial_tick_label_style accepts integer or decimal_comma_4"
+            )
+        if np.isclose(radial_max, 0.0):
+            resolved_radial_max = resolved_radial_tick_step
+        else:
+            resolved_radial_max = (
+                np.ceil((radial_max * 1.1) / resolved_radial_tick_step)
+                * resolved_radial_tick_step
+            )
+        radial_ticks = np.arange(
+            resolved_radial_tick_step,
+            resolved_radial_max + (0.5 * resolved_radial_tick_step),
+            resolved_radial_tick_step,
+            dtype=float,
+        )
+        ax.set_ylim(0.0, resolved_radial_max)
+        ax.set_yticks(radial_ticks)
+        if radial_tick_label_style == "decimal_comma_4":
+            radial_tick_labels = [f"{tick:0.4f}".replace(".", ",") for tick in radial_ticks]
+        else:
+            radial_tick_labels = [f"{int(np.rint(tick))}" for tick in radial_ticks]
+        ax.set_yticklabels(radial_tick_labels)
+
+        resolved_rlabel_position = float(rlabel_position)
+        if not np.isfinite(resolved_rlabel_position):
+            raise ValueError("rlabel_position must be finite")
+        ax.set_rlabel_position(resolved_rlabel_position)
+        resolved_radial_label = (
+            radial_label_default
+            if resolved_axis_options.ylabel is None
+            else resolved_axis_options.ylabel
+        )
+        ax.set_ylabel(resolved_radial_label, rotation=0)
+        ax.yaxis.set_label_coords(0.5, ax.title.get_position()[1], transform=ax.transAxes)
+        ax.yaxis.label.set_horizontalalignment("center")
+        ax.yaxis.label.set_verticalalignment("bottom")
+
+
 class ElevationAnglesAxis(DirectionAxis):
     elevation_tick_step: float = 10.0
 
