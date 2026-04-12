@@ -9,7 +9,7 @@ from hrtfpykit.hrtf.dsp import (
     modify_phase,
 )
 from hrtfpykit.hrtf.hrtf import HRTF
-from hrtfpykit.hrtf.metrics import calculate_itd
+from hrtfpykit.hrtf.metrics import itd
 
 
 def test_transform_apply_window_unsupported_keeps_values() -> None:
@@ -254,7 +254,7 @@ def test_dsp_modify_magnitude_accepts_ndarray_and_tf() -> None:
 
     hrtf = HRTF()
     hrtf.TF.values = tf_values.copy()
-    modified_tf_object = modify_magnitude(hrtf.TF, new_magnitude_linear, scale="lineal")
+    modified_tf_object = modify_magnitude(hrtf.TF, new_magnitude_linear, scale="linear")
     assert modified_tf_object.shape == tf_values.shape
     assert np.allclose(np.abs(modified_tf_object), new_magnitude_linear)
     assert np.array_equal(hrtf.TF.values, tf_values)
@@ -325,7 +325,7 @@ def test_dsp_modify_phase_and_magnitude_validation() -> None:
     with pytest.raises(ValueError, match="new_magnitude must match TF shape"):
         modify_magnitude(tf_values, wrong_shape)
 
-    with pytest.raises(ValueError, match="scale must be one of: linear, lineal, db"):
+    with pytest.raises(ValueError, match="scale must be one of: linear, db"):
         modify_magnitude(tf_values, np.ones_like(tf_values, dtype=float), scale="log")
 
     with pytest.raises(ValueError, match="new_magnitude must be non-negative"):
@@ -346,7 +346,7 @@ def test_dsp_calculate_itd_accepts_ndarray_and_ir() -> None:
     expected_samples = np.array([-2, 2, 0], dtype=int)
     expected_seconds = expected_samples / sample_rate
 
-    itd_array = calculate_itd(
+    itd_array = itd(
         ir_values,
         sample_rate=sample_rate,
         method="maxiacce",
@@ -355,7 +355,7 @@ def test_dsp_calculate_itd_accepts_ndarray_and_ir() -> None:
     assert itd_array.shape == (3,)
     assert np.allclose(itd_array, expected_seconds)
 
-    itd_array_samples = calculate_itd(
+    itd_array_samples = itd(
         ir_values,
         sample_rate=sample_rate,
         method="maxiacce",
@@ -368,7 +368,7 @@ def test_dsp_calculate_itd_accepts_ndarray_and_ir() -> None:
     hrtf.IR.values = ir_values.copy()
     hrtf.IR.sample_rate = sample_rate
 
-    itd_ir = calculate_itd(hrtf.IR, method="maxiacce", output="seconds")
+    itd_ir = itd(hrtf.IR, method="maxiacce", output="seconds")
     assert itd_ir.shape == (3,)
     assert np.allclose(itd_ir, expected_seconds)
     assert np.array_equal(hrtf.IR.values, ir_values)
@@ -383,7 +383,7 @@ def test_dsp_calculate_itd_threshold_method() -> None:
     ir_values[1, 1, 36] = 1.0
 
     expected = np.array([-4.0 / sample_rate, 4.0 / sample_rate], dtype=float)
-    itd_threshold = calculate_itd(
+    itd_threshold = itd(
         ir_values,
         method="threshold",
         sample_rate=sample_rate,
@@ -397,23 +397,23 @@ def test_dsp_calculate_itd_threshold_method() -> None:
 
 def test_dsp_calculate_itd_validation() -> None:
     with pytest.raises(ValueError, match="sample_rate is required"):
-        calculate_itd(np.zeros((2, 16), dtype=float))
+        itd(np.zeros((2, 16), dtype=float))
 
     with pytest.raises(ValueError, match="at least two channels"):
-        calculate_itd(
+        itd(
             np.zeros((1, 16), dtype=float),
             sample_rate=48_000.0,
         )
 
     with pytest.raises(ValueError, match="method must be one of: threshold, maxiacce"):
-        calculate_itd(
+        itd(
             np.zeros((2, 16), dtype=float),
             sample_rate=48_000.0,
             method="xcorr",
         )
 
     with pytest.raises(ValueError, match="output must be one of: seconds, samples"):
-        calculate_itd(
+        itd(
             np.zeros((2, 2, 16), dtype=float),
             sample_rate=48_000.0,
             output="ms",
@@ -495,27 +495,19 @@ def test_select_crop_by_sample_indices_updates_ir_and_tf() -> None:
     assert cropped_hrtf.TF.frequency_bins is not None
 
 
-def test_transform_resampling_updates_sample_rate_and_syncs_tf() -> None:
+def test_transform_resampling_methods_are_not_supported() -> None:
     hrtf = HRTF()
     hrtf.IR.values = np.array([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=float)
     hrtf.IR.sample_rate = 48_000.0
 
-    upsampled_hrtf = hrtf.transform.upsampling(96_000.0)
+    with pytest.raises(AttributeError):
+        hrtf.transform.upsampling(96_000.0)
+    with pytest.raises(AttributeError):
+        hrtf.transform.downsampling(24_000.0)
+
     assert hrtf.IR.sample_rate == 48_000.0
     assert hrtf.TF.values is None
     assert hrtf.TF.frequency_bins is None
-    assert upsampled_hrtf.IR.sample_rate == 96_000.0
-    assert upsampled_hrtf.TF.values is not None
-    assert upsampled_hrtf.TF.frequency_bins is not None
-
-    downsampled_hrtf = upsampled_hrtf.transform.downsampling(48_000.0)
-    assert upsampled_hrtf.IR.sample_rate == 96_000.0
-    assert upsampled_hrtf.TF.values is not None
-    assert upsampled_hrtf.TF.frequency_bins is not None
-    assert downsampled_hrtf is not upsampled_hrtf
-    assert downsampled_hrtf.IR.sample_rate == 48_000.0
-    assert downsampled_hrtf.TF.values is not None
-    assert downsampled_hrtf.TF.frequency_bins is not None
 
 
 def test_clone_returns_independent_hrtf() -> None:
@@ -580,20 +572,13 @@ def test_transform_apply_window_returns_independent_instance() -> None:
     assert hrtf.TF.values is None
 
 
-def test_transform_resampling_chain_preserves_previous_instances() -> None:
+def test_transform_resampling_chain_not_available() -> None:
     hrtf = HRTF()
     hrtf.IR.values = np.array([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=float)
     hrtf.IR.sample_rate = 48_000.0
 
-    upsampled_hrtf = hrtf.transform.upsampling(96_000.0)
-    downsampled_hrtf = upsampled_hrtf.transform.downsampling(48_000.0)
-
-    assert hrtf.IR.sample_rate == 48_000.0
-    assert upsampled_hrtf.IR.sample_rate == 96_000.0
-    assert downsampled_hrtf.IR.sample_rate == 48_000.0
-    assert upsampled_hrtf is not downsampled_hrtf
-    assert hrtf is not upsampled_hrtf
-    assert hrtf is not downsampled_hrtf
+    with pytest.raises(AttributeError):
+        _ = hrtf.transform.upsampling(96_000.0)
 
 
 def test_transform_property_is_cached() -> None:

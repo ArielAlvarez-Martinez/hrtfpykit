@@ -39,7 +39,7 @@ from ..hrtf.coordinates import (
     spherical_to_lateral_polar,
 )
 from ..hrtf.dsp import magnitude_to_db, tf_from_ir
-from ..hrtf.metrics import calculate_ild, calculate_itd
+from ..hrtf.metrics import ild, itd
 from ..hrtf.planes import (
     get_frontal_plane,
     get_horizontal_plane,
@@ -1362,7 +1362,7 @@ class HRTFPlots:
             raise ValueError("elevation_angle must be a finite value")
 
         itd_values = np.asarray(
-            calculate_itd(
+            itd(
                 self.IR,
                 output="seconds",
             ),
@@ -1505,7 +1505,7 @@ class HRTFPlots:
 
         itd_values = np.abs(
             np.asarray(
-                calculate_itd(
+                itd(
                     self.IR,
                     output="seconds",
                 ),
@@ -1712,7 +1712,7 @@ class HRTFPlots:
         frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
 
         ild_values = np.asarray(
-            calculate_ild(
+            ild(
                 self.IR,
                 sample_rate=self.IR.sample_rate,
                 fft_length=self.fft_length,
@@ -1845,7 +1845,7 @@ class HRTFPlots:
             raise ValueError("elevation_angle must be a finite value")
 
         ild_values = np.asarray(
-            calculate_ild(
+            ild(
                 self.IR,
                 output="db",
                 mode="broad-band",
@@ -1988,7 +1988,7 @@ class HRTFPlots:
 
         ild_values = np.abs(
             np.asarray(
-                calculate_ild(
+                ild(
                     self.IR,
                     output="db",
                     mode="broad-band",

@@ -26,7 +26,7 @@ from .titles import Titles
 from .._warnings import HRTFPyKitWarning, warn_user
 from ..hrtf.coordinates import get_position_queries
 from ..hrtf.dsp import magnitude_to_db
-from ..hrtf.metrics import calculate_ild, calculate_itd
+from ..hrtf.metrics import ild, itd
 from ..hrtf.planes import get_horizontal_plane
 from .polar import create_horizontal_plane_curve
 
@@ -833,7 +833,7 @@ def compare_absolute_itd(
 
         absolute_itd_values = np.abs(
             np.asarray(
-                calculate_itd(
+                itd(
                     hrtf.IR,
                     output="seconds",
                 ),
@@ -1052,7 +1052,7 @@ def compare_absolute_ild(
 
         absolute_ild_values = np.abs(
             np.asarray(
-                calculate_ild(
+                ild(
                     hrtf.IR,
                     output="db",
                     mode="broad-band",
@@ -1270,7 +1270,7 @@ def compare_itd_curve(
             raise ValueError(f"HRTF at index {subject_index} requires IR sample_rate")
 
         itd_values = np.asarray(
-            calculate_itd(
+            itd(
                 hrtf.IR,
                 output="seconds",
             ),
@@ -1485,7 +1485,7 @@ def compare_ild_curve(
             raise ValueError(f"HRTF at index {subject_index} requires IR sample_rate")
 
         ild_values = np.asarray(
-            calculate_ild(
+            ild(
                 hrtf.IR,
                 output="db",
                 mode="broad-band",

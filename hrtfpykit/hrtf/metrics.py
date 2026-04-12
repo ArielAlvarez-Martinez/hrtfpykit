@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from .domain import IR
 
 
-def calculate_itd(
+def itd(
     ir: np.ndarray | "IR",
     method: str = "threshold",
     sample_rate: float | None = None,
@@ -54,12 +54,12 @@ def calculate_itd(
 
     >>> ir = np.array([[[0.0, 0.0, 1.0, 0.0],
     ...                 [0.0, 1.0, 0.0, 0.0]]])
-    >>> calculate_itd(ir, sample_rate=48000.0, output="samples")
+    >>> itd(ir, sample_rate=48000.0, output="samples")
     array([1])
 
     Convert the same ITD estimate to seconds:
 
-    >>> calculate_itd(ir, sample_rate=48000.0, output="seconds")
+    >>> itd(ir, sample_rate=48000.0, output="seconds")
     array([2.08333333e-05])
     """
     if isinstance(ir, np.ndarray):
@@ -169,7 +169,7 @@ def calculate_itd(
     return itd_values.reshape(output_shape)
 
 
-def calculate_ild(
+def ild(
     ir: np.ndarray | "IR",
     sample_rate: float | None = None,
     fft_length: int | None = None,
@@ -212,12 +212,12 @@ def calculate_ild(
 
     >>> ir = np.array([[[1.0, 0.0, 0.0, 0.0],
     ...                 [0.5, 0.0, 0.0, 0.0]]])
-    >>> calculate_ild(ir, sample_rate=48000.0, mode="broad-band", output="db")
+    >>> ild(ir, sample_rate=48000.0, mode="broad-band", output="db")
     array([6.02059991])
 
     Inspect the frequency-dependent ILD shape for the same signal:
 
-    >>> calculate_ild(ir, sample_rate=48000.0, mode="frequency-dependent", output="linear").shape
+    >>> ild(ir, sample_rate=48000.0, mode="frequency-dependent", output="linear").shape
     (1, 3)
     """
     ir_object = None
@@ -295,7 +295,7 @@ def calculate_ild(
     return magnitude_to_db(ild_linear)
 
 
-def calculate_itd_difference(
+def itd_difference(
     hrtf_a: "HRTF",
     hrtf_b: "HRTF",
     method: str = "threshold",
@@ -320,15 +320,15 @@ def calculate_itd_difference(
         Compared HRTF object used for comparison. Must share the same source
         grid (same source positions) as ``hrtf_a``.
     method : {"threshold", "maxiacce"}, default="threshold"
-        ITD estimator passed to :func:`calculate_itd`.
+        ITD estimator passed to :func:`itd`.
     output : {"seconds", "samples"}, default="seconds"
         Unit of returned absolute ITD differences.
     thresh_level : float, default=-10.0
         Threshold offset in dB used by ``method="threshold"``.
     upper_cut_freq : float, default=3000.0
-        Low-pass cutoff in Hz passed to :func:`calculate_itd`.
+        Low-pass cutoff in Hz passed to :func:`itd`.
     filter_order : int, default=10
-        Butterworth low-pass order passed to :func:`calculate_itd`.
+        Butterworth low-pass order passed to :func:`itd`.
 
     Returns
     -------
@@ -349,8 +349,8 @@ def calculate_itd_difference(
 
     Examples
     --------
-    >>> from hrtfpykit.hrtf.metrics import calculate_itd_difference
-    >>> itd_diff = calculate_itd_difference(hrtf_a, hrtf_b)
+    >>> from hrtfpykit.hrtf.metrics import itd_difference
+    >>> itd_diff = itd_difference(hrtf_a, hrtf_b)
     >>> itd_diff.shape
     (hrtf_a.IR.values.shape[0],)
     """
@@ -383,7 +383,7 @@ def calculate_itd_difference(
         raise ValueError("HRTFs must share the same source positions for ITD difference")
 
     itd_a = np.asarray(
-        calculate_itd(
+        itd(
             hrtf_a.IR,
             method=method,
             output=output_key,
@@ -394,7 +394,7 @@ def calculate_itd_difference(
         dtype=float,
     )
     itd_b = np.asarray(
-        calculate_itd(
+        itd(
             hrtf_b.IR,
             method=method,
             output=output_key,
@@ -407,3 +407,119 @@ def calculate_itd_difference(
     if itd_a.shape != itd_b.shape:
         raise ValueError("Calculated ITD arrays must have matching shapes")
     return np.abs(itd_a - itd_b)
+
+
+def ild_difference(
+    hrtf_a: "HRTF",
+    hrtf_b: "HRTF",
+    mode: str = "broad-band",
+    output: str = "db",
+    fft_length: int | None = None,
+    epsilon: float = 1e-12,
+) -> np.ndarray:
+    """Compute absolute per-position ILD differences between two HRTFs.
+
+    The metric estimates ILD independently for each input HRTF using the same
+    estimator configuration and returns the absolute difference between both
+    ILD arrays. The output therefore represents the magnitude of ILD change
+    per source position.
+
+    Parameters
+    ----------
+    hrtf_a : HRTF
+        Reference HRTF object used for comparison. Must share the same source
+        grid (same source positions) as ``hrtf_b``.
+    hrtf_b : HRTF
+        Compared HRTF object used for comparison. Must share the same source
+        grid (same source positions) as ``hrtf_a``.
+    mode : {"broad-band", "frequency-dependent"}, default="broad-band"
+        ILD mode passed to :func:`ild`.
+    output : {"db", "linear"}, default="db"
+        Output representation passed to :func:`ild`.
+    fft_length : int | None, default=None
+        Optional FFT length used when ``mode="frequency-dependent"``.
+    epsilon : float, default=1e-12
+        Positive floor passed to :func:`ild`.
+
+    Returns
+    -------
+    np.ndarray
+        Absolute ILD differences per position. For ``mode="broad-band"``, the
+        shape is ``[positions]``. For ``mode="frequency-dependent"``, the
+        shape is ``[positions, frequency_bins]``.
+
+    Use Cases
+    ---------
+    - Quantify per-position ILD changes after individualization.
+    - Compare ILD impact of two processing pipelines.
+    - Build position-wise ILD error curves relative to a reference HRTF.
+
+    Notes
+    -----
+    Both HRTFs must have the same source grid. If source positions differ,
+    this function raises a ``ValueError``.
+
+    Examples
+    --------
+    >>> from hrtfpykit.hrtf.metrics import ild_difference
+    >>> ild_diff = ild_difference(hrtf_a, hrtf_b)
+    >>> ild_diff.shape
+    (hrtf_a.IR.values.shape[0],)
+    """
+    for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
+        if not hasattr(hrtf, "IR") or not hasattr(hrtf, "Sources"):
+            raise ValueError(f"{label} must be an HRTF instance")
+        if hrtf.IR.values is None:
+            raise ValueError(f"{label} IR data is not available")
+        if hrtf.IR.sample_rate is None:
+            raise ValueError(f"{label} IR sample_rate is required")
+
+    mode_key = str(mode).strip().lower()
+    if mode_key not in {"broad-band", "frequency-dependent"}:
+        raise ValueError("mode must be one of: broad-band, frequency-dependent")
+    output_key = str(output).strip().lower()
+    if output_key not in {"db", "linear"}:
+        raise ValueError("output must be one of: db, linear")
+
+    source_positions_a = np.asarray(hrtf_a.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    source_positions_b = np.asarray(hrtf_b.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    if source_positions_a.shape != source_positions_b.shape:
+        raise ValueError("HRTFs must have the same number of source positions")
+    if not np.allclose(source_positions_a, source_positions_b, atol=1e-8, rtol=0.0):
+        raise ValueError("HRTFs must share the same source positions for ILD difference")
+
+    if mode_key == "frequency-dependent" and not np.isclose(
+        float(hrtf_a.IR.sample_rate),
+        float(hrtf_b.IR.sample_rate),
+        atol=1e-12,
+        rtol=0.0,
+    ):
+        raise ValueError(
+            "mode='frequency-dependent' requires equal sample_rate in both HRTFs"
+        )
+
+    ild_a = np.asarray(
+        ild(
+            hrtf_a.IR,
+            sample_rate=float(hrtf_a.IR.sample_rate),
+            fft_length=fft_length,
+            mode=mode_key,
+            output=output_key,
+            epsilon=epsilon,
+        ),
+        dtype=float,
+    )
+    ild_b = np.asarray(
+        ild(
+            hrtf_b.IR,
+            sample_rate=float(hrtf_b.IR.sample_rate),
+            fft_length=fft_length,
+            mode=mode_key,
+            output=output_key,
+            epsilon=epsilon,
+        ),
+        dtype=float,
+    )
+    if ild_a.shape != ild_b.shape:
+        raise ValueError("Calculated ILD arrays must have matching shapes")
+    return np.abs(ild_a - ild_b)

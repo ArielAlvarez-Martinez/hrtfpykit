@@ -18,7 +18,7 @@ from .dsp import (
     tf_from_ir,
     window,
 )
-from .metrics import calculate_itd
+from .metrics import itd
 from .domain import IR, TF
 from .directivity import ctf_from_hrtf, dtf_from_hrtf
 
@@ -938,7 +938,7 @@ class Transform:
     ) -> "HRTF":
         """Estimate and remove ITD from the current IR values, then resync TF.
 
-        The ITD sign convention follows ``calculate_itd``: positive ITD means
+        The ITD sign convention follows ``itd``: positive ITD means
         left-ear delay relative to right-ear and negative ITD means right-ear
         delay relative to left-ear.
 
@@ -983,7 +983,7 @@ class Transform:
         if ir.values.shape[-2] < 2:
             raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
 
-        itd_samples = calculate_itd(
+        itd_samples = itd(
             ir,
             method=method,
             output="samples",

@@ -12,7 +12,7 @@ from .dsp import (
     real,
     signal_duration,
 )
-from .metrics import calculate_itd
+from .metrics import itd
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -58,7 +58,7 @@ class IR:
         - Array of ITD values in selected `output` units. Positive means left-ear delay relative to right-ear.
 
         """
-        return calculate_itd(
+        return itd(
             self,
             method=method,
             output=output,
