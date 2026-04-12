@@ -7,9 +7,11 @@ import numpy as np
 
 from .axis import (
     AmplitudeAxis,
+    AzimuthAnglesAxisPolarProjection,
     FrequencyLinearAxis,
     FrequencyLogAxis,
     MagnitudeAxis,
+    RadialAxisPolarProjection,
     SampleAxis,
     TimeAxis,
 )
@@ -17,10 +19,13 @@ from .default import Margins
 from .figure import Figure
 from .labels import Labels
 from .layouts import Layout_1, Layout_2Horizontal, Layout_2Vertical, Layout_3
+from .legends import Subjects
 from .titles import Titles
 from .._warnings import HRTFPyKitWarning, warn_user
 from ..hrtf.coordinates import get_position_queries
 from ..hrtf.dsp import magnitude_to_db
+from ..hrtf.metrics import calculate_ild, calculate_itd
+from .polar import create_horizontal_plane_curve
 
 
 if TYPE_CHECKING:
@@ -37,6 +42,8 @@ def compare_magnitude(
     legends: list[str] | tuple[str, ...] | None = None,
     line_colors: list[str] | tuple[str, ...] | None = None,
     line_styles: list[str] | tuple[str, ...] | None = None,
+    legend_location: str | None = None,
+    legend_bbox_to_anchor: tuple[float, float] | None = None,
     freq_min: float | None = None,
     freq_max: float | None = None,
     show: bool = True,
@@ -70,6 +77,11 @@ def compare_magnitude(
         One line color per subject. Uses Matplotlib default cycle when omitted.
     line_styles : list[str] | tuple[str, ...] | None, default=None
         One line style per subject. Defaults to solid lines.
+    legend_location : str | None, default=None
+        Legend location. Defaults to ``"upper right"`` for ``x_axis="linear"``
+        and ``"upper left"`` for ``x_axis="log"``.
+    legend_bbox_to_anchor : tuple[float, float] | None, default=None
+        Optional legend anchor tuple ``(x, y)``.
     freq_min : float | None, default=None
         Minimum frequency in Hz. If omitted, resolved from all HRTFs.
     freq_max : float | None, default=None
@@ -302,6 +314,17 @@ def compare_magnitude(
         freq_max=resolved_freq_max,
     )
     magnitude_legend_location = "upper right" if x_axis == "linear" else "upper left"
+    resolved_legend_location = (
+        magnitude_legend_location if legend_location is None else str(legend_location)
+    )
+    resolved_legend_bbox_to_anchor = (
+        None
+        if legend_bbox_to_anchor is None
+        else (
+            float(legend_bbox_to_anchor[0]),
+            float(legend_bbox_to_anchor[1]),
+        )
+    )
 
     if ear == "both":
         for axis_name, ear_index, subplot_title in (
@@ -334,7 +357,12 @@ def compare_magnitude(
             )
             MagnitudeAxis.apply(ax=ax, axis="y", unit=unit)
             Titles.create_subplots_titles(ax=ax, title=subplot_title)
-            ax.legend(labels=resolved_legends, loc=magnitude_legend_location)
+            Subjects.apply(
+                ax=ax,
+                labels=resolved_legends,
+                location=resolved_legend_location,
+                bbox_to_anchor=resolved_legend_bbox_to_anchor,
+            )
             ax.grid(True)
     else:
         for position_index in range(position_count):
@@ -379,7 +407,12 @@ def compare_magnitude(
                 )
             else:
                 Titles.create_subplots_titles(ax=ax, title="")
-            ax.legend(labels=resolved_legends, loc=magnitude_legend_location)
+            Subjects.apply(
+                ax=ax,
+                labels=resolved_legends,
+                location=resolved_legend_location,
+                bbox_to_anchor=resolved_legend_bbox_to_anchor,
+            )
             ax.grid(True)
 
     if ear != "both" and position_count < figure.axes.size:
@@ -397,6 +430,8 @@ def compare_amplitude(
     legends: list[str] | tuple[str, ...] | None = None,
     line_colors: list[str] | tuple[str, ...] | None = None,
     line_styles: list[str] | tuple[str, ...] | None = None,
+    legend_location: str | None = None,
+    legend_bbox_to_anchor: tuple[float, float] | None = None,
     show: bool = True,
     titles: bool = True,
 ) -> None:
@@ -424,6 +459,10 @@ def compare_amplitude(
         One line color per subject. Uses Matplotlib default cycle when omitted.
     line_styles : list[str] | tuple[str, ...] | None, default=None
         One line style per subject. Defaults to solid lines.
+    legend_location : str | None, default=None
+        Legend location. Defaults to ``"upper right"``.
+    legend_bbox_to_anchor : tuple[float, float] | None, default=None
+        Optional legend anchor tuple ``(x, y)``.
     show : bool, default=True
         If ``True``, calls ``matplotlib.pyplot.show()``.
     titles : bool, default=True
@@ -577,6 +616,15 @@ def compare_amplitude(
             margins=resolved_margins,
         )
     figure = Figure(resolved_layout)
+    resolved_legend_location = "upper right" if legend_location is None else str(legend_location)
+    resolved_legend_bbox_to_anchor = (
+        None
+        if legend_bbox_to_anchor is None
+        else (
+            float(legend_bbox_to_anchor[0]),
+            float(legend_bbox_to_anchor[1]),
+        )
+    )
 
     if ear == "both":
         for axis_name, ear_index, subplot_title in (
@@ -606,7 +654,12 @@ def compare_amplitude(
                 SampleAxis.apply(ax=ax, axis="x")
             AmplitudeAxis.apply(ax=ax, axis="y")
             Titles.create_subplots_titles(ax=ax, title=subplot_title)
-            ax.legend(labels=resolved_legends, loc="upper right")
+            Subjects.apply(
+                ax=ax,
+                labels=resolved_legends,
+                location=resolved_legend_location,
+                bbox_to_anchor=resolved_legend_bbox_to_anchor,
+            )
             ax.grid(True)
     else:
         for position_index in range(position_count):
@@ -645,11 +698,455 @@ def compare_amplitude(
                 )
             else:
                 Titles.create_subplots_titles(ax=ax, title="")
-            ax.legend(labels=resolved_legends, loc="upper right")
+            Subjects.apply(
+                ax=ax,
+                labels=resolved_legends,
+                location=resolved_legend_location,
+                bbox_to_anchor=resolved_legend_bbox_to_anchor,
+            )
             ax.grid(True)
 
     if ear != "both" and position_count < figure.axes.size:
         figure.hide_unused_axes(position_count)
 
+    if show:
+        plt.show()
+
+
+def compare_absolute_itd(
+    hrtfs: list["HRTF"],
+    elevation_angle: float = 0.0,
+    legends: list[str] | tuple[str, ...] | None = None,
+    line_colors: list[str] | tuple[str, ...] | None = None,
+    line_styles: list[str] | tuple[str, ...] | None = None,
+    legend_location: str | None = None,
+    legend_bbox_to_anchor: tuple[float, float] | None = None,
+    show: bool = True,
+    titles: bool = True,
+) -> None:
+    """Compare absolute ITD polar curves across multiple HRTF instances.
+
+    This function computes broad-band absolute ITD for each HRTF, extracts the
+    requested horizontal-plane curve, and overlays one polar trace per subject.
+    It is intended for side-by-side inspection of timing-cue magnitude across
+    individualized pipelines or subjects.
+
+    Parameters
+    ----------
+    hrtfs : list[HRTF]
+        HRTF objects to compare. Requires at least 2 and at most 5 entries.
+    elevation_angle : float, default=0.0
+        Requested horizontal-plane elevation in degrees.
+    legends : list[str] | tuple[str, ...] | None, default=None
+        Subject legend labels. Defaults to ``subject_1 ... subject_n``.
+    line_colors : list[str] | tuple[str, ...] | None, default=None
+        One line color per subject. Uses Matplotlib default cycle when omitted.
+    line_styles : list[str] | tuple[str, ...] | None, default=None
+        One line style per subject. Defaults to solid lines.
+    legend_location : str | None, default=None
+        Legend location. Defaults to ``"upper right"``.
+    legend_bbox_to_anchor : tuple[float, float] | None, default=None
+        Legend anchor tuple ``(x, y)``. Defaults to ``(1.08, 1.08)``.
+    show : bool, default=True
+        If ``True``, calls ``matplotlib.pyplot.show()``.
+    titles : bool, default=True
+        If ``True``, renders a figure title using the resolved elevation from
+        the first HRTF.
+
+    Returns
+    -------
+    None
+
+    Use Cases
+    ---------
+    - Compare absolute ITD patterns between baseline and individualized HRTFs.
+    - Inspect absolute ITD changes across multiple processing pipelines.
+    - Summarize horizontal-plane timing-cue magnitude in one compact plot.
+
+    Examples
+    --------
+    >>> from hrtfpykit.plots.compare import compare_absolute_itd
+    >>> compare_absolute_itd([h1, h2], show=False)
+    >>> compare_absolute_itd(
+    ...     [h1, h2, h3],
+    ...     elevation_angle=10.0,
+    ...     legends=["baseline", "pipe_a", "pipe_b"],
+    ...     line_styles=["-", "--", ":"],
+    ...     show=False,
+    ... )
+    """
+    if not isinstance(hrtfs, list):
+        raise ValueError("hrtfs must be a list[HRTF]")
+    hrtf_count = len(hrtfs)
+    if hrtf_count < 2:
+        raise ValueError("compare_absolute_itd requires at least 2 HRTFs")
+    if hrtf_count > 5:
+        raise ValueError("compare_absolute_itd accepts up to 5 HRTFs")
+    if isinstance(elevation_angle, bool):
+        raise ValueError("elevation_angle must be a finite value")
+    resolved_elevation_angle = float(elevation_angle)
+    if not np.isfinite(resolved_elevation_angle):
+        raise ValueError("elevation_angle must be a finite value")
+
+    if legends is None:
+        resolved_legends = [f"subject_{index + 1}" for index in range(hrtf_count)]
+    else:
+        resolved_legends = [str(value) for value in legends]
+        if len(resolved_legends) != hrtf_count:
+            raise ValueError("legends length must match len(hrtfs)")
+
+    if line_colors is None:
+        default_colors = plt.rcParams.get("axes.prop_cycle", None)
+        color_values = (
+            ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
+            if default_colors is None
+            else default_colors.by_key().get("color", ["tab:blue"])
+        )
+        if len(color_values) == 0:
+            color_values = ["tab:blue"]
+        resolved_line_colors = [str(color_values[index % len(color_values)]) for index in range(hrtf_count)]
+    else:
+        resolved_line_colors = [str(value) for value in line_colors]
+        if len(resolved_line_colors) != hrtf_count:
+            raise ValueError("line_colors length must match len(hrtfs)")
+
+    if line_styles is None:
+        resolved_line_styles = ["-"] * hrtf_count
+    else:
+        resolved_line_styles = [str(value) for value in line_styles]
+        if len(resolved_line_styles) != hrtf_count:
+            raise ValueError("line_styles length must match len(hrtfs)")
+
+    theta_values_by_subject: list[np.ndarray] = []
+    radial_values_by_subject: list[np.ndarray] = []
+    sorted_itd_values_by_subject: list[np.ndarray] = []
+    real_elevations: list[float] = []
+
+    for subject_index, hrtf in enumerate(hrtfs):
+        if hrtf.IR.values is None:
+            raise ValueError(f"HRTF at index {subject_index} does not contain IR data")
+        if hrtf.IR.sample_rate is None:
+            raise ValueError(f"HRTF at index {subject_index} requires IR sample_rate")
+
+        absolute_itd_values = np.abs(
+            np.asarray(
+                calculate_itd(
+                    hrtf.IR,
+                    output="seconds",
+                ),
+                dtype=float,
+            )
+        )
+        theta_values, radial_values, sorted_itd_values, real_elevation = create_horizontal_plane_curve(
+            hrtf=hrtf,
+            values=absolute_itd_values,
+            elevation=resolved_elevation_angle,
+        )
+        theta_values_by_subject.append(theta_values)
+        radial_values_by_subject.append(radial_values)
+        sorted_itd_values_by_subject.append(np.asarray(sorted_itd_values, dtype=float).reshape(-1))
+        real_elevations.append(float(real_elevation))
+
+    reference_real_elevation = real_elevations[0]
+    for subject_index in range(1, hrtf_count):
+        compared_real_elevation = real_elevations[subject_index]
+        if not np.isclose(
+            compared_real_elevation,
+            reference_real_elevation,
+            atol=1e-8,
+            rtol=0.0,
+        ):
+            warn_user(
+                (
+                    "compare_absolute_itd resolved different horizontal-plane elevations: "
+                    f"subject_1={reference_real_elevation:.6f} vs "
+                    f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
+                ),
+                category=HRTFPyKitWarning,
+            )
+
+    figure = Figure(
+        Layout_1(
+            figsize=(6, 7),
+            margins=Margins(),
+        ),
+        projection="polar",
+    )
+    ax = figure.get_ax("main")
+
+    for subject_index in range(hrtf_count):
+        figure.create_two_dimension(
+            ax=ax,
+            x=theta_values_by_subject[subject_index],
+            y=radial_values_by_subject[subject_index],
+            color=resolved_line_colors[subject_index],
+            linestyle=resolved_line_styles[subject_index],
+            linewidth=2.0,
+        )
+
+    if len(sorted_itd_values_by_subject) == 0:
+        combined_sorted_itd_values = np.array([], dtype=float)
+    else:
+        combined_sorted_itd_values = np.concatenate(sorted_itd_values_by_subject)
+
+    AzimuthAnglesAxisPolarProjection.apply(
+        ax=ax,
+        tick_step=30.0,
+    )
+    RadialAxisPolarProjection.apply(
+        ax=ax,
+        radial_values=combined_sorted_itd_values,
+        radial_label_default=Labels.itd_seconds,
+        tick_step=2e-4,
+        tick_label_style="decimal_comma_4",
+        label_position=350.0,
+    )
+    resolved_legend_location = "upper right" if legend_location is None else str(legend_location)
+    resolved_legend_bbox_to_anchor = (
+        (1.08, 1.08)
+        if legend_bbox_to_anchor is None
+        else (
+            float(legend_bbox_to_anchor[0]),
+            float(legend_bbox_to_anchor[1]),
+        )
+    )
+    Subjects.apply(
+        ax=ax,
+        labels=resolved_legends,
+        location=resolved_legend_location,
+        bbox_to_anchor=resolved_legend_bbox_to_anchor,
+    )
+    ax.grid(True)
+
+    if titles:
+        Titles.create_figure_title(
+            figure.fig,
+            figure.axes,
+            figure.figure_title_y,
+            Titles.create_plane_title(
+                plane="horizontal",
+                elevation_angle=reference_real_elevation,
+            ),
+        )
+    if show:
+        plt.show()
+
+
+def compare_absolute_ild(
+    hrtfs: list["HRTF"],
+    elevation_angle: float = 0.0,
+    legends: list[str] | tuple[str, ...] | None = None,
+    line_colors: list[str] | tuple[str, ...] | None = None,
+    line_styles: list[str] | tuple[str, ...] | None = None,
+    legend_location: str | None = None,
+    legend_bbox_to_anchor: tuple[float, float] | None = None,
+    show: bool = True,
+    titles: bool = True,
+) -> None:
+    """Compare absolute ILD polar curves across multiple HRTF instances.
+
+    This function computes broad-band absolute ILD for each HRTF, extracts the
+    requested horizontal-plane curve, and overlays one polar trace per subject.
+    It is intended for side-by-side inspection of level-cue magnitude across
+    individualized pipelines or subjects.
+
+    Parameters
+    ----------
+    hrtfs : list[HRTF]
+        HRTF objects to compare. Requires at least 2 and at most 5 entries.
+    elevation_angle : float, default=0.0
+        Requested horizontal-plane elevation in degrees.
+    legends : list[str] | tuple[str, ...] | None, default=None
+        Subject legend labels. Defaults to ``subject_1 ... subject_n``.
+    line_colors : list[str] | tuple[str, ...] | None, default=None
+        One line color per subject. Uses Matplotlib default cycle when omitted.
+    line_styles : list[str] | tuple[str, ...] | None, default=None
+        One line style per subject. Defaults to solid lines.
+    legend_location : str | None, default=None
+        Legend location. Defaults to ``"upper right"``.
+    legend_bbox_to_anchor : tuple[float, float] | None, default=None
+        Legend anchor tuple ``(x, y)``. Defaults to ``(1.08, 1.08)``.
+    show : bool, default=True
+        If ``True``, calls ``matplotlib.pyplot.show()``.
+    titles : bool, default=True
+        If ``True``, renders a figure title using the resolved elevation from
+        the first HRTF.
+
+    Returns
+    -------
+    None
+
+    Use Cases
+    ---------
+    - Compare absolute ILD patterns between baseline and individualized HRTFs.
+    - Inspect absolute ILD changes across multiple processing pipelines.
+    - Summarize horizontal-plane level-cue magnitude in one compact plot.
+
+    Examples
+    --------
+    >>> from hrtfpykit.plots.compare import compare_absolute_ild
+    >>> compare_absolute_ild([h1, h2], show=False)
+    >>> compare_absolute_ild(
+    ...     [h1, h2, h3],
+    ...     elevation_angle=10.0,
+    ...     legends=["baseline", "pipe_a", "pipe_b"],
+    ...     line_styles=["-", "--", ":"],
+    ...     show=False,
+    ... )
+    """
+    if not isinstance(hrtfs, list):
+        raise ValueError("hrtfs must be a list[HRTF]")
+    hrtf_count = len(hrtfs)
+    if hrtf_count < 2:
+        raise ValueError("compare_absolute_ild requires at least 2 HRTFs")
+    if hrtf_count > 5:
+        raise ValueError("compare_absolute_ild accepts up to 5 HRTFs")
+    if isinstance(elevation_angle, bool):
+        raise ValueError("elevation_angle must be a finite value")
+    resolved_elevation_angle = float(elevation_angle)
+    if not np.isfinite(resolved_elevation_angle):
+        raise ValueError("elevation_angle must be a finite value")
+
+    if legends is None:
+        resolved_legends = [f"subject_{index + 1}" for index in range(hrtf_count)]
+    else:
+        resolved_legends = [str(value) for value in legends]
+        if len(resolved_legends) != hrtf_count:
+            raise ValueError("legends length must match len(hrtfs)")
+
+    if line_colors is None:
+        default_colors = plt.rcParams.get("axes.prop_cycle", None)
+        color_values = (
+            ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
+            if default_colors is None
+            else default_colors.by_key().get("color", ["tab:blue"])
+        )
+        if len(color_values) == 0:
+            color_values = ["tab:blue"]
+        resolved_line_colors = [str(color_values[index % len(color_values)]) for index in range(hrtf_count)]
+    else:
+        resolved_line_colors = [str(value) for value in line_colors]
+        if len(resolved_line_colors) != hrtf_count:
+            raise ValueError("line_colors length must match len(hrtfs)")
+
+    if line_styles is None:
+        resolved_line_styles = ["-"] * hrtf_count
+    else:
+        resolved_line_styles = [str(value) for value in line_styles]
+        if len(resolved_line_styles) != hrtf_count:
+            raise ValueError("line_styles length must match len(hrtfs)")
+
+    theta_values_by_subject: list[np.ndarray] = []
+    radial_values_by_subject: list[np.ndarray] = []
+    sorted_ild_values_by_subject: list[np.ndarray] = []
+    real_elevations: list[float] = []
+
+    for subject_index, hrtf in enumerate(hrtfs):
+        if hrtf.IR.values is None:
+            raise ValueError(f"HRTF at index {subject_index} does not contain IR data")
+        if hrtf.IR.sample_rate is None:
+            raise ValueError(f"HRTF at index {subject_index} requires IR sample_rate")
+
+        absolute_ild_values = np.abs(
+            np.asarray(
+                calculate_ild(
+                    hrtf.IR,
+                    output="db",
+                    mode="broad-band",
+                ),
+                dtype=float,
+            )
+        )
+        theta_values, radial_values, sorted_ild_values, real_elevation = create_horizontal_plane_curve(
+            hrtf=hrtf,
+            values=absolute_ild_values,
+            elevation=resolved_elevation_angle,
+        )
+        theta_values_by_subject.append(theta_values)
+        radial_values_by_subject.append(radial_values)
+        sorted_ild_values_by_subject.append(np.asarray(sorted_ild_values, dtype=float).reshape(-1))
+        real_elevations.append(float(real_elevation))
+
+    reference_real_elevation = real_elevations[0]
+    for subject_index in range(1, hrtf_count):
+        compared_real_elevation = real_elevations[subject_index]
+        if not np.isclose(
+            compared_real_elevation,
+            reference_real_elevation,
+            atol=1e-8,
+            rtol=0.0,
+        ):
+            warn_user(
+                (
+                    "compare_absolute_ild resolved different horizontal-plane elevations: "
+                    f"subject_1={reference_real_elevation:.6f} vs "
+                    f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
+                ),
+                category=HRTFPyKitWarning,
+            )
+
+    figure = Figure(
+        Layout_1(
+            figsize=(6, 7),
+            margins=Margins(),
+        ),
+        projection="polar",
+    )
+    ax = figure.get_ax("main")
+
+    for subject_index in range(hrtf_count):
+        figure.create_two_dimension(
+            ax=ax,
+            x=theta_values_by_subject[subject_index],
+            y=radial_values_by_subject[subject_index],
+            color=resolved_line_colors[subject_index],
+            linestyle=resolved_line_styles[subject_index],
+            linewidth=2.0,
+        )
+
+    if len(sorted_ild_values_by_subject) == 0:
+        combined_sorted_ild_values = np.array([], dtype=float)
+    else:
+        combined_sorted_ild_values = np.concatenate(sorted_ild_values_by_subject)
+
+    AzimuthAnglesAxisPolarProjection.apply(
+        ax=ax,
+        tick_step=30.0,
+    )
+    RadialAxisPolarProjection.apply(
+        ax=ax,
+        radial_values=combined_sorted_ild_values,
+        radial_label_default=Labels.ild_db,
+        tick_step=5.0,
+        tick_label_style="integer",
+        label_position=350.0,
+    )
+    resolved_legend_location = "upper right" if legend_location is None else str(legend_location)
+    resolved_legend_bbox_to_anchor = (
+        (1.08, 1.08)
+        if legend_bbox_to_anchor is None
+        else (
+            float(legend_bbox_to_anchor[0]),
+            float(legend_bbox_to_anchor[1]),
+        )
+    )
+    Subjects.apply(
+        ax=ax,
+        labels=resolved_legends,
+        location=resolved_legend_location,
+        bbox_to_anchor=resolved_legend_bbox_to_anchor,
+    )
+    ax.grid(True)
+
+    if titles:
+        Titles.create_figure_title(
+            figure.fig,
+            figure.axes,
+            figure.figure_title_y,
+            Titles.create_plane_title(
+                plane="horizontal",
+                elevation_angle=reference_real_elevation,
+            ),
+        )
     if show:
         plt.show()

@@ -77,3 +77,48 @@ class Ear(Legends):
             )
         resolved_location = Ear.location if location is None else location
         ax.legend(labels=resolved_labels, loc=resolved_location)
+
+
+class Subjects(Legends):
+    """Legend strategy for multi-subject comparison plot traces."""
+
+    location: str = "upper right"
+    bbox_to_anchor: tuple[float, float] | None = None
+
+    @staticmethod
+    def apply(
+        ax: plt.Axes,
+        labels: tuple[str, ...] | list[str],
+        location: str | None = None,
+        bbox_to_anchor: tuple[float, float] | None = None,
+    ) -> None:
+        """Apply subject legend labels to the target axis.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            Target axis where the legend is rendered.
+        labels : tuple[str, ...] | list[str]
+            Subject labels for plotted traces.
+        location : str | None, default=None
+            Legend location string. Uses class default when omitted.
+        bbox_to_anchor : tuple[float, float] | None, default=None
+            Optional legend anchor tuple ``(x, y)``.
+
+        Returns
+        -------
+        None
+        """
+        resolved_labels = [str(label) for label in labels]
+        if len(resolved_labels) == 0:
+            raise ValueError("legend labels must contain at least one entry")
+        resolved_location = Subjects.location if location is None else str(location)
+        resolved_bbox = (
+            Subjects.bbox_to_anchor
+            if bbox_to_anchor is None
+            else (float(bbox_to_anchor[0]), float(bbox_to_anchor[1]))
+        )
+        if resolved_bbox is None:
+            ax.legend(labels=resolved_labels, loc=resolved_location)
+            return
+        ax.legend(labels=resolved_labels, loc=resolved_location, bbox_to_anchor=resolved_bbox)
