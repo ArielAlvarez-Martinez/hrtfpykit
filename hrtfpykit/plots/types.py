@@ -104,8 +104,23 @@ class ThreeDimension:
         x,
         y,
         z,
+        s: float = 28.0,
+        color: str = "steelblue",
+        edgecolors: str = "black",
+        linewidths: float = 0.4,
+        depthshade: bool = True,
         **kwargs,
     ) -> Path3DCollection:
         if getattr(ax, "name", "") != "3d":
             raise ValueError("ThreeDimension requires a 3d projection")
-        return ax.scatter(x, y, z, **kwargs)
+        return ax.scatter(
+            x,
+            y,
+            z,
+            s=s,
+            color=color,
+            edgecolors=edgecolors,
+            linewidths=linewidths,
+            depthshade=depthshade,
+            **kwargs,
+        )

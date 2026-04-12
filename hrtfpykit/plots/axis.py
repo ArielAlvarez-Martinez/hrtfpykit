@@ -306,6 +306,99 @@ class SampleAxis(Axis):
         )
 
 
+class XAxis(Axis):
+    @staticmethod
+    def apply(
+        ax: plt.Axes,
+        center: float | None = None,
+        half_span: float | None = None,
+        options: AxisOptions | None = None,
+    ) -> None:
+        Axis.apply_label(
+            ax=ax,
+            axis="x",
+            default_label=Labels.three_d_x_label,
+            options=options,
+        )
+        if center is None and half_span is None:
+            return
+        if center is None or half_span is None:
+            raise ValueError("XAxis.apply requires both center and half_span")
+        resolved_center = float(center)
+        resolved_half_span = float(half_span)
+        if not np.isfinite(resolved_center):
+            raise ValueError("x-axis center must be finite")
+        if not np.isfinite(resolved_half_span) or resolved_half_span <= 0.0:
+            raise ValueError("x-axis half_span must be a finite, positive value")
+        ax.set_xlim(
+            resolved_center - resolved_half_span,
+            resolved_center + resolved_half_span,
+        )
+
+
+class YAxis(Axis):
+    @staticmethod
+    def apply(
+        ax: plt.Axes,
+        center: float | None = None,
+        half_span: float | None = None,
+        options: AxisOptions | None = None,
+    ) -> None:
+        Axis.apply_label(
+            ax=ax,
+            axis="y",
+            default_label=Labels.three_d_y_label,
+            options=options,
+        )
+        if center is None and half_span is None:
+            return
+        if center is None or half_span is None:
+            raise ValueError("YAxis.apply requires both center and half_span")
+        resolved_center = float(center)
+        resolved_half_span = float(half_span)
+        if not np.isfinite(resolved_center):
+            raise ValueError("y-axis center must be finite")
+        if not np.isfinite(resolved_half_span) or resolved_half_span <= 0.0:
+            raise ValueError("y-axis half_span must be a finite, positive value")
+        ax.set_ylim(
+            resolved_center - resolved_half_span,
+            resolved_center + resolved_half_span,
+        )
+
+
+class ZAxis(Axis):
+    @staticmethod
+    def apply(
+        ax: plt.Axes,
+        center: float | None = None,
+        half_span: float | None = None,
+        options: AxisOptions | None = None,
+    ) -> None:
+        Axis.apply_label(
+            ax=ax,
+            axis="z",
+            default_label=Labels.three_d_z_label,
+            options=options,
+        )
+        if center is None and half_span is None:
+            return
+        if center is None or half_span is None:
+            raise ValueError("ZAxis.apply requires both center and half_span")
+        resolved_center = float(center)
+        resolved_half_span = float(half_span)
+        if not np.isfinite(resolved_center):
+            raise ValueError("z-axis center must be finite")
+        if not np.isfinite(resolved_half_span) or resolved_half_span <= 0.0:
+            raise ValueError("z-axis half_span must be a finite, positive value")
+        set_zlim = getattr(ax, "set_zlim", None)
+        if set_zlim is None:
+            raise ValueError("z-axis limits require a matplotlib 3D axis")
+        set_zlim(
+            resolved_center - resolved_half_span,
+            resolved_center + resolved_half_span,
+        )
+
+
 class AzimuthAnglesAxis(DirectionAxis):
     direction_tick_step: float = 20.0
     azimuth_range_modes: tuple[str, str] = ("0-360", "-180-180")

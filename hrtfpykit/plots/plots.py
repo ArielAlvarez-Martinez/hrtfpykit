@@ -15,6 +15,13 @@ from .axis import (
     PolarAnglesAxis,
     SampleAxis,
     TimeAxis,
+    XAxis,
+    YAxis,
+    ZAxis,
+)
+from .axis_helpers import (
+    create_sources_grid_direction_markers,
+    resolve_three_dimensional_axis_geometry,
 )
 from .default import Margins
 from .figure import Figure
@@ -30,7 +37,6 @@ from .options import (
     LegendOptions,
     PlotOptions,
 )
-from .three_dimensional import ThreeDimensional1
 from .titles import Titles
 from ..hrtf.coordinates import (
     get_named_positions,
@@ -49,6 +55,8 @@ from ..hrtf.planes import (
 
 if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
+
+
 class Polar:
     theta_tick_step: float = 30.0
 
@@ -2683,11 +2691,29 @@ class HRTFPlots:
             linewidths=0.4,
             depthshade=True,
         )
-        axis_half_span = ThreeDimensional1.configure_axis(
-            ax=ax,
-            cartesian_positions=cartesian_positions,
+        x_center, y_center, z_center, axis_half_span = resolve_three_dimensional_axis_geometry(
+            cartesian_positions=cartesian_positions
         )
-        ThreeDimensional1.create_direction_markers(
+        XAxis.apply(
+            ax=ax,
+            center=x_center,
+            half_span=axis_half_span,
+            options=axis_options,
+        )
+        YAxis.apply(
+            ax=ax,
+            center=y_center,
+            half_span=axis_half_span,
+            options=axis_options,
+        )
+        ZAxis.apply(
+            ax=ax,
+            center=z_center,
+            half_span=axis_half_span,
+            options=axis_options,
+        )
+        ax.set_box_aspect((1.0, 1.0, 1.0))
+        create_sources_grid_direction_markers(
             ax=ax,
             sources=self.Sources,
             axis_half_span=axis_half_span,
@@ -2876,11 +2902,29 @@ class HRTFPlots:
                 label=plane_labels[plane_key],
             )
 
-        axis_half_span = ThreeDimensional1.configure_axis(
-            ax=ax,
-            cartesian_positions=cartesian_positions,
+        x_center, y_center, z_center, axis_half_span = resolve_three_dimensional_axis_geometry(
+            cartesian_positions=cartesian_positions
         )
-        ThreeDimensional1.create_direction_markers(
+        XAxis.apply(
+            ax=ax,
+            center=x_center,
+            half_span=axis_half_span,
+            options=axis_options,
+        )
+        YAxis.apply(
+            ax=ax,
+            center=y_center,
+            half_span=axis_half_span,
+            options=axis_options,
+        )
+        ZAxis.apply(
+            ax=ax,
+            center=z_center,
+            half_span=axis_half_span,
+            options=axis_options,
+        )
+        ax.set_box_aspect((1.0, 1.0, 1.0))
+        create_sources_grid_direction_markers(
             ax=ax,
             sources=self.Sources,
             axis_half_span=axis_half_span,

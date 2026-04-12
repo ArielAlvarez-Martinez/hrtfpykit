@@ -158,11 +158,28 @@ class Figure:
             **kwargs,
         )
 
-    def create_three_dimension(self, ax: plt.Axes, x, y, z, **kwargs):
+    def create_three_dimension(
+        self,
+        ax: plt.Axes,
+        x,
+        y,
+        z,
+        s: float = 28.0,
+        color: str = "steelblue",
+        edgecolors: str = "black",
+        linewidths: float = 0.4,
+        depthshade: bool = True,
+        **kwargs,
+    ):
         return ThreeDimension.create(
             ax=ax,
             x=x,
             y=y,
             z=z,
+            s=s,
+            color=color,
+            edgecolors=edgecolors,
+            linewidths=linewidths,
+            depthshade=depthshade,
             **kwargs,
         )
