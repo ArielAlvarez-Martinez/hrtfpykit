@@ -49,6 +49,12 @@ def itd(
         ITD values with shape ``ir.shape[:-2]``. Positive values mean the left
         ear is delayed relative to the right ear.
 
+    Use Cases
+    ---------
+    - Estimate directional ITD cues directly from HRIR data.
+    - Compare onset-delay behavior between two binaural renderings.
+    - Build ITD curves over a source grid before spatial plotting.
+
     Examples
     --------
     Estimate ITD in samples for a short binaural impulse:
@@ -206,6 +212,12 @@ def ild(
         ``[..., frequency_bins]``. Positive values mean the left-ear level is
         greater than the right-ear level, and negative values mean the
         right-ear level is greater than the left-ear level.
+
+    Use Cases
+    ---------
+    - Measure broad-band level asymmetry between left and right ears.
+    - Compute per-frequency ILD cues for spectral analysis.
+    - Build ILD features for comparison and quality metrics.
 
     Examples
     --------
@@ -607,18 +619,6 @@ def lsd(
     - Evaluate LSD per location while averaging across frequencies.
     - Inspect LSD in a specific horizontal elevation plane.
     - Inspect LSD in the canonical median plane at one target frequency.
-
-    Best Practices
-    --------------
-    - Keep ``mean_lsd=True`` for headline reporting as one comparable scalar.
-    - Use ``mean_lsd=False`` when diagnosing where errors happen
-      (directionally or spectrally).
-    - Use the same source grid and frequency bins across compared HRTFs
-      (this method enforces this and raises when mismatched).
-    - For directional diagnostics, start with ``reduction="frequencies"``
-      to get one LSD value per location.
-    - For spectral diagnostics, start with ``reduction="locations"``
-      to get one LSD value per frequency bin.
 
     Examples
     --------
