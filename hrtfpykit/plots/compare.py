@@ -2091,7 +2091,69 @@ def compare_lsd_plane(
     show: bool = True,
     titles: bool = True,
 ) -> None:
-    """Plot plane-restricted LSD as frequency-vs-angle heatmap."""
+    """Plot plane-restricted LSD as a frequency-angle heatmap.
+
+    This function visualizes LSD values in dB for a canonical plane slice.
+    The x-axis is frequency (kHz), the y-axis is angle, and color encodes LSD:
+    - ``plane="horizontal"`` uses signed azimuth on y (``-180..180``).
+    - ``plane="median"`` uses polar angle on y (lateral-polar coordinates).
+
+    Parameters
+    ----------
+    hrtf_a : HRTF
+        First HRTF used in the comparison.
+    hrtf_b : HRTF
+        Second HRTF used in the comparison.
+    plane : {"horizontal", "median"}, default="horizontal"
+        Canonical plane used to select source positions.
+    ear : {"left", "right"}, default="left"
+        Ear channel used for LSD computation.
+    elevation : float, default=0.0
+        Requested elevation in degrees for ``plane="horizontal"``.
+        Ignored for ``plane="median"``.
+    epsilon : float, default=1e-12
+        Positive floor passed to :func:`lsd` before dB conversion.
+    colormap : str, default="jet"
+        Matplotlib colormap used for heatmap coloring.
+    show : bool, default=True
+        If ``True``, calls ``matplotlib.pyplot.show()``.
+    titles : bool, default=True
+        If ``True``, applies a figure title with plane context.
+
+    Returns
+    -------
+    None
+
+    Use Cases
+    ---------
+    - Inspect spectral LSD behavior in the horizontal plane at one elevation.
+    - Inspect spectral LSD behavior in the canonical median plane.
+    - Compare where frequency-dependent mismatch concentrates per directional slice.
+
+    Best Practices
+    --------------
+    - Use ``plane="horizontal"`` with ``elevation=0.0`` for first-pass analysis.
+    - Use ``plane="median"`` when front/back and up/down spectral behavior is relevant.
+    - Keep ``ear`` fixed (left or right) when comparing methods to avoid mixing channels.
+
+    Examples
+    --------
+    Horizontal-plane LSD heatmap at the nearest 0° elevation:
+
+    >>> from hrtfpykit.plots.compare import compare_lsd_plane
+    >>> compare_lsd_plane(h1, h2, plane="horizontal", elevation=0.0, show=False)
+
+    Median-plane LSD heatmap for the right ear:
+
+    >>> compare_lsd_plane(
+    ...     h1,
+    ...     h2,
+    ...     plane="median",
+    ...     ear="right",
+    ...     colormap="viridis",
+    ...     show=False,
+    ... )
+    """
     plane_key = str(plane).strip().lower()
     if plane_key not in {"horizontal", "median"}:
         raise ValueError("plane must be one of: horizontal, median")
