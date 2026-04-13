@@ -17,6 +17,7 @@ from .axis import (
     SampleAxis,
     TimeAxis,
     ElevationAnglesAxis,
+    PolarAnglesAxis,
 )
 from .default import Margins
 from .figure import Figure
@@ -27,8 +28,8 @@ from .titles import Titles
 from .._warnings import HRTFPyKitWarning, warn_user
 from ..hrtf.coordinates import get_position_queries, get_source_positions
 from ..hrtf.dsp import magnitude_to_db
-from ..hrtf.metrics import ild, ild_difference, itd
-from ..hrtf.planes import get_horizontal_plane
+from ..hrtf.metrics import ild, ild_difference, itd, lsd
+from ..hrtf.planes import get_horizontal_plane, get_median_plane
 from .polar import create_horizontal_plane_curve
 
 
@@ -1728,7 +1729,7 @@ def compare_itd_difference(
 
     figure = Figure(
         Layout_1(
-            figsize=(12, 6),
+            figsize=(8, 6),
             margins=Margins(),
         )
     )
@@ -1930,6 +1931,337 @@ def compare_ild_difference(
             figure.axes,
             figure.figure_title_y,
             Titles.compare_ild_difference,
+        )
+    if show:
+        plt.show()
+
+
+def compare_lsd(
+    hrtf_a: "HRTF",
+    hrtf_b: "HRTF",
+    ear: str = "left",
+    epsilon: float = 1e-12,
+    azimuth_range_mode: str = "-180-180",
+    colormap: str = "jet",
+    show: bool = True,
+    titles: bool = True,
+) -> None:
+    """Plot full-grid LSD across source positions as a spatial scatter map.
+
+    The function computes one LSD value per source position by averaging
+    across frequencies (using :func:`lsd` with ``mean_lsd=False`` and
+    ``reduction="frequencies"``), then visualizes the result on an
+    azimuth-elevation scatter with a colorbar in dB.
+
+    Parameters
+    ----------
+    hrtf_a : HRTF
+        First HRTF used in the comparison.
+    hrtf_b : HRTF
+        Second HRTF used in the comparison.
+    ear : {"left", "right"}, default="left"
+        Ear channel used for LSD computation.
+    epsilon : float, default=1e-12
+        Positive floor passed to :func:`lsd` before dB conversion.
+    azimuth_range_mode : {"0-360", "-180-180"}, default="-180-180"
+        Azimuth convention applied to the x-axis values.
+    colormap : str, default="jet"
+        Matplotlib colormap used to encode LSD values.
+    show : bool, default=True
+        If ``True``, calls ``matplotlib.pyplot.show()``.
+    titles : bool, default=True
+        If ``True``, applies the figure title.
+
+    Returns
+    -------
+    None
+
+    Use Cases
+    ---------
+    - Inspect directional LSD distribution over the complete source grid.
+    - Compare spatial spectral mismatch between two HRTFs for one ear.
+    - Detect high-error regions (e.g., rear or high-elevation sectors).
+
+    Examples
+    --------
+    >>> from hrtfpykit.plots.compare import compare_lsd
+    >>> compare_lsd(h1, h2, show=False)
+    >>> compare_lsd(
+    ...     h1,
+    ...     h2,
+    ...     ear="right",
+    ...     azimuth_range_mode="-180-180",
+    ...     colormap="viridis",
+    ...     show=False,
+    ... )
+    """
+    difference_values = np.asarray(
+        lsd(
+            hrtf_a=hrtf_a,
+            hrtf_b=hrtf_b,
+            mean_lsd=False,
+            ear=ear,
+            plane="all",
+            frequency=None,
+            reduction="frequencies",
+            epsilon=epsilon,
+        ),
+        dtype=float,
+    ).reshape(-1)
+
+    spherical_positions = np.asarray(
+        get_source_positions(
+            sources=hrtf_a.Sources,
+            coordinate_system="spherical",
+            angle_unit="degrees",
+        ),
+        dtype=float,
+    )
+    if spherical_positions.ndim != 2 or spherical_positions.shape[1] < 2:
+        raise ValueError("Source positions must have shape (N, 3) in spherical coordinates")
+    if spherical_positions.shape[0] != difference_values.shape[0]:
+        raise ValueError("LSD values must match number of source positions")
+
+    azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
+    elevation_values = np.asarray(spherical_positions[:, 1], dtype=float)
+    transformed_azimuth_values = AzimuthAnglesAxis.transform_values(
+        values=azimuth_values,
+        range_mode=azimuth_range_mode,
+    )
+
+    figure = Figure(
+        Layout_1(
+            figsize=(12, 6),
+            margins=Margins(),
+        )
+    )
+    ax = figure.get_ax("main")
+    scatter = ax.scatter(
+        transformed_azimuth_values,
+        elevation_values,
+        c=difference_values,
+        cmap=colormap,
+        s=32.0,
+        edgecolors="black",
+        linewidths=0.25,
+        vmin=float(np.min(difference_values)),
+        vmax=float(np.max(difference_values)),
+    )
+    figure.fig.colorbar(scatter, ax=ax, label=Labels.compare_lsd_db)
+    AzimuthAnglesAxis.apply(
+        ax=ax,
+        axis="x",
+        values=transformed_azimuth_values,
+        range_mode=azimuth_range_mode,
+    )
+    x_min = float(np.min(transformed_azimuth_values))
+    x_max = float(np.max(transformed_azimuth_values))
+    x_span = x_max - x_min
+    x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
+    ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    ElevationAnglesAxis.apply(
+        ax=ax,
+        axis="y",
+        values=elevation_values,
+    )
+    y_min = float(np.min(elevation_values))
+    y_max = float(np.max(elevation_values))
+    y_span = y_max - y_min
+    y_padding = 2.0 if np.isclose(y_span, 0.0) else max(2.0, 0.04 * y_span)
+    ax.set_ylim(y_min - y_padding, y_max + y_padding)
+    if titles:
+        Titles.create_figure_title(
+            figure.fig,
+            figure.axes,
+            figure.figure_title_y,
+            Titles.compare_lsd,
+        )
+    if show:
+        plt.show()
+
+
+def compare_lsd_plane(
+    hrtf_a: "HRTF",
+    hrtf_b: "HRTF",
+    plane: str = "horizontal",
+    ear: str = "left",
+    elevation: float = 0.0,
+    epsilon: float = 1e-12,
+    colormap: str = "jet",
+    show: bool = True,
+    titles: bool = True,
+) -> None:
+    """Plot plane-restricted LSD as frequency-vs-angle heatmap."""
+    plane_key = str(plane).strip().lower()
+    if plane_key not in {"horizontal", "median"}:
+        raise ValueError("plane must be one of: horizontal, median")
+
+    if plane_key == "horizontal":
+        selected_positions, _ = get_horizontal_plane(
+            hrtf=hrtf_a,
+            elevation=float(elevation),
+        )
+    else:
+        selected_positions, _ = get_median_plane(
+            hrtf=hrtf_a,
+            azimuth=0.0,
+        )
+    selected_positions = np.asarray(selected_positions, dtype=int).reshape(-1)
+    if selected_positions.size == 0:
+        raise ValueError("Selected plane has no source positions")
+
+    lsd_values = np.asarray(
+        lsd(
+            hrtf_a=hrtf_a,
+            hrtf_b=hrtf_b,
+            mean_lsd=False,
+            ear=ear,
+            plane=plane_key,
+            elevation=elevation,
+            frequency=None,
+            reduction="none",
+            epsilon=epsilon,
+        ),
+        dtype=float,
+    )
+    if lsd_values.ndim != 2:
+        raise ValueError("compare_lsd_plane expects lsd(..., reduction='none') to return 2D values")
+    if lsd_values.shape[0] != selected_positions.shape[0]:
+        raise ValueError("LSD plane values must match selected positions count")
+
+    frequency_bins = np.asarray(hrtf_a.TF.frequency_bins, dtype=float).reshape(-1)
+    if frequency_bins.size != lsd_values.shape[1]:
+        raise ValueError("LSD plane values frequency axis must match TF frequency_bins")
+
+    if plane_key == "horizontal":
+        spherical_positions = np.asarray(
+            get_source_positions(
+                sources=hrtf_a.Sources,
+                coordinate_system="spherical",
+                angle_unit="degrees",
+            ),
+            dtype=float,
+        )
+        selected_spherical_positions = np.asarray(
+            spherical_positions[selected_positions, :],
+            dtype=float,
+        )
+        direction_values = AzimuthAnglesAxis.transform_values(
+            values=np.asarray(selected_spherical_positions[:, 0], dtype=float),
+            range_mode="-180-180",
+        )
+        direction_label = Labels.azimuth
+        direction_axis_class = AzimuthAnglesAxis
+    else:
+        lateral_polar_positions = np.asarray(
+            get_source_positions(
+                sources=hrtf_a.Sources,
+                coordinate_system="lateral-polar",
+                angle_unit="degrees",
+            ),
+            dtype=float,
+        )
+        selected_lateral_polar_positions = np.asarray(
+            lateral_polar_positions[selected_positions, :],
+            dtype=float,
+        )
+        direction_values = np.asarray(selected_lateral_polar_positions[:, 1], dtype=float)
+        direction_label = Labels.polar
+        direction_axis_class = PolarAnglesAxis
+
+    frequency_values_khz = frequency_bins / 1000.0
+    unique_direction_values = np.unique(direction_values)
+    direction_index_map = {
+        float(value): int(index)
+        for index, value in enumerate(unique_direction_values)
+    }
+    heatmap_values_sum = np.zeros(
+        (unique_direction_values.size, frequency_values_khz.size),
+        dtype=float,
+    )
+    heatmap_counts = np.zeros(
+        (unique_direction_values.size, 1),
+        dtype=int,
+    )
+    for position_index, direction_value in enumerate(direction_values):
+        row_index = direction_index_map[float(direction_value)]
+        heatmap_values_sum[row_index, :] += np.asarray(
+            lsd_values[position_index, :],
+            dtype=float,
+        )
+        heatmap_counts[row_index, 0] += 1
+    heatmap_values = np.full_like(heatmap_values_sum, np.nan, dtype=float)
+    valid_rows = heatmap_counts[:, 0] > 0
+    if np.any(valid_rows):
+        heatmap_values[valid_rows, :] = (
+            heatmap_values_sum[valid_rows, :]
+            / heatmap_counts[valid_rows, :]
+        )
+    masked_heatmap_values = np.ma.masked_invalid(heatmap_values)
+    finite_heatmap_values = heatmap_values[np.isfinite(heatmap_values)]
+    if finite_heatmap_values.size == 0:
+        raise ValueError("No finite LSD values available for heatmap rendering")
+
+    figure = Figure(
+        Layout_1(
+            figsize=(8, 6),
+            margins=Margins(),
+        )
+    )
+    ax = figure.get_ax("main")
+    figure.create_heatmap(
+        ax=ax,
+        x=frequency_values_khz,
+        y=unique_direction_values,
+        values=masked_heatmap_values,
+        label=Labels.compare_lsd_db,
+        colormap=colormap,
+        shading="auto",
+        vmin=float(np.min(finite_heatmap_values)),
+        vmax=float(np.max(finite_heatmap_values)),
+    )
+
+    frequency_axis_config = FrequencyLinearAxis.build(
+        frequency_bins=frequency_bins,
+        freq_min=float(np.min(frequency_bins)),
+        freq_max=float(np.max(frequency_bins)),
+        margin_ratio=0.0,
+    )
+    FrequencyLinearAxis.apply(
+        ax=ax,
+        axis="x",
+        label=Labels.frequency,
+        config=frequency_axis_config,
+    )
+
+    if unique_direction_values.size == 1:
+        Axis.apply_label(ax=ax, axis="y", default_label=direction_label)
+        direction_tick = float(unique_direction_values[0])
+        ax.set_yticks((direction_tick,))
+        ax.set_yticklabels((f"{int(np.rint(direction_tick))}",))
+    else:
+        direction_axis_class.apply(
+            ax=ax,
+            axis="y",
+            values=direction_values,
+            **({"range_mode": "-180-180"} if plane_key == "horizontal" else {}),
+        )
+    ax.margins(x=0.0, y=0.0)
+
+    if titles:
+        if plane_key == "horizontal":
+            _, real_elevation = get_horizontal_plane(
+                hrtf=hrtf_a,
+                elevation=float(elevation),
+            )
+            title_text = f"{Titles.compare_lsd_plane} : Horizontal ({real_elevation:.2f}°)"
+        else:
+            title_text = f"{Titles.compare_lsd_plane} : Median"
+        Titles.create_figure_title(
+            figure.fig,
+            figure.axes,
+            figure.figure_title_y,
+            title_text,
         )
     if show:
         plt.show()

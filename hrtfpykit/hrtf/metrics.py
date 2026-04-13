@@ -529,6 +529,7 @@ def ild_difference(
 def lsd(
     hrtf_a: "HRTF",
     hrtf_b: "HRTF",
+    mean_lsd: bool = True,
     ear: str = "left",
     plane: str = "all",
     elevation: float = 0.0,
@@ -549,9 +550,13 @@ def lsd(
         First HRTF used in the comparison.
     hrtf_b : HRTF
         Second HRTF used in the comparison.
+    mean_lsd : bool, default=True
+        When ``True``, returns one global LSD scalar in dB across all
+        positions, both ears, and all frequencies. In this mode, ``ear``,
+        ``plane``, ``elevation``, ``frequency``, and ``reduction`` are ignored.
+        Set to ``False`` to enable detailed selection and reduction behavior.
     ear : {"left", "right"}, default="left"
-        Ear channel to evaluate. ``"left"`` maps to index 0 and ``"right"``
-        maps to index 1.
+        Ear channel to evaluate when ``mean_lsd=False``.
     plane : {"all", "horizontal", "median"}, default="all"
         Spatial subset of source positions:
         - ``"all"`` uses the full source grid.
@@ -583,8 +588,9 @@ def lsd(
     Returns
     -------
     np.ndarray | float
-        LSD values in dB. Output shape depends on ``reduction`` and on whether
-        a single frequency was selected:
+        LSD values in dB. When ``mean_lsd=True``, returns one ``float``.
+        Otherwise, shape depends on ``reduction`` and on whether a single
+        frequency was selected:
         - ``reduction="none"``:
           ``(positions, frequencies)`` or ``(positions,)`` for one frequency.
         - ``reduction="locations"``:
@@ -602,11 +608,33 @@ def lsd(
     - Inspect LSD in a specific horizontal elevation plane.
     - Inspect LSD in the canonical median plane at one target frequency.
 
+    Best Practices
+    --------------
+    - Keep ``mean_lsd=True`` for headline reporting as one comparable scalar.
+    - Use ``mean_lsd=False`` when diagnosing where errors happen
+      (directionally or spectrally).
+    - Use the same source grid and frequency bins across compared HRTFs
+      (this method enforces this and raises when mismatched).
+    - For directional diagnostics, start with ``reduction="frequencies"``
+      to get one LSD value per location.
+    - For spectral diagnostics, start with ``reduction="locations"``
+      to get one LSD value per frequency bin.
+
     Examples
     --------
+    Global mean LSD (single scalar):
+
+    >>> lsd_scalar = lsd(hrtf_a, hrtf_b)
+
     Full LSD map across all positions and frequencies for the left ear:
 
-    >>> lsd_map = lsd(hrtf_a, hrtf_b, ear="left", reduction="none")
+    >>> lsd_map = lsd(
+    ...     hrtf_a,
+    ...     hrtf_b,
+    ...     mean_lsd=False,
+    ...     ear="left",
+    ...     reduction="none",
+    ... )
     >>> lsd_map.ndim
     2
 
@@ -615,6 +643,7 @@ def lsd(
     >>> lsd_per_frequency = lsd(
     ...     hrtf_a,
     ...     hrtf_b,
+    ...     mean_lsd=False,
     ...     ear="left",
     ...     reduction="locations",
     ... )
@@ -624,6 +653,7 @@ def lsd(
     >>> lsd_per_location = lsd(
     ...     hrtf_a,
     ...     hrtf_b,
+    ...     mean_lsd=False,
     ...     ear="right",
     ...     plane="horizontal",
     ...     elevation=0.0,
@@ -632,9 +662,10 @@ def lsd(
 
     Global scalar LSD at one selected frequency in the median plane:
 
-    >>> lsd_scalar = lsd(
+    >>> lsd_plane_scalar = lsd(
     ...     hrtf_a,
     ...     hrtf_b,
+    ...     mean_lsd=False,
     ...     ear="left",
     ...     plane="median",
     ...     frequency=4000.0,
@@ -649,10 +680,7 @@ def lsd(
         if hrtf.TF.frequency_bins is None:
             raise ValueError(f"{label} TF frequency_bins are required")
 
-    ear_key = str(ear).strip().lower()
-    if ear_key not in {"left", "right"}:
-        raise ValueError("ear must be one of: left, right")
-    ear_index = 0 if ear_key == "left" else 1
+    mean_lsd_key = bool(mean_lsd)
 
     plane_key = str(plane).strip().lower()
     if plane_key not in {"all", "horizontal", "median"}:
@@ -697,6 +725,21 @@ def lsd(
         raise ValueError("HRTFs must share the same TF frequency_bins for LSD")
     if frequency_bins_a.size != tf_a.shape[-1]:
         raise ValueError("TF frequency axis length must match frequency_bins length")
+
+    if mean_lsd_key:
+        tf_values_a = np.asarray(tf_a[:, :2, :], dtype=complex)
+        tf_values_b = np.asarray(tf_b[:, :2, :], dtype=complex)
+        magnitude_a = np.maximum(np.abs(tf_values_a), epsilon)
+        magnitude_b = np.maximum(np.abs(tf_values_b), epsilon)
+        db_values_a = magnitude_to_db(magnitude_a)
+        db_values_b = magnitude_to_db(magnitude_b)
+        difference_db = db_values_a - db_values_b
+        return float(np.sqrt(np.mean(np.square(difference_db))))
+
+    ear_key = str(ear).strip().lower()
+    if ear_key not in {"left", "right"}:
+        raise ValueError("ear must be one of: left, right")
+    ear_index = 0 if ear_key == "left" else 1
 
     if plane_key == "all":
         selected_positions = np.arange(source_positions_a.shape[0], dtype=int)

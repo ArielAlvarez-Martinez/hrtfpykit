@@ -52,6 +52,7 @@ class Labels:
     compare_itd_difference_samples = "ITD Difference (samples)"
     compare_ild_difference_db = "ILD Difference (dB)"
     compare_ild_difference_linear = "ILD Difference (linear)"
+    compare_lsd_db = "LSD (dB)"
     label_box = {
         "boxstyle": "round,pad=0.18",
         "facecolor": "white",
