@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 class HRTFPlots:
     def plot_magnitude(
-        self: "HRTF",
+        hrtf: "HRTF",
         positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
         x_axis: str = "linear",
         unit: str = "db",
@@ -155,7 +155,7 @@ class HRTFPlots:
             )
         resolved_margins = Margins()
 
-        if self.TF.values is None or self.TF.frequency_bins is None:
+        if hrtf.TF.values is None or hrtf.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
 
         position_queries = get_position_queries(positions)
@@ -182,17 +182,17 @@ class HRTFPlots:
             )
         figure = Figure(resolved_layout)
 
-        frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
+        frequency_bins_hz = np.asarray(hrtf.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
             raise ValueError("TF frequency bins must be a non-empty 1D array")
         selected_position_info = [
-            self.Sources.get_position_index(
+            hrtf.Sources.get_position_index(
                 selected_position_query,
                 coordinate_system="spherical",
             )
             for selected_position_query in position_queries
         ]
-        tf_magnitude = self.TF.magnitude
+        tf_magnitude = hrtf.TF.magnitude
         if unit == "db":
             if isinstance(reference, str) and str(reference).strip().lower() == "max":
                 selected_indices = [selected_index for selected_index, _ in selected_position_info]
@@ -287,7 +287,7 @@ class HRTFPlots:
         return None
 
     def plot_amplitude(
-        self: "HRTF",
+        hrtf: "HRTF",
         positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
         ear: str = "both",
         x_axis: str = "time",
@@ -368,9 +368,9 @@ class HRTFPlots:
             )
         resolved_margins = Margins()
 
-        if self.IR.values is None:
+        if hrtf.IR.values is None:
             raise ValueError("IR data is not available")
-        if x_axis == "time" and self.IR.sample_rate is None:
+        if x_axis == "time" and hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required when x_axis='time'")
 
         position_queries = get_position_queries(positions)
@@ -397,18 +397,18 @@ class HRTFPlots:
             )
         figure = Figure(resolved_layout)
 
-        ir_values = np.asarray(self.IR.values, dtype=float)
+        ir_values = np.asarray(hrtf.IR.values, dtype=float)
         if ir_values.ndim < 2 or ir_values.shape[-1] == 0:
             raise ValueError("IR values must contain at least one sample")
         sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
         if x_axis == "time":
-            x_values = sample_indexes / float(self.IR.sample_rate)
+            x_values = sample_indexes / float(hrtf.IR.sample_rate)
         else:
             x_values = sample_indexes
 
         for index, selected_position_query in enumerate(position_queries):
             ax = figure.get_ax(index)
-            idxs, selected_positions = self.Sources.get_position_index(
+            idxs, selected_positions = hrtf.Sources.get_position_index(
                 selected_position_query,
                 coordinate_system="spherical",
             )
@@ -468,7 +468,7 @@ class HRTFPlots:
         return None
 
     def plot_amplitude_and_magnitude(
-        self: "HRTF",
+        hrtf: "HRTF",
         position: str | list | np.ndarray = "front",
         ear: str = "both",
         amplitude_x_axis: str = "time",
@@ -564,11 +564,11 @@ class HRTFPlots:
             )
         resolved_margins = Margins()
 
-        if self.IR.values is None:
+        if hrtf.IR.values is None:
             raise ValueError("IR data is not available")
-        if self.TF.values is None or self.TF.frequency_bins is None:
+        if hrtf.TF.values is None or hrtf.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
-        if amplitude_x_axis == "time" and self.IR.sample_rate is None:
+        if amplitude_x_axis == "time" and hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required when amplitude_x_axis='time'")
 
         position_queries = get_position_queries(position)
@@ -586,18 +586,18 @@ class HRTFPlots:
             )
         )
 
-        idxs, selected_positions = self.Sources.get_position_index(
+        idxs, selected_positions = hrtf.Sources.get_position_index(
             selected_position_query,
             coordinate_system="spherical",
         )
         selected_positions = np.asarray(selected_positions, dtype=float)
 
-        ir_values = np.asarray(self.IR.values, dtype=float)
+        ir_values = np.asarray(hrtf.IR.values, dtype=float)
         if ir_values.ndim < 2 or ir_values.shape[-1] == 0:
             raise ValueError("IR values must contain at least one sample")
         sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
         x_values = (
-            sample_indexes / float(self.IR.sample_rate)
+            sample_indexes / float(hrtf.IR.sample_rate)
             if amplitude_x_axis == "time"
             else sample_indexes
         )
@@ -651,7 +651,7 @@ class HRTFPlots:
         Ear.apply(ax=ir_ax, ear=ear, location="upper right", labels=None)
         ir_ax.grid(True)
 
-        frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
+        frequency_bins_hz = np.asarray(hrtf.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
             raise ValueError("TF frequency bins must be a non-empty 1D array")
         magnitude_frequency_axis = (
@@ -669,7 +669,7 @@ class HRTFPlots:
         if not np.any(frequency_mask):
             raise ValueError("Selected frequency range produced no TF bins")
         frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
-        tf_magnitude = self.TF.magnitude
+        tf_magnitude = hrtf.TF.magnitude
         if magnitude == "db":
             if isinstance(reference, str) and str(reference).strip().lower() == "max":
                 reference_values = np.asarray(tf_magnitude[idxs], dtype=float)
@@ -754,7 +754,7 @@ class HRTFPlots:
         return None
 
     def plot_spectrum_plane(
-        self: "HRTF",
+        hrtf: "HRTF",
         plane: str = "horizontal",
         elevation_angle: float = 0.0,
         x_axis: str = "linear",
@@ -860,7 +860,7 @@ class HRTFPlots:
         azimuth_range_mode = "-180-180"
         heatmap_margin_ratio = 0.0
 
-        if self.TF.values is None or self.TF.frequency_bins is None:
+        if hrtf.TF.values is None or hrtf.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
 
         plane_key = str(plane).strip().lower()
@@ -887,13 +887,13 @@ class HRTFPlots:
 
         if plane_key == "horizontal":
             indices, real_plane_elevation = get_horizontal_plane(
-                hrtf=self,
+                hrtf=hrtf,
                 elevation=elevation_angle,
                 angle_unit="degrees",
             )
         else:
             indices, _ = get_median_plane(
-                hrtf=self,
+                hrtf=hrtf,
                 azimuth=0.0,
                 angle_unit="degrees",
             )
@@ -902,7 +902,7 @@ class HRTFPlots:
             raise ValueError("Selected plane does not contain any source positions")
 
         spherical_positions = get_source_positions(
-            sources=self.Sources,
+            sources=hrtf.Sources,
             coordinate_system="spherical",
             angle_unit="degrees",
         )[indices]
@@ -916,7 +916,7 @@ class HRTFPlots:
             )
             plane_axis_values = np.asarray(lateral_polar_positions[:, 1], dtype=float)
 
-        frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
+        frequency_bins_hz = np.asarray(hrtf.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
             raise ValueError("TF frequency bins must be a non-empty 1D array")
         frequency_axis = (
@@ -936,7 +936,7 @@ class HRTFPlots:
             raise ValueError("Selected frequency range produced no TF bins")
         frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
 
-        tf_magnitude = self.TF.magnitude
+        tf_magnitude = hrtf.TF.magnitude
         plane_values = np.asarray(tf_magnitude[indices][..., frequency_mask], dtype=float)
         if plane_values.ndim == 2:
             plane_values = plane_values[:, np.newaxis, :]
@@ -1046,7 +1046,7 @@ class HRTFPlots:
         return None
 
     def plot_elevation_spectrum(
-        self: "HRTF",
+        hrtf: "HRTF",
         azimuth: float | str = 0.0,
         x_axis: str = "linear",
         unit: str = "db",
@@ -1137,7 +1137,7 @@ class HRTFPlots:
         resolved_margins = Margins()
         heatmap_margin_ratio = 0.0
 
-        if self.TF.values is None or self.TF.frequency_bins is None:
+        if hrtf.TF.values is None or hrtf.TF.frequency_bins is None:
             raise ValueError("TF data is not available")
 
         if isinstance(azimuth, str):
@@ -1166,7 +1166,7 @@ class HRTFPlots:
         figure = Figure(resolved_layout)
 
         spherical_positions = get_source_positions(
-            sources=self.Sources,
+            sources=hrtf.Sources,
             coordinate_system="spherical",
             angle_unit="degrees",
         )
@@ -1190,7 +1190,7 @@ class HRTFPlots:
         sort_indices = np.argsort(slice_elevation_values)
         sorted_elevation_values = slice_elevation_values[sort_indices]
 
-        frequency_bins_hz = np.asarray(self.TF.frequency_bins, dtype=float)
+        frequency_bins_hz = np.asarray(hrtf.TF.frequency_bins, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
             raise ValueError("TF frequency bins must be a non-empty 1D array")
         frequency_axis = (
@@ -1210,7 +1210,7 @@ class HRTFPlots:
             raise ValueError("Selected frequency range produced no TF bins")
         frequency_khz = frequency_bins_hz[frequency_mask] / 1000.0
 
-        tf_magnitude = self.TF.magnitude
+        tf_magnitude = hrtf.TF.magnitude
         slice_values = np.asarray(tf_magnitude[indices][..., frequency_mask], dtype=float)
         if slice_values.ndim == 2:
             slice_values = slice_values[:, np.newaxis, :]
@@ -1300,7 +1300,7 @@ class HRTFPlots:
         return None
 
     def plot_itd_curve(
-        self: "HRTF",
+        hrtf: "HRTF",
         elevation_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
@@ -1351,9 +1351,9 @@ class HRTFPlots:
         resolved_margins = Margins()
         azimuth_range_mode = "-180-180"
 
-        if self.IR.values is None:
+        if hrtf.IR.values is None:
             raise ValueError("IR data is not available")
-        if self.IR.sample_rate is None:
+        if hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
         if isinstance(elevation_angle, bool):
             raise ValueError("elevation_angle must be a finite value")
@@ -1363,7 +1363,7 @@ class HRTFPlots:
 
         itd_values = np.asarray(
             itd(
-                self.IR,
+                hrtf.IR,
                 output="seconds",
             ),
             dtype=float,
@@ -1371,7 +1371,7 @@ class HRTFPlots:
         if itd_values.ndim != 1:
             itd_values = itd_values.reshape(-1)
         indices, real_elevation = get_horizontal_plane(
-            hrtf=self,
+            hrtf=hrtf,
             elevation=elevation_angle,
             angle_unit="degrees",
         )
@@ -1379,7 +1379,7 @@ class HRTFPlots:
             raise ValueError("Selected horizontal plane does not contain any source positions")
 
         spherical_positions = get_source_positions(
-            sources=self.Sources,
+            sources=hrtf.Sources,
             coordinate_system="spherical",
             angle_unit="degrees",
         )[indices]
@@ -1388,7 +1388,7 @@ class HRTFPlots:
             values=azimuth_values,
             range_mode=azimuth_range_mode,
         )
-        if itd_values.shape[0] != self.Sources.get_positions(angle_unit="degrees").shape[0]:
+        if itd_values.shape[0] != hrtf.Sources.get_positions(angle_unit="degrees").shape[0]:
             raise ValueError("ITD values must match the number of source positions")
         horizontal_itd_values = itd_values[indices]
         sort_indices = np.argsort(transformed_azimuth_values)
@@ -1437,7 +1437,7 @@ class HRTFPlots:
         return None
 
     def plot_absolute_itd(
-        self: "HRTF",
+        hrtf: "HRTF",
         elevation_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
@@ -1493,9 +1493,9 @@ class HRTFPlots:
         polar_curve_color = "steelblue"
         polar_curve_linewidth = 2.0
 
-        if self.IR.values is None:
+        if hrtf.IR.values is None:
             raise ValueError("IR data is not available")
-        if self.IR.sample_rate is None:
+        if hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
         if isinstance(elevation_angle, bool):
             raise ValueError("elevation_angle must be a finite value")
@@ -1506,14 +1506,14 @@ class HRTFPlots:
         itd_values = np.abs(
             np.asarray(
                 itd(
-                    self.IR,
+                    hrtf.IR,
                     output="seconds",
                 ),
                 dtype=float,
             )
         )
         theta_values, radial_values, sorted_itd_values, real_elevation = create_horizontal_plane_curve(
-            hrtf=self,
+            hrtf=hrtf,
             values=itd_values,
             elevation=elevation_angle,
         )
@@ -1562,7 +1562,7 @@ class HRTFPlots:
         return None
 
     def plot_ild_plane(
-        self: "HRTF",
+        hrtf: "HRTF",
         plane: str = "horizontal",
         elevation_angle: float = 0.0,
         colormap: str = "jet",
@@ -1638,9 +1638,9 @@ class HRTFPlots:
         azimuth_range_mode = "-180-180"
         heatmap_margin_ratio = 0.0
 
-        if self.IR.values is None:
+        if hrtf.IR.values is None:
             raise ValueError("IR data is not available")
-        if self.IR.sample_rate is None:
+        if hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
 
         plane_key = str(plane).strip().lower()
@@ -1661,13 +1661,13 @@ class HRTFPlots:
 
         if plane_key == "horizontal":
             indices, real_plane_elevation = get_horizontal_plane(
-                hrtf=self,
+                hrtf=hrtf,
                 elevation=elevation_angle,
                 angle_unit="degrees",
             )
         else:
             indices, _ = get_median_plane(
-                hrtf=self,
+                hrtf=hrtf,
                 azimuth=0.0,
                 angle_unit="degrees",
             )
@@ -1676,7 +1676,7 @@ class HRTFPlots:
             raise ValueError("Selected plane does not contain any source positions")
 
         spherical_positions = get_source_positions(
-            sources=self.Sources,
+            sources=hrtf.Sources,
             coordinate_system="spherical",
             angle_unit="degrees",
         )[indices]
@@ -1690,9 +1690,9 @@ class HRTFPlots:
             plane_axis_values = np.asarray(lateral_polar_positions[:, 1], dtype=float)
 
         _, frequency_bins_hz, _ = tf_from_ir(
-            np.asarray(self.IR.values, dtype=float),
-            sample_rate=self.IR.sample_rate,
-            fft_length=self.fft_length,
+            np.asarray(hrtf.IR.values, dtype=float),
+            sample_rate=hrtf.IR.sample_rate,
+            fft_length=hrtf.fft_length,
         )
         frequency_bins_hz = np.asarray(frequency_bins_hz, dtype=float)
         if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
@@ -1713,9 +1713,9 @@ class HRTFPlots:
 
         ild_values = np.asarray(
             ild(
-                self.IR,
-                sample_rate=self.IR.sample_rate,
-                fft_length=self.fft_length,
+                hrtf.IR,
+                sample_rate=hrtf.IR.sample_rate,
+                fft_length=hrtf.fft_length,
                 mode="frequency-dependent",
                 output="db",
             ),
@@ -1784,7 +1784,7 @@ class HRTFPlots:
         return None
 
     def plot_ild_curve(
-        self: "HRTF",
+        hrtf: "HRTF",
         elevation_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
@@ -1834,9 +1834,9 @@ class HRTFPlots:
         resolved_margins = Margins()
         azimuth_range_mode = "-180-180"
 
-        if self.IR.values is None:
+        if hrtf.IR.values is None:
             raise ValueError("IR data is not available")
-        if self.IR.sample_rate is None:
+        if hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
         if isinstance(elevation_angle, bool):
             raise ValueError("elevation_angle must be a finite value")
@@ -1846,7 +1846,7 @@ class HRTFPlots:
 
         ild_values = np.asarray(
             ild(
-                self.IR,
+                hrtf.IR,
                 output="db",
                 mode="broad-band",
             ),
@@ -1855,7 +1855,7 @@ class HRTFPlots:
         if ild_values.ndim != 1:
             ild_values = ild_values.reshape(-1)
         indices, real_elevation = get_horizontal_plane(
-            hrtf=self,
+            hrtf=hrtf,
             elevation=elevation_angle,
             angle_unit="degrees",
         )
@@ -1863,7 +1863,7 @@ class HRTFPlots:
             raise ValueError("Selected horizontal plane does not contain any source positions")
 
         spherical_positions = get_source_positions(
-            sources=self.Sources,
+            sources=hrtf.Sources,
             coordinate_system="spherical",
             angle_unit="degrees",
         )[indices]
@@ -1872,7 +1872,7 @@ class HRTFPlots:
             values=azimuth_values,
             range_mode=azimuth_range_mode,
         )
-        if ild_values.shape[0] != self.Sources.get_positions(angle_unit="degrees").shape[0]:
+        if ild_values.shape[0] != hrtf.Sources.get_positions(angle_unit="degrees").shape[0]:
             raise ValueError("ILD values must match the number of source positions")
         horizontal_ild_values = ild_values[indices]
         sort_indices = np.argsort(transformed_azimuth_values)
@@ -1921,7 +1921,7 @@ class HRTFPlots:
         return None
 
     def plot_absolute_ild(
-        self: "HRTF",
+        hrtf: "HRTF",
         elevation_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
@@ -1976,9 +1976,9 @@ class HRTFPlots:
         polar_curve_color = "steelblue"
         polar_curve_linewidth = 2.0
 
-        if self.IR.values is None:
+        if hrtf.IR.values is None:
             raise ValueError("IR data is not available")
-        if self.IR.sample_rate is None:
+        if hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
         if isinstance(elevation_angle, bool):
             raise ValueError("elevation_angle must be a finite value")
@@ -1989,7 +1989,7 @@ class HRTFPlots:
         ild_values = np.abs(
             np.asarray(
                 ild(
-                    self.IR,
+                    hrtf.IR,
                     output="db",
                     mode="broad-band",
                 ),
@@ -1997,7 +1997,7 @@ class HRTFPlots:
             )
         )
         theta_values, radial_values, sorted_ild_values, real_elevation = create_horizontal_plane_curve(
-            hrtf=self,
+            hrtf=hrtf,
             values=ild_values,
             elevation=elevation_angle,
         )
@@ -2046,7 +2046,7 @@ class HRTFPlots:
         return None
 
     def plot_source_grid(
-        self: "HRTF",
+        hrtf: "HRTF",
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -2097,7 +2097,7 @@ class HRTFPlots:
         source_grid_scatter_depthshade = True
 
         cartesian_positions = get_source_positions(
-            sources=self.Sources,
+            sources=hrtf.Sources,
             coordinate_system="cartesian",
             angle_unit="degrees",
         )
@@ -2145,7 +2145,7 @@ class HRTFPlots:
         ax.set_box_aspect((1.0, 1.0, 1.0))
         create_sources_grid_direction_markers(
             ax=ax,
-            sources=self.Sources,
+            sources=hrtf.Sources,
             axis_half_span=axis_half_span,
         )
 
@@ -2162,7 +2162,7 @@ class HRTFPlots:
         return None
 
     def plot_plane_grid(
-        self: "HRTF",
+        hrtf: "HRTF",
         plane: str | list[str] | tuple[str, ...] = "horizontal",
         show: bool = True,
         titles: bool = True,
@@ -2233,7 +2233,7 @@ class HRTFPlots:
                 resolved_planes.append(plane_key)
 
         cartesian_positions = get_source_positions(
-            sources=self.Sources,
+            sources=hrtf.Sources,
             coordinate_system="cartesian",
             angle_unit="degrees",
         )
@@ -2282,19 +2282,19 @@ class HRTFPlots:
         for plane_key in resolved_planes:
             if plane_key == "horizontal":
                 indices, _ = get_horizontal_plane(
-                    hrtf=self,
+                    hrtf=hrtf,
                     elevation=0.0,
                     angle_unit="degrees",
                 )
             elif plane_key == "median":
                 indices, _ = get_median_plane(
-                    hrtf=self,
+                    hrtf=hrtf,
                     azimuth=0.0,
                     angle_unit="degrees",
                 )
             else:
                 indices, _ = get_frontal_plane(
-                    hrtf=self,
+                    hrtf=hrtf,
                     azimuth=90.0,
                     angle_unit="degrees",
                 )
@@ -2333,7 +2333,7 @@ class HRTFPlots:
         ax.set_box_aspect((1.0, 1.0, 1.0))
         create_sources_grid_direction_markers(
             ax=ax,
-            sources=self.Sources,
+            sources=hrtf.Sources,
             axis_half_span=axis_half_span,
         )
 

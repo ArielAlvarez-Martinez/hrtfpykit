@@ -12,7 +12,7 @@ from .planes import (
     get_horizontal_plane,
     get_median_plane,
 )
-from ..plots.hrtf_plots import HRTFPlots
+from ..plots.hrtf import HRTFPlots
 from ..sofa import SOFA
 from .sources import Sources
 from .domain import IR, TF
