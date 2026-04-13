@@ -6,6 +6,7 @@ import numpy as np
 from scipy import signal
 
 from .dsp import iir_filter, magnitude_to_db, tf_from_ir
+from .coordinates import get_position_queries
 from .planes import get_horizontal_plane, get_median_plane
 
 if TYPE_CHECKING:
@@ -541,11 +542,12 @@ def ild_difference(
 def lsd(
     hrtf_a: "HRTF",
     hrtf_b: "HRTF",
-    mean_lsd: bool = True,
+    mean_lsd: bool = False,
     ear: str = "left",
     plane: str = "all",
     elevation: float = 0.0,
-    frequency: float | None = None,
+    positions: np.ndarray | list | tuple | str | None = None,
+    frequencies: float | list[float] | tuple[float, ...] | np.ndarray | None = None,
     reduction: str = "none",
     epsilon: float = 1e-12,
 ) -> np.ndarray | float:
@@ -562,13 +564,15 @@ def lsd(
         First HRTF used in the comparison.
     hrtf_b : HRTF
         Second HRTF used in the comparison.
-    mean_lsd : bool, default=True
-        When ``True``, returns one global LSD scalar in dB across all
-        positions, both ears, and all frequencies. In this mode, ``ear``,
-        ``plane``, ``elevation``, ``frequency``, and ``reduction`` are ignored.
-        Set to ``False`` to enable detailed selection and reduction behavior.
-    ear : {"left", "right"}, default="left"
+    mean_lsd : bool, default=False
+        When ``True``, returns one scalar mean LSD in dB computed from the
+        selected output defined by ``ear``, ``plane``, ``elevation``,
+        ``frequency``, and ``reduction``. Set to ``False`` to return the
+        non-averaged output for the selected configuration.
+    ear : {"left", "right", "both"}, default="left"
         Ear channel to evaluate when ``mean_lsd=False``.
+        ``"both"`` computes both ear channels and averages the resulting LSD
+        values.
     plane : {"all", "horizontal", "median"}, default="all"
         Spatial subset of source positions:
         - ``"all"`` uses the full source grid.
@@ -578,10 +582,15 @@ def lsd(
     elevation : float, default=0.0
         Requested elevation in degrees used only when
         ``plane="horizontal"``.
-    frequency : float | None, default=None
-        Frequency selection in Hz:
-        - ``None`` uses all frequency bins.
-        - A finite float selects the nearest available frequency bin.
+    positions : np.ndarray | list | tuple | str | None, default=None
+        Optional position selector. Accepts one position query or a collection
+        of queries in the same format used across plot APIs (named positions
+        and numeric spherical queries). When provided, the resolved positions
+        are intersected with the selected ``plane``.
+    frequencies : float | list[float] | tuple[float, ...] | np.ndarray | None, default=None
+        Optional frequency selector in Hz. Accepts one target frequency or
+        multiple targets. Each target is mapped to the nearest available TF
+        bin. ``None`` selects all bins.
     reduction : {"none", "locations", "frequencies", "both"}, default="none"
         Aggregation mode applied after dB difference computation:
         - ``"none"``:
@@ -600,9 +609,9 @@ def lsd(
     Returns
     -------
     np.ndarray | float
-        LSD values in dB. When ``mean_lsd=True``, returns one ``float``.
-        Otherwise, shape depends on ``reduction`` and on whether a single
-        frequency was selected:
+        LSD values in dB. When ``mean_lsd=True``, returns one ``float`` equal
+        to the arithmetic mean of the selected output. Otherwise, shape depends
+        on ``reduction`` and on whether a single frequency was selected:
         - ``reduction="none"``:
           ``(positions, frequencies)`` or ``(positions,)`` for one frequency.
         - ``reduction="locations"``:
@@ -622,7 +631,7 @@ def lsd(
 
     Examples
     --------
-    Global mean LSD (single scalar):
+    Mean LSD scalar for the selected configuration:
 
     >>> lsd_scalar = lsd(hrtf_a, hrtf_b)
 
@@ -668,7 +677,7 @@ def lsd(
     ...     mean_lsd=False,
     ...     ear="left",
     ...     plane="median",
-    ...     frequency=4000.0,
+    ...     frequencies=4000.0,
     ...     reduction="both",
     ... )
     """
@@ -726,20 +735,15 @@ def lsd(
     if frequency_bins_a.size != tf_a.shape[-1]:
         raise ValueError("TF frequency axis length must match frequency_bins length")
 
-    if mean_lsd_key:
-        tf_values_a = np.asarray(tf_a[:, :2, :], dtype=complex)
-        tf_values_b = np.asarray(tf_b[:, :2, :], dtype=complex)
-        magnitude_a = np.maximum(np.abs(tf_values_a), epsilon)
-        magnitude_b = np.maximum(np.abs(tf_values_b), epsilon)
-        db_values_a = magnitude_to_db(magnitude_a)
-        db_values_b = magnitude_to_db(magnitude_b)
-        difference_db = db_values_a - db_values_b
-        return float(np.sqrt(np.mean(np.square(difference_db))))
-
     ear_key = str(ear).strip().lower()
-    if ear_key not in {"left", "right"}:
-        raise ValueError("ear must be one of: left, right")
-    ear_index = 0 if ear_key == "left" else 1
+    if ear_key not in {"left", "right", "both"}:
+        raise ValueError("ear must be one of: left, right, both")
+    if ear_key == "left":
+        selected_ear_indices = np.array([0], dtype=int)
+    elif ear_key == "right":
+        selected_ear_indices = np.array([1], dtype=int)
+    else:
+        selected_ear_indices = np.array([0, 1], dtype=int)
 
     if plane_key == "all":
         selected_positions = np.arange(source_positions_a.shape[0], dtype=int)
@@ -751,23 +755,49 @@ def lsd(
     if selected_positions.size == 0:
         raise ValueError("Selected plane has no source positions")
 
-    if frequency is None:
+    if positions is not None:
+        position_queries = get_position_queries(positions)
+        selected_from_queries: list[int] = []
+        for query in position_queries:
+            position_index, _ = hrtf_a.Sources.get_position_index(
+                query,
+                coordinate_system="spherical",
+            )
+            selected_from_queries.append(int(position_index))
+        selected_from_queries_array = np.asarray(selected_from_queries, dtype=int)
+        selected_positions = np.intersect1d(
+            selected_positions,
+            selected_from_queries_array,
+            assume_unique=False,
+        )
+        if selected_positions.size == 0:
+            raise ValueError("No source positions matched the provided positions and plane filters")
+
+    if frequencies is None:
         selected_frequency_indices = np.arange(frequency_bins_a.size, dtype=int)
     else:
-        if isinstance(frequency, bool):
-            raise ValueError("frequency must be a finite value")
-        target_frequency = float(frequency)
-        if not np.isfinite(target_frequency):
-            raise ValueError("frequency must be a finite value")
-        nearest_frequency_index = int(np.argmin(np.abs(frequency_bins_a - target_frequency)))
-        selected_frequency_indices = np.array([nearest_frequency_index], dtype=int)
+        if isinstance(frequencies, bool):
+            raise ValueError("frequencies must be finite value(s)")
+        frequency_values = np.asarray(frequencies, dtype=float).reshape(-1)
+        if frequency_values.size == 0:
+            raise ValueError("frequencies must contain at least one value when provided")
+        if not np.all(np.isfinite(frequency_values)):
+            raise ValueError("frequencies must be finite value(s)")
+        nearest_frequency_indices = [
+            int(np.argmin(np.abs(frequency_bins_a - float(target_frequency))))
+            for target_frequency in frequency_values
+        ]
+        selected_frequency_indices = np.asarray(
+            tuple(dict.fromkeys(nearest_frequency_indices)),
+            dtype=int,
+        )
 
     tf_values_a = np.asarray(
-        tf_a[selected_positions, ear_index, :][:, selected_frequency_indices],
+        tf_a[np.ix_(selected_positions, selected_ear_indices, selected_frequency_indices)],
         dtype=complex,
     )
     tf_values_b = np.asarray(
-        tf_b[selected_positions, ear_index, :][:, selected_frequency_indices],
+        tf_b[np.ix_(selected_positions, selected_ear_indices, selected_frequency_indices)],
         dtype=complex,
     )
     if tf_values_a.shape != tf_values_b.shape:
@@ -781,20 +811,28 @@ def lsd(
 
     if reduction_key == "none":
         absolute_difference_db = np.abs(difference_db)
+        absolute_difference_db = np.mean(absolute_difference_db, axis=1)
         if absolute_difference_db.shape[-1] == 1:
-            return absolute_difference_db[:, 0]
-        return absolute_difference_db
-
-    if reduction_key == "locations":
+            lsd_output: np.ndarray | float = absolute_difference_db[:, 0]
+        else:
+            lsd_output = absolute_difference_db
+    elif reduction_key == "locations":
         rms_over_locations = np.sqrt(np.mean(np.square(difference_db), axis=0))
+        rms_over_locations = np.mean(rms_over_locations, axis=0)
         if rms_over_locations.size == 1:
-            return float(rms_over_locations[0])
-        return rms_over_locations
-
-    if reduction_key == "frequencies":
+            lsd_output = float(rms_over_locations[0])
+        else:
+            lsd_output = rms_over_locations
+    elif reduction_key == "frequencies":
         if difference_db.shape[-1] == 1:
             raise ValueError("reduction='frequencies' requires multiple selected frequencies")
         rms_over_frequencies = np.sqrt(np.mean(np.square(difference_db), axis=-1))
-        return rms_over_frequencies
+        rms_over_frequencies = np.mean(rms_over_frequencies, axis=1)
+        lsd_output = rms_over_frequencies
+    else:
+        rms_over_positions_frequencies = np.sqrt(np.mean(np.square(difference_db), axis=(0, 2)))
+        lsd_output = float(np.mean(rms_over_positions_frequencies))
 
-    return float(np.sqrt(np.mean(np.square(difference_db))))
+    if mean_lsd_key:
+        return float(np.mean(np.asarray(lsd_output, dtype=float)))
+    return lsd_output
