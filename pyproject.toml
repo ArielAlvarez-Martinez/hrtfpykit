@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hrtfpykit"
-version = "0.0.1"
+dynamic = ["version"]
 description = "Toolkit for loading, handling, analyzing, and visualizing HRTF data in Python"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -31,3 +31,6 @@ test = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["hrtfpykit*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "hrtfpykit.__version__" }

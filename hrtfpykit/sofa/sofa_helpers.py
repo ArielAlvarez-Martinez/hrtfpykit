@@ -2,8 +2,7 @@ from typing import Any, Dict, Optional, TYPE_CHECKING, Union
 import datetime
 import importlib.metadata
 import pathlib
-import platform
-import sys
+import hrtfpykit.sofa
 
 import netCDF4
 import numpy as np
@@ -163,24 +162,16 @@ def complete_global_attributes(
         return False
 
     try:
-        api_version = importlib.metadata.version("hrtfpykit")
+        hrtfpykit_version = importlib.metadata.version("hrtfpykit")
     except importlib.metadata.PackageNotFoundError:
-        api_version = "unknown"
-
-    compiler = platform.python_compiler()
-    implementation = sys.implementation.name
-    if implementation:
-        implementation = implementation.capitalize()
-    else:
-        implementation = "Python"
-    python_version = f"{platform.python_version()} [{implementation} - {compiler}]"
+        hrtfpykit_version = "unknown"
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     default_custom_attributes: Dict[str, str] = {
-        "APIName": "hrtfpykit",
-        "APIVersion": api_version,
-        "ApplicationName": "Python",
-        "ApplicationVersion": python_version,
+        "APIName": "hrtfpykit-sofa",
+        "APIVersion": hrtfpykit.sofa.__version__,
+        "ApplicationName": "hrtfpykit",
+        "ApplicationVersion": hrtfpykit_version,
         "DateCreated": now,
         "DateModified": now,
     }
