@@ -64,6 +64,7 @@ class Transform:
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def apply_padding(
@@ -114,6 +115,7 @@ class Transform:
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def apply_fir_filter(
@@ -174,6 +176,7 @@ class Transform:
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def apply_iir_filter(
@@ -230,6 +233,7 @@ class Transform:
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def minimum_phase(
@@ -280,6 +284,7 @@ class Transform:
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def to_ctf(
@@ -330,12 +335,14 @@ class Transform:
         ...     show=False,
         ... )
         """
-        return ctf_from_hrtf(
+        transformed_hrtf = ctf_from_hrtf(
             hrtf=self._hrtf,
             weights=weights,
             magnitude_average=magnitude_average,
             attenuation=attenuation,
         )
+        transformed_hrtf._transformed = True
+        return transformed_hrtf
 
     def to_dtf(
         self,
@@ -387,12 +394,14 @@ class Transform:
         ...     show=False,
         ... )
         """
-        return dtf_from_hrtf(
+        transformed_hrtf = dtf_from_hrtf(
             hrtf=self._hrtf,
             weights=weights,
             magnitude_average=magnitude_average,
             attenuation=attenuation,
         )
+        transformed_hrtf._transformed = True
+        return transformed_hrtf
 
     def modify_ir(
         self,
@@ -475,6 +484,7 @@ class Transform:
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def modify_phase(
@@ -523,6 +533,7 @@ class Transform:
             tf,
             frequency_bins=tf.frequency_bins,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def modify_tf(
@@ -650,6 +661,7 @@ class Transform:
             tf,
             frequency_bins=tf.frequency_bins,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def modify_magnitude(
@@ -697,6 +709,7 @@ class Transform:
             tf,
             frequency_bins=tf.frequency_bins,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def apply_gain(
@@ -754,6 +767,7 @@ class Transform:
             tf,
             frequency_bins=tf.frequency_bins,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def modify_fft_length(self, new_fft_length: int) -> "HRTF":
@@ -792,6 +806,7 @@ class Transform:
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def modify_source_coordinate_system(
@@ -833,6 +848,7 @@ class Transform:
 
         transformed_hrtf = self._hrtf.clone()
         transformed_hrtf.Sources.source_coordinate_system = coordinate_system
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def add_itd(
@@ -900,6 +916,7 @@ class Transform:
                 ir,
                 fft_length=transformed_hrtf.fft_length,
             )
+            transformed_hrtf._transformed = True
             return transformed_hrtf
 
         ir_values = np.asarray(ir.values, dtype=float)
@@ -924,6 +941,7 @@ class Transform:
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf
 
     def delete_itd(
@@ -1019,4 +1037,5 @@ class Transform:
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
+        transformed_hrtf._transformed = True
         return transformed_hrtf

@@ -27,6 +27,7 @@ class HRTF(HRTFPlots):
         self.Sofa: SOFA | None = Sofa
         self.SOFAConventions: str | None = None
         self.fft_length: int | None = None
+        self._transformed: bool = False
 
     @cached_property
     def IR(self) -> "IR":
@@ -54,6 +55,7 @@ class HRTF(HRTFPlots):
         hrtf = HRTF(Sofa=sofa_clone)
         hrtf.SOFAConventions = self.SOFAConventions
         hrtf.fft_length = self.fft_length
+        hrtf._transformed = self._transformed
         if self.IR.values is not None:
             hrtf.IR.values = np.array(self.IR.values, copy=True)
         if self.IR.sample_rate is not None:
@@ -71,6 +73,104 @@ class HRTF(HRTFPlots):
                     copy=True,
                 )
         return hrtf
+
+    def reset(self) -> "HRTF":
+        if self.Sofa is None:
+            raise ValueError("Cannot reset an HRTF without a loaded SOFA dataset")
+        if self.Sofa.GlobalAttributes is None or self.Sofa.Variables is None:
+            raise ValueError("SOFA dataset is not loaded")
+
+        global_attrs = self.Sofa.GlobalAttributes
+        variables = self.Sofa.Variables
+        allowed = {"SimpleFreeFieldHRIR", "SimpleFreeFieldHRTF"}
+        try:
+            convention = global_attrs.get("SOFAConventions").value
+        except ValueError:
+            convention = None
+        if convention not in allowed:
+            raise ValueError(
+                "SOFAConventions is not an HRTF convention. "
+                f"Expected one of {sorted(allowed)}, got {convention!r}."
+            )
+
+        variable_names = set(variables.get_names())
+        if convention == "SimpleFreeFieldHRIR":
+            if "Data.IR" not in variable_names:
+                raise ValueError(
+                    "SimpleFreeFieldHRIR requires variable 'Data.IR', but it is missing."
+                )
+            if "Data.SamplingRate" not in variable_names:
+                raise ValueError(
+                    "SimpleFreeFieldHRIR requires variable 'Data.SamplingRate', but it is missing."
+                )
+
+            ir = np.asarray(variables.get("Data.IR").value)
+            if ir.size == 0 or np.all(ir == 0):
+                raise ValueError("SimpleFreeFieldHRIR requires non empty 'Data.IR'.")
+            sample_rate_data = np.asarray(
+                variables.get("Data.SamplingRate").value,
+                dtype=float,
+            )
+            if sample_rate_data.size == 0 or np.all(sample_rate_data == 0):
+                raise ValueError(
+                    "SimpleFreeFieldHRIR requires non empty 'Data.SamplingRate'."
+                )
+            resolved_sample_rate = float(sample_rate_data.flat[0])
+            if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
+                raise ValueError(
+                    "SimpleFreeFieldHRIR requires a finite, positive 'Data.SamplingRate' value."
+                )
+
+            tf, frequency_bins, fft_length_used = tf_from_ir(
+                ir,
+                resolved_sample_rate,
+                fft_length=None,
+            )
+            self.IR.values = np.array(ir, copy=True)
+            self.IR.sample_rate = resolved_sample_rate
+            self.TF.values = np.array(tf, copy=True)
+            self.TF.frequency_bins = np.array(frequency_bins, copy=True)
+            self.fft_length = fft_length_used
+        else:
+            required_variables = ("Data.Real", "Data.Imag", "N")
+            missing_variables = [name for name in required_variables if name not in variable_names]
+            if missing_variables:
+                raise ValueError(
+                    "SimpleFreeFieldHRTF requires variables "
+                    f"{required_variables}, but missing: {missing_variables}."
+                )
+            real = np.asarray(variables.get("Data.Real").value, dtype=float)
+            if real.size == 0 or np.all(real == 0):
+                raise ValueError("SimpleFreeFieldHRTF requires non empty 'Data.Real'.")
+            imag = np.asarray(variables.get("Data.Imag").value, dtype=float)
+            if imag.size == 0 or np.all(imag == 0):
+                raise ValueError("SimpleFreeFieldHRTF requires non empty 'Data.Imag'.")
+            frequency_bins = np.asarray(variables.get("N").value, dtype=float)
+            if frequency_bins.size == 0 or np.all(frequency_bins == 0):
+                raise ValueError("SimpleFreeFieldHRTF requires non empty 'N'.")
+
+            tf = real + 1j * imag
+            ir, sample_rate, fft_length_used = ir_from_tf(
+                tf,
+                frequency_bins=frequency_bins,
+            )
+            self.IR.values = np.array(ir, copy=True)
+            self.IR.sample_rate = float(sample_rate)
+            self.TF.values = np.array(tf, copy=True)
+            self.TF.frequency_bins = np.array(frequency_bins, copy=True)
+            self.fft_length = fft_length_used
+
+        if "Sources" in self.__dict__:
+            self.Sources.source_coordinate_system = (
+                self.Sofa.VariableAttributes.get("SourcePosition:Type").value
+            )
+            self.Sources._selected_indices = None
+        self.SOFAConventions = convention
+        self._transformed = False
+        return self
+
+    def is_transformed(self) -> bool:
+        return self._transformed
 
     def select(
         self,
