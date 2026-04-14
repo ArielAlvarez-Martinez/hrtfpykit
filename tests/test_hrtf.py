@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from hrtfpykit.hrtf.hrtf import HRTF
+from hrtfpykit.sofa.sofa import SOFA
 
 
 SOFA_PATH = "hrtfs/P0001_FreeFieldComp_44kHz.sofa"
@@ -156,3 +157,74 @@ def test_save_runs_after_update_sofa(tmp_path) -> None:
 
     assert saved_path == destination
     assert destination.exists()
+
+
+@pytest.mark.parametrize(
+    ("sofa_convention", "expected_data_type", "present_variables", "absent_variables"),
+    [
+        (
+            "same",
+            "FIR",
+            ("Data.IR", "Data.SamplingRate"),
+            ("Data.Real", "Data.Imag", "N"),
+        ),
+        (
+            "SimpleFreeFieldHRIR",
+            "FIR",
+            ("Data.IR", "Data.SamplingRate"),
+            ("Data.Real", "Data.Imag", "N"),
+        ),
+        (
+            "SimpleFreeFieldHRTF",
+            "TF",
+            ("Data.Real", "Data.Imag", "N"),
+            ("Data.IR", "Data.SamplingRate"),
+        ),
+    ],
+)
+def test_save_sofa_convention_with_selected_positions(
+    tmp_path,
+    sofa_convention: str,
+    expected_data_type: str,
+    present_variables: tuple[str, ...],
+    absent_variables: tuple[str, ...],
+) -> None:
+    hrtf = HRTF.load_hrtf(SOFA_PATH)
+    selected_hrtf = hrtf.select(positions=["front", "left", "right"])
+    destination = tmp_path / f"selected_{sofa_convention}.sofa"
+
+    saved_path = selected_hrtf.save(
+        path=destination,
+        overwrite=True,
+        change_sofa_dimensions=True,
+        sofa_convention=sofa_convention,
+    )
+    assert saved_path == destination
+    assert destination.exists()
+
+    saved_sofa = SOFA.load(destination)
+    saved_variables = set(saved_sofa.Variables.get_names())
+
+    resolved_expected_convention = (
+        "SimpleFreeFieldHRIR" if sofa_convention == "same" else sofa_convention
+    )
+    assert (
+        saved_sofa.GlobalAttributes.get("SOFAConventions").value
+        == resolved_expected_convention
+    )
+    assert saved_sofa.GlobalAttributes.get("DataType").value == expected_data_type
+
+    for variable_name in present_variables:
+        assert variable_name in saved_variables
+    for variable_name in absent_variables:
+        assert variable_name not in saved_variables
+
+    source_position = np.asarray(saved_sofa.Variables.get("SourcePosition").value)
+    assert source_position.shape[0] == 3
+
+    if "Data.IR" in present_variables:
+        data_ir = np.asarray(saved_sofa.Variables.get("Data.IR").value)
+        assert data_ir.shape[0] == 3
+    if "Data.Real" in present_variables:
+        data_real = np.asarray(saved_sofa.Variables.get("Data.Real").value)
+        assert data_real.shape[0] == 3
