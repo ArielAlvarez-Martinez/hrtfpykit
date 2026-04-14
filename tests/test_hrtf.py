@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from hrtfpykit import load_hrtf
 from hrtfpykit.hrtf.hrtf import HRTF
 from hrtfpykit.sofa.sofa import SOFA
 
@@ -116,7 +117,7 @@ def test_update_sofa_all_transform_methods(
     transform_fn,
     expect_update_without_resize: bool,
 ) -> None:
-    hrtf = HRTF.load_hrtf(SOFA_PATH)
+    hrtf = load_hrtf(SOFA_PATH)
     transformed_hrtf = transform_fn(hrtf)
 
     assert transformed_hrtf.is_transformed() is True
@@ -134,7 +135,7 @@ def test_update_sofa_all_transform_methods(
 
 
 def test_update_sofa_no_transform_prints_message(capsys) -> None:
-    hrtf = HRTF.load_hrtf(SOFA_PATH)
+    hrtf = load_hrtf(SOFA_PATH)
     assert hrtf.is_transformed() is False
 
     hrtf.update_sofa()
@@ -145,7 +146,7 @@ def test_update_sofa_no_transform_prints_message(capsys) -> None:
 
 
 def test_save_runs_after_update_sofa(tmp_path) -> None:
-    hrtf = HRTF.load_hrtf(SOFA_PATH)
+    hrtf = load_hrtf(SOFA_PATH)
     transformed_hrtf = hrtf.transform.apply_window("hann")
     destination = tmp_path / "hrtf_saved.sofa"
 
@@ -189,7 +190,7 @@ def test_save_sofa_convention_with_selected_positions(
     present_variables: tuple[str, ...],
     absent_variables: tuple[str, ...],
 ) -> None:
-    hrtf = HRTF.load_hrtf(SOFA_PATH)
+    hrtf = load_hrtf(SOFA_PATH)
     selected_hrtf = hrtf.select(positions=["front", "left", "right"])
     destination = tmp_path / f"selected_{sofa_convention}.sofa"
 
