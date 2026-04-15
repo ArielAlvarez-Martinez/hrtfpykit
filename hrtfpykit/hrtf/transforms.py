@@ -853,16 +853,18 @@ class Transform:
 
     def add_itd(
         self,
-        itd: float,
-        unit: str = "seconds",
+        itd: float | np.ndarray | list[float],
+        unit: str = "samples",
     ) -> "HRTF":
         """Add a fixed ITD to the current IR values and resync TF.
 
         Parameters
         ----------
-        itd : float
-            ITD value to apply. Positive values delay the left ear and
-            negative values delay the right ear.
+        itd : float | np.ndarray | list[float]
+            ITD value(s) to apply. Positive values delay the left ear and
+            negative values delay the right ear. A scalar applies to all
+            positions. An array-like input is applied per position and must be
+            broadcastable to ``IR.values.shape[:-2]``.
         unit : {"seconds", "samples"}, default="seconds"
             Unit used by ``itd``.
 
@@ -898,20 +900,32 @@ class Transform:
         if unit_key not in {"seconds", "samples"}:
             raise ValueError("unit must be one of: seconds, samples")
 
-        if isinstance(itd, bool):
-            raise ValueError("itd must be a finite value")
-        itd_value = float(itd)
-        if not np.isfinite(itd_value):
-            raise ValueError("itd must be a finite value")
+        ir_values = np.asarray(ir.values, dtype=float)
+        leading_shape = ir_values.shape[:-2]
+        try:
+            itd_values = np.asarray(itd, dtype=float)
+        except (TypeError, ValueError):
+            raise ValueError("itd must be a finite value or array of finite values") from None
+        if itd_values.size == 0:
+            raise ValueError("itd must be non-empty")
+        if not np.all(np.isfinite(itd_values)):
+            raise ValueError("itd must be finite")
+        try:
+            itd_values = np.broadcast_to(itd_values, leading_shape)
+        except ValueError:
+            raise ValueError(
+                "itd shape must be broadcastable to IR leading shape "
+                f"{leading_shape}, got {itd_values.shape}"
+            ) from None
 
         if unit_key == "seconds":
             if ir.sample_rate is None:
                 raise ValueError("IR sample_rate is required when unit='seconds'")
-            itd_samples = int(np.round(itd_value * float(ir.sample_rate)))
+            itd_samples = np.rint(itd_values * float(ir.sample_rate)).astype(int)
         else:
-            itd_samples = int(np.round(itd_value))
+            itd_samples = np.rint(itd_values).astype(int)
 
-        if itd_samples == 0:
+        if np.all(itd_samples == 0):
             tf_from_ir(
                 ir,
                 fft_length=transformed_hrtf.fft_length,
@@ -919,24 +933,29 @@ class Transform:
             transformed_hrtf._transformed = True
             return transformed_hrtf
 
-        ir_values = np.asarray(ir.values, dtype=float)
         sample_count = ir_values.shape[-1]
-        delay = abs(itd_samples)
-        if delay >= sample_count:
-            raise ValueError("Absolute ITD in samples must be smaller than IR length")
+        channel_count = ir_values.shape[-2]
+        flattened = ir_values.reshape(-1, channel_count, sample_count)
+        flattened_itd = np.asarray(itd_samples, dtype=int).reshape(-1)
 
-        if itd_samples > 0:
-            left = np.array(ir_values[..., 0, :], copy=True)
-            delayed_left = np.zeros_like(left)
-            delayed_left[..., delay:] = left[..., :-delay]
-            ir_values[..., 0, :] = delayed_left
-        else:
-            right = np.array(ir_values[..., 1, :], copy=True)
-            delayed_right = np.zeros_like(right)
-            delayed_right[..., delay:] = right[..., :-delay]
-            ir_values[..., 1, :] = delayed_right
+        for index in range(flattened.shape[0]):
+            delay = int(abs(flattened_itd[index]))
+            if delay == 0:
+                continue
+            if delay >= sample_count:
+                raise ValueError("Absolute ITD in samples must be smaller than IR length")
+            if flattened_itd[index] > 0:
+                left = np.array(flattened[index, 0, :], copy=True)
+                delayed_left = np.zeros_like(left)
+                delayed_left[delay:] = left[:-delay]
+                flattened[index, 0, :] = delayed_left
+            else:
+                right = np.array(flattened[index, 1, :], copy=True)
+                delayed_right = np.zeros_like(right)
+                delayed_right[delay:] = right[:-delay]
+                flattened[index, 1, :] = delayed_right
 
-        ir.values = ir_values
+        ir.values = flattened.reshape(*leading_shape, channel_count, sample_count)
         tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,

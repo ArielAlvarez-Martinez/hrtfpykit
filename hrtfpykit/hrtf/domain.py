@@ -39,7 +39,7 @@ class IR:
     def get_itd(
         self,
         method: str = "threshold",
-        output: str = "seconds",
+        output: str = "samples",
         thresh_level: float = -10.0,
         upper_cut_freq: float = 3000.0,
         filter_order: int = 10,
