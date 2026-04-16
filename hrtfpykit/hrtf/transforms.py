@@ -847,7 +847,7 @@ class Transform:
     def add_itd(
         self,
         itd: float,
-        unit: str = "seconds",
+        unit: str = "samples",
     ) -> "HRTF":
         """Add a fixed ITD to the current IR values and resync TF.
 
