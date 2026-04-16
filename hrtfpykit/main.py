@@ -13,13 +13,30 @@ def load_hrtf(
     parallel: bool = False,
     check_sofa_against_conventions: bool = True,
     fft_length: int | None = None,
+    mesh2hrtf_compatible: bool = False,
+    mesh2hrtf_n_shift: int | None = 30,
 ) -> HRTF:
     """Load a SOFA file as an :class:`HRTF` object.
 
-    The loader supports both ``SimpleFreeFieldHRIR`` and
-    ``SimpleFreeFieldHRTF`` conventions, validates required variables, and
-    populates synchronized time and frequency representations in the returned
-    object.
+    This is the main entrypoint of ``hrtfpykit``. It loads SOFA content into
+    the central ``HRTF`` abstraction and guarantees that both domains are
+    available after loading:
+
+    - ``IR`` (time domain)
+    - ``TF`` (frequency domain)
+
+    Supported conventions:
+
+    - ``SimpleFreeFieldHRIR``: loaded from ``Data.IR`` and converted to TF.
+    - ``SimpleFreeFieldHRTF``: loaded from ``Data.Real``/``Data.Imag``/``N``
+      and converted to IR.
+
+    For ``SimpleFreeFieldHRTF``, reconstruction uses positive frequency bins,
+    because HRTF impulses response always will be real values, so ,the negative 
+    frequency bins will have redundant information.The expected format is 
+    uniformly spaced, non-negative, increasing bins.DC (0 Hz) should be present. 
+    If DC is missing and bins start at one-bin step (``Δf``), ``hrtfpykit`` prepends 
+    DC with value ``1+0j`` (0 dB attenuation at DC) to keep reconstruction consistent.
 
     Parameters
     ----------
@@ -33,6 +50,13 @@ def load_hrtf(
         Whether to run convention checks when reading the SOFA file.
     fft_length : int | None, default=None
         Optional FFT length used when deriving TF from HRIR content.
+    mesh2hrtf_compatible : bool, default=False
+        If ``True``, use Mesh2HRTF-style TF->IR reconstruction when loading
+        ``SimpleFreeFieldHRTF`` files (Nyquist magnitude-only, conjugated
+        spectrum, optional circular shift).
+    mesh2hrtf_n_shift : int | None, default=30
+        Optional circular shift in samples applied after TF->IR
+        reconstruction when ``mesh2hrtf_compatible=True``.
 
     Returns
     -------
@@ -44,7 +68,9 @@ def load_hrtf(
     ---------
     - Load HRIR-based SOFA files and work in both domains.
     - Load HRTF-based SOFA files while preserving original frequency bins.
-    - Standardize project entrypoint as ``from hrtfpykit import load_hrtf``.
+    - Standardize the front-door entrypoint as ``from hrtfpykit import load_hrtf``.
+    - Enable Mesh2HRTF-compatible reconstruction when required by the source
+      convention pipeline.
 
     Examples
     --------
@@ -57,11 +83,20 @@ def load_hrtf(
     >>> hrtf_tf.SOFAConventions
     'SimpleFreeFieldHRTF'
 
+    Load a Mesh2HRTF export using compatible reconstruction rules:
+
+    >>> hrtf_m2h = load_hrtf(
+    ...     "hrtfs/HRTF_ARI_44100.sofa",
+    ...     mesh2hrtf_compatible=True,
+    ... )
+
     Best Practices
     --------------
     - Keep ``check_sofa_against_conventions=True`` in production pipelines.
     - Use ``fft_length`` only when a fixed transform size is explicitly needed.
     - Fail fast on malformed SOFA variables instead of bypassing validation.
+    - Keep one-sided ``N`` vectors in ``SimpleFreeFieldHRTF`` files.
+    - Include DC explicitly in exported ``SimpleFreeFieldHRTF`` data whenever possible.
     """
     Sofa = SOFA.load(
         path,
@@ -161,6 +196,8 @@ def load_hrtf(
     ir, sample_rate, fft_length_used = ir_from_tf(
         tf,
         frequency_bins=frequency_bins,
+        mesh2hrtf_compatible=mesh2hrtf_compatible,
+        n_shift=mesh2hrtf_n_shift,
     )
     if fft_length is not None and fft_length != fft_length_used:
         raise ValueError("FFT length does not match the provided frequency bins.")

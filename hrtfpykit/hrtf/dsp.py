@@ -1671,15 +1671,15 @@ def ir_from_tf(
     tf: np.ndarray | "TF",
     frequency_bins: np.ndarray | None = None,
     sample_rate: float | None = None,
-    spectrum_type: str | None = None,
-) -> tuple[np.ndarray, float] | "IR":
+    mesh2hrtf_compatible: bool = False,
+    n_shift: int | None = None,
+) -> tuple[np.ndarray, float, int] | "IR":
     """Compute IR values from TF values using inverse FFT routines.
 
     This function is the inverse calculation step from the frequency domain to
     the time domain. For raw NumPy input it behaves like a pure DSP utility:
-    it uses the provided or inferred frequency bins to determine whether the
-    spectrum is one-sided or complete, reconstructs the IR with the
-    appropriate inverse FFT, and returns the IR values together with the
+    it uses the provided or inferred one-sided frequency bins to reconstruct
+    the IR with inverse real FFT and returns the IR values together with the
     resolved sample rate and FFT length.
 
     When ``tf`` is a ``TF`` object, the function also acts as the main
@@ -1700,11 +1700,15 @@ def ir_from_tf(
         ``TF`` object and ``frequency_bins`` is ``None``, ``tf.frequency_bins``
         is used.
     sample_rate : float | None, default=None
-        Sample rate used when frequency bins must be inferred for NumPy TF
-        input.
-    spectrum_type : str | None, default=None
-        Required when inferring bins. Supported values are ``"positive"``
-        for one-sided spectra and ``"complete"`` for full complex spectra.
+        Sample rate used when one-sided frequency bins must be inferred for
+        NumPy TF input.
+    mesh2hrtf_compatible : bool, default=False
+        If ``True``, apply Mesh2HRTF-style reconstruction conventions:
+        force Nyquist to real magnitude, conjugate the one-sided spectrum
+        before ``irfft``, and optionally circularly shift the resulting HRIR.
+    n_shift : int | None, default=None
+        Optional circular shift applied after reconstruction when
+        ``mesh2hrtf_compatible=True``.
 
     Returns
     -------
@@ -1716,16 +1720,23 @@ def ir_from_tf(
     Use Cases
     ---------
     - Rebuild HRIR data after magnitude-only or phase-only TF edits.
-    - Convert one-sided or complete TF arrays back into the time domain.
+    - Convert one-sided TF arrays back into the time domain.
     - Restore sample-rate and FFT metadata from frequency-bin spacing.
+
+    Design Rules
+    ------------
+    - Only one-sided non-negative frequency bins are supported.
+    - Frequency bins must be 1D, uniformly spaced, and increasing.
+    - If DC is missing and bins start at one-bin step ``Δf``, DC is inserted
+      as ``1+0j`` (0 dB attenuation at 0 Hz).
 
     Examples
     --------
     Edit one measured TF, rebuild the HRIR, and keep the linked metadata synchronized:
 
-    >>> from hrtfpykit import HRTF
+    >>> from hrtfpykit import load_hrtf
     >>> from hrtfpykit.hrtf.dsp import ir_from_tf
-    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+    >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
     >>> edited = hrtf.clone()
     >>> cutoff_bin = edited.TF.values.shape[-1] // 2
     >>> edited.TF.values[..., cutoff_bin:] *= 0.5
@@ -1778,29 +1789,11 @@ def ir_from_tf(
                 raise ValueError("sample_rate must be a finite, positive value.") from None
             if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
                 raise ValueError("sample_rate must be a finite, positive value.")
-            if spectrum_type is None:
-                raise ValueError(
-                    "spectrum_type is required when frequency_bins is not provided for NumPy TF."
-                )
-            spectrum_key = str(spectrum_type).strip().lower()
-            if spectrum_key == "positive":
-                inferred_fft_length = 2 * (tf_used.shape[-1] - 1)
-                frequency_bins_array = np.fft.rfftfreq(
-                    inferred_fft_length,
-                    d=1.0 / resolved_sample_rate,
-                )
-            elif spectrum_key == "complete":
-                inferred_fft_length = tf_used.shape[-1]
-                frequency_bins_array = np.fft.fftshift(
-                    np.fft.fftfreq(
-                        inferred_fft_length,
-                        d=1.0 / resolved_sample_rate,
-                    )
-                )
-            else:
-                raise ValueError(
-                    "spectrum_type must be 'positive' or 'complete' when inferring frequency_bins."
-                )
+            inferred_fft_length = 2 * (tf_used.shape[-1] - 1)
+            frequency_bins_array = np.fft.rfftfreq(
+                inferred_fft_length,
+                d=1.0 / resolved_sample_rate,
+            )
     else:
         frequency_bins_array = np.asarray(frequency_bins, dtype=float)
 
@@ -1816,18 +1809,40 @@ def ir_from_tf(
     step = float(diffs[0])
     if step <= 0.0 or not np.allclose(diffs, step, rtol=1e-5, atol=1e-8):
         raise ValueError("frequency_bins must be uniformly spaced and increasing")
-
     if float(np.min(frequency_bins_array)) < 0.0:
-        expected_n_fft = frequency_bins_array.size
-        fft_length_used = expected_n_fft
-        ir_values = np.fft.ifft(tf_used, n=fft_length_used, axis=-1)
-        ir_values = np.real_if_close(ir_values, tol=1000)
-    else:
-        if not np.isclose(frequency_bins_array[0], 0.0):
-            raise ValueError("frequency_bins must start at 0 Hz for one-sided spectra")
-        expected_n_fft = 2 * (frequency_bins_array.size - 1)
-        fft_length_used = expected_n_fft
-        ir_values = np.fft.irfft(tf_used, n=fft_length_used, axis=-1)
+        raise ValueError("Only one-sided non-negative frequency_bins are supported")
+
+    if not np.isclose(frequency_bins_array[0], 0.0):
+        # Compatibility path for one-sided TFs that omit DC (e.g., bins start at Δf).
+        if np.isclose(frequency_bins_array[0], step, rtol=1e-5, atol=1e-8):
+            frequency_bins_array = np.concatenate(
+                [np.array([0.0], dtype=float), frequency_bins_array]
+            )
+            tf_used = np.concatenate(
+                [
+                    np.ones((*tf_used.shape[:-1], 1), dtype=tf_used.dtype),
+                    tf_used,
+                ],
+                axis=-1,
+            )
+        else:
+            raise ValueError(
+                "One-sided frequency_bins must start at 0 Hz or at one-bin step (missing DC case)"
+            )
+
+    expected_n_fft = 2 * (frequency_bins_array.size - 1)
+    fft_length_used = expected_n_fft
+    tf_for_irfft = np.asarray(tf_used, dtype=complex)
+    if mesh2hrtf_compatible:
+        tf_for_irfft = np.array(tf_for_irfft, copy=True)
+        tf_for_irfft[..., -1] = np.abs(tf_for_irfft[..., -1])
+        tf_for_irfft = np.conj(tf_for_irfft)
+
+    ir_values = np.fft.irfft(tf_for_irfft, n=fft_length_used, axis=-1)
+    if mesh2hrtf_compatible and n_shift is not None:
+        if isinstance(n_shift, bool) or not isinstance(n_shift, int):
+            raise ValueError("n_shift must be an integer")
+        ir_values = np.roll(ir_values, int(n_shift), axis=-1)
 
     sample_rate = step * expected_n_fft
     if tf_object is not None:

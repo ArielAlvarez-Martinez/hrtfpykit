@@ -558,6 +558,11 @@ def lsd(
     full-grid evaluation, plane-restricted evaluation (horizontal/median),
     single-frequency selection, and multiple reduction modes.
 
+    Design rule
+    -----------
+    When ``frequencies=None``, LSD is computed only in the 20 Hz to 20 kHz
+    band. This excludes DC (0 Hz) by default.
+
     Parameters
     ----------
     hrtf_a : HRTF
@@ -590,7 +595,7 @@ def lsd(
     frequencies : float | list[float] | tuple[float, ...] | np.ndarray | None, default=None
         Optional frequency selector in Hz. Accepts one target frequency or
         multiple targets. Each target is mapped to the nearest available TF
-        bin. ``None`` selects all bins.
+        bin. ``None`` selects bins in the 20 Hz to 20 kHz band.
     reduction : {"none", "locations", "frequencies", "both"}, default="none"
         Aggregation mode applied after dB difference computation:
         - ``"none"``:
@@ -774,7 +779,13 @@ def lsd(
             raise ValueError("No source positions matched the provided positions and plane filters")
 
     if frequencies is None:
-        selected_frequency_indices = np.arange(frequency_bins_a.size, dtype=int)
+        selected_frequency_indices = np.where(
+            (frequency_bins_a >= 20.0) & (frequency_bins_a <= 20000.0)
+        )[0]
+        if selected_frequency_indices.size == 0:
+            raise ValueError(
+                "No frequency bins available in the default LSD range [20.0, 20000.0] Hz"
+            )
     else:
         if isinstance(frequencies, bool):
             raise ValueError("frequencies must be finite value(s)")
