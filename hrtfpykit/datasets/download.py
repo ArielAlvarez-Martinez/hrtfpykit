@@ -1,0 +1,298 @@
+from pathlib import Path
+import gzip
+import hashlib
+import tarfile
+import urllib.error
+import urllib.request
+import zipfile
+from urllib.parse import urlparse
+
+try:
+    from tqdm.auto import tqdm
+except ImportError:
+    tqdm = None
+
+from .specs import HRTFSpec
+
+
+def normalize_download_resources(
+    requested: str | tuple[str, ...] | list[str],
+    available: tuple[str, ...],
+) -> tuple[str, ...]:
+    if isinstance(requested, str):
+        requested_values = (requested,)
+    else:
+        requested_values = tuple(requested)
+    normalized = tuple(
+        str(value).strip().lower() for value in requested_values
+    )
+    if "all" in normalized:
+        return tuple(value for value in available if value != "all")
+    invalid = [value for value in normalized if value not in available]
+    if invalid:
+        raise ValueError(f"Unsupported download_resources: {invalid}")
+    return normalized
+
+
+def normalize_root(root: Path) -> Path:
+    normalized = Path(root).expanduser()
+    if normalized.exists() and not normalized.is_dir():
+        raise ValueError(f"Dataset root must be a directory, got file: {normalized}")
+    return normalized.resolve()
+
+
+def validate_download_root(root: Path) -> Path:
+    validated_root = normalize_root(root)
+    validated_root.mkdir(parents=True, exist_ok=True)
+    return validated_root
+
+
+def validate_download_url(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme.lower() != "https":
+        raise ValueError(f"Only https downloads are allowed, got: {url}")
+    if parsed.netloc.strip() == "":
+        raise ValueError(f"Download URL is missing a host: {url}")
+    return url
+
+
+def resolve_download_path(root: Path, filename: str) -> Path:
+    candidate = Path(filename)
+    if candidate.is_absolute():
+        raise ValueError(f"Download filename must be relative: {filename}")
+    if any(part == ".." for part in candidate.parts):
+        raise ValueError(f"Download filename must not escape root: {filename}")
+    destination = (root / candidate).resolve()
+    try:
+        destination.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"Resolved download path escapes root: {destination}") from exc
+    return destination
+
+
+def compute_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        while True:
+            chunk = file.read(1024 * 1024)
+            if len(chunk) == 0:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def normalize_checksum(checksum: str) -> str:
+    value = str(checksum).strip().lower()
+    if value.startswith("sha256:"):
+        value = value.split(":", 1)[1]
+    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+        raise ValueError("Checksums must be SHA-256 hex digests")
+    return value
+
+
+def verify_checksum(path: Path, checksum: str | None) -> None:
+    if checksum is None:
+        return
+    expected = normalize_checksum(checksum)
+    current = compute_sha256(path)
+    if current != expected:
+        raise ValueError(
+            f"SHA-256 mismatch for {path.name}: expected {expected}, got {current}"
+        )
+
+
+def verify_archive_integrity(path: Path) -> None:
+    suffix = path.suffix.lower()
+    lower_name = path.name.lower()
+    if lower_name.endswith(".zip"):
+        with zipfile.ZipFile(path, "r") as archive:
+            bad_member = archive.testzip()
+            if bad_member is not None:
+                raise ValueError(f"ZIP archive is corrupt: {path.name} member {bad_member}")
+        return
+    if lower_name.endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
+        with tarfile.open(path, "r:*") as archive:
+            archive.getmembers()
+        return
+    if suffix == ".gz":
+        with gzip.open(path, "rb") as archive:
+            while True:
+                chunk = archive.read(1024 * 1024)
+                if len(chunk) == 0:
+                    break
+
+
+def verify_downloaded_file(path: Path, checksum: str | None) -> None:
+    if not path.exists():
+        raise ValueError(f"Downloaded file is missing: {path}")
+    if not path.is_file():
+        raise ValueError(f"Downloaded path is not a file: {path}")
+    if path.stat().st_size <= 0:
+        raise ValueError(f"Downloaded file is empty: {path}")
+    verify_archive_integrity(path)
+    verify_checksum(path, checksum)
+
+
+def normalize_download_hrtf_versions(
+    requested: str,
+    hrtf_spec: HRTFSpec,
+) -> tuple[str, ...]:
+    if hrtf_spec.variants is None or len(hrtf_spec.variants) == 0:
+        raise ValueError("Dataset hrtf spec is missing variants")
+    available_versions = tuple(str(value).strip().lower() for value in hrtf_spec.variants)
+    requested_value = str(requested).strip().lower()
+    if requested_value == "all":
+        return available_versions
+    if requested_value not in available_versions:
+        raise ValueError(
+            f"Unsupported download_hrtf_version {requested!r}. "
+            f"Expected one of {available_versions + ('all',)}"
+        )
+    return (requested_value,)
+
+
+class BaseDownload:
+    dataset_name: str = ""
+    dataset_base_url: str | None = None
+    available_download_resources: tuple[str, ...] = tuple()
+
+    def __init__(
+        self,
+        root: str | Path,
+        excluded_subject_ids: tuple[str, ...] = tuple(),
+    ) -> None:
+        if self.dataset_name == "":
+            raise ValueError("Download class must define dataset_name")
+        self.root = normalize_root(Path(root))
+        self.excluded_subject_ids = tuple(dict.fromkeys(excluded_subject_ids))
+
+    def normalize_download_resources(
+        self,
+        requested: str | tuple[str, ...] | list[str],
+    ) -> tuple[str, ...]:
+        return normalize_download_resources(requested, self.available_download_resources)
+
+    def normalize_download_hrtf_versions(
+        self,
+        requested: str,
+        hrtf_spec: HRTFSpec,
+    ) -> tuple[str, ...]:
+        return normalize_download_hrtf_versions(requested, hrtf_spec)
+
+    def validate_download_root(self) -> Path:
+        self.root = validate_download_root(self.root)
+        return self.root
+
+    def resolve_download_path(self, filename: str) -> Path:
+        return resolve_download_path(self.root, filename)
+
+    def build_download_url(self, filename: str) -> str:
+        if self.dataset_base_url is None:
+            raise ValueError(f"{self.dataset_name} does not define an official download base URL")
+        validated_base_url = validate_download_url(self.dataset_base_url.rstrip("/"))
+        return f"{validated_base_url}/{filename}"
+
+    def get_included_subject_ids(self, subject_ids: tuple[str, ...]) -> tuple[str, ...]:
+        excluded_subject_ids_set = set(self.excluded_subject_ids)
+        return tuple(
+            subject_id for subject_id in subject_ids if subject_id not in excluded_subject_ids_set
+        )
+
+    def download_file(
+        self,
+        url: str,
+        destination: Path,
+        checksum: str | None = None,
+    ) -> None:
+        validated_url = validate_download_url(url)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+
+        if destination.exists():
+            try:
+                verify_downloaded_file(destination, checksum)
+                return
+            except ValueError:
+                destination.unlink()
+
+        temporary_path = destination.with_suffix(destination.suffix + ".part")
+        if temporary_path.exists():
+            temporary_path.unlink()
+        bytes_written = 0
+        progress_bar = None
+        try:
+            with urllib.request.urlopen(validated_url, timeout=60) as response, temporary_path.open("wb") as file:
+                expected_length_header = response.headers.get("Content-Length")
+                expected_length = (
+                    None if expected_length_header is None else int(expected_length_header)
+                )
+                if tqdm is not None:
+                    progress_bar = tqdm(
+                        total=expected_length,
+                        desc=destination.name,
+                        unit="B",
+                        unit_scale=True,
+                        unit_divisor=1024,
+                        leave=False,
+                    )
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if len(chunk) == 0:
+                        break
+                    file.write(chunk)
+                    bytes_written += len(chunk)
+                    if progress_bar is not None:
+                        progress_bar.update(len(chunk))
+            if expected_length is not None and bytes_written != expected_length:
+                raise ValueError(
+                    f"Incomplete download for {destination.name}: expected {expected_length} bytes, got {bytes_written}"
+                )
+            verify_downloaded_file(temporary_path, checksum)
+            temporary_path.replace(destination)
+        except (OSError, urllib.error.HTTPError, urllib.error.URLError, ValueError) as exc:
+            if temporary_path.exists():
+                temporary_path.unlink()
+            raise ValueError(f"Could not securely download {validated_url}") from exc
+        finally:
+            if progress_bar is not None:
+                progress_bar.close()
+
+    def build_download_plan(
+        self,
+        download_resources: str | tuple[str, ...] | list[str] = "all",
+        download_hrtf_version: str = "all",
+    ) -> list[tuple[str, Path, str | None]]:
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement build_download_plan(...)"
+        )
+
+    def download(
+        self,
+        download_resources: str | tuple[str, ...] | list[str] = "all",
+        download_hrtf_version: str = "all",
+    ) -> None:
+        self.validate_download_root()
+        download_jobs = self.build_download_plan(
+            download_resources=download_resources,
+            download_hrtf_version=download_hrtf_version,
+        )
+        if len(download_jobs) == 0:
+            return
+        if tqdm is None:
+            for url, destination, checksum in download_jobs:
+                self.download_file(url, destination, checksum=checksum)
+            return
+        with tqdm(total=len(download_jobs), desc=f"{self.dataset_name} download", unit="file") as progress_bar:
+            for url, destination, checksum in download_jobs:
+                self.download_file(url, destination, checksum=checksum)
+                progress_bar.update(1)
+
+    def get_hrtf_paths(self, variant: str) -> dict[str, Path]:
+        raise NotImplementedError(f"{type(self).__name__} must implement get_hrtf_paths(...)")
+
+    def get_mesh_paths(self) -> dict[str, Path]:
+        raise NotImplementedError(f"{type(self).__name__} must implement get_mesh_paths()")
+
+    def get_anthropometry_path(self) -> Path | None:
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement get_anthropometry_path()"
+        )
