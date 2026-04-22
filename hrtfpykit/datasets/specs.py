@@ -5,106 +5,65 @@ from pathlib import Path
 import numpy as np
 
 
-IndexBy = tuple[str, ...]
-PositionSelection = str | tuple[object, ...] | list[int] | np.ndarray | dict[str, object]
-AlignBy = str | tuple[str, ...]
-
-
 @dataclass(frozen=True)
 class HRTFSpec:
     variant: str | None = None
-    domain: str = "ir"
+    domain: str = "time"
     signal: str = "ir"
-    positions: PositionSelection = "all"
+    positions: str | tuple[int, ...] | list[int] | np.ndarray = "all"
+    plane: str | tuple[object, ...] | dict[str, object] | None = None
     ears: str | tuple[str, ...] = "both"
+    index_by: str | tuple[str, ...] = ("subject",)
     position_encoding: str = "none"
     ear_encoding: str = "none"
     transform: Callable | None = None
     cache: bool = True
-    aligned_by: IndexBy | None = None
-    variants: tuple[str, ...] | None = None
-    default_variant: str | None = None
-    filename_pattern: str | None = None
-    download_pattern: str | None = None
-    download_subject_ids: tuple[str, ...] | None = None
-    download_checksums: dict[str, str] | None = None
-    supported_domains: tuple[str, ...] = ("ir", "tf")
-    supported_signals: tuple[str, ...] = (
-        "ir",
-        "tf_complex",
-        "magnitude",
-        "magnitude_db",
-        "phase",
-        "real",
-        "imag",
-    )
-    ear_labels: tuple[str, ...] = ("left", "right")
-    shared_position_grid: bool = True
+    name: str | None = None
 
 
 @dataclass(frozen=True)
 class MeshSpec:
     transform: Callable | None = None
-    aligned_by: IndexBy | None = None
-    filename_pattern: str | None = None
-    download_pattern: str | None = None
-    download_subject_ids: tuple[str, ...] | None = None
-    download_checksums: dict[str, str] | None = None
-    extensions: tuple[str, ...] = (".ply", ".stl")
+    name: str | None = None
 
 
 @dataclass(frozen=True)
 class AnthropometrySpec:
-    columns: str | tuple[str, ...] | list[str] | None = None
+    select: str | tuple[str, ...] | list[str] | None = "complete"
+    ear: str = "both"
+    path: str | Path | None = None
     transform: Callable | None = None
-    aligned_by: IndexBy | None = None
-    filename: str | None = None
-    download_filename: str | None = None
-    download_checksum: str | None = None
-    subject_column_candidates: tuple[str, ...] = (
-        "subject_id",
-        "subject",
-        "id",
-        "participant",
-        "pp",
-    )
+    name: str | None = None
 
 
 @dataclass(frozen=True)
 class ImageSpec:
     path: str | Path | None = None
-    align_by: AlignBy = ("subject",)
+    align_by: str | tuple[str, ...] = ("subject",)
     image_size: int | tuple[int, int] | None = None
     transform: Callable | None = None
-    supported_align_by: tuple[IndexBy, ...] | None = None
-    extensions: tuple[str, ...] = (
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".bmp",
-        ".tif",
-        ".tiff",
-        ".webp",
-    )
+    supported_align_by: tuple[tuple[str, ...], ...] | None = None
+    name: str | None = None
 
 
 @dataclass(frozen=True)
 class VideoSpec:
     path: str | Path | None = None
-    align_by: AlignBy = ("subject",)
+    align_by: str | tuple[str, ...] = ("subject",)
     transform: Callable | None = None
-    supported_align_by: tuple[IndexBy, ...] | None = None
-    extensions: tuple[str, ...] = (
-        ".mp4",
-        ".avi",
-        ".mov",
-        ".mkv",
-        ".webm",
-    )
+    supported_align_by: tuple[tuple[str, ...], ...] | None = None
+    name: str | None = None
+
 
 def get_spec_name(
     spec: HRTFSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
 ) -> str:
+    explicit_name = getattr(spec, "name", None)
+    if explicit_name is not None:
+        name = str(explicit_name).strip()
+        if name == "":
+            raise ValueError("Dataset spec name must not be empty")
+        return name
     if isinstance(spec, HRTFSpec):
         return "hrtf"
     if isinstance(spec, MeshSpec):
@@ -140,37 +99,37 @@ def normalize_specs(
     for spec in values:
         name = get_spec_name(spec)
         if name in names:
-            raise ValueError(f"Duplicate dataset spec {name!r} is not allowed")
+            raise ValueError(f"Duplicate dataset spec name {name!r} is not allowed")
         names.add(name)
         normalized.append(spec)
     return tuple(normalized)
 
 
-def build_spec_map(
-    specs: Sequence[HRTFSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec],
-) -> dict[str, HRTFSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec]:
-    mapping: dict[str, HRTFSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] = {}
-    for spec in specs:
-        name = get_spec_name(spec)
-        if name in mapping:
-            raise ValueError(f"Duplicate dataset spec {name!r} is not allowed")
-        mapping[name] = spec
-    return mapping
-
-
-def normalize_columns(
-    columns: str | Sequence[str] | None,
-) -> tuple[str, ...] | None:
-    if columns is None:
-        return None
-    if isinstance(columns, str):
-        values = (str(columns).strip(),)
+def normalize_anthropometry_select(
+    select: str | tuple[str, ...] | list[str] | None,
+) -> str | tuple[str, ...]:
+    if select is None:
+        return "complete"
+    if isinstance(select, str):
+        value = str(select).strip()
+        if value == "":
+            raise ValueError("select must not be empty")
+        if value.lower() in {"complete", "all"}:
+            return "complete"
+        values = (value,)
     else:
-        values = tuple(str(value).strip() for value in columns)
+        values = tuple(str(value).strip() for value in select)
     if len(values) == 0:
-        raise ValueError("columns must not be empty")
+        raise ValueError("select must not be empty")
     if any(value == "" for value in values):
-        raise ValueError("columns must not contain empty names")
+        raise ValueError("select must not contain empty names")
     if len(set(values)) != len(values):
-        raise ValueError("columns must not contain duplicates")
+        raise ValueError("select must not contain duplicates")
     return values
+
+
+def normalize_anthropometry_ear(ear: str) -> str:
+    value = str(ear).strip().lower()
+    if value not in {"left", "right", "both"}:
+        raise ValueError("ear must be 'left', 'right', or 'both'")
+    return value

@@ -115,42 +115,42 @@ def build_rows(
     include_ear = "ear" in index_by
     for subject_id in subject_ids:
         if include_position and include_ear:
-            for position_offset, position_index in enumerate(position_indices):
-                for ear_offset, (ear_name, ear_index) in enumerate(ears):
+            for selected_position_index, position_index in enumerate(position_indices):
+                for selected_ear_index, (ear_name, ear_index) in enumerate(ears):
                     rows.append(
                         {
                             "subject_id": subject_id,
                             "position_index": int(position_index),
-                            "position_offset": int(position_offset),
+                            "selected_position_index": int(selected_position_index),
                             "ear": ear_name,
                             "ear_index": int(ear_index),
-                            "ear_offset": int(ear_offset),
+                            "selected_ear_index": int(selected_ear_index),
                         }
                     )
             continue
         if include_position:
-            for position_offset, position_index in enumerate(position_indices):
+            for selected_position_index, position_index in enumerate(position_indices):
                 rows.append(
                     {
                         "subject_id": subject_id,
                         "position_index": int(position_index),
-                        "position_offset": int(position_offset),
+                        "selected_position_index": int(selected_position_index),
                         "ear": None,
                         "ear_index": None,
-                        "ear_offset": None,
+                        "selected_ear_index": None,
                     }
                 )
             continue
         if include_ear:
-            for ear_offset, (ear_name, ear_index) in enumerate(ears):
+            for selected_ear_index, (ear_name, ear_index) in enumerate(ears):
                 rows.append(
                     {
                         "subject_id": subject_id,
                         "position_index": None,
-                        "position_offset": None,
+                        "selected_position_index": None,
                         "ear": ear_name,
                         "ear_index": int(ear_index),
-                        "ear_offset": int(ear_offset),
+                        "selected_ear_index": int(selected_ear_index),
                     }
                 )
             continue
@@ -158,10 +158,10 @@ def build_rows(
             {
                 "subject_id": subject_id,
                 "position_index": None,
-                "position_offset": None,
+                "selected_position_index": None,
                 "ear": None,
                 "ear_index": None,
-                "ear_offset": None,
+                "selected_ear_index": None,
             }
         )
     return rows

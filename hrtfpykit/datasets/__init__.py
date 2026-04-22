@@ -1,6 +1,6 @@
 from .base import BaseDataset
 from .download import BaseDownload
-from .hutubs import HUTUBS, HUTUBSDownload
+from .hutubs import HUTUBS
 from .specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -8,6 +8,7 @@ from .specs import (
     MeshSpec,
     VideoSpec,
 )
+from .transforms import HRTFTransform
 
 __all__ = [
     "BaseDataset",
@@ -17,6 +18,6 @@ __all__ = [
     "AnthropometrySpec",
     "ImageSpec",
     "VideoSpec",
-    "HUTUBSDownload",
+    "HRTFTransform",
     "HUTUBS",
 ]

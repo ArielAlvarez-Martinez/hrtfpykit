@@ -7,13 +7,12 @@ import urllib.request
 import zipfile
 from urllib.parse import urlparse
 
+from .config import DatasetConfig
+
 try:
     from tqdm.auto import tqdm
 except ImportError:
     tqdm = None
-
-from .specs import HRTFSpec
-
 
 def normalize_download_resources(
     requested: str | tuple[str, ...] | list[str],
@@ -135,11 +134,11 @@ def verify_downloaded_file(path: Path, checksum: str | None) -> None:
 
 def normalize_download_hrtf_versions(
     requested: str,
-    hrtf_spec: HRTFSpec,
+    dataset_variants: tuple[str, ...] | None,
 ) -> tuple[str, ...]:
-    if hrtf_spec.variants is None or len(hrtf_spec.variants) == 0:
-        raise ValueError("Dataset hrtf spec is missing variants")
-    available_versions = tuple(str(value).strip().lower() for value in hrtf_spec.variants)
+    if dataset_variants is None or len(dataset_variants) == 0:
+        raise ValueError("Dataset variants are missing")
+    available_versions = tuple(str(value).strip().lower() for value in dataset_variants)
     requested_value = str(requested).strip().lower()
     if requested_value == "all":
         return available_versions
@@ -152,17 +151,13 @@ def normalize_download_hrtf_versions(
 
 
 class BaseDownload:
-    dataset_name: str = ""
-    dataset_base_url: str | None = None
-    available_download_resources: tuple[str, ...] = tuple()
-
     def __init__(
         self,
+        config: DatasetConfig,
         root: str | Path,
         excluded_subject_ids: tuple[str, ...] = tuple(),
     ) -> None:
-        if self.dataset_name == "":
-            raise ValueError("Download class must define dataset_name")
+        self.config = config
         self.root = normalize_root(Path(root))
         self.excluded_subject_ids = tuple(dict.fromkeys(excluded_subject_ids))
 
@@ -170,14 +165,21 @@ class BaseDownload:
         self,
         requested: str | tuple[str, ...] | list[str],
     ) -> tuple[str, ...]:
-        return normalize_download_resources(requested, self.available_download_resources)
+        if self.config.download is None:
+            raise ValueError(f"{self.config.name} does not define downloadable resources")
+        return normalize_download_resources(
+            requested,
+            tuple(self.config.download.available_resources),
+        )
 
     def normalize_download_hrtf_versions(
         self,
         requested: str,
-        hrtf_spec: HRTFSpec,
     ) -> tuple[str, ...]:
-        return normalize_download_hrtf_versions(requested, hrtf_spec)
+        dataset_variants = (
+            None if self.config.hrtf is None else tuple(self.config.hrtf.variants)
+        )
+        return normalize_download_hrtf_versions(requested, dataset_variants)
 
     def validate_download_root(self) -> Path:
         self.root = validate_download_root(self.root)
@@ -187,9 +189,9 @@ class BaseDownload:
         return resolve_download_path(self.root, filename)
 
     def build_download_url(self, filename: str) -> str:
-        if self.dataset_base_url is None:
-            raise ValueError(f"{self.dataset_name} does not define an official download base URL")
-        validated_base_url = validate_download_url(self.dataset_base_url.rstrip("/"))
+        if self.config.download is None:
+            raise ValueError(f"{self.config.name} does not define an official download base URL")
+        validated_base_url = validate_download_url(self.config.download.base_url.rstrip("/"))
         return f"{validated_base_url}/{filename}"
 
     def get_included_subject_ids(self, subject_ids: tuple[str, ...]) -> tuple[str, ...]:
@@ -261,9 +263,81 @@ class BaseDownload:
         download_resources: str | tuple[str, ...] | list[str] = "all",
         download_hrtf_version: str = "all",
     ) -> list[tuple[str, Path, str | None]]:
-        raise NotImplementedError(
-            f"{type(self).__name__} must implement build_download_plan(...)"
-        )
+        resources = self.normalize_download_resources(download_resources)
+        download_jobs: list[tuple[str, Path, str | None]] = []
+
+        if "hrtf" in resources:
+            if self.config.hrtf is None:
+                raise ValueError(f"{self.config.name} does not provide official hrtf files")
+            hrtf_subject_ids = (
+                tuple(self.config.subject_ids)
+                if self.config.hrtf.subject_ids is None
+                else tuple(self.config.hrtf.subject_ids)
+            )
+            subject_ids = self.get_included_subject_ids(
+                hrtf_subject_ids
+            )
+            for version in self.normalize_download_hrtf_versions(download_hrtf_version):
+                for subject_id in subject_ids:
+                    relative_path = self.config.hrtf.path_pattern.format(
+                        subject_id=subject_id,
+                        variant=version,
+                    )
+                    destination = self.resolve_download_path(relative_path)
+                    checksum = (
+                        None
+                        if self.config.hrtf.checksums is None
+                        else self.config.hrtf.checksums.get(relative_path)
+                    )
+                    download_jobs.append(
+                        (self.build_download_url(relative_path), destination, checksum)
+                    )
+
+        if "mesh" in resources:
+            if self.config.mesh is None:
+                raise ValueError(f"{self.config.name} does not provide official mesh data")
+            mesh_extension = self.config.mesh.official_extension
+            if mesh_extension is None:
+                if len(self.config.mesh.extensions) == 0:
+                    raise ValueError(f"{self.config.name} mesh extensions are missing")
+                mesh_extension = self.config.mesh.extensions[0]
+            mesh_subject_ids = (
+                tuple(self.config.subject_ids)
+                if self.config.mesh.subject_ids is None
+                else tuple(self.config.mesh.subject_ids)
+            )
+            subject_ids = self.get_included_subject_ids(
+                mesh_subject_ids
+            )
+            for subject_id in subject_ids:
+                relative_path = self.config.mesh.path_pattern.format(
+                    subject_id=subject_id,
+                    extension=mesh_extension,
+                )
+                destination = self.resolve_download_path(relative_path)
+                checksum = (
+                    None
+                    if self.config.mesh.checksums is None
+                    else self.config.mesh.checksums.get(relative_path)
+                )
+                download_jobs.append(
+                    (self.build_download_url(relative_path), destination, checksum)
+                )
+
+        if "anthropometry" in resources:
+            if self.config.anthropometry is None:
+                raise ValueError(f"{self.config.name} does not provide official anthropometry")
+            relative_path = self.config.anthropometry.path
+            destination = self.resolve_download_path(relative_path)
+            download_jobs.append(
+                (
+                    self.build_download_url(relative_path),
+                    destination,
+                    self.config.anthropometry.checksum,
+                )
+            )
+
+        return download_jobs
 
     def download(
         self,
@@ -281,18 +355,7 @@ class BaseDownload:
             for url, destination, checksum in download_jobs:
                 self.download_file(url, destination, checksum=checksum)
             return
-        with tqdm(total=len(download_jobs), desc=f"{self.dataset_name} download", unit="file") as progress_bar:
+        with tqdm(total=len(download_jobs), desc=f"{self.config.name} download", unit="file") as progress_bar:
             for url, destination, checksum in download_jobs:
                 self.download_file(url, destination, checksum=checksum)
                 progress_bar.update(1)
-
-    def get_hrtf_paths(self, variant: str) -> dict[str, Path]:
-        raise NotImplementedError(f"{type(self).__name__} must implement get_hrtf_paths(...)")
-
-    def get_mesh_paths(self) -> dict[str, Path]:
-        raise NotImplementedError(f"{type(self).__name__} must implement get_mesh_paths()")
-
-    def get_anthropometry_path(self) -> Path | None:
-        raise NotImplementedError(
-            f"{type(self).__name__} must implement get_anthropometry_path()"
-        )
