@@ -943,19 +943,39 @@ class BaseDataset:
                     stacklevel=2,
                 )
         self._video_index: dict[tuple[str, int | None, str | None], list[str]] = {}
+        self._video_counts: dict[str, int] = {}
         if self._video_path is not None and video_supported_align_by is not None and self._video_align_by is not None:
-            self._video_index = scan_video_paths(
+            self._video_index, self._video_counts, missing_video_subject_ids = scan_video_paths(
                 self._video_path,
-                tuple(self.config.subject_ids),
+                included_subject_ids,
+                subject_numbers,
                 tuple(self.config.video.extensions),
                 self._video_align_by,
             )
+        else:
+            missing_video_subject_ids = tuple()
         if primary_video_spec is not None:
             self.resource_summary["video"] = {
                 "path": None if self._video_path is None else str(self._video_path),
                 "found": len({key[0] for key in self._video_index}),
                 "subjects": len({key[0] for key in self._video_index}),
+                "missing": len(missing_video_subject_ids),
+                "missing_subject_ids": tuple(missing_video_subject_ids),
             }
+            if len(missing_video_subject_ids) > 0:
+                raise ValueError(
+                    f"{self.name} video path is incompatible with the selected dataset subjects. "
+                    f"Missing subject folders under {self._video_path}: "
+                    f"{self.preview_values(tuple(missing_video_subject_ids))}"
+                )
+            distinct_video_counts = set(self._video_counts.values())
+            if len(distinct_video_counts) > 1:
+                warnings.warn(
+                    f"{self.name}: subjects do not all have the same number of videos under {self._video_path} "
+                    f"({', '.join(f'{subject_id}={count}' for subject_id, count in sorted(self._video_counts.items())[:5])}"
+                    f"{'' if len(self._video_counts) <= 5 else ', ...'})",
+                    stacklevel=2,
+                )
 
         required_subject_sets: list[set[str]] = []
         if primary_hrtf_spec is not None:
