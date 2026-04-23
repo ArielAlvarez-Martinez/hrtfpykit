@@ -5,6 +5,8 @@ from .specs import (
     AnthropometrySpec,
     HRTFSpec,
     ImageSpec,
+    ILDSpec,
+    ITDSpec,
     MeshSpec,
     VideoSpec,
 )
@@ -14,6 +16,8 @@ __all__ = [
     "BaseDataset",
     "BaseDownload",
     "HRTFSpec",
+    "ITDSpec",
+    "ILDSpec",
     "MeshSpec",
     "AnthropometrySpec",
     "ImageSpec",

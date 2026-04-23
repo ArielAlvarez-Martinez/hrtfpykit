@@ -16,6 +16,15 @@ except ImportError:
 
 class BaseDownload:
     @staticmethod
+    def preview_values(values: list[str] | tuple[str, ...], limit: int = 5) -> str:
+        if len(values) == 0:
+            return "none"
+        preview = ", ".join(str(value) for value in values[:limit])
+        if len(values) > limit:
+            preview = f"{preview}, ..."
+        return preview
+
+    @staticmethod
     def normalize_root(root: Path) -> Path:
         normalized = Path(root).expanduser()
         if normalized.exists() and not normalized.is_dir():
@@ -175,14 +184,14 @@ class BaseDownload:
         url: str,
         destination: Path,
         checksum: str | None = None,
-    ) -> None:
+    ) -> str:
         validated_url = self.validate_download_url(url)
         destination.parent.mkdir(parents=True, exist_ok=True)
 
         if destination.exists():
             try:
                 self.verify_downloaded_file(destination, checksum)
-                return
+                return "verified"
             except ValueError:
                 destination.unlink()
 
@@ -220,6 +229,7 @@ class BaseDownload:
                 )
             self.verify_downloaded_file(temporary_path, checksum)
             temporary_path.replace(destination)
+            return "downloaded"
         except (OSError, urllib.error.HTTPError, urllib.error.URLError, ValueError) as exc:
             if temporary_path.exists():
                 temporary_path.unlink()
@@ -232,9 +242,9 @@ class BaseDownload:
         self,
         download_resources: str | tuple[str, ...] | list[str] = "all",
         download_hrtf_variant: str = "all",
-    ) -> list[tuple[str, Path, str | None]]:
+    ) -> list[dict[str, object]]:
         resources = self.normalize_download_resources(download_resources)
-        download_jobs: list[tuple[str, Path, str | None]] = []
+        download_jobs: list[dict[str, object]] = []
 
         if "hrtf" in resources:
             if self.config.hrtf is None:
@@ -260,7 +270,15 @@ class BaseDownload:
                         variant=variant,
                     )
                     download_jobs.append(
-                        (self.build_download_url(relative_path), destination, checksum)
+                        {
+                            "resource": "hrtf",
+                            "subject_id": subject_id,
+                            "variant": variant,
+                            "relative_path": relative_path,
+                            "url": self.build_download_url(relative_path),
+                            "destination": destination,
+                            "checksum": checksum,
+                        }
                     )
 
         if "mesh" in resources:
@@ -289,7 +307,14 @@ class BaseDownload:
                 if checksum is None and self.has_checksum_map("mesh"):
                     continue
                 download_jobs.append(
-                    (self.build_download_url(relative_path), destination, checksum)
+                    {
+                        "resource": "mesh",
+                        "subject_id": subject_id,
+                        "relative_path": relative_path,
+                        "url": self.build_download_url(relative_path),
+                        "destination": destination,
+                        "checksum": checksum,
+                    }
                 )
 
         if "anthropometry" in resources:
@@ -298,14 +323,61 @@ class BaseDownload:
             relative_path = self.config.anthropometry.path
             destination = self.resolve_download_path(relative_path)
             download_jobs.append(
-                (
-                    self.build_download_url(relative_path),
-                    destination,
-                    self.get_checksum("anthropometry", relative_path),
-                )
+                {
+                    "resource": "anthropometry",
+                    "subject_id": None,
+                    "relative_path": relative_path,
+                    "url": self.build_download_url(relative_path),
+                    "destination": destination,
+                    "checksum": self.get_checksum("anthropometry", relative_path),
+                }
             )
 
         return download_jobs
+
+    def format_download_summary(
+        self,
+        download_jobs: list[dict[str, object]],
+        downloaded_count: int,
+        verified_count: int,
+        failures: list[str],
+    ) -> str:
+        resources: dict[str, int] = {}
+        subject_ids: set[str] = set()
+        variants: set[str] = set()
+        for job in download_jobs:
+            resource = str(job["resource"])
+            resources[resource] = resources.get(resource, 0) + 1
+            subject_id = job.get("subject_id")
+            if subject_id is not None:
+                subject_ids.add(str(subject_id))
+            variant = job.get("variant")
+            if variant is not None:
+                variants.add(str(variant))
+        lines = [
+            f"{self.config.name} download summary",
+            f"  root: {self.root}",
+            f"  planned_files: {len(download_jobs)}",
+            f"  downloaded_files: {downloaded_count}",
+            f"  verified_existing_files: {verified_count}",
+            f"  failed_files: {len(failures)}",
+            f"  subjects: {len(subject_ids)}",
+        ]
+        if len(variants) > 0:
+            lines.append(f"  variants: {', '.join(sorted(variants))}")
+        if len(resources) > 0:
+            lines.append(
+                "  resources: "
+                + ", ".join(f"{resource}={count}" for resource, count in sorted(resources.items()))
+            )
+        if len(failures) == 0:
+            lines.append(f"  status: {self.config.name} dataset downloaded successfully")
+        else:
+            lines.append(
+                "  failure_examples: " + self.preview_values(failures)
+            )
+            lines.append(f"  status: {self.config.name} dataset download finished with errors")
+        return "\n".join(lines)
 
     def download(
         self,
@@ -318,15 +390,67 @@ class BaseDownload:
             download_hrtf_variant=download_hrtf_variant,
         )
         if len(download_jobs) == 0:
+            print(
+                f"{self.config.name} download summary\n"
+                f"  root: {self.root}\n"
+                "  planned_files: 0\n"
+                "  status: nothing to download"
+            )
             return
+        downloaded_count = 0
+        verified_count = 0
+        failures: list[str] = []
         if tqdm is None:
-            for url, destination, checksum in download_jobs:
-                self.download_file(url, destination, checksum=checksum)
+            for job in download_jobs:
+                try:
+                    status = self.download_file(
+                        str(job["url"]),
+                        Path(job["destination"]),
+                        checksum=job["checksum"],
+                    )
+                except ValueError as exc:
+                    failures.append(f"{job['relative_path']}: {exc}")
+                    continue
+                if status == "downloaded":
+                    downloaded_count += 1
+                else:
+                    verified_count += 1
+            summary = self.format_download_summary(
+                download_jobs,
+                downloaded_count,
+                verified_count,
+                failures,
+            )
+            print(summary)
+            if len(failures) > 0:
+                raise ValueError(summary)
             return
         with tqdm(total=len(download_jobs), desc=f"{self.config.name} download", unit="file") as progress_bar:
-            for url, destination, checksum in download_jobs:
-                self.download_file(url, destination, checksum=checksum)
+            for job in download_jobs:
+                try:
+                    status = self.download_file(
+                        str(job["url"]),
+                        Path(job["destination"]),
+                        checksum=job["checksum"],
+                    )
+                except ValueError as exc:
+                    failures.append(f"{job['relative_path']}: {exc}")
+                    progress_bar.update(1)
+                    continue
+                if status == "downloaded":
+                    downloaded_count += 1
+                else:
+                    verified_count += 1
                 progress_bar.update(1)
+        summary = self.format_download_summary(
+            download_jobs,
+            downloaded_count,
+            verified_count,
+            failures,
+        )
+        print(summary)
+        if len(failures) > 0:
+            raise ValueError(summary)
 
     def verify_checksum(self, path: Path, checksum: str | None) -> None:
         if checksum is None:

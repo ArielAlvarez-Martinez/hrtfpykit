@@ -94,9 +94,7 @@ HUTUBS_CONFIG = DatasetConfig(
         ),
         supported_align_by=(
             ("subject",),
-            ("subject", "position"),
             ("subject", "ear"),
-            ("subject", "position", "ear"),
         ),
     ),
     video=VideoConfig(
@@ -109,9 +107,7 @@ HUTUBS_CONFIG = DatasetConfig(
         ),
         supported_align_by=(
             ("subject",),
-            ("subject", "position"),
             ("subject", "ear"),
-            ("subject", "position", "ear"),
         ),
     ),
     download=DownloadConfig(

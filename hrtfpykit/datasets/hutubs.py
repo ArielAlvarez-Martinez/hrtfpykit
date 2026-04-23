@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from .anthropometry import normalize_anthropometry_ear, normalize_anthropometry_select
 from .base import BaseDataset
 from .config import HUTUBS_CONFIG
 from .download import BaseDownload
@@ -7,10 +8,10 @@ from .specs import (
     AnthropometrySpec,
     HRTFSpec,
     ImageSpec,
+    ILDSpec,
+    ITDSpec,
     MeshSpec,
     VideoSpec,
-    normalize_anthropometry_ear,
-    normalize_anthropometry_select,
 )
 
 class HUTUBS(BaseDataset):
@@ -62,18 +63,22 @@ class HUTUBS(BaseDataset):
         download_hrtf_variant: str = "all",
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec
+        | ITDSpec
+        | ILDSpec
         | MeshSpec
         | AnthropometrySpec
         | ImageSpec
         | VideoSpec
-        | tuple[HRTFSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
+        | tuple[HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
         | None = None,
         target: HRTFSpec
+        | ITDSpec
+        | ILDSpec
         | MeshSpec
         | AnthropometrySpec
         | ImageSpec
         | VideoSpec
-        | tuple[HRTFSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
+        | tuple[HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
         | None = None,
         split: str = "all",
         split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),

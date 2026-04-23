@@ -2,7 +2,35 @@ from collections.abc import Callable
 from pathlib import Path
 import csv
 
-from .specs import normalize_anthropometry_ear, normalize_anthropometry_select
+
+def normalize_anthropometry_select(
+    select: str | tuple[str, ...] | list[str] | None,
+) -> str | tuple[str, ...]:
+    if select is None:
+        return "complete"
+    if isinstance(select, str):
+        value = str(select).strip()
+        if value == "":
+            raise ValueError("select must not be empty")
+        if value.lower() in {"complete", "all"}:
+            return "complete"
+        values = (value,)
+    else:
+        values = tuple(str(value).strip() for value in select)
+    if len(values) == 0:
+        raise ValueError("select must not be empty")
+    if any(value == "" for value in values):
+        raise ValueError("select must not contain empty names")
+    if len(set(values)) != len(values):
+        raise ValueError("select must not contain duplicates")
+    return values
+
+
+def normalize_anthropometry_ear(ear: str) -> str:
+    value = str(ear).strip().lower()
+    if value not in {"left", "right", "both"}:
+        raise ValueError("ear must be 'left', 'right', or 'both'")
+    return value
 
 
 def convert_table_value(value: str) -> float | str | None:

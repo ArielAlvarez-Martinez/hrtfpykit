@@ -13,6 +13,7 @@ from .config import DatasetConfig
 from ..hrtf.planes import get_frontal_plane, get_horizontal_plane, get_median_plane
 from ..hrtf.dsp import imag, magnitude, magnitude_db, phase, real
 from ..hrtf.coordinates import get_spherical_positions
+from ..hrtf.metrics import ild, itd
 from ..main import load_hrtf
 from .image import apply_image_transform, build_image_key, scan_image_paths
 from .index import (
@@ -26,6 +27,8 @@ from .specs import (
     AnthropometrySpec,
     HRTFSpec,
     ImageSpec,
+    ILDSpec,
+    ITDSpec,
     MeshSpec,
     VideoSpec,
     get_spec_name,
@@ -48,6 +51,24 @@ SUPPORTED_HRTF_SIGNALS = (
     "tf_magnitude",
     "tf_magnitude_db",
     "tf_phase",
+)
+
+
+SUPPORTED_ILD_MODES = (
+    "broad-band",
+    "frequency-dependent",
+)
+
+
+SUPPORTED_ILD_OUTPUTS = (
+    "db",
+    "linear",
+)
+
+
+SUPPORTED_ITD_OUTPUTS = (
+    "seconds",
+    "samples",
 )
 
 
@@ -150,6 +171,31 @@ class BaseDataset:
                         f"invalid_subject_ids={cls.preview_values(invalid_subject_ids)}"
                     )
             lines.append("  " + parts[0] + ": " + ", ".join(parts[1:]))
+        return "\n".join(lines)
+
+    def format_load_summary(self) -> str:
+        selected_specs = tuple(get_spec_name(spec) for spec in (self._input_specs + self._target_specs))
+        lines = [
+            f"{self.name} dataset summary",
+            f"  root: {self.root}",
+            f"  split: {self.split}",
+            f"  subjects_loaded: {len(self.subject_ids)}",
+            f"  available_subjects: {len(self.available_subject_ids)}",
+            f"  samples: {len(self._rows)}",
+            f"  inputs: {', '.join(get_spec_name(spec) for spec in self._input_specs) if len(self._input_specs) > 0 else 'none'}",
+            f"  target: {', '.join(get_spec_name(spec) for spec in self._target_specs) if len(self._target_specs) > 0 else 'none'}",
+        ]
+        if len(selected_specs) > 0:
+            lines.append(f"  selected_specs: {', '.join(selected_specs)}")
+        if len(self.exclude_subject_ids) > 0:
+            lines.append(f"  excluded_subjects: {len(self.exclude_subject_ids)}")
+        if getattr(self, "variant", None) is not None:
+            lines.append(f"  variant: {self.variant}")
+        if self.sample_rate is not None:
+            lines.append(f"  sample_rate: {self.sample_rate}")
+        if self.selected_positions is not None:
+            lines.append(f"  selected_positions: {len(self.selected_positions)}")
+        lines.append(self.format_resource_summary(self.resource_summary))
         return "\n".join(lines)
 
     @classmethod
@@ -390,18 +436,22 @@ class BaseDataset:
         root: str | Path,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec
+        | ITDSpec
+        | ILDSpec
         | MeshSpec
         | AnthropometrySpec
         | ImageSpec
         | VideoSpec
-        | tuple[HRTFSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
+        | tuple[HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
         | None = None,
         target: HRTFSpec
+        | ITDSpec
+        | ILDSpec
         | MeshSpec
         | AnthropometrySpec
         | ImageSpec
         | VideoSpec
-        | tuple[HRTFSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
+        | tuple[HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
         | None = None,
         split: str = "all",
         split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
@@ -433,6 +483,8 @@ class BaseDataset:
         all_specs = self._input_specs + self._target_specs
         self.resource_summary: dict[str, dict[str, object]] = {}
         hrtf_specs = tuple(spec for spec in all_specs if isinstance(spec, HRTFSpec))
+        itd_specs = tuple(spec for spec in all_specs if isinstance(spec, ITDSpec))
+        ild_specs = tuple(spec for spec in all_specs if isinstance(spec, ILDSpec))
         mesh_specs = tuple(spec for spec in all_specs if isinstance(spec, MeshSpec))
         anthropometry_specs = tuple(
             spec for spec in all_specs if isinstance(spec, AnthropometrySpec)
@@ -442,6 +494,12 @@ class BaseDataset:
 
         input_hrtf_specs = tuple(
             spec for spec in self._input_specs if isinstance(spec, HRTFSpec)
+        )
+        input_itd_specs = tuple(
+            spec for spec in self._input_specs if isinstance(spec, ITDSpec)
+        )
+        input_ild_specs = tuple(
+            spec for spec in self._input_specs if isinstance(spec, ILDSpec)
         )
         input_mesh_specs = tuple(
             spec for spec in self._input_specs if isinstance(spec, MeshSpec)
@@ -456,15 +514,19 @@ class BaseDataset:
             spec for spec in self._input_specs if isinstance(spec, VideoSpec)
         )
 
+        acoustic_specs = hrtf_specs + itd_specs + ild_specs
+        input_acoustic_specs = input_hrtf_specs + input_itd_specs + input_ild_specs
+
+        if len(acoustic_specs) > 1:
+            if len({self.build_value_signature(spec.positions) for spec in acoustic_specs}) > 1:
+                raise ValueError(
+                    "All acoustic specs must use the same positions when hrtf, itd, or ild are used together"
+                )
+            if len({self.build_value_signature(spec.plane) for spec in acoustic_specs}) > 1:
+                raise ValueError(
+                    "All acoustic specs must use the same plane when hrtf, itd, or ild are used together"
+                )
         if len(hrtf_specs) > 1:
-            if len({self.build_value_signature(spec.positions) for spec in hrtf_specs}) > 1:
-                raise ValueError(
-                    "All HRTFSpec objects must use the same positions when hrtf is used in both inputs and target"
-                )
-            if len({self.build_value_signature(spec.plane) for spec in hrtf_specs}) > 1:
-                raise ValueError(
-                    "All HRTFSpec objects must use the same plane when hrtf is used in both inputs and target"
-                )
             if len({self.build_value_signature(spec.ears) for spec in hrtf_specs}) > 1:
                 raise ValueError(
                     "All HRTFSpec objects must use the same ears when hrtf is used in both inputs and target"
@@ -533,10 +595,11 @@ class BaseDataset:
         )
 
         self.index_by = ("subject",)
-        if primary_hrtf_spec is not None:
+        primary_acoustic_spec = self.select_primary_spec(input_acoustic_specs, acoustic_specs)
+        if primary_acoustic_spec is not None:
             include_position = any(
                 "position" in normalize_index_by(spec.index_by)
-                for spec in hrtf_specs
+                for spec in acoustic_specs
             )
             include_ear = any(
                 "ear" in normalize_index_by(spec.index_by)
@@ -552,6 +615,7 @@ class BaseDataset:
         self._cache_hrtf = True if len(hrtf_specs) == 0 else any(bool(spec.cache) for spec in hrtf_specs)
         self._hrtf_cache: dict[str, object] = {}
         self._transformed_hrtf_cache: dict[tuple[str, int], object] = {}
+        self._metric_cache: dict[tuple[str, int], np.ndarray] = {}
         self.sample_rate: float | None = None
         self._image_path = self.resolve_optional_path(
             None if primary_image_spec is None else primary_image_spec.path,
@@ -587,7 +651,7 @@ class BaseDataset:
         self._selected_position_indices: list[int] = []
         preset_variant = getattr(self, "variant", None)
         self.variant = None
-        if len(hrtf_specs) > 0:
+        if len(acoustic_specs) > 0:
             if self.config.hrtf is not None:
                 self.variant = str(self.config.hrtf.default_variant).strip().lower()
             if preset_variant is not None:
@@ -636,12 +700,12 @@ class BaseDataset:
             index_by=self.index_by,
         )
 
-        if ("position" in self.index_by or "ear" in self.index_by) and primary_hrtf_spec is None:
+        if ("position" in self.index_by or "ear" in self.index_by) and primary_acoustic_spec is None:
             raise ValueError(
-                "HRTFSpec.index_by including 'position' or 'ear' currently requires hrtf in inputs or target"
+                "Acoustic spec index_by including 'position' or 'ear' currently requires hrtf, itd, or ild in inputs or target"
             )
 
-        if primary_hrtf_spec is not None:
+        if primary_acoustic_spec is not None:
             if self.config.hrtf is None:
                 raise ValueError(f"{self.name} does not provide hrtf data")
             if self.variant is None:
@@ -651,6 +715,7 @@ class BaseDataset:
                     f"Unsupported variant {self.variant!r}. "
                     f"Expected one of {self.config.hrtf.variants}"
                 )
+        if primary_hrtf_spec is not None:
             for spec in hrtf_specs:
                 domain = str(spec.domain).strip().lower()
                 signal = str(spec.signal).strip().lower()
@@ -703,6 +768,97 @@ class BaseDataset:
                         raise ValueError(
                             "HRTFSpec.plane must be None, a string, a tuple, or a dict"
                         )
+        for spec in itd_specs:
+            output = str(spec.output).strip().lower()
+            if output not in SUPPORTED_ITD_OUTPUTS:
+                raise ValueError(
+                    f"Unsupported ITD output {spec.output!r}. Expected one of {SUPPORTED_ITD_OUTPUTS}"
+                )
+            if isinstance(spec.positions, str):
+                if str(spec.positions).strip().lower() != "all":
+                    raise ValueError(
+                        "ITDSpec.positions must be 'all' or a sequence of position indices"
+                    )
+            spec_index_by = normalize_index_by(spec.index_by)
+            if "ear" in spec_index_by:
+                raise ValueError("ITDSpec.index_by does not support 'ear'")
+            if spec.plane is not None:
+                if not isinstance(spec.positions, str) or str(spec.positions).strip().lower() != "all":
+                    raise ValueError("ITDSpec.plane cannot be combined with custom positions")
+                if isinstance(spec.plane, str):
+                    plane_key = str(spec.plane).strip().lower()
+                    if plane_key not in {"horizontal", "median", "frontal"}:
+                        raise ValueError(
+                            "ITDSpec.plane must be horizontal, median, frontal, "
+                            "a tuple-based plane selection, or a dict with a 'plane' key"
+                        )
+                elif isinstance(spec.plane, tuple):
+                    if len(spec.plane) not in {2, 3} or not isinstance(spec.plane[0], str):
+                        raise ValueError(
+                            "Tuple plane selection must be ('horizontal'|'median'|'frontal', angle[, angle_unit])"
+                        )
+                    plane_key = str(spec.plane[0]).strip().lower()
+                    if plane_key not in {"horizontal", "median", "frontal"}:
+                        raise ValueError("Tuple plane selection must use horizontal, median, or frontal")
+                elif isinstance(spec.plane, dict):
+                    plane_name = spec.plane.get("plane")
+                    if plane_name is None:
+                        raise ValueError("Dict plane selection must include a 'plane' key")
+                    plane_key = str(plane_name).strip().lower()
+                    if plane_key not in {"horizontal", "median", "frontal"}:
+                        raise ValueError("Dict plane selection must use horizontal, median, or frontal")
+                else:
+                    raise ValueError(
+                        "ITDSpec.plane must be None, a string, a tuple, or a dict"
+                    )
+        for spec in ild_specs:
+            mode = str(spec.mode).strip().lower()
+            output = str(spec.output).strip().lower()
+            if mode not in SUPPORTED_ILD_MODES:
+                raise ValueError(
+                    f"Unsupported ILD mode {spec.mode!r}. Expected one of {SUPPORTED_ILD_MODES}"
+                )
+            if output not in SUPPORTED_ILD_OUTPUTS:
+                raise ValueError(
+                    f"Unsupported ILD output {spec.output!r}. Expected one of {SUPPORTED_ILD_OUTPUTS}"
+                )
+            if isinstance(spec.positions, str):
+                if str(spec.positions).strip().lower() != "all":
+                    raise ValueError(
+                        "ILDSpec.positions must be 'all' or a sequence of position indices"
+                    )
+            spec_index_by = normalize_index_by(spec.index_by)
+            if "ear" in spec_index_by:
+                raise ValueError("ILDSpec.index_by does not support 'ear'")
+            if spec.plane is not None:
+                if not isinstance(spec.positions, str) or str(spec.positions).strip().lower() != "all":
+                    raise ValueError("ILDSpec.plane cannot be combined with custom positions")
+                if isinstance(spec.plane, str):
+                    plane_key = str(spec.plane).strip().lower()
+                    if plane_key not in {"horizontal", "median", "frontal"}:
+                        raise ValueError(
+                            "ILDSpec.plane must be horizontal, median, frontal, "
+                            "a tuple-based plane selection, or a dict with a 'plane' key"
+                        )
+                elif isinstance(spec.plane, tuple):
+                    if len(spec.plane) not in {2, 3} or not isinstance(spec.plane[0], str):
+                        raise ValueError(
+                            "Tuple plane selection must be ('horizontal'|'median'|'frontal', angle[, angle_unit])"
+                        )
+                    plane_key = str(spec.plane[0]).strip().lower()
+                    if plane_key not in {"horizontal", "median", "frontal"}:
+                        raise ValueError("Tuple plane selection must use horizontal, median, or frontal")
+                elif isinstance(spec.plane, dict):
+                    plane_name = spec.plane.get("plane")
+                    if plane_name is None:
+                        raise ValueError("Dict plane selection must include a 'plane' key")
+                    plane_key = str(plane_name).strip().lower()
+                    if plane_key not in {"horizontal", "median", "frontal"}:
+                        raise ValueError("Dict plane selection must use horizontal, median, or frontal")
+                else:
+                    raise ValueError(
+                        "ILDSpec.plane must be None, a string, a tuple, or a dict"
+                    )
 
         if primary_mesh_spec is not None and self.config.mesh is None:
             raise ValueError(f"{self.name} does not provide mesh data")
@@ -729,7 +885,7 @@ class BaseDataset:
             for index, subject_id in enumerate(tuple(self.config.subject_ids), start=1)
         }
         self._hrtf_paths: dict[str, Path] = {}
-        if self.config.hrtf is not None and primary_hrtf_spec is not None:
+        if self.config.hrtf is not None and primary_acoustic_spec is not None:
             hrtf_subject_ids = (
                 tuple(self.config.subject_ids)
                 if self.config.hrtf.subject_ids is None
@@ -999,7 +1155,7 @@ class BaseDataset:
             subject_ids = self.sort_subject_ids(set.intersection(*required_subject_sets))
         if len(subject_ids) == 0 and len(required_subject_sets) > 0:
             available_counts = []
-            if len(hrtf_specs) > 0:
+            if len(acoustic_specs) > 0:
                 available_counts.append(f"hrtf={len(self._hrtf_paths)}")
             if primary_mesh_spec is not None:
                 available_counts.append(f"mesh={len(self._mesh_paths)}")
@@ -1029,6 +1185,9 @@ class BaseDataset:
         if len(split_subjects) == 0:
             raise ValueError(f"Split {split!r} produced an empty dataset")
         self.subject_ids = tuple(split_subjects)
+        self.split = split
+        self.split_ratio = split_ratio
+        self.split_seed = split_seed
 
         self.available_positions: np.ndarray | None = None
         self.selected_positions: np.ndarray | None = None
@@ -1038,7 +1197,7 @@ class BaseDataset:
         self.elevation_angles: np.ndarray | None = None
         self.frequency_bins: np.ndarray | None = None
 
-        if primary_hrtf_spec is not None:
+        if primary_acoustic_spec is not None:
             reference_subject_id = self.subject_ids[0]
             reference_hrtf = load_hrtf(self._hrtf_paths[reference_subject_id])
             if self._cache_hrtf:
@@ -1050,8 +1209,8 @@ class BaseDataset:
             if reference_hrtf.TF.frequency_bins is not None:
                 self.frequency_bins = np.asarray(reference_hrtf.TF.frequency_bins, dtype=float)
             self._selected_position_indices = self.resolve_positions_selection(
-                primary_hrtf_spec.positions,
-                primary_hrtf_spec.plane,
+                primary_acoustic_spec.positions,
+                primary_acoustic_spec.plane,
                 reference_hrtf,
             )
             self.selected_positions = np.asarray(
@@ -1085,6 +1244,7 @@ class BaseDataset:
             position_indices=self._selected_position_indices,
             ears=self._selected_ears,
         )
+        print(self.format_load_summary())
 
     def get_hrtf(self, subject_id: str | int):
         return self.get_subject_hrtf(subject_id)
@@ -1132,7 +1292,7 @@ class BaseDataset:
 
     def get_spec_value(
         self,
-        spec: HRTFSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
+        spec: HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
@@ -1166,6 +1326,66 @@ class BaseDataset:
                 spec=spec,
             )
             if spec.transform is not None and not use_hrtf_transform:
+                value = spec.transform(value)
+            return value
+        if isinstance(spec, ITDSpec):
+            metric_cache_key = (subject_id, id(spec))
+            value = self._metric_cache.get(metric_cache_key)
+            if value is None:
+                hrtf = self.get_subject_hrtf(subject_id)
+                value = np.asarray(
+                    itd(
+                        hrtf.IR,
+                        method=spec.method,
+                        output=spec.output,
+                        thresh_level=spec.thresh_level,
+                        upper_cut_freq=spec.upper_cut_freq,
+                        filter_order=spec.filter_order,
+                    )
+                )
+                self._metric_cache[metric_cache_key] = value
+            spec_index_by = normalize_index_by(spec.index_by)
+            if "position" not in spec_index_by:
+                if len(self._selected_position_indices) != value.shape[0]:
+                    value = np.take(value, self._selected_position_indices, axis=0)
+            else:
+                if row["position_index"] is None:
+                    raise ValueError(
+                        f"ITDSpec(index_by={spec.index_by!r}) requires position-resolved rows"
+                    )
+                value = np.asarray(value[int(row["position_index"])])
+            if spec.transform is not None:
+                value = spec.transform(value)
+            return value
+        if isinstance(spec, ILDSpec):
+            metric_cache_key = (subject_id, id(spec))
+            value = self._metric_cache.get(metric_cache_key)
+            if value is None:
+                hrtf = self.get_subject_hrtf(subject_id)
+                value = np.asarray(
+                    ild(
+                        hrtf.IR,
+                        sample_rate=self.sample_rate,
+                        fft_length=spec.fft_length,
+                        mode=spec.mode,
+                        output=spec.output,
+                        epsilon=spec.epsilon,
+                    )
+                )
+                self._metric_cache[metric_cache_key] = value
+            spec_index_by = normalize_index_by(spec.index_by)
+            if "position" not in spec_index_by:
+                if value.shape[0] == self.available_positions.shape[0]:
+                    if len(self._selected_position_indices) != value.shape[0]:
+                        value = np.take(value, self._selected_position_indices, axis=0)
+            else:
+                if row["position_index"] is None:
+                    raise ValueError(
+                        f"ILDSpec(index_by={spec.index_by!r}) requires position-resolved rows"
+                    )
+                if value.shape[0] == self.available_positions.shape[0]:
+                    value = np.asarray(value[int(row["position_index"])])
+            if spec.transform is not None:
                 value = spec.transform(value)
             return value
         if isinstance(spec, MeshSpec):
