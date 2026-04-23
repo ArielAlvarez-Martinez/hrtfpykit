@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .base import BaseDataset, resolve_dataset_subject_id
+from .base import BaseDataset
 from .config import HUTUBS_CONFIG
 from .download import BaseDownload
 from .specs import (
@@ -16,12 +16,50 @@ from .specs import (
 class HUTUBS(BaseDataset):
     config = HUTUBS_CONFIG
 
+    @staticmethod
+    def build_anthropometry_column_maps(
+        values: dict[str, float | str | None],
+        left_prefix: str,
+        right_prefix: str,
+    ) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
+        exact_lookup: dict[str, str] = {}
+        neutral_lookup: dict[str, str] = {}
+        left_lookup: dict[str, str] = {}
+        right_lookup: dict[str, str] = {}
+        for name in values:
+            lowered_name = str(name).lower()
+            exact_lookup[lowered_name] = name
+            text = str(name)
+            if text.startswith(left_prefix):
+                left_lookup[text[len(left_prefix):].lower()] = name
+            elif text.startswith(right_prefix):
+                right_lookup[text[len(right_prefix):].lower()] = name
+            else:
+                neutral_lookup[lowered_name] = name
+        return exact_lookup, neutral_lookup, left_lookup, right_lookup
+
+    @staticmethod
+    def get_anthropometry_search_scope(
+        ear: str,
+        left_prefix: str,
+        right_prefix: str,
+    ) -> str:
+        if ear == "left":
+            return f"shared columns or left-ear columns with prefix {left_prefix!r}"
+        if ear == "right":
+            return f"shared columns or right-ear columns with prefix {right_prefix!r}"
+        return (
+            f"shared columns, left-ear columns with prefix {left_prefix!r}, "
+            f"or right-ear columns with prefix {right_prefix!r}"
+        )
+
     def __init__(
         self,
         root: str | Path,
+        variant: str = "measured",
         download: bool = False,
         download_resources: str | tuple[str, ...] | list[str] = "all",
-        download_hrtf_version: str = "all",
+        download_hrtf_variant: str = "all",
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec
         | MeshSpec
@@ -41,17 +79,22 @@ class HUTUBS(BaseDataset):
         split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
         split_seed: int = 0,
     ) -> None:
+        self.variant = str(variant).strip().lower()
+        if self.variant not in self.config.hrtf.variants:
+            raise ValueError(
+                f"Unsupported variant {self.variant!r}. Expected one of {self.config.hrtf.variants}"
+            )
         resolved_exclude_subject_ids: tuple[str, ...]
         if exclude_subject_ids is None:
             resolved_exclude_subject_ids = tuple()
         elif isinstance(exclude_subject_ids, (str, int)):
             resolved_exclude_subject_ids = (
-                resolve_dataset_subject_id(exclude_subject_ids, tuple(self.config.subject_ids)),
+                type(self).resolve_dataset_subject_id(exclude_subject_ids, tuple(self.config.subject_ids)),
             )
         else:
             resolved_exclude_subject_ids = tuple(
                 dict.fromkeys(
-                    resolve_dataset_subject_id(subject_id, tuple(self.config.subject_ids))
+                    type(self).resolve_dataset_subject_id(subject_id, tuple(self.config.subject_ids))
                     for subject_id in exclude_subject_ids
                 )
             )
@@ -62,7 +105,7 @@ class HUTUBS(BaseDataset):
                 excluded_subject_ids=resolved_exclude_subject_ids,
             ).download(
                 download_resources=download_resources,
-                download_hrtf_version=download_hrtf_version,
+                download_hrtf_variant=download_hrtf_variant,
             )
         super().__init__(
             root=root,
@@ -102,37 +145,22 @@ class HUTUBS(BaseDataset):
                 selected_values[name] = value
             return selected_values
 
-        exact_lookup: dict[str, str] = {}
-        neutral_lookup: dict[str, str] = {}
-        left_lookup: dict[str, str] = {}
-        right_lookup: dict[str, str] = {}
-        for name in values:
-            lowered_name = str(name).lower()
-            exact_lookup[lowered_name] = name
-            text = str(name)
-            if text.startswith(left_prefix):
-                left_lookup[text[len(left_prefix):].lower()] = name
-            elif text.startswith(right_prefix):
-                right_lookup[text[len(right_prefix):].lower()] = name
-            else:
-                neutral_lookup[lowered_name] = name
+        exact_lookup, neutral_lookup, left_lookup, right_lookup = (
+            self.build_anthropometry_column_maps(
+                values,
+                left_prefix,
+                right_prefix,
+            )
+        )
 
         selected_keys: list[str] = []
         seen: set[str] = set()
         missing_messages: list[str] = []
-        if ear == "left":
-            searched_locations = (
-                f"shared columns or left-ear columns with prefix {left_prefix!r}"
-            )
-        elif ear == "right":
-            searched_locations = (
-                f"shared columns or right-ear columns with prefix {right_prefix!r}"
-            )
-        else:
-            searched_locations = (
-                f"shared columns, left-ear columns with prefix {left_prefix!r}, "
-                f"or right-ear columns with prefix {right_prefix!r}"
-            )
+        searched_locations = self.get_anthropometry_search_scope(
+            ear,
+            left_prefix,
+            right_prefix,
+        )
 
         for requested in selected:
             requested_text = str(requested).strip()

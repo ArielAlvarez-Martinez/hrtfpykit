@@ -2,11 +2,6 @@ from collections.abc import Callable
 from pathlib import Path
 import re
 
-try:
-    from PIL import Image
-except ImportError:
-    Image = None
-
 
 def resolve_image_subject_id_from_path(path: Path, subject_ids: tuple[str, ...]) -> str | None:
     parts = [part.lower() for part in path.parts]
@@ -86,36 +81,10 @@ def scan_image_paths(
 def apply_image_transform(
     paths: list[str],
     transform: Callable | None,
-    image_size: int | tuple[int, int] | None = None,
 ) -> object:
-    normalized_image_size = None
-    if image_size is not None and Image is None:
-        raise ImportError("Pillow is required to use ImageSpec(image_size=...)")
-    if image_size is not None:
-        if isinstance(image_size, int):
-            if image_size <= 0:
-                raise ValueError("image_size must be a positive integer or a tuple of two positive integers")
-            normalized_image_size = (int(image_size), int(image_size))
-        else:
-            if len(image_size) != 2:
-                raise ValueError("image_size tuple must contain exactly two integers")
-            width = int(image_size[0])
-            height = int(image_size[1])
-            if width <= 0 or height <= 0:
-                raise ValueError("image_size values must be positive integers")
-            normalized_image_size = (width, height)
-        resampling = (
-            Image.Resampling.BILINEAR
-            if hasattr(Image, "Resampling")
-            else Image.BILINEAR
-        )
     values: list[object] = []
     for path in paths:
         value: object = path
-        if normalized_image_size is not None:
-            with Image.open(path) as image:
-                image.load()
-                value = image.resize(normalized_image_size, resample=resampling)
         if transform is not None:
             value = transform(value)
         values.append(value)

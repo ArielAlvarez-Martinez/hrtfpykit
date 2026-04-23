@@ -7,7 +7,6 @@ import numpy as np
 
 @dataclass(frozen=True)
 class HRTFSpec:
-    variant: str | None = None
     domain: str = "time"
     signal: str = "ir"
     positions: str | tuple[int, ...] | list[int] | np.ndarray = "all"
@@ -40,9 +39,7 @@ class AnthropometrySpec:
 class ImageSpec:
     path: str | Path | None = None
     align_by: str | tuple[str, ...] = ("subject",)
-    image_size: int | tuple[int, int] | None = None
     transform: Callable | None = None
-    supported_align_by: tuple[tuple[str, ...], ...] | None = None
     name: str | None = None
 
 
@@ -51,7 +48,6 @@ class VideoSpec:
     path: str | Path | None = None
     align_by: str | tuple[str, ...] = ("subject",)
     transform: Callable | None = None
-    supported_align_by: tuple[tuple[str, ...], ...] | None = None
     name: str | None = None
 
 

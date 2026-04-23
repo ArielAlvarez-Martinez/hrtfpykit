@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from .checksums import HUTUBS_CHECKSUMS
+
 
 @dataclass(frozen=True)
 class HRTFConfig:
@@ -7,7 +9,6 @@ class HRTFConfig:
     default_variant: str
     path_pattern: str
     subject_ids: tuple[str, ...] | None = None
-    checksums: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -16,7 +17,6 @@ class MeshConfig:
     extensions: tuple[str, ...]
     subject_ids: tuple[str, ...] | None = None
     official_extension: str | None = None
-    checksums: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,6 @@ class AnthropometryConfig:
         "participant",
         "pp",
     )
-    checksum: str | None = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +49,7 @@ class VideoConfig:
 class DownloadConfig:
     base_url: str
     available_resources: tuple[str, ...]
+    checksums: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -63,6 +63,7 @@ class DatasetConfig:
     video: VideoConfig | None = None
     download: DownloadConfig | None = None
 
+
 HUTUBS_CONFIG = DatasetConfig(
     name="HUTUBS",
     subject_ids=tuple(f"pp{index}" for index in range(1, 97)),
@@ -72,66 +73,6 @@ HUTUBS_CONFIG = DatasetConfig(
         path_pattern="{subject_id}_HRIRs_{variant}.sofa",
     ),
     mesh=MeshConfig(
-        subject_ids=(
-            "pp1",
-            "pp2",
-            "pp3",
-            "pp4",
-            "pp5",
-            "pp6",
-            "pp8",
-            "pp9",
-            "pp10",
-            "pp11",
-            "pp12",
-            "pp16",
-            "pp19",
-            "pp20",
-            "pp21",
-            "pp22",
-            "pp23",
-            "pp29",
-            "pp30",
-            "pp31",
-            "pp32",
-            "pp33",
-            "pp40",
-            "pp41",
-            "pp44",
-            "pp45",
-            "pp46",
-            "pp47",
-            "pp48",
-            "pp49",
-            "pp55",
-            "pp57",
-            "pp58",
-            "pp59",
-            "pp60",
-            "pp61",
-            "pp62",
-            "pp63",
-            "pp66",
-            "pp67",
-            "pp68",
-            "pp69",
-            "pp70",
-            "pp71",
-            "pp72",
-            "pp73",
-            "pp76",
-            "pp77",
-            "pp78",
-            "pp80",
-            "pp81",
-            "pp82",
-            "pp88",
-            "pp89",
-            "pp90",
-            "pp91",
-            "pp95",
-            "pp96",
-        ),
         path_pattern="{subject_id}_3DheadMesh{extension}",
         extensions=(".ply", ".stl"),
         official_extension=".ply",
@@ -176,5 +117,6 @@ HUTUBS_CONFIG = DatasetConfig(
     download=DownloadConfig(
         base_url="https://sofacoustics.org/data/database/hutubs",
         available_resources=("all", "hrtf", "mesh", "anthropometry"),
+        checksums=HUTUBS_CHECKSUMS,
     ),
 )

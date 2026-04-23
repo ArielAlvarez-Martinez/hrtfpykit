@@ -5,13 +5,6 @@ import csv
 from .specs import normalize_anthropometry_ear, normalize_anthropometry_select
 
 
-def find_anthropometry_path(root: Path, filename: str) -> Path | None:
-    for path in root.rglob(filename):
-        if path.is_file():
-            return path
-    return None
-
-
 def convert_table_value(value: str) -> float | str | None:
     text = str(value).strip()
     if text == "":

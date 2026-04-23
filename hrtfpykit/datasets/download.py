@@ -14,143 +14,43 @@ try:
 except ImportError:
     tqdm = None
 
-def normalize_download_resources(
-    requested: str | tuple[str, ...] | list[str],
-    available: tuple[str, ...],
-) -> tuple[str, ...]:
-    if isinstance(requested, str):
-        requested_values = (requested,)
-    else:
-        requested_values = tuple(requested)
-    normalized = tuple(
-        str(value).strip().lower() for value in requested_values
-    )
-    if "all" in normalized:
-        return tuple(value for value in available if value != "all")
-    invalid = [value for value in normalized if value not in available]
-    if invalid:
-        raise ValueError(f"Unsupported download_resources: {invalid}")
-    return normalized
+class BaseDownload:
+    @staticmethod
+    def normalize_root(root: Path) -> Path:
+        normalized = Path(root).expanduser()
+        if normalized.exists() and not normalized.is_dir():
+            raise ValueError(f"Dataset root must be a directory, got file: {normalized}")
+        return normalized.resolve()
 
+    @staticmethod
+    def validate_download_url(url: str) -> str:
+        parsed = urlparse(url)
+        if parsed.scheme.lower() != "https":
+            raise ValueError(f"Only https downloads are allowed, got: {url}")
+        if parsed.netloc.strip() == "":
+            raise ValueError(f"Download URL is missing a host: {url}")
+        return url
 
-def normalize_root(root: Path) -> Path:
-    normalized = Path(root).expanduser()
-    if normalized.exists() and not normalized.is_dir():
-        raise ValueError(f"Dataset root must be a directory, got file: {normalized}")
-    return normalized.resolve()
-
-
-def validate_download_root(root: Path) -> Path:
-    validated_root = normalize_root(root)
-    validated_root.mkdir(parents=True, exist_ok=True)
-    return validated_root
-
-
-def validate_download_url(url: str) -> str:
-    parsed = urlparse(url)
-    if parsed.scheme.lower() != "https":
-        raise ValueError(f"Only https downloads are allowed, got: {url}")
-    if parsed.netloc.strip() == "":
-        raise ValueError(f"Download URL is missing a host: {url}")
-    return url
-
-
-def resolve_download_path(root: Path, filename: str) -> Path:
-    candidate = Path(filename)
-    if candidate.is_absolute():
-        raise ValueError(f"Download filename must be relative: {filename}")
-    if any(part == ".." for part in candidate.parts):
-        raise ValueError(f"Download filename must not escape root: {filename}")
-    destination = (root / candidate).resolve()
-    try:
-        destination.relative_to(root)
-    except ValueError as exc:
-        raise ValueError(f"Resolved download path escapes root: {destination}") from exc
-    return destination
-
-
-def compute_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as file:
-        while True:
-            chunk = file.read(1024 * 1024)
-            if len(chunk) == 0:
-                break
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def normalize_checksum(checksum: str) -> str:
-    value = str(checksum).strip().lower()
-    if value.startswith("sha256:"):
-        value = value.split(":", 1)[1]
-    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
-        raise ValueError("Checksums must be SHA-256 hex digests")
-    return value
-
-
-def verify_checksum(path: Path, checksum: str | None) -> None:
-    if checksum is None:
-        return
-    expected = normalize_checksum(checksum)
-    current = compute_sha256(path)
-    if current != expected:
-        raise ValueError(
-            f"SHA-256 mismatch for {path.name}: expected {expected}, got {current}"
-        )
-
-
-def verify_archive_integrity(path: Path) -> None:
-    suffix = path.suffix.lower()
-    lower_name = path.name.lower()
-    if lower_name.endswith(".zip"):
-        with zipfile.ZipFile(path, "r") as archive:
-            bad_member = archive.testzip()
-            if bad_member is not None:
-                raise ValueError(f"ZIP archive is corrupt: {path.name} member {bad_member}")
-        return
-    if lower_name.endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
-        with tarfile.open(path, "r:*") as archive:
-            archive.getmembers()
-        return
-    if suffix == ".gz":
-        with gzip.open(path, "rb") as archive:
+    @staticmethod
+    def compute_sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as file:
             while True:
-                chunk = archive.read(1024 * 1024)
+                chunk = file.read(1024 * 1024)
                 if len(chunk) == 0:
                     break
+                digest.update(chunk)
+        return digest.hexdigest()
 
+    @staticmethod
+    def normalize_checksum(checksum: str) -> str:
+        value = str(checksum).strip().lower()
+        if value.startswith("sha256:"):
+            value = value.split(":", 1)[1]
+        if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+            raise ValueError("Checksums must be SHA-256 hex digests")
+        return value
 
-def verify_downloaded_file(path: Path, checksum: str | None) -> None:
-    if not path.exists():
-        raise ValueError(f"Downloaded file is missing: {path}")
-    if not path.is_file():
-        raise ValueError(f"Downloaded path is not a file: {path}")
-    if path.stat().st_size <= 0:
-        raise ValueError(f"Downloaded file is empty: {path}")
-    verify_archive_integrity(path)
-    verify_checksum(path, checksum)
-
-
-def normalize_download_hrtf_versions(
-    requested: str,
-    dataset_variants: tuple[str, ...] | None,
-) -> tuple[str, ...]:
-    if dataset_variants is None or len(dataset_variants) == 0:
-        raise ValueError("Dataset variants are missing")
-    available_versions = tuple(str(value).strip().lower() for value in dataset_variants)
-    requested_value = str(requested).strip().lower()
-    if requested_value == "all":
-        return available_versions
-    if requested_value not in available_versions:
-        raise ValueError(
-            f"Unsupported download_hrtf_version {requested!r}. "
-            f"Expected one of {available_versions + ('all',)}"
-        )
-    return (requested_value,)
-
-
-class BaseDownload:
     def __init__(
         self,
         config: DatasetConfig,
@@ -158,7 +58,7 @@ class BaseDownload:
         excluded_subject_ids: tuple[str, ...] = tuple(),
     ) -> None:
         self.config = config
-        self.root = normalize_root(Path(root))
+        self.root = self.normalize_root(Path(root))
         self.excluded_subject_ids = tuple(dict.fromkeys(excluded_subject_ids))
 
     def normalize_download_resources(
@@ -167,32 +67,102 @@ class BaseDownload:
     ) -> tuple[str, ...]:
         if self.config.download is None:
             raise ValueError(f"{self.config.name} does not define downloadable resources")
-        return normalize_download_resources(
-            requested,
-            tuple(self.config.download.available_resources),
-        )
+        if isinstance(requested, str):
+            requested_values = (requested,)
+        else:
+            requested_values = tuple(requested)
+        available = tuple(self.config.download.available_resources)
+        normalized = tuple(str(value).strip().lower() for value in requested_values)
+        if "all" in normalized:
+            return tuple(value for value in available if value != "all")
+        invalid = [value for value in normalized if value not in available]
+        if invalid:
+            raise ValueError(f"Unsupported download_resources: {invalid}")
+        return normalized
 
-    def normalize_download_hrtf_versions(
+    def normalize_download_hrtf_variants(
         self,
         requested: str,
     ) -> tuple[str, ...]:
         dataset_variants = (
             None if self.config.hrtf is None else tuple(self.config.hrtf.variants)
         )
-        return normalize_download_hrtf_versions(requested, dataset_variants)
+        if dataset_variants is None or len(dataset_variants) == 0:
+            raise ValueError("Dataset variants are missing")
+        available_versions = tuple(str(value).strip().lower() for value in dataset_variants)
+        requested_value = str(requested).strip().lower()
+        if requested_value == "all":
+            return available_versions
+        if requested_value not in available_versions:
+            raise ValueError(
+                f"Unsupported download_hrtf_variant {requested!r}. "
+                f"Expected one of {available_versions + ('all',)}"
+            )
+        return (requested_value,)
 
     def validate_download_root(self) -> Path:
-        self.root = validate_download_root(self.root)
+        self.root = self.normalize_root(self.root)
+        self.root.mkdir(parents=True, exist_ok=True)
         return self.root
 
     def resolve_download_path(self, filename: str) -> Path:
-        return resolve_download_path(self.root, filename)
+        candidate = Path(filename)
+        if candidate.is_absolute():
+            raise ValueError(f"Download filename must be relative: {filename}")
+        if any(part == ".." for part in candidate.parts):
+            raise ValueError(f"Download filename must not escape root: {filename}")
+        destination = (self.root / candidate).resolve()
+        try:
+            destination.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError(f"Resolved download path escapes root: {destination}") from exc
+        return destination
 
     def build_download_url(self, filename: str) -> str:
         if self.config.download is None:
             raise ValueError(f"{self.config.name} does not define an official download base URL")
-        validated_base_url = validate_download_url(self.config.download.base_url.rstrip("/"))
+        validated_base_url = self.validate_download_url(self.config.download.base_url.rstrip("/"))
         return f"{validated_base_url}/{filename}"
+
+    def get_checksum(
+        self,
+        resource: str,
+        relative_path: str,
+        variant: str | None = None,
+    ) -> str | None:
+        if self.config.download is None or self.config.download.checksums is None:
+            return None
+        checksums = self.config.download.checksums
+        resource_checksums = checksums.get(resource)
+        if resource_checksums is None:
+            return None
+        if resource == "hrtf":
+            if variant is None:
+                raise ValueError("HRTF checksum lookup requires a variant")
+            if not isinstance(resource_checksums, dict):
+                raise ValueError("HRTF checksums must be grouped by variant")
+            variant_checksums = resource_checksums.get(variant)
+            if variant_checksums is None:
+                return None
+            if not isinstance(variant_checksums, dict):
+                raise ValueError("HRTF variant checksums must be a filename dictionary")
+            checksum = variant_checksums.get(relative_path)
+        elif isinstance(resource_checksums, dict):
+            checksum = resource_checksums.get(relative_path)
+        elif isinstance(resource_checksums, str):
+            checksum = resource_checksums
+        else:
+            raise ValueError(f"{resource} checksums must be a string or filename dictionary")
+        if checksum is None:
+            return None
+        if not isinstance(checksum, str):
+            raise ValueError(f"{resource} checksum for {relative_path} must be a string")
+        return checksum
+
+    def has_checksum_map(self, resource: str) -> bool:
+        if self.config.download is None or self.config.download.checksums is None:
+            return False
+        return isinstance(self.config.download.checksums.get(resource), dict)
 
     def get_included_subject_ids(self, subject_ids: tuple[str, ...]) -> tuple[str, ...]:
         excluded_subject_ids_set = set(self.excluded_subject_ids)
@@ -206,12 +176,12 @@ class BaseDownload:
         destination: Path,
         checksum: str | None = None,
     ) -> None:
-        validated_url = validate_download_url(url)
+        validated_url = self.validate_download_url(url)
         destination.parent.mkdir(parents=True, exist_ok=True)
 
         if destination.exists():
             try:
-                verify_downloaded_file(destination, checksum)
+                self.verify_downloaded_file(destination, checksum)
                 return
             except ValueError:
                 destination.unlink()
@@ -248,7 +218,7 @@ class BaseDownload:
                 raise ValueError(
                     f"Incomplete download for {destination.name}: expected {expected_length} bytes, got {bytes_written}"
                 )
-            verify_downloaded_file(temporary_path, checksum)
+            self.verify_downloaded_file(temporary_path, checksum)
             temporary_path.replace(destination)
         except (OSError, urllib.error.HTTPError, urllib.error.URLError, ValueError) as exc:
             if temporary_path.exists():
@@ -261,7 +231,7 @@ class BaseDownload:
     def build_download_plan(
         self,
         download_resources: str | tuple[str, ...] | list[str] = "all",
-        download_hrtf_version: str = "all",
+        download_hrtf_variant: str = "all",
     ) -> list[tuple[str, Path, str | None]]:
         resources = self.normalize_download_resources(download_resources)
         download_jobs: list[tuple[str, Path, str | None]] = []
@@ -277,17 +247,17 @@ class BaseDownload:
             subject_ids = self.get_included_subject_ids(
                 hrtf_subject_ids
             )
-            for version in self.normalize_download_hrtf_versions(download_hrtf_version):
+            for variant in self.normalize_download_hrtf_variants(download_hrtf_variant):
                 for subject_id in subject_ids:
                     relative_path = self.config.hrtf.path_pattern.format(
                         subject_id=subject_id,
-                        variant=version,
+                        variant=variant,
                     )
                     destination = self.resolve_download_path(relative_path)
-                    checksum = (
-                        None
-                        if self.config.hrtf.checksums is None
-                        else self.config.hrtf.checksums.get(relative_path)
+                    checksum = self.get_checksum(
+                        "hrtf",
+                        relative_path,
+                        variant=variant,
                     )
                     download_jobs.append(
                         (self.build_download_url(relative_path), destination, checksum)
@@ -315,11 +285,9 @@ class BaseDownload:
                     extension=mesh_extension,
                 )
                 destination = self.resolve_download_path(relative_path)
-                checksum = (
-                    None
-                    if self.config.mesh.checksums is None
-                    else self.config.mesh.checksums.get(relative_path)
-                )
+                checksum = self.get_checksum("mesh", relative_path)
+                if checksum is None and self.has_checksum_map("mesh"):
+                    continue
                 download_jobs.append(
                     (self.build_download_url(relative_path), destination, checksum)
                 )
@@ -333,7 +301,7 @@ class BaseDownload:
                 (
                     self.build_download_url(relative_path),
                     destination,
-                    self.config.anthropometry.checksum,
+                    self.get_checksum("anthropometry", relative_path),
                 )
             )
 
@@ -342,12 +310,12 @@ class BaseDownload:
     def download(
         self,
         download_resources: str | tuple[str, ...] | list[str] = "all",
-        download_hrtf_version: str = "all",
+        download_hrtf_variant: str = "all",
     ) -> None:
         self.validate_download_root()
         download_jobs = self.build_download_plan(
             download_resources=download_resources,
-            download_hrtf_version=download_hrtf_version,
+            download_hrtf_variant=download_hrtf_variant,
         )
         if len(download_jobs) == 0:
             return
@@ -359,3 +327,43 @@ class BaseDownload:
             for url, destination, checksum in download_jobs:
                 self.download_file(url, destination, checksum=checksum)
                 progress_bar.update(1)
+
+    def verify_checksum(self, path: Path, checksum: str | None) -> None:
+        if checksum is None:
+            return
+        expected = self.normalize_checksum(checksum)
+        current = self.compute_sha256(path)
+        if current != expected:
+            raise ValueError(
+                f"SHA-256 mismatch for {path.name}: expected {expected}, got {current}"
+            )
+
+    def verify_archive_integrity(self, path: Path) -> None:
+        suffix = path.suffix.lower()
+        lower_name = path.name.lower()
+        if lower_name.endswith(".zip"):
+            with zipfile.ZipFile(path, "r") as archive:
+                bad_member = archive.testzip()
+                if bad_member is not None:
+                    raise ValueError(f"ZIP archive is corrupt: {path.name} member {bad_member}")
+            return
+        if lower_name.endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
+            with tarfile.open(path, "r:*") as archive:
+                archive.getmembers()
+            return
+        if suffix == ".gz":
+            with gzip.open(path, "rb") as archive:
+                while True:
+                    chunk = archive.read(1024 * 1024)
+                    if len(chunk) == 0:
+                        break
+
+    def verify_downloaded_file(self, path: Path, checksum: str | None) -> None:
+        if not path.exists():
+            raise ValueError(f"Downloaded file is missing: {path}")
+        if not path.is_file():
+            raise ValueError(f"Downloaded path is not a file: {path}")
+        if path.stat().st_size <= 0:
+            raise ValueError(f"Downloaded file is empty: {path}")
+        self.verify_archive_integrity(path)
+        self.verify_checksum(path, checksum)

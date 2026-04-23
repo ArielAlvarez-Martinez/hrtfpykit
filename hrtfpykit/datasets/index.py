@@ -4,18 +4,27 @@ import numpy as np
 
 
 def normalize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
-    if isinstance(index_by, str):
-        value = str(index_by).strip().lower()
-        if value in {"subject", "subject-position", "subject-ear", "subject-position-ear"}:
-            return tuple(value.split("-"))
-        return (value,)
-    values = tuple(str(value).strip().lower() for value in index_by)
     allowed = {
         ("subject",),
         ("subject", "position"),
         ("subject", "ear"),
         ("subject", "position", "ear"),
     }
+    if isinstance(index_by, str):
+        value = str(index_by).strip().lower()
+        if value in {"subject", "subject-position", "subject-ear", "subject-position-ear"}:
+            normalized = tuple(value.split("-"))
+        else:
+            normalized = (value,)
+        if normalized not in allowed:
+            raise ValueError(
+                "index_by must be one of: "
+                "'subject', 'subject-position', 'subject-ear', 'subject-position-ear', "
+                "('subject',), ('subject', 'position'), ('subject', 'ear'), "
+                "('subject', 'position', 'ear')"
+            )
+        return normalized
+    values = tuple(str(value).strip().lower() for value in index_by)
     if values not in allowed:
         raise ValueError(
             "index_by must be one of: "
@@ -95,8 +104,21 @@ def split_subject_ids(
     shuffled = list(subject_ids)
     if len(shuffled) > 1:
         shuffled = [shuffled[index] for index in rng.permutation(len(shuffled))]
-    train_end = int(len(shuffled) * train_ratio)
-    validation_end = train_end + int(len(shuffled) * validation_ratio)
+    raw_counts = np.asarray(
+        [
+            len(shuffled) * float(train_ratio),
+            len(shuffled) * float(validation_ratio),
+            len(shuffled) * float(test_ratio),
+        ],
+        dtype=float,
+    )
+    counts = np.floor(raw_counts).astype(int)
+    remainder = int(len(shuffled) - int(counts.sum()))
+    if remainder > 0:
+        for index in np.argsort(-(raw_counts - counts))[:remainder]:
+            counts[int(index)] += 1
+    train_end = int(counts[0])
+    validation_end = int(counts[0] + counts[1])
     if split_key == "train":
         return shuffled[:train_end]
     if split_key == "validation":
