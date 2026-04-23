@@ -15,6 +15,16 @@ except ImportError:
     tqdm = None
 
 class BaseDownload:
+    def __init__(
+        self,
+        config: DatasetConfig,
+        root: str | Path,
+        excluded_subject_ids: tuple[str, ...] = tuple(),
+    ) -> None:
+        self.config = config
+        self.root = self.normalize_root(Path(root))
+        self.excluded_subject_ids = tuple(dict.fromkeys(excluded_subject_ids))
+
     @staticmethod
     def preview_values(values: list[str] | tuple[str, ...], limit: int = 5) -> str:
         if len(values) == 0:
@@ -59,16 +69,6 @@ class BaseDownload:
         if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
             raise ValueError("Checksums must be SHA-256 hex digests")
         return value
-
-    def __init__(
-        self,
-        config: DatasetConfig,
-        root: str | Path,
-        excluded_subject_ids: tuple[str, ...] = tuple(),
-    ) -> None:
-        self.config = config
-        self.root = self.normalize_root(Path(root))
-        self.excluded_subject_ids = tuple(dict.fromkeys(excluded_subject_ids))
 
     def normalize_download_resources(
         self,

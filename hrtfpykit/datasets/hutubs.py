@@ -11,11 +11,84 @@ from .specs import (
     ILDSpec,
     ITDSpec,
     MeshSpec,
+    SHSpec,
     VideoSpec,
 )
 
 class HUTUBS(BaseDataset):
     config = HUTUBS_CONFIG
+
+    def __init__(
+        self,
+        root: str | Path,
+        variant: str = "measured",
+        hrtf_transform=None,
+        download: bool = False,
+        download_resources: str | tuple[str, ...] | list[str] = "all",
+        download_hrtf_variant: str = "all",
+        exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
+        inputs: HRTFSpec
+        | ITDSpec
+        | ILDSpec
+        | SHSpec
+        | MeshSpec
+        | AnthropometrySpec
+        | ImageSpec
+        | VideoSpec
+        | tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
+        | None = None,
+        target: HRTFSpec
+        | ITDSpec
+        | ILDSpec
+        | SHSpec
+        | MeshSpec
+        | AnthropometrySpec
+        | ImageSpec
+        | VideoSpec
+        | tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
+        | None = None,
+        split: str = "all",
+        split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
+        split_seed: int = 0,
+    ) -> None:
+        self.variant = str(variant).strip().lower()
+        if self.variant not in self.config.hrtf.variants:
+            raise ValueError(
+                f"Unsupported variant {self.variant!r}. Expected one of {self.config.hrtf.variants}"
+            )
+        resolved_exclude_subject_ids: tuple[str, ...]
+        if exclude_subject_ids is None:
+            resolved_exclude_subject_ids = tuple()
+        elif isinstance(exclude_subject_ids, (str, int)):
+            resolved_exclude_subject_ids = (
+                type(self).resolve_dataset_subject_id(exclude_subject_ids, tuple(self.config.subject_ids)),
+            )
+        else:
+            resolved_exclude_subject_ids = tuple(
+                dict.fromkeys(
+                    type(self).resolve_dataset_subject_id(subject_id, tuple(self.config.subject_ids))
+                    for subject_id in exclude_subject_ids
+                )
+            )
+        if download:
+            BaseDownload(
+                config=self.config,
+                root=root,
+                excluded_subject_ids=resolved_exclude_subject_ids,
+            ).download(
+                download_resources=download_resources,
+                download_hrtf_variant=download_hrtf_variant,
+            )
+        super().__init__(
+            root=root,
+            hrtf_transform=hrtf_transform,
+            exclude_subject_ids=exclude_subject_ids,
+            inputs=inputs,
+            target=target,
+            split=split,
+            split_ratio=split_ratio,
+            split_seed=split_seed,
+        )
 
     @staticmethod
     def build_anthropometry_column_maps(
@@ -52,74 +125,6 @@ class HUTUBS(BaseDataset):
         return (
             f"shared columns, left-ear columns with prefix {left_prefix!r}, "
             f"or right-ear columns with prefix {right_prefix!r}"
-        )
-
-    def __init__(
-        self,
-        root: str | Path,
-        variant: str = "measured",
-        download: bool = False,
-        download_resources: str | tuple[str, ...] | list[str] = "all",
-        download_hrtf_variant: str = "all",
-        exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
-        inputs: HRTFSpec
-        | ITDSpec
-        | ILDSpec
-        | MeshSpec
-        | AnthropometrySpec
-        | ImageSpec
-        | VideoSpec
-        | tuple[HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
-        | None = None,
-        target: HRTFSpec
-        | ITDSpec
-        | ILDSpec
-        | MeshSpec
-        | AnthropometrySpec
-        | ImageSpec
-        | VideoSpec
-        | tuple[HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
-        | None = None,
-        split: str = "all",
-        split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
-        split_seed: int = 0,
-    ) -> None:
-        self.variant = str(variant).strip().lower()
-        if self.variant not in self.config.hrtf.variants:
-            raise ValueError(
-                f"Unsupported variant {self.variant!r}. Expected one of {self.config.hrtf.variants}"
-            )
-        resolved_exclude_subject_ids: tuple[str, ...]
-        if exclude_subject_ids is None:
-            resolved_exclude_subject_ids = tuple()
-        elif isinstance(exclude_subject_ids, (str, int)):
-            resolved_exclude_subject_ids = (
-                type(self).resolve_dataset_subject_id(exclude_subject_ids, tuple(self.config.subject_ids)),
-            )
-        else:
-            resolved_exclude_subject_ids = tuple(
-                dict.fromkeys(
-                    type(self).resolve_dataset_subject_id(subject_id, tuple(self.config.subject_ids))
-                    for subject_id in exclude_subject_ids
-                )
-            )
-        if download:
-            BaseDownload(
-                config=self.config,
-                root=root,
-                excluded_subject_ids=resolved_exclude_subject_ids,
-            ).download(
-                download_resources=download_resources,
-                download_hrtf_variant=download_hrtf_variant,
-            )
-        super().__init__(
-            root=root,
-            exclude_subject_ids=exclude_subject_ids,
-            inputs=inputs,
-            target=target,
-            split=split,
-            split_ratio=split_ratio,
-            split_seed=split_seed,
         )
 
     def get_anthropometry_value(

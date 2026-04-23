@@ -8,6 +8,7 @@ from .specs import (
     ILDSpec,
     ITDSpec,
     MeshSpec,
+    SHSpec,
     VideoSpec,
 )
 from .transforms import HRTFTransform
@@ -18,6 +19,7 @@ __all__ = [
     "HRTFSpec",
     "ITDSpec",
     "ILDSpec",
+    "SHSpec",
     "MeshSpec",
     "AnthropometrySpec",
     "ImageSpec",

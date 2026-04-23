@@ -13,8 +13,10 @@ class HRTFSpec:
     plane: str | tuple[object, ...] | dict[str, object] | None = None
     ears: str | tuple[str, ...] = "both"
     index_by: str | tuple[str, ...] = ("subject",)
-    position_encoding: str = "none"
+    positions_encoding: str = "none"
     ear_encoding: str = "none"
+    frequencies_encoding: str = "none"
+    samples_encoding: str = "none"
     transform: Callable | None = None
     cache: bool = True
     name: str | None = None
@@ -25,6 +27,7 @@ class ITDSpec:
     positions: str | tuple[int, ...] | list[int] | np.ndarray = "all"
     plane: str | tuple[object, ...] | dict[str, object] | None = None
     index_by: str | tuple[str, ...] = ("subject",)
+    positions_encoding: str = "none"
     method: str = "threshold"
     output: str = "samples"
     thresh_level: float = -10.0
@@ -39,10 +42,24 @@ class ILDSpec:
     positions: str | tuple[int, ...] | list[int] | np.ndarray = "all"
     plane: str | tuple[object, ...] | dict[str, object] | None = None
     index_by: str | tuple[str, ...] = ("subject",)
+    positions_encoding: str = "none"
+    frequencies_encoding: str = "none"
     mode: str = "broad-band"
     output: str = "db"
     fft_length: int | None = None
     epsilon: float = 1e-12
+    transform: Callable | None = None
+    name: str | None = None
+
+
+@dataclass(frozen=True)
+class SHSpec:
+    sh_order: int
+    ears: str | tuple[str, ...] = "both"
+    index_by: str | tuple[str, ...] = ("subject",)
+    ear_encoding: str = "none"
+    frequencies_encoding: str = "none"
+    epsilon: float = 1e-6
     transform: Callable | None = None
     name: str | None = None
 
@@ -80,7 +97,7 @@ class VideoSpec:
 
 
 def get_spec_name(
-    spec: HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
+    spec: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
 ) -> str:
     explicit_name = getattr(spec, "name", None)
     if explicit_name is not None:
@@ -94,6 +111,8 @@ def get_spec_name(
         return "itd"
     if isinstance(spec, ILDSpec):
         return "ild"
+    if isinstance(spec, SHSpec):
+        return "sh"
     if isinstance(spec, MeshSpec):
         return "mesh"
     if isinstance(spec, AnthropometrySpec):
@@ -109,23 +128,24 @@ def normalize_specs(
     specs: HRTFSpec
     | ITDSpec
     | ILDSpec
+    | SHSpec
     | MeshSpec
     | AnthropometrySpec
     | ImageSpec
     | VideoSpec
-    | Sequence[HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec]
+    | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec]
     | None,
-) -> tuple[HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]:
+) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]:
     if specs is None:
         return tuple()
     if isinstance(specs, str):
         raise TypeError("inputs and target must use dataset spec objects, not strings")
-    if isinstance(specs, (HRTFSpec, ITDSpec, ILDSpec, MeshSpec, AnthropometrySpec, ImageSpec, VideoSpec)):
+    if isinstance(specs, (HRTFSpec, ITDSpec, ILDSpec, SHSpec, MeshSpec, AnthropometrySpec, ImageSpec, VideoSpec)):
         values = (specs,)
     else:
         values = tuple(specs)
     names: set[str] = set()
-    normalized: list[HRTFSpec | ITDSpec | ILDSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] = []
+    normalized: list[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] = []
     for spec in values:
         name = get_spec_name(spec)
         if name in names:

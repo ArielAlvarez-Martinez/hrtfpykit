@@ -4,33 +4,32 @@ import numpy as np
 
 
 def normalize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
-    allowed = {
-        ("subject",),
-        ("subject", "position"),
-        ("subject", "ear"),
-        ("subject", "position", "ear"),
-    }
+    allowed_axes = {"position", "ear", "frequency", "samples"}
     if isinstance(index_by, str):
         value = str(index_by).strip().lower()
-        if value in {"subject", "subject-position", "subject-ear", "subject-position-ear"}:
-            normalized = tuple(value.split("-"))
+        if value == "subject":
+            normalized = ("subject",)
+        elif value.startswith("subject-"):
+            normalized = tuple(part for part in value.split("-") if part != "")
         else:
             normalized = (value,)
-        if normalized not in allowed:
-            raise ValueError(
-                "index_by must be one of: "
-                "'subject', 'subject-position', 'subject-ear', 'subject-position-ear', "
-                "('subject',), ('subject', 'position'), ('subject', 'ear'), "
-                "('subject', 'position', 'ear')"
-            )
-        return normalized
-    values = tuple(str(value).strip().lower() for value in index_by)
-    if values not in allowed:
+    else:
+        normalized = tuple(str(value).strip().lower() for value in index_by)
+    values = normalized
+    if len(values) == 0:
+        raise ValueError("index_by must not be empty")
+    if values[0] != "subject":
+        raise ValueError("index_by must start with 'subject'")
+    if len(set(values)) != len(values):
+        raise ValueError("index_by must not contain duplicate axes")
+    invalid_axes = [value for value in values[1:] if value not in allowed_axes]
+    if invalid_axes:
         raise ValueError(
-            "index_by must be one of: "
-            "('subject',), ('subject', 'position'), ('subject', 'ear'), "
-            "('subject', 'position', 'ear')"
+            "index_by axes after 'subject' must be chosen from: "
+            "'position', 'ear', 'frequency', 'samples'"
         )
+    if "frequency" in values and "samples" in values:
+        raise ValueError("index_by cannot include both 'frequency' and 'samples'")
     return values
 
 
@@ -131,59 +130,54 @@ def build_rows(
     index_by: tuple[str, ...],
     position_indices: Sequence[int],
     ears: Sequence[tuple[str, int]],
+    frequency_indices: Sequence[int],
+    sample_indices: Sequence[int],
 ) -> list[dict[str, str | int | None]]:
     rows: list[dict[str, str | int | None]] = []
     include_position = "position" in index_by
     include_ear = "ear" in index_by
+    include_frequency = "frequency" in index_by
+    include_samples = "samples" in index_by
     for subject_id in subject_ids:
-        if include_position and include_ear:
-            for selected_position_index, position_index in enumerate(position_indices):
-                for selected_ear_index, (ear_name, ear_index) in enumerate(ears):
-                    rows.append(
-                        {
-                            "subject_id": subject_id,
-                            "position_index": int(position_index),
-                            "selected_position_index": int(selected_position_index),
-                            "ear": ear_name,
-                            "ear_index": int(ear_index),
-                            "selected_ear_index": int(selected_ear_index),
-                        }
-                    )
-            continue
-        if include_position:
-            for selected_position_index, position_index in enumerate(position_indices):
-                rows.append(
-                    {
-                        "subject_id": subject_id,
-                        "position_index": int(position_index),
-                        "selected_position_index": int(selected_position_index),
-                        "ear": None,
-                        "ear_index": None,
-                        "selected_ear_index": None,
-                    }
-                )
-            continue
-        if include_ear:
-            for selected_ear_index, (ear_name, ear_index) in enumerate(ears):
-                rows.append(
-                    {
-                        "subject_id": subject_id,
-                        "position_index": None,
-                        "selected_position_index": None,
-                        "ear": ear_name,
-                        "ear_index": int(ear_index),
-                        "selected_ear_index": int(selected_ear_index),
-                    }
-                )
-            continue
-        rows.append(
-            {
-                "subject_id": subject_id,
-                "position_index": None,
-                "selected_position_index": None,
-                "ear": None,
-                "ear_index": None,
-                "selected_ear_index": None,
-            }
+        position_values = (
+            [(None, None)]
+            if not include_position
+            else [(int(position_index), int(selected_position_index)) for selected_position_index, position_index in enumerate(position_indices)]
         )
+        ear_values = (
+            [(None, None, None)]
+            if not include_ear
+            else [
+                (ear_name, int(ear_index), int(selected_ear_index))
+                for selected_ear_index, (ear_name, ear_index) in enumerate(ears)
+            ]
+        )
+        frequency_values = (
+            [(None, None)]
+            if not include_frequency
+            else [(int(frequency_index), int(selected_frequency_index)) for selected_frequency_index, frequency_index in enumerate(frequency_indices)]
+        )
+        sample_values = (
+            [(None, None)]
+            if not include_samples
+            else [(int(sample_index), int(selected_sample_index)) for selected_sample_index, sample_index in enumerate(sample_indices)]
+        )
+        for position_index, selected_position_index in position_values:
+            for ear_name, ear_index, selected_ear_index in ear_values:
+                for frequency_index, selected_frequency_index in frequency_values:
+                    for sample_index, selected_sample_index in sample_values:
+                        rows.append(
+                            {
+                                "subject_id": subject_id,
+                                "position_index": position_index,
+                                "selected_position_index": selected_position_index,
+                                "ear": ear_name,
+                                "ear_index": ear_index,
+                                "selected_ear_index": selected_ear_index,
+                                "frequency_index": frequency_index,
+                                "selected_frequency_index": selected_frequency_index,
+                                "sample_index": sample_index,
+                                "selected_sample_index": selected_sample_index,
+                            }
+                        )
     return rows
