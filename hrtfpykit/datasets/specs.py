@@ -39,6 +39,7 @@ class AnthropometrySpec:
 class ImageSpec:
     path: str | Path | None = None
     align_by: str | tuple[str, ...] = ("subject",)
+    concatenate: bool = False
     transform: Callable | None = None
     name: str | None = None
 

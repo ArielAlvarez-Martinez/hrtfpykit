@@ -2,6 +2,8 @@ from collections.abc import Callable
 from pathlib import Path
 import re
 
+import numpy as np
+
 
 def resolve_image_subject_folder(
     root: Path,
@@ -159,6 +161,7 @@ def scan_image_paths(
 def apply_image_transform(
     paths: list[str],
     transform: Callable | None,
+    concatenate: bool = False,
 ) -> object:
     values: list[object] = []
     for path in paths:
@@ -166,6 +169,22 @@ def apply_image_transform(
         if transform is not None:
             value = transform(value)
         values.append(value)
+    if concatenate:
+        if len(values) == 0:
+            raise ValueError("Cannot concatenate an empty image sequence")
+        arrays = [np.asarray(value) for value in values]
+        reference_shape = arrays[0].shape
+        if len(reference_shape) != 3:
+            raise ValueError(
+                "ImageSpec(concatenate=True) requires each transformed image to have shape (C, H, W)"
+            )
+        for index, array in enumerate(arrays[1:], start=1):
+            if array.shape != reference_shape:
+                raise ValueError(
+                    "ImageSpec(concatenate=True) requires all transformed images to share the same shape, "
+                    f"but image 0 has shape {reference_shape} and image {index} has shape {array.shape}"
+                )
+        return np.concatenate(arrays, axis=0)
     if len(values) == 1:
         return values[0]
     return values

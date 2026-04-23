@@ -1172,6 +1172,7 @@ class BaseDataset:
             return apply_image_transform(
                 self._image_index[image_key],
                 spec.transform,
+                concatenate=spec.concatenate,
             )
         if isinstance(spec, VideoSpec):
             if self._video_align_by is None:
