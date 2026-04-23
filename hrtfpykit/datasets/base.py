@@ -719,6 +719,15 @@ class BaseDataset:
                 raise ValueError(f"AnthropometrySpec.path is not a file: {anthropometry_path}")
 
         excluded_subject_ids = set(self.exclude_subject_ids)
+        included_subject_ids = tuple(
+            subject_id
+            for subject_id in self.config.subject_ids
+            if subject_id not in excluded_subject_ids
+        )
+        subject_numbers = {
+            subject_id: index
+            for index, subject_id in enumerate(tuple(self.config.subject_ids), start=1)
+        }
         self._hrtf_paths: dict[str, Path] = {}
         if self.config.hrtf is not None and primary_hrtf_spec is not None:
             hrtf_subject_ids = (
@@ -900,19 +909,39 @@ class BaseDataset:
                 )
 
         self._image_index: dict[tuple[str, int | None, str | None], list[str]] = {}
+        self._image_counts: dict[str, int] = {}
         if self._image_path is not None and image_supported_align_by is not None and self._image_align_by is not None:
-            self._image_index = scan_image_paths(
+            self._image_index, self._image_counts, missing_image_subject_ids = scan_image_paths(
                 self._image_path,
-                tuple(self.config.subject_ids),
+                included_subject_ids,
+                subject_numbers,
                 tuple(self.config.image.extensions),
                 self._image_align_by,
             )
+        else:
+            missing_image_subject_ids = tuple()
         if primary_image_spec is not None:
             self.resource_summary["image"] = {
                 "path": None if self._image_path is None else str(self._image_path),
                 "found": len({key[0] for key in self._image_index}),
                 "subjects": len({key[0] for key in self._image_index}),
+                "missing": len(missing_image_subject_ids),
+                "missing_subject_ids": tuple(missing_image_subject_ids),
             }
+            if len(missing_image_subject_ids) > 0:
+                raise ValueError(
+                    f"{self.name} image path is incompatible with the selected dataset subjects. "
+                    f"Missing subject folders under {self._image_path}: "
+                    f"{self.preview_values(tuple(missing_image_subject_ids))}"
+                )
+            distinct_image_counts = set(self._image_counts.values())
+            if len(distinct_image_counts) > 1:
+                warnings.warn(
+                    f"{self.name}: subjects do not all have the same number of images under {self._image_path} "
+                    f"({', '.join(f'{subject_id}={count}' for subject_id, count in sorted(self._image_counts.items())[:5])}"
+                    f"{'' if len(self._image_counts) <= 5 else ', ...'})",
+                    stacklevel=2,
+                )
         self._video_index: dict[tuple[str, int | None, str | None], list[str]] = {}
         if self._video_path is not None and video_supported_align_by is not None and self._video_align_by is not None:
             self._video_index = scan_video_paths(
@@ -943,8 +972,7 @@ class BaseDataset:
             subject_ids = self.sort_subject_ids(
                 [
                     subject_id
-                    for subject_id in self.config.subject_ids
-                    if subject_id not in excluded_subject_ids
+                    for subject_id in included_subject_ids
                 ]
             )
         else:

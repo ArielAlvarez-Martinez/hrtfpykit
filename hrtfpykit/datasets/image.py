@@ -3,16 +3,28 @@ from pathlib import Path
 import re
 
 
-def resolve_image_subject_id_from_path(path: Path, subject_ids: tuple[str, ...]) -> str | None:
-    parts = [part.lower() for part in path.parts]
-    stem = path.stem.lower()
-    for subject_id in sorted(subject_ids, key=len, reverse=True):
-        subject_key = subject_id.lower()
-        if subject_key in parts:
-            return subject_id
-        if re.search(rf"(?<![a-z0-9]){re.escape(subject_key)}(?![a-z0-9])", stem):
-            return subject_id
-    return None
+def resolve_image_subject_folder(
+    root: Path,
+    subject_id: str,
+    subject_number: int,
+) -> Path | None:
+    candidate_names = (
+        str(subject_id).strip().lower(),
+        f"subject{subject_number}",
+    )
+    matches = [
+        path
+        for path in root.iterdir()
+        if path.is_dir() and path.name.strip().lower() in candidate_names
+    ]
+    if len(matches) > 1:
+        raise ValueError(
+            f"Image path {root} contains multiple folders for subject {subject_id!r}: "
+            + ", ".join(str(path.name) for path in matches)
+        )
+    if len(matches) == 0:
+        return None
+    return matches[0]
 
 
 def resolve_image_position_from_path(path: Path) -> int | None:
@@ -45,37 +57,103 @@ def build_image_key(
     )
 
 
+def collect_image_files(
+    path: Path,
+    extensions: tuple[str, ...],
+) -> list[str]:
+    normalized_extensions = {extension.lower() for extension in extensions}
+    def sort_key(file: Path) -> tuple[int, str, int | float, str]:
+        stem = file.stem.strip().lower()
+        match = re.fullmatch(r"([a-z_ -]*?)(\d+)", stem)
+        if match is None:
+            return (1, stem, float("inf"), file.name.lower())
+        prefix = match.group(1).strip()
+        return (0, prefix, int(match.group(2)), file.name.lower())
+
+    return sorted(
+        (str(file) for file in path.rglob("*")
+        if file.is_file() and file.suffix.lower() in normalized_extensions),
+        key=lambda file: sort_key(Path(file)),
+    )
+
+
 def scan_image_paths(
     path: Path,
     subject_ids: tuple[str, ...],
+    subject_numbers: dict[str, int],
     extensions: tuple[str, ...],
     align_by: tuple[str, ...],
-) -> dict[tuple[str, int | None, str | None], list[str]]:
+) -> tuple[
+    dict[tuple[str, int | None, str | None], list[str]],
+    dict[str, int],
+    tuple[str, ...],
+]:
     index: dict[tuple[str, int | None, str | None], list[str]] = {}
     if not path.exists():
         raise ValueError(f"Image path does not exist: {path}")
-    normalized_extensions = {extension.lower() for extension in extensions}
-    for file in path.rglob("*"):
-        if not file.is_file():
+    subject_image_counts: dict[str, int] = {}
+    missing_subject_ids: list[str] = []
+    for subject_id in subject_ids:
+        subject_folder = resolve_image_subject_folder(
+            path,
+            subject_id,
+            int(subject_numbers[subject_id]),
+        )
+        if subject_folder is None:
+            missing_subject_ids.append(subject_id)
             continue
-        if file.suffix.lower() not in normalized_extensions:
-            continue
-        subject_id = resolve_image_subject_id_from_path(file, subject_ids)
-        if subject_id is None:
-            continue
-        position_index = None
-        ear = None
-        if "position" in align_by:
-            position_index = resolve_image_position_from_path(file)
-            if position_index is None:
-                continue
+        subject_count = 0
         if "ear" in align_by:
-            ear = resolve_image_ear_from_path(file)
-            if ear is None:
-                continue
-        key = build_image_key(subject_id, align_by, position_index, ear)
-        index.setdefault(key, []).append(str(file))
-    return index
+            for ear in ("left", "right"):
+                ear_folder = subject_folder / ear
+                if not ear_folder.is_dir():
+                    raise ValueError(
+                        f"Image path {path} is incompatible with align_by={align_by}: "
+                        f"subject {subject_id!r} is missing the {ear!r} folder"
+                    )
+                files = collect_image_files(ear_folder, extensions)
+                if len(files) == 0:
+                    raise ValueError(
+                        f"Image path {path} is incompatible with align_by={align_by}: "
+                        f"subject {subject_id!r} has no images in {ear_folder}"
+                    )
+                subject_count += len(files)
+                if "position" in align_by:
+                    for file in files:
+                        position_index = resolve_image_position_from_path(Path(file))
+                        if position_index is None:
+                            raise ValueError(
+                                f"Image path {path} is incompatible with align_by={align_by}: "
+                                f"subject {subject_id!r} has an image without a position token: {file}"
+                            )
+                        key = build_image_key(subject_id, align_by, position_index, ear)
+                        index.setdefault(key, []).append(file)
+                else:
+                    key = build_image_key(subject_id, align_by, None, ear)
+                    index[key] = files
+        else:
+            files = collect_image_files(subject_folder, extensions)
+            if len(files) == 0:
+                raise ValueError(
+                    f"Image path {path} is incompatible with align_by={align_by}: "
+                    f"subject {subject_id!r} has no images in {subject_folder}"
+                )
+            subject_count = len(files)
+            if "position" in align_by:
+                for file in files:
+                    position_index = resolve_image_position_from_path(Path(file))
+                    if position_index is None:
+                        raise ValueError(
+                            f"Image path {path} is incompatible with align_by={align_by}: "
+                            f"subject {subject_id!r} has an image without a position token: {file}"
+                        )
+                    key = build_image_key(subject_id, align_by, position_index, None)
+                    index.setdefault(key, []).append(file)
+            else:
+                key = build_image_key(subject_id, align_by, None, None)
+                index[key] = files
+        subject_image_counts[subject_id] = subject_count
+    return index, subject_image_counts, tuple(missing_subject_ids)
 
 
 def apply_image_transform(
