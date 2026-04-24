@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from .anthropometry import normalize_anthropometry_ear, normalize_anthropometry_select
 from .base import BaseDataset
 from .config import HUTUBS_CONFIG
 from .download import BaseDownload
+from .resolver import normalize_anthropometry_ear, normalize_anthropometry_select
 from .specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -14,6 +14,7 @@ from .specs import (
     SHSpec,
     VideoSpec,
 )
+
 
 class HUTUBS(BaseDataset):
     config = HUTUBS_CONFIG
@@ -56,20 +57,10 @@ class HUTUBS(BaseDataset):
             raise ValueError(
                 f"Unsupported variant {self.variant!r}. Expected one of {self.config.hrtf.variants}"
             )
-        resolved_exclude_subject_ids: tuple[str, ...]
-        if exclude_subject_ids is None:
-            resolved_exclude_subject_ids = tuple()
-        elif isinstance(exclude_subject_ids, (str, int)):
-            resolved_exclude_subject_ids = (
-                type(self).resolve_dataset_subject_id(exclude_subject_ids, tuple(self.config.subject_ids)),
-            )
-        else:
-            resolved_exclude_subject_ids = tuple(
-                dict.fromkeys(
-                    type(self).resolve_dataset_subject_id(subject_id, tuple(self.config.subject_ids))
-                    for subject_id in exclude_subject_ids
-                )
-            )
+        resolved_exclude_subject_ids = type(self).resolve_dataset_subject_ids(
+            exclude_subject_ids,
+            tuple(self.config.subject_ids),
+        )
         if download:
             BaseDownload(
                 config=self.config,
@@ -112,6 +103,14 @@ class HUTUBS(BaseDataset):
                 neutral_lookup[lowered_name] = name
         return exact_lookup, neutral_lookup, left_lookup, right_lookup
 
+    def get_anthropometry_prefixes(self) -> tuple[str, str]:
+        if self.config is None or self.config.anthropometry is None:
+            raise ValueError("HUTUBS anthropometry config is missing")
+        return (
+            str(self.config.anthropometry.left_prefix),
+            str(self.config.anthropometry.right_prefix),
+        )
+
     @staticmethod
     def get_anthropometry_search_scope(
         ear: str,
@@ -127,6 +126,27 @@ class HUTUBS(BaseDataset):
             f"or right-ear columns with prefix {right_prefix!r}"
         )
 
+    @staticmethod
+    def select_complete_anthropometry_value(
+        values: dict[str, float | str | None],
+        ear: str,
+        left_prefix: str,
+        right_prefix: str,
+    ) -> dict[str, float | str | None]:
+        selected_values: dict[str, float | str | None] = {}
+        for name, value in values.items():
+            text = str(name)
+            if text.startswith(left_prefix):
+                if ear in {"left", "both"}:
+                    selected_values[name] = value
+                continue
+            if text.startswith(right_prefix):
+                if ear in {"right", "both"}:
+                    selected_values[name] = value
+                continue
+            selected_values[name] = value
+        return selected_values
+
     def get_anthropometry_value(
         self,
         spec: AnthropometrySpec,
@@ -135,25 +155,18 @@ class HUTUBS(BaseDataset):
         values = self._anthropometry_rows[subject_id]
         selected = normalize_anthropometry_select(spec.select)
         ear = normalize_anthropometry_ear(spec.ear)
-        if self.config is None or self.config.anthropometry is None:
-            raise ValueError("HUTUBS anthropometry config is missing")
-        left_prefix = str(self.config.anthropometry.left_prefix)
-        right_prefix = str(self.config.anthropometry.right_prefix)
+        left_prefix, right_prefix = self.get_anthropometry_prefixes()
 
         if selected == "complete":
-            selected_values: dict[str, float | str | None] = {}
-            for name, value in values.items():
-                text = str(name)
-                if text.startswith(left_prefix):
-                    if ear in {"left", "both"}:
-                        selected_values[name] = value
-                    continue
-                if text.startswith(right_prefix):
-                    if ear in {"right", "both"}:
-                        selected_values[name] = value
-                    continue
-                selected_values[name] = value
-            return selected_values
+            value = self.select_complete_anthropometry_value(
+                values,
+                ear,
+                left_prefix,
+                right_prefix,
+            )
+            if spec.transform is not None:
+                value = spec.transform(value)
+            return value
 
         exact_lookup, neutral_lookup, left_lookup, right_lookup = (
             self.build_anthropometry_column_maps(
@@ -231,4 +244,7 @@ class HUTUBS(BaseDataset):
                 "Anthropometry select values could not be resolved for HUTUBS: "
                 + "; ".join(missing_messages)
             )
-        return {name: values[name] for name in selected_keys}
+        value = {name: values[name] for name in selected_keys}
+        if spec.transform is not None:
+            value = spec.transform(value)
+        return value

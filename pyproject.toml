@@ -21,6 +21,7 @@ dependencies = [
   "scipy>=1.16.3",
   "matplotlib>=3.10.7",
   "netCDF4>=1.7.3",
+  "tqdm>=4.66",
 ]
 
 [project.optional-dependencies]
