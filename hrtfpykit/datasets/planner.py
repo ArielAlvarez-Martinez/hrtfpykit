@@ -318,22 +318,22 @@ class DatasetSpecPlanner:
         )
 
     @staticmethod
-    def choose_input_encoding(values: tuple[str, ...]) -> str:
-        return "one-hot" if any(value == "one-hot" for value in values) else "none"
+    def choose_input_encoding(values: tuple[bool, ...]) -> bool:
+        return any(bool(value) for value in values)
 
     def configure_dataset_encodings(self) -> None:
         input_positions_encodings = tuple(
-            str(spec.positions_encoding).strip().lower()
+            bool(spec.positions_encoding)
             for spec in self.input_spatial_specs
             if hasattr(spec, "positions_encoding")
         )
         input_frequencies_encodings = tuple(
-            str(spec.frequencies_encoding).strip().lower()
+            bool(spec.frequencies_encoding)
             for spec in self.input_hrtf_specs + self.input_ild_specs + self.input_sh_specs
             if hasattr(spec, "frequencies_encoding")
         )
         input_samples_encodings = tuple(
-            str(spec.samples_encoding).strip().lower()
+            bool(spec.samples_encoding)
             for spec in self.input_hrtf_specs
             if hasattr(spec, "samples_encoding")
         )
@@ -341,37 +341,29 @@ class DatasetSpecPlanner:
         self._frequencies_encoding = self.choose_input_encoding(input_frequencies_encodings)
         self._samples_encoding = self.choose_input_encoding(input_samples_encodings)
         if len(self.input_ear_axis_specs) == 0:
-            self._ear_encoding = "none"
+            self._ear_encoding = False
         else:
             ear_encodings = tuple(
-                str(spec.ear_encoding).strip().lower()
+                bool(spec.ear_encoding)
                 for spec in self.input_ear_axis_specs
             )
             self._ear_encoding = self.choose_input_encoding(ear_encodings)
 
-        if self._positions_encoding not in {"none", "one-hot"}:
-            raise ValueError("positions_encoding must be 'none' or 'one-hot'")
-        if self._frequencies_encoding not in {"none", "one-hot"}:
-            raise ValueError("frequencies_encoding must be 'none' or 'one-hot'")
-        if self._samples_encoding not in {"none", "one-hot"}:
-            raise ValueError("samples_encoding must be 'none' or 'one-hot'")
-        if self._ear_encoding not in {"none", "one-hot"}:
-            raise ValueError("ear_encoding must be 'none' or 'one-hot'")
-        if self._positions_encoding == "one-hot" and "position" in self.input_names:
-            raise ValueError("Input spec name 'position' conflicts with positions_encoding='one-hot'")
-        if self._frequencies_encoding == "one-hot" and "frequency" in self.input_names:
-            raise ValueError("Input spec name 'frequency' conflicts with frequencies_encoding='one-hot'")
-        if self._samples_encoding == "one-hot" and "sample" in self.input_names:
-            raise ValueError("Input spec name 'sample' conflicts with samples_encoding='one-hot'")
-        if self._ear_encoding == "one-hot" and "ear" in self.input_names:
-            raise ValueError("Input spec name 'ear' conflicts with ear_encoding='one-hot'")
-        if self._positions_encoding != "none" and "position" not in self.index_by:
+        if self._positions_encoding and "position" in self.input_names:
+            raise ValueError("Input spec name 'position' conflicts with positions_encoding=True")
+        if self._frequencies_encoding and "frequency" in self.input_names:
+            raise ValueError("Input spec name 'frequency' conflicts with frequencies_encoding=True")
+        if self._samples_encoding and "sample" in self.input_names:
+            raise ValueError("Input spec name 'sample' conflicts with samples_encoding=True")
+        if self._ear_encoding and "ear" in self.input_names:
+            raise ValueError("Input spec name 'ear' conflicts with ear_encoding=True")
+        if self._positions_encoding and "position" not in self.index_by:
             raise ValueError("positions_encoding requires index_by to include 'position'")
-        if self._frequencies_encoding != "none" and "frequency" not in self.index_by:
+        if self._frequencies_encoding and "frequency" not in self.index_by:
             raise ValueError("frequencies_encoding requires index_by to include 'frequency'")
-        if self._samples_encoding != "none" and "samples" not in self.index_by:
+        if self._samples_encoding and "samples" not in self.index_by:
             raise ValueError("samples_encoding requires index_by to include 'samples'")
-        if self._ear_encoding != "none" and "ear" not in self.index_by:
+        if self._ear_encoding and "ear" not in self.index_by:
             raise ValueError("ear_encoding requires index_by to include 'ear'")
 
     def validate_dataset_transform(self) -> None:
@@ -414,15 +406,14 @@ class DatasetSpecPlanner:
         for spec in self.hrtf_specs:
             domain = str(spec.domain).strip().lower()
             signal = str(spec.signal).strip().lower()
-            positions_encoding = str(spec.positions_encoding).strip().lower()
-            frequencies_encoding = str(spec.frequencies_encoding).strip().lower()
-            samples_encoding = str(spec.samples_encoding).strip().lower()
-            if positions_encoding not in {"none", "one-hot"}:
-                raise ValueError("HRTFSpec.positions_encoding must be 'none' or 'one-hot'")
-            if frequencies_encoding not in {"none", "one-hot"}:
-                raise ValueError("HRTFSpec.frequencies_encoding must be 'none' or 'one-hot'")
-            if samples_encoding not in {"none", "one-hot"}:
-                raise ValueError("HRTFSpec.samples_encoding must be 'none' or 'one-hot'")
+            if not isinstance(spec.positions_encoding, bool):
+                raise ValueError("HRTFSpec.positions_encoding must be a boolean")
+            if not isinstance(spec.ear_encoding, bool):
+                raise ValueError("HRTFSpec.ear_encoding must be a boolean")
+            if not isinstance(spec.frequencies_encoding, bool):
+                raise ValueError("HRTFSpec.frequencies_encoding must be a boolean")
+            if not isinstance(spec.samples_encoding, bool):
+                raise ValueError("HRTFSpec.samples_encoding must be a boolean")
             if domain not in SUPPORTED_HRTF_DOMAINS:
                 raise ValueError(
                     f"Unsupported domain {spec.domain!r}. Expected one of {SUPPORTED_HRTF_DOMAINS}"
@@ -447,9 +438,8 @@ class DatasetSpecPlanner:
 
     def validate_itd_specs(self) -> None:
         for spec in self.itd_specs:
-            positions_encoding = str(spec.positions_encoding).strip().lower()
-            if positions_encoding not in {"none", "one-hot"}:
-                raise ValueError("ITDSpec.positions_encoding must be 'none' or 'one-hot'")
+            if not isinstance(spec.positions_encoding, bool):
+                raise ValueError("ITDSpec.positions_encoding must be a boolean")
             output = str(spec.output).strip().lower()
             if output not in SUPPORTED_ITD_OUTPUTS:
                 raise ValueError(
@@ -463,12 +453,10 @@ class DatasetSpecPlanner:
 
     def validate_ild_specs(self) -> None:
         for spec in self.ild_specs:
-            positions_encoding = str(spec.positions_encoding).strip().lower()
-            frequencies_encoding = str(spec.frequencies_encoding).strip().lower()
-            if positions_encoding not in {"none", "one-hot"}:
-                raise ValueError("ILDSpec.positions_encoding must be 'none' or 'one-hot'")
-            if frequencies_encoding not in {"none", "one-hot"}:
-                raise ValueError("ILDSpec.frequencies_encoding must be 'none' or 'one-hot'")
+            if not isinstance(spec.positions_encoding, bool):
+                raise ValueError("ILDSpec.positions_encoding must be a boolean")
+            if not isinstance(spec.frequencies_encoding, bool):
+                raise ValueError("ILDSpec.frequencies_encoding must be a boolean")
             mode = str(spec.mode).strip().lower()
             output = str(spec.output).strip().lower()
             if mode not in SUPPORTED_ILD_MODES:
@@ -493,12 +481,10 @@ class DatasetSpecPlanner:
 
     def validate_sh_specs(self) -> None:
         for spec in self.sh_specs:
-            ear_encoding = str(spec.ear_encoding).strip().lower()
-            frequencies_encoding = str(spec.frequencies_encoding).strip().lower()
-            if ear_encoding not in {"none", "one-hot"}:
-                raise ValueError("SHSpec.ear_encoding must be 'none' or 'one-hot'")
-            if frequencies_encoding not in {"none", "one-hot"}:
-                raise ValueError("SHSpec.frequencies_encoding must be 'none' or 'one-hot'")
+            if not isinstance(spec.ear_encoding, bool):
+                raise ValueError("SHSpec.ear_encoding must be a boolean")
+            if not isinstance(spec.frequencies_encoding, bool):
+                raise ValueError("SHSpec.frequencies_encoding must be a boolean")
             if isinstance(spec.sh_order, bool) or not isinstance(spec.sh_order, int) or spec.sh_order < 0:
                 raise ValueError("SHSpec.sh_order must be a non-negative integer")
             if isinstance(spec.epsilon, bool):

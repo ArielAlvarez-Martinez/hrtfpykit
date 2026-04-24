@@ -164,19 +164,19 @@ class BaseDataset(
         inputs: dict[str, object],
         row: dict[str, str | int | None],
     ) -> None:
-        if self._positions_encoding == "one-hot" and row["selected_position_index"] is not None:
+        if self._positions_encoding and row["selected_position_index"] is not None:
             position_encoding = np.zeros(len(self._selected_position_indices), dtype=float)
             position_encoding[int(row["selected_position_index"])] = 1.0
             inputs["position"] = position_encoding
-        if self._frequencies_encoding == "one-hot" and row["selected_frequency_index"] is not None:
+        if self._frequencies_encoding and row["selected_frequency_index"] is not None:
             frequency_encoding = np.zeros(len(self._selected_frequency_indices), dtype=float)
             frequency_encoding[int(row["selected_frequency_index"])] = 1.0
             inputs["frequency"] = frequency_encoding
-        if self._samples_encoding == "one-hot" and row["selected_sample_index"] is not None:
+        if self._samples_encoding and row["selected_sample_index"] is not None:
             sample_encoding = np.zeros(len(self._selected_sample_indices), dtype=float)
             sample_encoding[int(row["selected_sample_index"])] = 1.0
             inputs["sample"] = sample_encoding
-        if self._ear_encoding == "one-hot" and row["selected_ear_index"] is not None:
+        if self._ear_encoding and row["selected_ear_index"] is not None:
             ear_encoding = np.zeros(len(self._selected_ears), dtype=float)
             ear_encoding[int(row["selected_ear_index"])] = 1.0
             inputs["ear"] = ear_encoding

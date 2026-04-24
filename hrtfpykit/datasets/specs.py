@@ -13,10 +13,10 @@ class HRTFSpec:
     plane: str | tuple[object, ...] | dict[str, object] | None = None
     ears: str | tuple[str, ...] = "both"
     index_by: str | tuple[str, ...] = ("subject",)
-    positions_encoding: str = "none"
-    ear_encoding: str = "none"
-    frequencies_encoding: str = "none"
-    samples_encoding: str = "none"
+    positions_encoding: bool = False
+    ear_encoding: bool = False
+    frequencies_encoding: bool = False
+    samples_encoding: bool = False
     transform: Callable | None = None
     cache: bool = True
     name: str | None = None
@@ -27,7 +27,7 @@ class ITDSpec:
     positions: str | tuple[int, ...] | list[int] | np.ndarray = "all"
     plane: str | tuple[object, ...] | dict[str, object] | None = None
     index_by: str | tuple[str, ...] = ("subject",)
-    positions_encoding: str = "none"
+    positions_encoding: bool = False
     method: str = "threshold"
     output: str = "samples"
     thresh_level: float = -10.0
@@ -42,8 +42,8 @@ class ILDSpec:
     positions: str | tuple[int, ...] | list[int] | np.ndarray = "all"
     plane: str | tuple[object, ...] | dict[str, object] | None = None
     index_by: str | tuple[str, ...] = ("subject",)
-    positions_encoding: str = "none"
-    frequencies_encoding: str = "none"
+    positions_encoding: bool = False
+    frequencies_encoding: bool = False
     mode: str = "broad-band"
     output: str = "db"
     fft_length: int | None = None
@@ -57,8 +57,8 @@ class SHSpec:
     sh_order: int
     ears: str | tuple[str, ...] = "both"
     index_by: str | tuple[str, ...] = ("subject",)
-    ear_encoding: str = "none"
-    frequencies_encoding: str = "none"
+    ear_encoding: bool = False
+    frequencies_encoding: bool = False
     epsilon: float = 1e-6
     transform: Callable | None = None
     name: str | None = None
