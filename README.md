@@ -1,2 +1,2 @@
-# hrtfpykit: The Swiss Army Knife for HRTF Research
+# The Swiss Army Knife for HRTF Research
 
