@@ -255,13 +255,31 @@ class DatasetValueResolver:
         if isinstance(spec, SHSpec):
             return self.get_sh_spec_value(spec, subject_id, row)
         if isinstance(spec, MeshSpec):
-            return self.get_mesh_spec_value(spec, subject_id)
+            value: object = str(self._mesh_paths[subject_id])
+            if spec.transform is not None:
+                value = spec.transform(value)
+            return value
         if isinstance(spec, AnthropometrySpec):
             return self.get_anthropometry_value(spec, subject_id)
         if isinstance(spec, ImageSpec):
-            return self.get_image_spec_value(spec, subject_id, row)
+            return self.select_media_value(
+                self._image_index,
+                subject_id,
+                row,
+                self._image_align_by,
+                spec.transform,
+                concatenate=spec.concatenate,
+                resource_name="image",
+            )
         if isinstance(spec, VideoSpec):
-            return self.get_video_spec_value(spec, subject_id, row)
+            return self.select_media_value(
+                self._video_index,
+                subject_id,
+                row,
+                self._video_align_by,
+                spec.transform,
+                resource_name="video",
+            )
         raise TypeError(f"Unsupported dataset spec: {type(spec)!r}")
 
     def get_hrtf_spec_value(
@@ -413,16 +431,6 @@ class DatasetValueResolver:
             value = spec.transform(value)
         return value
 
-    def get_mesh_spec_value(
-        self,
-        spec: MeshSpec,
-        subject_id: str,
-    ) -> object:
-        value: object = str(self._mesh_paths[subject_id])
-        if spec.transform is not None:
-            value = spec.transform(value)
-        return value
-
     def get_anthropometry_value(
         self,
         spec: AnthropometrySpec,
@@ -437,34 +445,3 @@ class DatasetValueResolver:
         if spec.transform is not None:
             value = spec.transform(value)
         return value
-
-    def get_image_spec_value(
-        self,
-        spec: ImageSpec,
-        subject_id: str,
-        row: dict[str, str | int | None],
-    ) -> object:
-        return self.select_media_value(
-            self._image_index,
-            subject_id,
-            row,
-            self._image_align_by,
-            spec.transform,
-            concatenate=spec.concatenate,
-            resource_name="image",
-        )
-
-    def get_video_spec_value(
-        self,
-        spec: VideoSpec,
-        subject_id: str,
-        row: dict[str, str | int | None],
-    ) -> object:
-        return self.select_media_value(
-            self._video_index,
-            subject_id,
-            row,
-            self._video_align_by,
-            spec.transform,
-            resource_name="video",
-        )

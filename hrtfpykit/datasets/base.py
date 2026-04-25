@@ -161,44 +161,6 @@ class BaseDataset(
     def __len__(self) -> int:
         return len(self._rows)
 
-    def add_input_categorical_outputs(
-        self,
-        inputs: dict[str, object],
-        row: dict[str, str | int | None],
-    ) -> None:
-        if row["selected_position_index"] is not None:
-            position_index = int(row["selected_position_index"])
-            if self._position_one_hot:
-                position_encoding = np.zeros(len(self._selected_position_indices), dtype=float)
-                position_encoding[position_index] = 1.0
-                inputs["position_one_hot"] = position_encoding
-            if self._position_index:
-                inputs["position_index"] = position_index
-        if row["selected_ear_index"] is not None:
-            ear_index = int(row["selected_ear_index"])
-            if self._ear_one_hot:
-                ear_encoding = np.zeros(len(self._selected_ears), dtype=float)
-                ear_encoding[ear_index] = 1.0
-                inputs["ear_one_hot"] = ear_encoding
-            if self._ear_index:
-                inputs["ear_index"] = ear_index
-        if row["selected_frequency_index"] is not None:
-            frequency_index = int(row["selected_frequency_index"])
-            if self._frequency_one_hot:
-                frequency_encoding = np.zeros(len(self._selected_frequency_indices), dtype=float)
-                frequency_encoding[frequency_index] = 1.0
-                inputs["frequency_one_hot"] = frequency_encoding
-            if self._frequency_index:
-                inputs["frequency_index"] = frequency_index
-        if row["selected_sample_index"] is not None:
-            sample_index = int(row["selected_sample_index"])
-            if self._sample_one_hot:
-                sample_encoding = np.zeros(len(self._selected_sample_indices), dtype=float)
-                sample_encoding[sample_index] = 1.0
-                inputs["sample_one_hot"] = sample_encoding
-            if self._sample_index:
-                inputs["sample_index"] = sample_index
-
     def __getitem__(self, index: int) -> dict[str, object]:
         if not isinstance(index, int):
             raise TypeError("Dataset indexing only supports integer indices")
@@ -209,7 +171,38 @@ class BaseDataset(
             inputs = {}
             for spec in self._input_specs:
                 inputs[get_spec_name(spec)] = self.get_spec_value(spec, subject_id, row)
-            self.add_input_categorical_outputs(inputs, row)
+            if row["selected_position_index"] is not None:
+                position_index = int(row["selected_position_index"])
+                if self._position_one_hot:
+                    position_encoding = np.zeros(len(self._selected_position_indices), dtype=float)
+                    position_encoding[position_index] = 1.0
+                    inputs["position_one_hot"] = position_encoding
+                if self._position_index:
+                    inputs["position_index"] = position_index
+            if row["selected_ear_index"] is not None:
+                ear_index = int(row["selected_ear_index"])
+                if self._ear_one_hot:
+                    ear_encoding = np.zeros(len(self._selected_ears), dtype=float)
+                    ear_encoding[ear_index] = 1.0
+                    inputs["ear_one_hot"] = ear_encoding
+                if self._ear_index:
+                    inputs["ear_index"] = ear_index
+            if row["selected_frequency_index"] is not None:
+                frequency_index = int(row["selected_frequency_index"])
+                if self._frequency_one_hot:
+                    frequency_encoding = np.zeros(len(self._selected_frequency_indices), dtype=float)
+                    frequency_encoding[frequency_index] = 1.0
+                    inputs["frequency_one_hot"] = frequency_encoding
+                if self._frequency_index:
+                    inputs["frequency_index"] = frequency_index
+            if row["selected_sample_index"] is not None:
+                sample_index = int(row["selected_sample_index"])
+                if self._sample_one_hot:
+                    sample_encoding = np.zeros(len(self._selected_sample_indices), dtype=float)
+                    sample_encoding[sample_index] = 1.0
+                    inputs["sample_one_hot"] = sample_encoding
+                if self._sample_index:
+                    inputs["sample_index"] = sample_index
 
         sample: dict[str, object] = {
             "inputs": inputs,
