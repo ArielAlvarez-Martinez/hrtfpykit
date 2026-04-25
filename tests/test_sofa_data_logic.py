@@ -3,7 +3,7 @@ from pathlib import Path
 import netCDF4 as ncdf
 import numpy as np
 
-from hrtfpykit.sofa.sofa import SOFA
+from hrtfpykit.sofa.sofa import load_sofa
 
 
 def _create_sofa_file(tmp_path: Path) -> Path:
@@ -34,7 +34,7 @@ def _create_sofa_file(tmp_path: Path) -> Path:
 
 def test_sofa_properties(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa_against_conventions=True)
+    sofa = load_sofa(path, check_sofa_against_conventions=True)
     try:
         assert sofa.Dimensions is not None
         assert sofa.GlobalAttributes is not None
@@ -46,7 +46,7 @@ def test_sofa_properties(tmp_path: Path) -> None:
 
 def test_dimensions_logic(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa_against_conventions=True)
+    sofa = load_sofa(path, check_sofa_against_conventions=True)
     try:
         dims = sofa.Dimensions
         assert dims is not None
@@ -61,7 +61,7 @@ def test_dimensions_logic(tmp_path: Path) -> None:
 
 def test_global_and_variable_attributes(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa_against_conventions=True)
+    sofa = load_sofa(path, check_sofa_against_conventions=True)
     try:
         global_attrs = sofa.GlobalAttributes
         variable_attrs = sofa.VariableAttributes
@@ -83,7 +83,7 @@ def test_global_and_variable_attributes(tmp_path: Path) -> None:
 
 def test_variables_logic(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa_against_conventions=True)
+    sofa = load_sofa(path, check_sofa_against_conventions=True)
     try:
         variables = sofa.Variables
         assert variables is not None
@@ -106,7 +106,7 @@ def test_variables_logic(tmp_path: Path) -> None:
 
 def test_sofa_summary(tmp_path: Path) -> None:
     path = _create_sofa_file(tmp_path)
-    sofa = SOFA.load(path, check_sofa_against_conventions=True)
+    sofa = load_sofa(path, check_sofa_against_conventions=True)
     try:
         summary = sofa.summary()
         assert "GLOBAL ATTRIBUTES" in summary

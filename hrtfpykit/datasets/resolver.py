@@ -7,8 +7,8 @@ import numpy as np
 
 from .index import normalize_index_by, normalize_positions, split_subject_ids
 from ..hrtf.coordinates import get_spherical_positions
+from ..hrtf.hrtf import load_hrtf
 from ..hrtf.planes import get_frontal_plane, get_horizontal_plane, get_median_plane
-from ..main import load_hrtf
 
 class DatasetResourceResolver:
     @staticmethod

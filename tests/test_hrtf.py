@@ -1,9 +1,8 @@
 import numpy as np
 import pytest
 
-from hrtfpykit import load_hrtf
+from hrtfpykit import load_hrtf, load_sofa
 from hrtfpykit.hrtf.hrtf import HRTF
-from hrtfpykit.sofa.sofa import SOFA
 
 
 SOFA_PATH = "hrtfs/P0001_FreeFieldComp_44kHz.sofa"
@@ -203,7 +202,7 @@ def test_save_sofa_convention_with_selected_positions(
     assert saved_path == destination
     assert destination.exists()
 
-    saved_sofa = SOFA.load(destination)
+    saved_sofa = load_sofa(destination)
     saved_variables = set(saved_sofa.Variables.get_names())
 
     resolved_expected_convention = (

@@ -19,6 +19,64 @@ from .sofa_helpers import (
 )
 
 
+def load_sofa(
+    path: Union[str, pathlib.Path],
+    mode: str = "r",
+    parallel: bool = False,
+    check_sofa_against_conventions: bool = True,
+) -> "SOFA":
+    """Load a SOFA file and return a :class:`SOFA` object.
+
+    Parameters
+    ----------
+    path : Union[str, pathlib.Path]
+        Path to the SOFA file.
+    mode : str, default="r"
+        netCDF4 open mode used to open the file.
+    parallel : bool, default=False
+        Whether to open the dataset in parallel mode.
+    check_sofa_against_conventions : bool, default=True
+        Whether to validate the dataset against the declared SOFA
+        convention when opening it.
+
+    Returns
+    -------
+    SOFA
+        Loaded SOFA object backed by a netCDF4 dataset.
+
+    Use Cases
+    ---------
+    - Open an existing SOFA file for inspection or validation.
+    - Load a SOFA object before converting it into an ``HRTF`` object.
+    - Open a SOFA file in writable mode for controlled in-place editing.
+
+    Best Practices
+    --------------
+    - Keep ``check_sofa_against_conventions=True`` in normal workflows.
+    - Use ``mode="r"`` unless writable access is explicitly needed.
+    - Prefer ``load_sofa(...)`` for file creation/loading and reserve
+      ``SOFA`` methods for object manipulation after loading.
+
+    Examples
+    --------
+    >>> from hrtfpykit import load_sofa
+    >>> sofa = load_sofa("my_sofa.sofa")
+    >>> sofa.GlobalAttributes.get("SOFAConventions").value
+    'SimpleFreeFieldHRIR'
+    """
+    print(f"Loading SOFA file from: {path}")
+    sofa_object = SOFA()
+    open_sofa(
+        sofa_object,
+        path,
+        mode,
+        parallel,
+        check_sofa_against_conventions,
+    )
+    print("SOFA load complete")
+    return sofa_object
+
+
 class SOFA:
     """High-level SOFA file handler backed by netCDF4.
 
@@ -642,50 +700,6 @@ class SOFA:
         print(f"Variable: '{name}' deleted succesfully")
 
     @classmethod
-    def load(cls, path: Union[str, pathlib.Path], mode: str = "r", parallel: bool = False, check_sofa_against_conventions: bool = True) -> "SOFA": 
-        """Load a SOFA file and return a SOFA class instance.
-
-        Parameters
-        ----------
-        path : Union[str, pathlib.Path]
-            Path to the SOFA file.
-        mode : str, optional
-            netCDF4 open mode (e.g., "r", "r+").
-        parallel : bool, optional
-            Whether to open in parallel mode.
-        check_sofa_against_conventions : bool, optional
-            If True, validates against SOFA conventions on open.
-
-        Returns
-        -------
-        SOFA
-            Loaded SOFA instance.
-
-        Raises
-        ------
-        FileNotFoundError
-            If ``path`` does not point to an existing file.
-        ValueError
-            If ``path`` does not use the ``.sofa`` extension.
-        OSError
-            If the SOFA file cannot be opened by ``netCDF4``.
-
-        Examples
-        --------
-        Load a SOFA file and inspect its declared convention before processing it:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.load("my_sofa.sofa")
-        >>> sofa.GlobalAttributes.get("SOFAConventions").value
-        'SimpleFreeFieldHRIR'
-        """
-        print(f"Loading SOFA file from: {path}")
-        sofa_object = cls()
-        open_sofa(sofa_object, path, mode, parallel, check_sofa_against_conventions)
-        print("SOFA load complete")
-        return sofa_object
-
-    @classmethod
     def create_dummy(
         cls,
         sofa_conventions: str,
@@ -953,7 +967,8 @@ class SOFA:
 
         Overwrite an existing SOFA file with an updated clone:
 
-        >>> sofa = SOFA.load("my_sofa.sofa")
+        >>> from hrtfpykit import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.create_global_attribute("ProcessingNote", "windowed copy")
         >>> _ = sofa_clone.save("my_sofa.sofa", overwrite=True)

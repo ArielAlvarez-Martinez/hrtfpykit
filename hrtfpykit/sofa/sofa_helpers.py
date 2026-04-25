@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, TYPE_CHECKING, Union
+from typing import Dict, Optional, TYPE_CHECKING, Union
 import datetime
 import importlib.metadata
 import pathlib
