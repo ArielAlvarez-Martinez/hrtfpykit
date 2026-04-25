@@ -68,7 +68,6 @@ def load_hrtf(
     ---------
     - Load HRIR-based SOFA files and work in both domains.
     - Load HRTF-based SOFA files while preserving original frequency bins.
-    - Standardize the front-door entrypoint as ``from hrtfpykit import load_hrtf``.
     - Enable Mesh2HRTF-compatible reconstruction when required by the source
       convention pipeline.
 

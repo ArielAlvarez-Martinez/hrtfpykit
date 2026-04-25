@@ -27,7 +27,7 @@ class HRTF(HRTFPlots):
 
     This class is the main entry point for loading, inspecting, selecting,
     transforming, plotting, and exporting HRTF/HRIR data stored in SOFA files.
-    It supports both ``SimpleFreeFieldHRIR`` and ``SimpleFreeFieldHRTF``
+    It supports ``SimpleFreeFieldHRIR`` and ``SimpleFreeFieldHRTF``
     conventions, and keeps both domain representations available and aligned:
 
     - ``IR``: time-domain impulse responses
