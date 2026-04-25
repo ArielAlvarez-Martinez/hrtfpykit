@@ -1,5 +1,3 @@
-from .base import BaseDataset
-from .download import BaseDownload
 from .hutubs import HUTUBS
 from .specs import (
     AnthropometrySpec,
@@ -13,9 +11,10 @@ from .specs import (
 )
 from .transforms import HRTFTransform
 
+__version__ = "1.0.0"
+
 __all__ = [
-    "BaseDataset",
-    "BaseDownload",
+    "__version__",
     "HRTFSpec",
     "ITDSpec",
     "ILDSpec",

@@ -1,7 +1,6 @@
 from .hrtf import load_hrtf
 from .sofa import load_sofa
 
-
 __version__ = "0.0.1"
 
 __all__ = [

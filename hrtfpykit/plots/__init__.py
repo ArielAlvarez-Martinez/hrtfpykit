@@ -12,8 +12,10 @@ from .compare import (
 from .sh import plot_reconstruction_comparison, plot_reconstruction_error
 from .hrtf import HRTFPlots
 
+__version__ = "1.0.0"
 
 __all__ = [
+    "__version__",
     "HRTFPlots",
     "compare_magnitude",
     "compare_absolute_itd",
