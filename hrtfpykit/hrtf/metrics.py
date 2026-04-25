@@ -543,7 +543,7 @@ def lsd(
     hrtf_a: "HRTF",
     hrtf_b: "HRTF",
     mean_lsd: bool = False,
-    ear: str = "left",
+    ear: str = "both",
     plane: str = "all",
     elevation: float = 0.0,
     positions: np.ndarray | list | tuple | str | None = None,
@@ -553,10 +553,12 @@ def lsd(
 ) -> np.ndarray | float:
     """Compute log-spectral distortion (LSD) between two HRTFs in dB.
 
-    This method compares two HRTFs using one selected ear and computes
-    spectral differences in the logarithmic (dB) domain. It supports:
-    full-grid evaluation, plane-restricted evaluation (horizontal/median),
-    single-frequency selection, and multiple reduction modes.
+    This method compares two HRTFs in the logarithmic (dB) domain using the
+    selected ear configuration. It can evaluate the left ear, the right ear,
+    or both ears together. When ``ear="both"``, LSD is computed for both ear
+    channels and then averaged across the ear axis before any optional output
+    reduction. It supports full-grid evaluation, plane-restricted evaluation,
+    frequency selection, and multiple reduction modes.
 
     Design rule
     -----------
@@ -574,10 +576,12 @@ def lsd(
         selected output defined by ``ear``, ``plane``, ``elevation``,
         ``frequency``, and ``reduction``. Set to ``False`` to return the
         non-averaged output for the selected configuration.
-    ear : {"left", "right", "both"}, default="left"
-        Ear channel to evaluate when ``mean_lsd=False``.
-        ``"both"`` computes both ear channels and averages the resulting LSD
-        values.
+    ear : {"left", "right", "both"}, default="both"
+        Ear configuration used during the comparison.
+        - ``"left"`` evaluates only the left-ear TF values.
+        - ``"right"`` evaluates only the right-ear TF values.
+        - ``"both"`` evaluates both ear channels and averages the resulting
+          LSD values across ears.
     plane : {"all", "horizontal", "median"}, default="all"
         Spatial subset of source positions:
         - ``"all"`` uses the full source grid.
@@ -596,7 +600,7 @@ def lsd(
         Optional frequency selector in Hz. Accepts one target frequency or
         multiple targets. Each target is mapped to the nearest available TF
         bin. ``None`` selects bins in the 20 Hz to 20 kHz band.
-    reduction : {"none", "locations", "frequencies", "both"}, default="none"
+    reduction : {"none", "locations", "frequencies", "global"}, default="none"
         Aggregation mode applied after dB difference computation:
         - ``"none"``:
           returns absolute dB differences per selected position and frequency.
@@ -604,7 +608,7 @@ def lsd(
           returns RMS over locations for each selected frequency.
         - ``"frequencies"``:
           returns RMS over frequencies for each selected location.
-        - ``"both"``:
+        - ``"global"``:
           returns one global RMS value across all selected locations and
           frequencies.
     epsilon : float, default=1e-12
@@ -623,7 +627,7 @@ def lsd(
           ``(frequencies,)`` or ``float`` for one frequency.
         - ``reduction="frequencies"``:
           ``(positions,)``.
-        - ``reduction="both"``:
+        - ``reduction="global"``:
           ``float``.
 
     Use Cases
@@ -683,7 +687,7 @@ def lsd(
     ...     ear="left",
     ...     plane="median",
     ...     frequencies=4000.0,
-    ...     reduction="both",
+    ...     reduction="global",
     ... )
     """
     for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
@@ -701,8 +705,8 @@ def lsd(
         raise ValueError("plane must be one of: all, horizontal, median")
 
     reduction_key = str(reduction).strip().lower()
-    if reduction_key not in {"none", "locations", "frequencies", "both"}:
-        raise ValueError("reduction must be one of: none, locations, frequencies, both")
+    if reduction_key not in {"none", "locations", "frequencies", "global"}:
+        raise ValueError("reduction must be one of: none, locations, frequencies, global")
 
     if isinstance(epsilon, bool):
         raise ValueError("epsilon must be a finite, positive value.")
