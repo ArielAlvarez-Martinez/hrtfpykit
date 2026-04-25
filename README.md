@@ -1,3 +1,3 @@
 # hrtfpykit
 
-A Python toolkit for handling HRTF data.
+HRTFPyKit: The Swiss Army Knife for HRTF Research
