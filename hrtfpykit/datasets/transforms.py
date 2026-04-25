@@ -38,6 +38,14 @@ class HRTFTransform:
         )
 
     @staticmethod
+    def upsampling(new_sample_rate: float) -> Callable:
+        return HRTFTransform.build("upsampling", new_sample_rate)
+
+    @staticmethod
+    def downsampling(new_sample_rate: float) -> Callable:
+        return HRTFTransform.build("downsampling", new_sample_rate)
+
+    @staticmethod
     def apply_fir_filter(
         filter: str,
         cutoff: float | tuple[float, float] | None = None,

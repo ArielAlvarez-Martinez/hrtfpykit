@@ -4,6 +4,7 @@ import numpy as np
 from typing import TYPE_CHECKING
 
 from .dsp import (
+    downsampling,
     fir_filter,
     iir_filter,
     ir_from_tf,
@@ -13,6 +14,7 @@ from .dsp import (
     padding,
     tf_gain,
     tf_from_ir,
+    upsampling,
     window,
 )
 from .metrics import itd
@@ -110,6 +112,97 @@ class Transform:
             padding_length=padding_length,
             location=location,
             value=value,
+        )
+        tf_from_ir(
+            ir,
+            fft_length=transformed_hrtf.fft_length,
+        )
+        transformed_hrtf._transformed = True
+        return transformed_hrtf
+
+    def upsampling(
+        self,
+        new_sample_rate: float,
+    ) -> "HRTF":
+        """Upsample IR values and resync TF.
+
+        Parameters
+        ----------
+        new_sample_rate : float
+            Target sample rate in Hz. It must be strictly greater than the
+            current IR sample rate.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with upsampled IR values, updated IR sample
+            rate, and refreshed TF data.
+
+        Use Cases
+        ---------
+        - Match the sample rate required by another dataset or model.
+        - Increase temporal resolution before later time-domain processing.
+
+        Examples
+        --------
+        Upsample one front-facing HRIR set to 96 kHz:
+
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> upsampled = hrtf.transform.upsampling(96000.0)
+        >>> upsampled.IR.sample_rate
+        96000.0
+        """
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        ir.values, ir.sample_rate = upsampling(
+            ir,
+            new_sample_rate=new_sample_rate,
+        )
+        tf_from_ir(
+            ir,
+            fft_length=transformed_hrtf.fft_length,
+        )
+        transformed_hrtf._transformed = True
+        return transformed_hrtf
+
+    def downsampling(
+        self,
+        new_sample_rate: float,
+    ) -> "HRTF":
+        """Downsample IR values and resync TF.
+
+        Parameters
+        ----------
+        new_sample_rate : float
+            Target sample rate in Hz. It must be strictly lower than the
+            current IR sample rate.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with downsampled IR values, updated IR sample
+            rate, and refreshed TF data.
+
+        Use Cases
+        ---------
+        - Match the sample rate of a lower-rate dataset or playback pipeline.
+
+        Examples
+        --------
+        Downsample one front-facing HRIR set to 24 kHz:
+
+        >>> from hrtfpykit import HRTF
+        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> downsampled = hrtf.transform.downsampling(24000.0)
+        >>> downsampled.IR.sample_rate
+        24000.0
+        """
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        ir.values, ir.sample_rate = downsampling(
+            ir,
+            new_sample_rate=new_sample_rate,
         )
         tf_from_ir(
             ir,
