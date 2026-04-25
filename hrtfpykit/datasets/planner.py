@@ -186,6 +186,18 @@ class DatasetSpecPlanner:
         )
         self.ear_axis_specs = self.hrtf_specs + self.sh_specs
         self.input_ear_axis_specs = self.input_hrtf_specs + self.input_sh_specs
+        self.ear_aligned_media_specs = tuple(
+            spec
+            for spec in self.image_specs + self.video_specs
+            if "ear" in normalize_index_by(spec.align_by)
+        )
+        self.input_ear_aligned_media_specs = tuple(
+            spec
+            for spec in self.input_image_specs + self.input_video_specs
+            if "ear" in normalize_index_by(spec.align_by)
+        )
+        self.ear_conditioned_specs = self.ear_axis_specs + self.ear_aligned_media_specs
+        self.input_ear_conditioned_specs = self.input_ear_axis_specs + self.input_ear_aligned_media_specs
 
     def validate_shared_spec_attribute(
         self,
@@ -201,29 +213,6 @@ class DatasetSpecPlanner:
         }
         if len(signatures) > 1:
             raise ValueError(message)
-
-    def validate_media_specs(
-        self,
-        specs: tuple[ImageSpec | VideoSpec, ...],
-        spec_name: str,
-        resource_name: str,
-    ) -> None:
-        if len(specs) <= 1:
-            return
-        path_signatures = {
-            self.normalize_value_signature(Path(spec.path))
-            for spec in specs
-            if spec.path is not None
-        }
-        if len(path_signatures) > 1:
-            raise ValueError(
-                f"All {spec_name} objects must use the same path when {resource_name} is used in both inputs and target"
-            )
-        align_by_values = {normalize_index_by(spec.align_by) for spec in specs}
-        if len(align_by_values) > 1:
-            raise ValueError(
-                f"All {spec_name} objects must use the same align_by when {resource_name} is used in both inputs and target"
-            )
 
     def validate_anthropometry_specs(self) -> None:
         if len(self.anthropometry_specs) <= 1:
@@ -288,10 +277,11 @@ class DatasetSpecPlanner:
 
     def configure_dataset_indexing(self) -> None:
         self.index_by = ("subject",)
+        self._selected_ears = []
         if self.primary_hrtf_backed_spec is None:
             return
         include_position = any("position" in normalize_index_by(spec.index_by) for spec in self.spatial_specs)
-        include_ear = any("ear" in normalize_index_by(spec.index_by) for spec in self.ear_axis_specs)
+        include_ear = any("ear" in normalize_index_by(spec.index_by) for spec in self.ear_axis_specs) or len(self.ear_aligned_media_specs) > 0
         include_frequency = any(
             "frequency" in normalize_index_by(spec.index_by)
             for spec in self.hrtf_specs + self.ild_specs + self.sh_specs
@@ -307,64 +297,88 @@ class DatasetSpecPlanner:
         if include_samples:
             index_by_values.append("samples")
         self.index_by = tuple(index_by_values)
-        self._selected_ears = (
-            []
-            if len(self.ear_axis_specs) == 0
-            else normalize_ears(
-                self.primary_hrtf_spec.ears
-                if self.primary_hrtf_spec is not None
-                else self.primary_sh_spec.ears
-            )
-        )
-
-    @staticmethod
-    def choose_input_encoding(values: tuple[bool, ...]) -> bool:
-        return any(bool(value) for value in values)
+        if len(self.ear_conditioned_specs) == 0:
+            self._selected_ears = []
+        elif self.primary_hrtf_spec is not None:
+            self._selected_ears = normalize_ears(self.primary_hrtf_spec.ears)
+        elif self.primary_sh_spec is not None:
+            self._selected_ears = normalize_ears(self.primary_sh_spec.ears)
+        else:
+            self._selected_ears = normalize_ears("both")
 
     def configure_dataset_encodings(self) -> None:
-        input_positions_encodings = tuple(
-            bool(spec.positions_encoding)
+        input_position_one_hot = tuple(
+            bool(spec.position_one_hot)
             for spec in self.input_spatial_specs
-            if hasattr(spec, "positions_encoding")
+            if hasattr(spec, "position_one_hot")
         )
-        input_frequencies_encodings = tuple(
-            bool(spec.frequencies_encoding)
+        input_position_index = tuple(
+            bool(spec.position_index)
+            for spec in self.input_spatial_specs
+            if hasattr(spec, "position_index")
+        )
+        input_frequency_one_hot = tuple(
+            bool(spec.frequency_one_hot)
             for spec in self.input_hrtf_specs + self.input_ild_specs + self.input_sh_specs
-            if hasattr(spec, "frequencies_encoding")
+            if hasattr(spec, "frequency_one_hot")
         )
-        input_samples_encodings = tuple(
-            bool(spec.samples_encoding)
+        input_frequency_index = tuple(
+            bool(spec.frequency_index)
+            for spec in self.input_hrtf_specs + self.input_ild_specs + self.input_sh_specs
+            if hasattr(spec, "frequency_index")
+        )
+        input_sample_one_hot = tuple(
+            bool(spec.sample_one_hot)
             for spec in self.input_hrtf_specs
-            if hasattr(spec, "samples_encoding")
+            if hasattr(spec, "sample_one_hot")
         )
-        self._positions_encoding = self.choose_input_encoding(input_positions_encodings)
-        self._frequencies_encoding = self.choose_input_encoding(input_frequencies_encodings)
-        self._samples_encoding = self.choose_input_encoding(input_samples_encodings)
-        if len(self.input_ear_axis_specs) == 0:
-            self._ear_encoding = False
+        input_sample_index = tuple(
+            bool(spec.sample_index)
+            for spec in self.input_hrtf_specs
+            if hasattr(spec, "sample_index")
+        )
+        self._position_one_hot = any(input_position_one_hot)
+        self._position_index = any(input_position_index)
+        self._frequency_one_hot = any(input_frequency_one_hot)
+        self._frequency_index = any(input_frequency_index)
+        self._sample_one_hot = any(input_sample_one_hot)
+        self._sample_index = any(input_sample_index)
+        if len(self.input_ear_conditioned_specs) == 0:
+            self._ear_one_hot = False
+            self._ear_index = False
         else:
-            ear_encodings = tuple(
-                bool(spec.ear_encoding)
-                for spec in self.input_ear_axis_specs
+            ear_one_hot = tuple(
+                bool(spec.ear_one_hot)
+                for spec in self.input_ear_conditioned_specs
             )
-            self._ear_encoding = self.choose_input_encoding(ear_encodings)
+            ear_indices = tuple(
+                bool(spec.ear_index)
+                for spec in self.input_ear_conditioned_specs
+            )
+            self._ear_one_hot = any(ear_one_hot)
+            self._ear_index = any(ear_indices)
 
-        if self._positions_encoding and "position" in self.input_names:
-            raise ValueError("Input spec name 'position' conflicts with positions_encoding=True")
-        if self._frequencies_encoding and "frequency" in self.input_names:
-            raise ValueError("Input spec name 'frequency' conflicts with frequencies_encoding=True")
-        if self._samples_encoding and "sample" in self.input_names:
-            raise ValueError("Input spec name 'sample' conflicts with samples_encoding=True")
-        if self._ear_encoding and "ear" in self.input_names:
-            raise ValueError("Input spec name 'ear' conflicts with ear_encoding=True")
-        if self._positions_encoding and "position" not in self.index_by:
-            raise ValueError("positions_encoding requires index_by to include 'position'")
-        if self._frequencies_encoding and "frequency" not in self.index_by:
-            raise ValueError("frequencies_encoding requires index_by to include 'frequency'")
-        if self._samples_encoding and "samples" not in self.index_by:
-            raise ValueError("samples_encoding requires index_by to include 'samples'")
-        if self._ear_encoding and "ear" not in self.index_by:
-            raise ValueError("ear_encoding requires index_by to include 'ear'")
+        conflicting_input_names = (
+            ("position_one_hot", self._position_one_hot),
+            ("position_index", self._position_index),
+            ("frequency_one_hot", self._frequency_one_hot),
+            ("frequency_index", self._frequency_index),
+            ("sample_one_hot", self._sample_one_hot),
+            ("sample_index", self._sample_index),
+            ("ear_one_hot", self._ear_one_hot),
+            ("ear_index", self._ear_index),
+        )
+        for name, enabled in conflicting_input_names:
+            if enabled and name in self.input_names:
+                raise ValueError(f"Input spec name {name!r} conflicts with categorical dataset output {name!r}")
+        if (self._position_one_hot or self._position_index) and "position" not in self.index_by:
+            raise ValueError("position_one_hot and position_index require index_by to include 'position'")
+        if (self._frequency_one_hot or self._frequency_index) and "frequency" not in self.index_by:
+            raise ValueError("frequency_one_hot and frequency_index require index_by to include 'frequency'")
+        if (self._sample_one_hot or self._sample_index) and "samples" not in self.index_by:
+            raise ValueError("sample_one_hot and sample_index require index_by to include 'samples'")
+        if (self._ear_one_hot or self._ear_index) and "ear" not in self.index_by:
+            raise ValueError("ear_one_hot and ear_index require index_by to include 'ear'")
 
     def validate_dataset_transform(self) -> None:
         if (
@@ -406,14 +420,22 @@ class DatasetSpecPlanner:
         for spec in self.hrtf_specs:
             domain = str(spec.domain).strip().lower()
             signal = str(spec.signal).strip().lower()
-            if not isinstance(spec.positions_encoding, bool):
-                raise ValueError("HRTFSpec.positions_encoding must be a boolean")
-            if not isinstance(spec.ear_encoding, bool):
-                raise ValueError("HRTFSpec.ear_encoding must be a boolean")
-            if not isinstance(spec.frequencies_encoding, bool):
-                raise ValueError("HRTFSpec.frequencies_encoding must be a boolean")
-            if not isinstance(spec.samples_encoding, bool):
-                raise ValueError("HRTFSpec.samples_encoding must be a boolean")
+            if not isinstance(spec.position_one_hot, bool):
+                raise ValueError("HRTFSpec.position_one_hot must be a boolean")
+            if not isinstance(spec.position_index, bool):
+                raise ValueError("HRTFSpec.position_index must be a boolean")
+            if not isinstance(spec.ear_one_hot, bool):
+                raise ValueError("HRTFSpec.ear_one_hot must be a boolean")
+            if not isinstance(spec.ear_index, bool):
+                raise ValueError("HRTFSpec.ear_index must be a boolean")
+            if not isinstance(spec.frequency_one_hot, bool):
+                raise ValueError("HRTFSpec.frequency_one_hot must be a boolean")
+            if not isinstance(spec.frequency_index, bool):
+                raise ValueError("HRTFSpec.frequency_index must be a boolean")
+            if not isinstance(spec.sample_one_hot, bool):
+                raise ValueError("HRTFSpec.sample_one_hot must be a boolean")
+            if not isinstance(spec.sample_index, bool):
+                raise ValueError("HRTFSpec.sample_index must be a boolean")
             if domain not in SUPPORTED_HRTF_DOMAINS:
                 raise ValueError(
                     f"Unsupported domain {spec.domain!r}. Expected one of {SUPPORTED_HRTF_DOMAINS}"
@@ -438,8 +460,10 @@ class DatasetSpecPlanner:
 
     def validate_itd_specs(self) -> None:
         for spec in self.itd_specs:
-            if not isinstance(spec.positions_encoding, bool):
-                raise ValueError("ITDSpec.positions_encoding must be a boolean")
+            if not isinstance(spec.position_one_hot, bool):
+                raise ValueError("ITDSpec.position_one_hot must be a boolean")
+            if not isinstance(spec.position_index, bool):
+                raise ValueError("ITDSpec.position_index must be a boolean")
             output = str(spec.output).strip().lower()
             if output not in SUPPORTED_ITD_OUTPUTS:
                 raise ValueError(
@@ -453,10 +477,14 @@ class DatasetSpecPlanner:
 
     def validate_ild_specs(self) -> None:
         for spec in self.ild_specs:
-            if not isinstance(spec.positions_encoding, bool):
-                raise ValueError("ILDSpec.positions_encoding must be a boolean")
-            if not isinstance(spec.frequencies_encoding, bool):
-                raise ValueError("ILDSpec.frequencies_encoding must be a boolean")
+            if not isinstance(spec.position_one_hot, bool):
+                raise ValueError("ILDSpec.position_one_hot must be a boolean")
+            if not isinstance(spec.position_index, bool):
+                raise ValueError("ILDSpec.position_index must be a boolean")
+            if not isinstance(spec.frequency_one_hot, bool):
+                raise ValueError("ILDSpec.frequency_one_hot must be a boolean")
+            if not isinstance(spec.frequency_index, bool):
+                raise ValueError("ILDSpec.frequency_index must be a boolean")
             mode = str(spec.mode).strip().lower()
             output = str(spec.output).strip().lower()
             if mode not in SUPPORTED_ILD_MODES:
@@ -481,10 +509,14 @@ class DatasetSpecPlanner:
 
     def validate_sh_specs(self) -> None:
         for spec in self.sh_specs:
-            if not isinstance(spec.ear_encoding, bool):
-                raise ValueError("SHSpec.ear_encoding must be a boolean")
-            if not isinstance(spec.frequencies_encoding, bool):
-                raise ValueError("SHSpec.frequencies_encoding must be a boolean")
+            if not isinstance(spec.ear_one_hot, bool):
+                raise ValueError("SHSpec.ear_one_hot must be a boolean")
+            if not isinstance(spec.ear_index, bool):
+                raise ValueError("SHSpec.ear_index must be a boolean")
+            if not isinstance(spec.frequency_one_hot, bool):
+                raise ValueError("SHSpec.frequency_one_hot must be a boolean")
+            if not isinstance(spec.frequency_index, bool):
+                raise ValueError("SHSpec.frequency_index must be a boolean")
             if isinstance(spec.sh_order, bool) or not isinstance(spec.sh_order, int) or spec.sh_order < 0:
                 raise ValueError("SHSpec.sh_order must be a non-negative integer")
             if isinstance(spec.epsilon, bool):
@@ -502,3 +534,33 @@ class DatasetSpecPlanner:
                 raise ValueError("SHSpec.index_by does not support 'samples'")
             if "ear" in spec_index_by and len(normalize_ears(spec.ears)) != 2:
                 raise ValueError("SHSpec.index_by including 'ear' requires ears='both'")
+
+    def validate_media_specs(
+        self,
+        specs: tuple[ImageSpec | VideoSpec, ...],
+        spec_name: str,
+        resource_name: str,
+    ) -> None:
+        if len(specs) > 1:
+            path_signatures = {
+                self.normalize_value_signature(Path(spec.path))
+                for spec in specs
+                if spec.path is not None
+            }
+            if len(path_signatures) > 1:
+                raise ValueError(
+                    f"All {spec_name} objects must use the same path when {resource_name} is used in both inputs and target"
+                )
+            align_by_values = {normalize_index_by(spec.align_by) for spec in specs}
+            if len(align_by_values) > 1:
+                raise ValueError(
+                    f"All {spec_name} objects must use the same align_by when {resource_name} is used in both inputs and target"
+                )
+        for spec in specs:
+            if not isinstance(spec.ear_one_hot, bool):
+                raise ValueError(f"{spec_name}.ear_one_hot must be a boolean")
+            if not isinstance(spec.ear_index, bool):
+                raise ValueError(f"{spec_name}.ear_index must be a boolean")
+            align_by = normalize_index_by(spec.align_by)
+            if (spec.ear_one_hot or spec.ear_index) and "ear" not in align_by:
+                raise ValueError(f"{spec_name}.ear_one_hot and {spec_name}.ear_index require align_by to include 'ear'")

@@ -1,254 +1,269 @@
-from collections.abc import Callable
 from pathlib import Path
 import csv
 import re
 import warnings
 
-from .index import normalize_index_by, split_subject_ids
+import numpy as np
+
+from .index import normalize_index_by, normalize_positions, split_subject_ids
+from ..hrtf.coordinates import get_spherical_positions
+from ..hrtf.planes import get_frontal_plane, get_horizontal_plane, get_median_plane
 from ..main import load_hrtf
 
+class DatasetResourceResolver:
+    @staticmethod
+    def resolve_positions_selection(
+        positions: str | tuple[int, ...] | list[int] | np.ndarray,
+        plane: str | tuple[object, ...] | dict[str, object] | None,
+        hrtf,
+    ) -> list[int]:
+        position_count = int(hrtf.Sources.get_positions().shape[0])
+        if plane is None:
+            return normalize_positions(positions, position_count)
+        if not isinstance(positions, str) or str(positions).strip().lower() != "all":
+            raise ValueError("plane selection cannot be combined with custom positions")
+        if isinstance(plane, str):
+            plane_key = str(plane).strip().lower()
+            default_angle = 90.0 if plane_key == "frontal" else 0.0
+            angle = default_angle
+            angle_unit = "degrees"
+        elif isinstance(plane, tuple):
+            if len(plane) not in {2, 3} or not isinstance(plane[0], str):
+                raise ValueError(
+                    "Plane selection must be ('horizontal'|'median'|'frontal', angle[, angle_unit])"
+                )
+            plane_key = str(plane[0]).strip().lower()
+            angle = plane[1]
+            angle_unit = "degrees" if len(plane) == 2 else str(plane[2]).strip().lower()
+        else:
+            plane_key = str(plane.get("plane")).strip().lower()
+            default_angle = 90.0 if plane_key == "frontal" else 0.0
+            angle = plane.get("angle", plane.get("plane_angle", default_angle))
+            angle_unit = str(plane.get("angle_unit", "degrees")).strip().lower()
+        if plane_key not in {"horizontal", "median", "frontal"}:
+            raise ValueError("plane must be horizontal, median, or frontal")
+        if plane_key == "horizontal":
+            indices, _ = get_horizontal_plane(
+                hrtf=hrtf,
+                elevation=float(angle),
+                angle_unit=angle_unit,
+            )
+        elif plane_key == "median":
+            indices, _ = get_median_plane(
+                hrtf=hrtf,
+                azimuth=float(angle),
+                angle_unit=angle_unit,
+            )
+        else:
+            indices, _ = get_frontal_plane(
+                hrtf=hrtf,
+                azimuth=float(angle),
+                angle_unit=angle_unit,
+            )
+        return [int(index) for index in np.asarray(indices, dtype=int).reshape(-1)]
 
-def normalize_anthropometry_select(
-    select: str | tuple[str, ...] | list[str] | None,
-) -> str | tuple[str, ...]:
-    if select is None:
-        return "complete"
-    if isinstance(select, str):
-        value = str(select).strip()
-        if value == "":
-            raise ValueError("select must not be empty")
-        if value.lower() in {"complete", "all"}:
+    @staticmethod
+    def is_hrtf_object(value: object) -> bool:
+        return (
+            hasattr(value, "IR")
+            and hasattr(value, "TF")
+            and hasattr(value, "Sources")
+            and hasattr(value, "transform")
+        )
+
+    @staticmethod
+    def is_explicit_hrtf_transform(transform) -> bool:
+        return bool(getattr(transform, "__hrtf_transform__", False))
+
+    @staticmethod
+    def is_raw_hrtf_transform_method(transform) -> bool:
+        transform_module = str(getattr(transform, "__module__", ""))
+        transform_qualname = str(getattr(transform, "__qualname__", ""))
+        return transform_module.endswith(".transforms") and transform_qualname.startswith("Transform.")
+
+    @staticmethod
+    def normalize_anthropometry_select(
+        select: str | tuple[str, ...] | list[str] | None,
+    ) -> str | tuple[str, ...]:
+        if select is None:
             return "complete"
-        values = (value,)
-    else:
-        values = tuple(str(value).strip() for value in select)
-    if len(values) == 0:
-        raise ValueError("select must not be empty")
-    if any(value == "" for value in values):
-        raise ValueError("select must not contain empty names")
-    if len(set(values)) != len(values):
-        raise ValueError("select must not contain duplicates")
-    return values
+        if isinstance(select, str):
+            value = str(select).strip()
+            if value == "":
+                raise ValueError("select must not be empty")
+            if value.lower() in {"complete", "all"}:
+                return "complete"
+            values = (value,)
+        else:
+            values = tuple(str(value).strip() for value in select)
+        if len(values) == 0:
+            raise ValueError("select must not be empty")
+        if any(value == "" for value in values):
+            raise ValueError("select must not contain empty names")
+        if len(set(values)) != len(values):
+            raise ValueError("select must not contain duplicates")
+        return values
 
+    @staticmethod
+    def normalize_anthropometry_ear(ear: str) -> str:
+        value = str(ear).strip().lower()
+        if value not in {"left", "right", "both"}:
+            raise ValueError("ear must be 'left', 'right', or 'both'")
+        return value
 
-def normalize_anthropometry_ear(ear: str) -> str:
-    value = str(ear).strip().lower()
-    if value not in {"left", "right", "both"}:
-        raise ValueError("ear must be 'left', 'right', or 'both'")
-    return value
+    @staticmethod
+    def convert_table_value(value: str) -> float | str | None:
+        text = str(value).strip()
+        if text == "":
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return text
 
-
-def convert_table_value(value: str) -> float | str | None:
-    text = str(value).strip()
-    if text == "":
-        return None
-    try:
-        return float(text)
-    except ValueError:
-        return text
-
-
-def load_anthropometry_rows(
-    path: Path,
-    subject_column_candidates: tuple[str, ...],
-    subject_ids: tuple[str, ...],
-    resolve_subject_id: Callable[[str, tuple[str, ...]], str],
-) -> dict[str, dict[str, float | str | None]]:
-    with path.open("r", encoding="utf-8-sig", newline="") as file:
-        reader = csv.DictReader(file)
-        if reader.fieldnames is None or len(reader.fieldnames) == 0:
-            raise ValueError(f"Anthropometry file {path} does not contain headers")
-        fieldnames = {fieldname.lower(): fieldname for fieldname in reader.fieldnames}
-        subject_column = reader.fieldnames[0]
-        for candidate in subject_column_candidates:
-            if candidate.lower() in fieldnames:
-                subject_column = fieldnames[candidate.lower()]
-                break
-        rows: dict[str, dict[str, float | str | None]] = {}
-        for row in reader:
-            raw_subject_id = row.get(subject_column)
-            if raw_subject_id is None or str(raw_subject_id).strip() == "":
-                continue
-            try:
-                subject_id = resolve_subject_id(raw_subject_id, subject_ids)
-            except ValueError:
-                continue
-            converted: dict[str, float | str | None] = {}
-            for key, value in row.items():
-                if key is None or key == subject_column:
-                    continue
-                converted[key] = convert_table_value("" if value is None else value)
-            rows[subject_id] = converted
-    return rows
-
-
-def resolve_anthropometry_resource(
-    path: Path | None,
-    subject_column_candidates: tuple[str, ...],
-    subject_ids: tuple[str, ...],
-    resolve_subject_id: Callable[[str, tuple[str, ...]], str],
-) -> tuple[dict[str, dict[str, float | str | None]], dict[str, object]]:
-    summary: dict[str, object] = {
-        "path": None if path is None else str(path),
-        "found": path is not None and path.is_file(),
-    }
-    if path is None:
-        return {}, summary
-    rows = load_anthropometry_rows(
-        path,
-        subject_column_candidates,
-        subject_ids,
+    @classmethod
+    def load_anthropometry_rows(
+        cls,
+        path: Path,
+        subject_column_candidates: tuple[str, ...],
+        subject_ids: tuple[str, ...],
         resolve_subject_id,
-    )
-    summary["subjects"] = len(rows)
-    summary["rows"] = len(rows)
-    return rows, summary
+    ) -> dict[str, dict[str, float | str | None]]:
+        with path.open("r", encoding="utf-8-sig", newline="") as file:
+            reader = csv.DictReader(file)
+            if reader.fieldnames is None or len(reader.fieldnames) == 0:
+                raise ValueError(f"Anthropometry file {path} does not contain headers")
+            fieldnames = {fieldname.lower(): fieldname for fieldname in reader.fieldnames}
+            subject_column = reader.fieldnames[0]
+            for candidate in subject_column_candidates:
+                if candidate.lower() in fieldnames:
+                    subject_column = fieldnames[candidate.lower()]
+                    break
+            rows: dict[str, dict[str, float | str | None]] = {}
+            for row in reader:
+                raw_subject_id = row.get(subject_column)
+                if raw_subject_id is None or str(raw_subject_id).strip() == "":
+                    continue
+                try:
+                    subject_id = resolve_subject_id(raw_subject_id, subject_ids)
+                except ValueError:
+                    continue
+                converted: dict[str, float | str | None] = {}
+                for key, value in row.items():
+                    if key is None or key == subject_column:
+                        continue
+                    converted[key] = cls.convert_table_value("" if value is None else value)
+                rows[subject_id] = converted
+        return rows
 
-
-def resolve_subject_resource_folder(
-    root: Path,
-    subject_id: str,
-    subject_number: int,
-    resource_name: str,
-) -> Path | None:
-    candidate_names = (
-        str(subject_id).strip().lower(),
-        f"subject{subject_number}",
-    )
-    matches = [
-        path
-        for path in root.iterdir()
-        if path.is_dir() and path.name.strip().lower() in candidate_names
-    ]
-    if len(matches) > 1:
-        raise ValueError(
-            f"{resource_name} path {root} contains multiple folders for subject {subject_id!r}: "
-            + ", ".join(str(path.name) for path in matches)
+    @staticmethod
+    def resolve_subject_resource_folder(
+        root: Path,
+        subject_id: str,
+        subject_number: int,
+        resource_name: str,
+    ) -> Path | None:
+        candidate_names = (
+            str(subject_id).strip().lower(),
+            f"subject{subject_number}",
+            f"subject_{subject_number}",
         )
-    if len(matches) == 0:
-        return None
-    return matches[0]
+        matches = [
+            path
+            for path in root.iterdir()
+            if path.is_dir() and path.name.strip().lower() in candidate_names
+        ]
+        if len(matches) > 1:
+            raise ValueError(
+                f"{resource_name} path {root} contains multiple folders for subject {subject_id!r}: "
+                + ", ".join(str(path.name) for path in matches)
+            )
+        if len(matches) == 0:
+            return None
+        return matches[0]
 
+    @staticmethod
+    def collect_ordered_media_files(
+        path: Path,
+        extensions: tuple[str, ...],
+    ) -> list[str]:
+        normalized_extensions = {extension.lower() for extension in extensions}
 
-def collect_ordered_media_files(
-    path: Path,
-    extensions: tuple[str, ...],
-) -> list[str]:
-    normalized_extensions = {extension.lower() for extension in extensions}
+        def sort_key(file: Path) -> tuple[int, str, int | float, str]:
+            stem = file.stem.strip().lower()
+            match = re.fullmatch(r"([a-z_ -]*?)(\d+)", stem)
+            if match is None:
+                return (1, stem, float("inf"), file.name.lower())
+            prefix = match.group(1).strip()
+            return (0, prefix, int(match.group(2)), file.name.lower())
 
-    def sort_key(file: Path) -> tuple[int, str, int | float, str]:
-        stem = file.stem.strip().lower()
-        match = re.fullmatch(r"([a-z_ -]*?)(\d+)", stem)
-        if match is None:
-            return (1, stem, float("inf"), file.name.lower())
-        prefix = match.group(1).strip()
-        return (0, prefix, int(match.group(2)), file.name.lower())
-
-    return sorted(
-        (
-            str(file)
-            for file in path.rglob("*")
-            if file.is_file() and file.suffix.lower() in normalized_extensions
-        ),
-        key=lambda file: sort_key(Path(file)),
-    )
-
-
-def scan_aligned_media_paths(
-    path: Path,
-    subject_ids: tuple[str, ...],
-    subject_numbers: dict[str, int],
-    extensions: tuple[str, ...],
-    align_by: tuple[str, ...],
-    resource_name: str,
-) -> tuple[
-    dict[tuple[str, int | None, str | None], list[str]],
-    dict[str, int],
-    tuple[str, ...],
-]:
-    index: dict[tuple[str, int | None, str | None], list[str]] = {}
-    if not path.exists():
-        raise ValueError(f"{resource_name} path does not exist: {path}")
-    subject_counts: dict[str, int] = {}
-    missing_subject_ids: list[str] = []
-    for subject_id in subject_ids:
-        subject_folder = resolve_subject_resource_folder(
-            path,
-            subject_id,
-            int(subject_numbers[subject_id]),
-            resource_name,
+        return sorted(
+            (
+                str(file)
+                for file in path.rglob("*")
+                if file.is_file() and file.suffix.lower() in normalized_extensions
+            ),
+            key=lambda file: sort_key(Path(file)),
         )
-        if subject_folder is None:
-            missing_subject_ids.append(subject_id)
-            continue
-        subject_count = 0
-        if "ear" in align_by:
-            for ear in ("left", "right"):
-                ear_folder = subject_folder / ear
-                if not ear_folder.is_dir():
-                    raise ValueError(
-                        f"{resource_name} path {path} is incompatible with align_by={align_by}: "
-                        f"subject {subject_id!r} is missing the {ear!r} folder"
-                    )
-                files = collect_ordered_media_files(ear_folder, extensions)
+
+    @classmethod
+    def scan_aligned_media_paths(
+        cls,
+        path: Path,
+        subject_ids: tuple[str, ...],
+        subject_numbers: dict[str, int],
+        extensions: tuple[str, ...],
+        align_by: tuple[str, ...],
+        resource_name: str,
+    ) -> tuple[
+        dict[tuple[str, int | None, str | None], list[str]],
+        dict[str, int],
+        tuple[str, ...],
+    ]:
+        index: dict[tuple[str, int | None, str | None], list[str]] = {}
+        if not path.exists():
+            raise ValueError(f"{resource_name} path does not exist: {path}")
+        subject_counts: dict[str, int] = {}
+        missing_subject_ids: list[str] = []
+        for subject_id in subject_ids:
+            subject_folder = cls.resolve_subject_resource_folder(
+                path,
+                subject_id,
+                int(subject_numbers[subject_id]),
+                resource_name,
+            )
+            if subject_folder is None:
+                missing_subject_ids.append(subject_id)
+                continue
+            subject_count = 0
+            if "ear" in align_by:
+                for ear in ("left", "right"):
+                    ear_folder = subject_folder / ear
+                    if not ear_folder.is_dir():
+                        raise ValueError(
+                            f"{resource_name} path {path} is incompatible with align_by={align_by}: "
+                            f"subject {subject_id!r} is missing the {ear!r} folder"
+                        )
+                    files = cls.collect_ordered_media_files(ear_folder, extensions)
+                    if len(files) == 0:
+                        raise ValueError(
+                            f"{resource_name} path {path} is incompatible with align_by={align_by}: "
+                            f"subject {subject_id!r} has no {resource_name.lower()}s in {ear_folder}"
+                        )
+                    subject_count += len(files)
+                    index[(subject_id, None, ear)] = files
+            else:
+                files = cls.collect_ordered_media_files(subject_folder, extensions)
                 if len(files) == 0:
                     raise ValueError(
                         f"{resource_name} path {path} is incompatible with align_by={align_by}: "
-                        f"subject {subject_id!r} has no {resource_name.lower()}s in {ear_folder}"
+                        f"subject {subject_id!r} has no {resource_name.lower()}s in {subject_folder}"
                     )
-                subject_count += len(files)
-                index[(subject_id, None, ear)] = files
-        else:
-            files = collect_ordered_media_files(subject_folder, extensions)
-            if len(files) == 0:
-                raise ValueError(
-                    f"{resource_name} path {path} is incompatible with align_by={align_by}: "
-                    f"subject {subject_id!r} has no {resource_name.lower()}s in {subject_folder}"
-                )
-            subject_count = len(files)
-            index[(subject_id, None, None)] = files
-        subject_counts[subject_id] = subject_count
-    return index, subject_counts, tuple(missing_subject_ids)
+                subject_count = len(files)
+                index[(subject_id, None, None)] = files
+            subject_counts[subject_id] = subject_count
+        return index, subject_counts, tuple(missing_subject_ids)
 
-
-def resolve_aligned_media_resource(
-    path: Path | None,
-    subject_ids: tuple[str, ...],
-    subject_numbers: dict[str, int],
-    extensions: tuple[str, ...] | None,
-    align_by: tuple[str, ...] | None,
-    resource_name: str,
-) -> tuple[
-    dict[tuple[str, int | None, str | None], list[str]],
-    dict[str, int],
-    dict[str, object],
-]:
-    if path is None or extensions is None or align_by is None:
-        return {}, {}, {
-            "path": None if path is None else str(path),
-            "found": 0,
-            "subjects": 0,
-            "missing": 0,
-            "missing_subject_ids": tuple(),
-        }
-    index, counts, missing_subject_ids = scan_aligned_media_paths(
-        path,
-        subject_ids,
-        subject_numbers,
-        extensions,
-        align_by,
-        resource_name,
-    )
-    return index, counts, {
-        "path": str(path),
-        "found": len({key[0] for key in index}),
-        "subjects": len({key[0] for key in index}),
-        "missing": len(missing_subject_ids),
-        "missing_subject_ids": tuple(missing_subject_ids),
-    }
-
-
-class DatasetResourceResolver:
     @staticmethod
     def resolve_optional_path(
         path: str | Path | None,
@@ -529,12 +544,21 @@ class DatasetResourceResolver:
             if self.config.anthropometry is None
             else tuple(self.config.anthropometry.subject_column_candidates)
         )
-        self._anthropometry_rows, anthropometry_summary = resolve_anthropometry_resource(
-            self._anthropometry_path,
-            subject_column_candidates,
-            tuple(self.config.subject_ids),
-            self.resolve_dataset_subject_id,
-        )
+        anthropometry_summary: dict[str, object] = {
+            "path": None if self._anthropometry_path is None else str(self._anthropometry_path),
+            "found": self._anthropometry_path is not None and self._anthropometry_path.is_file(),
+        }
+        if self._anthropometry_path is None:
+            self._anthropometry_rows = {}
+        else:
+            self._anthropometry_rows = self.load_anthropometry_rows(
+                self._anthropometry_path,
+                subject_column_candidates,
+                tuple(self.config.subject_ids),
+                self.resolve_dataset_subject_id,
+            )
+            anthropometry_summary["subjects"] = len(self._anthropometry_rows)
+            anthropometry_summary["rows"] = len(self._anthropometry_rows)
         self.resource_summary["anthropometry"] = anthropometry_summary
 
     def validate_hrtf_resources(self) -> None:
@@ -631,14 +655,31 @@ class DatasetResourceResolver:
         else:
             raise ValueError(f"Unsupported media resource {resource_name!r}")
 
-        index, counts, summary = resolve_aligned_media_resource(
-            path,
-            included_subject_ids,
-            subject_numbers,
-            None if config is None else tuple(config.extensions),
-            align_by,
-            resource_name.capitalize(),
-        )
+        if path is None or config is None or align_by is None:
+            index = {}
+            counts = {}
+            summary = {
+                "path": None if path is None else str(path),
+                "found": 0,
+                "missing": 0,
+                "missing_subject_ids": tuple(),
+            }
+        else:
+            index, counts, missing_subject_ids = self.scan_aligned_media_paths(
+                path,
+                included_subject_ids,
+                subject_numbers,
+                tuple(config.extensions),
+                align_by,
+                resource_name.capitalize(),
+            )
+            found_subjects = len({key[0] for key in index})
+            summary = {
+                "path": str(path),
+                "found": found_subjects,
+                "missing": len(missing_subject_ids),
+                "missing_subject_ids": tuple(missing_subject_ids),
+            }
         setattr(self, index_name, index)
         setattr(self, counts_name, counts)
         if spec is None:
@@ -724,3 +765,113 @@ class DatasetResourceResolver:
         self.split = split
         self.split_ratio = split_ratio
         self.split_seed = split_seed
+
+    def resolve_dataset_hrtf(self, subject_id: str, hrtf):
+        if self.hrtf_transform is None:
+            return hrtf
+        transformed_hrtf = self._dataset_transformed_hrtf_cache.get(subject_id)
+        if transformed_hrtf is not None:
+            return transformed_hrtf
+        transformed_hrtf = self.hrtf_transform(hrtf)
+        if not self.is_hrtf_object(transformed_hrtf):
+            raise ValueError("hrtf_transform must return an HRTF object")
+        if self._cache_hrtf:
+            self._dataset_transformed_hrtf_cache[subject_id] = transformed_hrtf
+        return transformed_hrtf
+
+    def get_subject_hrtf(self, subject_id: str | int):
+        resolved_subject_id = self.resolve_dataset_subject_id(subject_id, self.subject_ids)
+        if resolved_subject_id not in self._hrtf_paths:
+            raise KeyError(
+                f"Subject {subject_id!r} resolved to {resolved_subject_id!r} but does not have an available HRTF file"
+            )
+        path = self._hrtf_paths[resolved_subject_id]
+        if not path.exists():
+            warnings.warn(
+                f"{self.name}: subject {resolved_subject_id} HRTF path is missing: {path}",
+                stacklevel=2,
+            )
+            raise FileNotFoundError(
+                f"HRTF path is missing for subject {resolved_subject_id}: {path}"
+            )
+        hrtf = self._hrtf_cache.get(resolved_subject_id)
+        if hrtf is None:
+            try:
+                hrtf = load_hrtf(path)
+            except Exception as exc:
+                warnings.warn(
+                    f"{self.name}: subject {resolved_subject_id} HRTF file could not be loaded: {path} ({exc})",
+                    stacklevel=2,
+                )
+                raise
+            if self._cache_hrtf:
+                self._hrtf_cache[resolved_subject_id] = hrtf
+        return self.resolve_dataset_hrtf(resolved_subject_id, hrtf)
+
+    def reset_acoustic_context(self) -> None:
+        self.sample_rate = None
+        self.available_positions = None
+        self.selected_positions = None
+        self.available_azimuth_angles = None
+        self.available_elevation_angles = None
+        self.azimuth_angles = None
+        self.elevation_angles = None
+        self.frequency_bins = None
+        self.sample_indices = None
+        self._selected_position_indices = []
+        self._selected_frequency_indices = []
+        self._selected_sample_indices = []
+
+    def configure_reference_hrtf(self, reference_hrtf) -> None:
+        self.sample_rate = (
+            None if reference_hrtf.IR.sample_rate is None else float(reference_hrtf.IR.sample_rate)
+        )
+        self.available_positions = np.asarray(
+            reference_hrtf.Sources.get_positions(angle_unit="degrees"),
+            dtype=float,
+        )
+
+    def configure_frequency_and_sample_axes(self, reference_hrtf) -> None:
+        if reference_hrtf.TF.frequency_bins is not None:
+            self.frequency_bins = np.asarray(reference_hrtf.TF.frequency_bins, dtype=float)
+            self._selected_frequency_indices = list(range(int(self.frequency_bins.shape[0])))
+        self.sample_indices = np.arange(reference_hrtf.IR.values.shape[-1], dtype=int)
+        self._selected_sample_indices = list(range(int(self.sample_indices.shape[0])))
+
+    def configure_spatial_context(self, reference_hrtf) -> None:
+        if self.primary_spatial_spec is not None:
+            self._selected_position_indices = self.resolve_positions_selection(
+                self.primary_spatial_spec.positions,
+                self.primary_spatial_spec.plane,
+                reference_hrtf,
+            )
+            self.selected_positions = np.asarray(
+                self.available_positions[self._selected_position_indices],
+                dtype=float,
+            )
+
+    def configure_angle_context(self, reference_hrtf) -> None:
+        spherical_positions = np.asarray(
+            get_spherical_positions(reference_hrtf.Sources, angle_unit="degrees"),
+            dtype=float,
+        )
+        self.available_azimuth_angles = np.unique(np.round(spherical_positions[:, 0], 2))
+        self.available_elevation_angles = np.unique(np.round(spherical_positions[:, 1], 2))
+        if self.primary_spatial_spec is not None:
+            selected_spherical_positions = np.asarray(
+                spherical_positions[self._selected_position_indices],
+                dtype=float,
+            )
+            self.azimuth_angles = np.unique(np.round(selected_spherical_positions[:, 0], 2))
+            self.elevation_angles = np.unique(np.round(selected_spherical_positions[:, 1], 2))
+
+    def prepare_acoustic_context(self) -> None:
+        self.reset_acoustic_context()
+        if self.primary_hrtf_backed_spec is None:
+            return
+        reference_subject_id = self.subject_ids[0]
+        reference_hrtf = self.get_subject_hrtf(reference_subject_id)
+        self.configure_reference_hrtf(reference_hrtf)
+        self.configure_frequency_and_sample_axes(reference_hrtf)
+        self.configure_spatial_context(reference_hrtf)
+        self.configure_angle_context(reference_hrtf)

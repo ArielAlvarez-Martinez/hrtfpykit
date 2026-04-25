@@ -13,10 +13,14 @@ class HRTFSpec:
     plane: str | tuple[object, ...] | dict[str, object] | None = None
     ears: str | tuple[str, ...] = "both"
     index_by: str | tuple[str, ...] = ("subject",)
-    positions_encoding: bool = False
-    ear_encoding: bool = False
-    frequencies_encoding: bool = False
-    samples_encoding: bool = False
+    position_one_hot: bool = False
+    position_index: bool = False
+    ear_one_hot: bool = False
+    ear_index: bool = False
+    frequency_one_hot: bool = False
+    frequency_index: bool = False
+    sample_one_hot: bool = False
+    sample_index: bool = False
     transform: Callable | None = None
     cache: bool = True
     name: str | None = None
@@ -27,7 +31,8 @@ class ITDSpec:
     positions: str | tuple[int, ...] | list[int] | np.ndarray = "all"
     plane: str | tuple[object, ...] | dict[str, object] | None = None
     index_by: str | tuple[str, ...] = ("subject",)
-    positions_encoding: bool = False
+    position_one_hot: bool = False
+    position_index: bool = False
     method: str = "threshold"
     output: str = "samples"
     thresh_level: float = -10.0
@@ -42,8 +47,10 @@ class ILDSpec:
     positions: str | tuple[int, ...] | list[int] | np.ndarray = "all"
     plane: str | tuple[object, ...] | dict[str, object] | None = None
     index_by: str | tuple[str, ...] = ("subject",)
-    positions_encoding: bool = False
-    frequencies_encoding: bool = False
+    position_one_hot: bool = False
+    position_index: bool = False
+    frequency_one_hot: bool = False
+    frequency_index: bool = False
     mode: str = "broad-band"
     output: str = "db"
     fft_length: int | None = None
@@ -57,8 +64,10 @@ class SHSpec:
     sh_order: int
     ears: str | tuple[str, ...] = "both"
     index_by: str | tuple[str, ...] = ("subject",)
-    ear_encoding: bool = False
-    frequencies_encoding: bool = False
+    ear_one_hot: bool = False
+    ear_index: bool = False
+    frequency_one_hot: bool = False
+    frequency_index: bool = False
     epsilon: float = 1e-6
     transform: Callable | None = None
     name: str | None = None
@@ -83,6 +92,8 @@ class AnthropometrySpec:
 class ImageSpec:
     path: str | Path | None = None
     align_by: str | tuple[str, ...] = ("subject",)
+    ear_one_hot: bool = False
+    ear_index: bool = False
     concatenate: bool = False
     transform: Callable | None = None
     name: str | None = None
@@ -92,6 +103,8 @@ class ImageSpec:
 class VideoSpec:
     path: str | Path | None = None
     align_by: str | tuple[str, ...] = ("subject",)
+    ear_one_hot: bool = False
+    ear_index: bool = False
     transform: Callable | None = None
     name: str | None = None
 

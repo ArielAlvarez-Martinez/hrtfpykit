@@ -3,7 +3,7 @@ from pathlib import Path
 from .base import BaseDataset
 from .config import HUTUBS_CONFIG
 from .download import BaseDownload
-from .resolver import normalize_anthropometry_ear, normalize_anthropometry_select
+from .resolver import DatasetResourceResolver
 from .specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -153,8 +153,8 @@ class HUTUBS(BaseDataset):
         subject_id: str,
     ) -> dict[str, float | str | None]:
         values = self._anthropometry_rows[subject_id]
-        selected = normalize_anthropometry_select(spec.select)
-        ear = normalize_anthropometry_ear(spec.ear)
+        selected = DatasetResourceResolver.normalize_anthropometry_select(spec.select)
+        ear = DatasetResourceResolver.normalize_anthropometry_ear(spec.ear)
         left_prefix, right_prefix = self.get_anthropometry_prefixes()
 
         if selected == "complete":

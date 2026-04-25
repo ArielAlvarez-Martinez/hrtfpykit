@@ -3,7 +3,7 @@ from collections.abc import Callable
 import numpy as np
 
 from .index import normalize_index_by
-from .resolver import normalize_anthropometry_ear, normalize_anthropometry_select
+from .resolver import DatasetResourceResolver
 from .specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -57,8 +57,8 @@ def select_anthropometry_value(
     ear: str,
     dataset_name: str,
 ) -> dict[str, float | str | None]:
-    selected = normalize_anthropometry_select(select)
-    normalized_ear = normalize_anthropometry_ear(ear)
+    selected = DatasetResourceResolver.normalize_anthropometry_select(select)
+    normalized_ear = DatasetResourceResolver.normalize_anthropometry_ear(ear)
     unsupported_ear_message = (
         f"{dataset_name} does not define dataset-specific anthropometry ear handling. "
         f"Requested ear={normalized_ear!r}. "
@@ -288,7 +288,11 @@ class DatasetValueResolver:
             transform_cache_key = (subject_id, id(spec.transform))
             transformed_hrtf = self._transformed_hrtf_cache.get(transform_cache_key)
             if transformed_hrtf is None:
-                transformed_hrtf = self.apply_hrtf_spec_transform(hrtf, spec.transform)
+                transformed_hrtf = spec.transform(hrtf)
+                if not self.is_hrtf_object(transformed_hrtf):
+                    raise ValueError(
+                        "HRTFTransform callables used in HRTFSpec.transform must return an HRTF object"
+                    )
                 if self._cache_hrtf:
                     self._transformed_hrtf_cache[transform_cache_key] = transformed_hrtf
         value = self.select_hrtf_value(

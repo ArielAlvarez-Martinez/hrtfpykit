@@ -4,7 +4,6 @@ from typing import Callable
 
 import numpy as np
 
-from .acoustic import DatasetAcousticContext
 from .config import DatasetConfig
 from .index import build_rows
 from .planner import DatasetSpecPlanner
@@ -25,7 +24,6 @@ from .values import DatasetValueResolver
 
 class BaseDataset(
     DatasetValueResolver,
-    DatasetAcousticContext,
     DatasetResourceResolver,
     DatasetSpecPlanner,
 ):
@@ -79,6 +77,10 @@ class BaseDataset(
             self.variant = preset_variant
 
         self.plan_dataset_specs(inputs, target)
+        if len(self._input_specs) == 0 and len(self._target_specs) == 0:
+            raise ValueError(
+                f"{self.name} requires at least one dataset spec in inputs or target"
+            )
 
         self._cache_hrtf = True if len(self.hrtf_specs) == 0 else any(bool(spec.cache) for spec in self.hrtf_specs)
         self._hrtf_cache: dict[str, object] = {}
@@ -159,27 +161,43 @@ class BaseDataset(
     def __len__(self) -> int:
         return len(self._rows)
 
-    def add_input_encodings(
+    def add_input_categorical_outputs(
         self,
         inputs: dict[str, object],
         row: dict[str, str | int | None],
     ) -> None:
-        if self._positions_encoding and row["selected_position_index"] is not None:
-            position_encoding = np.zeros(len(self._selected_position_indices), dtype=float)
-            position_encoding[int(row["selected_position_index"])] = 1.0
-            inputs["position"] = position_encoding
-        if self._frequencies_encoding and row["selected_frequency_index"] is not None:
-            frequency_encoding = np.zeros(len(self._selected_frequency_indices), dtype=float)
-            frequency_encoding[int(row["selected_frequency_index"])] = 1.0
-            inputs["frequency"] = frequency_encoding
-        if self._samples_encoding and row["selected_sample_index"] is not None:
-            sample_encoding = np.zeros(len(self._selected_sample_indices), dtype=float)
-            sample_encoding[int(row["selected_sample_index"])] = 1.0
-            inputs["sample"] = sample_encoding
-        if self._ear_encoding and row["selected_ear_index"] is not None:
-            ear_encoding = np.zeros(len(self._selected_ears), dtype=float)
-            ear_encoding[int(row["selected_ear_index"])] = 1.0
-            inputs["ear"] = ear_encoding
+        if row["selected_position_index"] is not None:
+            position_index = int(row["selected_position_index"])
+            if self._position_one_hot:
+                position_encoding = np.zeros(len(self._selected_position_indices), dtype=float)
+                position_encoding[position_index] = 1.0
+                inputs["position_one_hot"] = position_encoding
+            if self._position_index:
+                inputs["position_index"] = position_index
+        if row["selected_ear_index"] is not None:
+            ear_index = int(row["selected_ear_index"])
+            if self._ear_one_hot:
+                ear_encoding = np.zeros(len(self._selected_ears), dtype=float)
+                ear_encoding[ear_index] = 1.0
+                inputs["ear_one_hot"] = ear_encoding
+            if self._ear_index:
+                inputs["ear_index"] = ear_index
+        if row["selected_frequency_index"] is not None:
+            frequency_index = int(row["selected_frequency_index"])
+            if self._frequency_one_hot:
+                frequency_encoding = np.zeros(len(self._selected_frequency_indices), dtype=float)
+                frequency_encoding[frequency_index] = 1.0
+                inputs["frequency_one_hot"] = frequency_encoding
+            if self._frequency_index:
+                inputs["frequency_index"] = frequency_index
+        if row["selected_sample_index"] is not None:
+            sample_index = int(row["selected_sample_index"])
+            if self._sample_one_hot:
+                sample_encoding = np.zeros(len(self._selected_sample_indices), dtype=float)
+                sample_encoding[sample_index] = 1.0
+                inputs["sample_one_hot"] = sample_encoding
+            if self._sample_index:
+                inputs["sample_index"] = sample_index
 
     def __getitem__(self, index: int) -> dict[str, object]:
         if not isinstance(index, int):
@@ -191,7 +209,7 @@ class BaseDataset(
             inputs = {}
             for spec in self._input_specs:
                 inputs[get_spec_name(spec)] = self.get_spec_value(spec, subject_id, row)
-            self.add_input_encodings(inputs, row)
+            self.add_input_categorical_outputs(inputs, row)
 
         sample: dict[str, object] = {
             "inputs": inputs,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 import numpy as np
-from scipy.special import sph_harm
+from scipy.special import sph_harm_y
 from typing import TYPE_CHECKING
 from dataclasses import dataclass
 
@@ -158,7 +158,7 @@ def sht(
     coeff_index = 0
     for n in range(sh_order + 1):
         for m in range(-n, n + 1):
-            complex_basis = sph_harm(m, n, phi, theta)
+            complex_basis = sph_harm_y(n, m, theta, phi)
             if m < 0:
                 Y[:, coeff_index] = np.sqrt(2.0) * ((-1) ** m) * complex_basis.imag
             elif m == 0:
