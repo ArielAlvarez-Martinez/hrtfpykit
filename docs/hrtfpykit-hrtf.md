@@ -266,7 +266,7 @@ This is the normal workflow when you only need a spatial or acoustic subset.
 ```python
 front = hrtf.select(positions=["front"])
 horizontal = hrtf.select(plane="horizontal")
-band_limited = hrtf.select(start_frequency=200.0, end_frequency=8000.0)
+early_ir = hrtf.select(start_seconds=0.0, end_seconds=0.01)
 ```
 
 ### Transform safely in memory
@@ -572,20 +572,18 @@ It supports combinations of:
 - `positions`
 - `position_coordinate_system`
 - `plane`
-- `elevation`
+- `plane_angle`
 - `angle_unit`
 - `ear`
+- `start`
+- `end`
 - `start_seconds`
 - `end_seconds`
-- `start_frequency`
-- `end_frequency`
-- `sample_rate`
 
 Use it when:
 
 - you want one named position such as `"front"`
 - you want a whole plane
-- you want a frequency band
 - you want a time-domain interval
 - you want one ear or both ears
 
@@ -601,15 +599,6 @@ Select a horizontal plane:
 
 ```python
 horizontal = hrtf.select(plane="horizontal")
-```
-
-Select one frequency band:
-
-```python
-mid_band = hrtf.select(
-    start_frequency=500.0,
-    end_frequency=5000.0,
-)
 ```
 
 Select one time interval:
