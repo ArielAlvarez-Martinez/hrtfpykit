@@ -855,6 +855,8 @@ def lsd(
         rms_over_positions_frequencies = np.sqrt(np.mean(np.square(difference_db), axis=(0, 2)))
         lsd_output = float(np.mean(rms_over_positions_frequencies))
 
+    #TODO: mean_lsd is redundant , it can be addressed by reduction = "global"
+
     if mean_lsd_key:
         return float(np.mean(np.asarray(lsd_output, dtype=float)))
     return lsd_output
