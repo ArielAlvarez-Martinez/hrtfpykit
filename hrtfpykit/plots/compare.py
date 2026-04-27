@@ -2180,7 +2180,17 @@ def compare_lsd_plane(
             ear=ear,
             plane=plane_key,
             elevation=elevation,
-            frequencies=None,
+            # TODO : solve the bug in compare_lsd_plane() wich trigs : "ValueError: LSD plane values frequency axis must match 
+            # TF frequency_bins" . Well , it's not actually a "bug" , it's more a design problem, 
+            # basically, lsd() method in hrtf.metrics by default is taking the frequency bins from 20 Hz to 20 kHz,
+            # why ? because I dont wanna calculate the lsd for DC bin and for frquencies up to 20 kHz , that is correct for lsd() method itself, 
+            # I dont't think it's a completely wrong take, but at the same time is affecting the lsd plots, why ? because I designed lsd plots with 
+            # some "safe guards" , for example hrtf_a and hrtf_b should be "compatible", in other words, they must be "similar" (source grid , 
+            # TF and IR "lenght" aka shape) to avoid some problems during the plot 'construction' . So , I need to take a desing decision:
+            # 1 - Keep the actual lsd() method behaviorial (I think is the best option) .
+            # 2 - Modify the lsd method to calculate the lsd , for all available frequency bins by default.  
+            #frequencies=None,
+            frequencies=hrtf_a.TF.frequency_bins,
             reduction="none",
             epsilon=epsilon,
         ),

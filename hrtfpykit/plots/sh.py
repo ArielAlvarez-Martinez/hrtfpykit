@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
 
 
-def plot_reconstruction_comparison(
+def plot_sht_reconstruction_comparison(
     hrtf: "HRTF",
     reconstructed_magnitude: np.ndarray,
     position: np.ndarray | list | tuple | str = "front",
@@ -56,7 +56,7 @@ def plot_reconstruction_comparison(
     Examples
     --------
     >>> reconstructed = sht_inverse(sh)
-    >>> plot_reconstruction_comparison(
+    >>> plot_sht_reconstruction_comparison(
     ...     hrtf=hrtf,
     ...     reconstructed_magnitude=reconstructed,
     ...     position="front",
@@ -200,7 +200,7 @@ def plot_reconstruction_comparison(
         plt.show()
 
 
-def plot_reconstruction_error(
+def plot_sht_reconstruction_error(
     hrtf: "HRTF",
     reconstructed_magnitude: np.ndarray,
     position: np.ndarray | list | tuple | str = "front",
@@ -234,7 +234,7 @@ def plot_reconstruction_error(
     Examples
     --------
     >>> reconstructed = sht_inverse(sh)
-    >>> plot_reconstruction_error(
+    >>> plot_sht_reconstruction_error(
     ...     hrtf=hrtf,
     ...     reconstructed_magnitude=reconstructed,
     ...     position="left",

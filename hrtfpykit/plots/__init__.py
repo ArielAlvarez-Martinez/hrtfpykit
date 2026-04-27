@@ -9,7 +9,7 @@ from .compare import (
     compare_lsd_plane,
     compare_magnitude,
 )
-from .sh import plot_reconstruction_comparison, plot_reconstruction_error
+from .sh import plot_sht_reconstruction_comparison, plot_sht_reconstruction_error
 from .hrtf import HRTFPlots
 
 __version__ = "1.0.0"
@@ -26,6 +26,6 @@ __all__ = [
     "compare_ild_difference",
     "compare_lsd",
     "compare_lsd_plane",
-    "plot_reconstruction_comparison",
-    "plot_reconstruction_error",
+    "plot_sht_reconstruction_comparison",
+    "plot_sht_reconstruction_error",
 ]

@@ -597,9 +597,10 @@ def lsd(
         and numeric spherical queries). When provided, the resolved positions
         are intersected with the selected ``plane``.
     frequencies : float | list[float] | tuple[float, ...] | np.ndarray | None, default=None
-        Optional frequency selector in Hz. Accepts one target frequency or
-        multiple targets. Each target is mapped to the nearest available TF
-        bin. ``None`` selects bins in the 20 Hz to 20 kHz band.
+        Optional frequency selector in Hz. Accepts multiple frequency bins. Each target is mapped 
+        to the nearest available TF bin. ``None`` selects bins in the 20 Hz to 20 kHz band. If you
+        wanna calculate the lsd for all "avilable" frquency bins pass : 
+        frequencies=hrtf.TF.frequency_bins
     reduction : {"none", "locations", "frequencies", "global"}, default="none"
         Aggregation mode applied after dB difference computation:
         - ``"none"``:
@@ -783,9 +784,15 @@ def lsd(
             raise ValueError("No source positions matched the provided positions and plane filters")
 
     if frequencies is None:
+        # TODO : currently desing if the parameter "frequencies" is None (user dont pass any parameter) , it will calculate the lsd 
+        # for the frequency bins up to 20 Hz till 20 kHz , for me , this is a good design , because it avoid calculates lsd for DC bin, 
+        # which is accurrate from an acoustic and dsp point of view , but introduce some incompatibilities with the lsd plots . So , I need
+        # to take a decision, on one hand, change the lsd() method logic to calculate the lsd by default for all frequency bins and on the other
+        # hand, adjust the lsd plots. 
         selected_frequency_indices = np.where(
             (frequency_bins_a >= 20.0) & (frequency_bins_a <= 20000.0)
         )[0]
+        
         if selected_frequency_indices.size == 0:
             raise ValueError(
                 "No frequency bins available in the default LSD range [20.0, 20000.0] Hz"
