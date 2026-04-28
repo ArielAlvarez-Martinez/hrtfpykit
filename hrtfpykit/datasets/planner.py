@@ -51,6 +51,7 @@ SUPPORTED_ITD_OUTPUTS = (
     "samples",
 )
 
+# TODO : move specs methods to specs 
 
 class DatasetSpecPlanner:
     @staticmethod
@@ -92,6 +93,7 @@ class DatasetSpecPlanner:
             f"{spec_name}.plane must be None, a string, a tuple, or a dict"
         )
 
+    # this go to values 
     @classmethod
     def normalize_value_signature(cls, value: object) -> object:
         if isinstance(value, Path):
@@ -275,6 +277,7 @@ class DatasetSpecPlanner:
             self.hrtf_backed_specs,
         )
 
+    # TODO : move the method to index 
     def configure_dataset_indexing(self) -> None:
         self.index_by = ("subject",)
         self._selected_ears = []

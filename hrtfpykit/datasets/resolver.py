@@ -394,6 +394,8 @@ class DatasetResourceResolver:
             None if self.primary_anthropometry_spec is None else self.primary_anthropometry_spec.path,
             self.root,
         )
+        # why mesh is not here ? why it says resolve_paths and there is _video_align_by and _image_align_by ? 
+        # Why ? 
         self._image_align_by = (
             None if self.primary_image_spec is None else normalize_index_by(self.primary_image_spec.align_by)
         )
@@ -525,6 +527,7 @@ class DatasetResourceResolver:
             "missing_subject_ids": missing_mesh_subject_ids,
         }
 
+    #TODO : anthropometry features should provide a general purpose infra , not specific logic , it should handle in the dataset classes 
     def resolve_anthropometry_resources(self) -> None:
         if self._anthropometry_path is None and self.config.anthropometry is not None:
             candidate = (self.root / self.config.anthropometry.path).expanduser()
@@ -618,6 +621,7 @@ class DatasetResourceResolver:
         self.resource_summary["hrtf"]["invalid"] = len(invalid_hrtf_subject_ids)
         self.resource_summary["hrtf"]["invalid_subject_ids"] = invalid_hrtf_subject_ids
 
+    # TODO: what the hell is this ? why there is a separate warn_missing_mesh 
     def warn_missing_mesh_resources(self) -> None:
         if self.primary_mesh_spec is None:
             return
@@ -702,6 +706,8 @@ class DatasetResourceResolver:
 
     def resolve_dataset_resources(self) -> None:
         self.resource_summary = {}
+
+        # TODO :  in this function only will live resolve methods , not validate or warn_missing_mesh_resources
         self.resolve_dataset_paths()
         self.validate_dataset_assets()
         excluded_subject_ids, included_subject_ids, subject_numbers = self.initialize_dataset_subjects()
@@ -821,6 +827,8 @@ class DatasetResourceResolver:
         self._selected_position_indices = []
         self._selected_frequency_indices = []
         self._selected_sample_indices = []
+
+    # TODO : create a single configure function 
 
     def configure_reference_hrtf(self, reference_hrtf) -> None:
         self.sample_rate = (

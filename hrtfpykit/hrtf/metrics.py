@@ -542,7 +542,6 @@ def ild_difference(
 def lsd(
     hrtf_a: "HRTF",
     hrtf_b: "HRTF",
-    mean_lsd: bool = False,
     ear: str = "both",
     plane: str = "all",
     elevation: float = 0.0,
@@ -558,7 +557,8 @@ def lsd(
     or both ears together. When ``ear="both"``, LSD is computed for both ear
     channels and then averaged across the ear axis before any optional output
     reduction. It supports full-grid evaluation, plane-restricted evaluation,
-    frequency selection, and multiple reduction modes.
+    frequency selection, and reduction modes for per-position, per-frequency,
+    or global scalar outputs.
 
     Design rule
     -----------
@@ -571,11 +571,6 @@ def lsd(
         First HRTF used in the comparison.
     hrtf_b : HRTF
         Second HRTF used in the comparison.
-    mean_lsd : bool, default=False
-        When ``True``, returns one scalar mean LSD in dB computed from the
-        selected output defined by ``ear``, ``plane``, ``elevation``,
-        ``frequency``, and ``reduction``. Set to ``False`` to return the
-        non-averaged output for the selected configuration.
     ear : {"left", "right", "both"}, default="both"
         Ear configuration used during the comparison.
         - ``"left"`` evaluates only the left-ear TF values.
@@ -619,9 +614,8 @@ def lsd(
     Returns
     -------
     np.ndarray | float
-        LSD values in dB. When ``mean_lsd=True``, returns one ``float`` equal
-        to the arithmetic mean of the selected output. Otherwise, shape depends
-        on ``reduction`` and on whether a single frequency was selected:
+        LSD values in dB. Shape depends on ``reduction`` and on whether a
+        single frequency was selected:
         - ``reduction="none"``:
           ``(positions, frequencies)`` or ``(positions,)`` for one frequency.
         - ``reduction="locations"``:
@@ -641,16 +635,15 @@ def lsd(
 
     Examples
     --------
-    Mean LSD scalar for the selected configuration:
+    Global LSD scalar for the selected configuration:
 
-    >>> lsd_scalar = lsd(hrtf_a, hrtf_b)
+    >>> lsd_scalar = lsd(hrtf_a, hrtf_b, reduction="global")
 
     Full LSD map across all positions and frequencies for the left ear:
 
     >>> lsd_map = lsd(
     ...     hrtf_a,
     ...     hrtf_b,
-    ...     mean_lsd=False,
     ...     ear="left",
     ...     reduction="none",
     ... )
@@ -662,7 +655,6 @@ def lsd(
     >>> lsd_per_frequency = lsd(
     ...     hrtf_a,
     ...     hrtf_b,
-    ...     mean_lsd=False,
     ...     ear="left",
     ...     reduction="locations",
     ... )
@@ -672,7 +664,6 @@ def lsd(
     >>> lsd_per_location = lsd(
     ...     hrtf_a,
     ...     hrtf_b,
-    ...     mean_lsd=False,
     ...     ear="right",
     ...     plane="horizontal",
     ...     elevation=0.0,
@@ -684,7 +675,6 @@ def lsd(
     >>> lsd_plane_scalar = lsd(
     ...     hrtf_a,
     ...     hrtf_b,
-    ...     mean_lsd=False,
     ...     ear="left",
     ...     plane="median",
     ...     frequencies=4000.0,
@@ -698,8 +688,6 @@ def lsd(
             raise ValueError(f"{label} TF data is not available")
         if hrtf.TF.frequency_bins is None:
             raise ValueError(f"{label} TF frequency_bins are required")
-
-    mean_lsd_key = bool(mean_lsd)
 
     plane_key = str(plane).strip().lower()
     if plane_key not in {"all", "horizontal", "median"}:
@@ -784,11 +772,6 @@ def lsd(
             raise ValueError("No source positions matched the provided positions and plane filters")
 
     if frequencies is None:
-        # TODO : currently desing if the parameter "frequencies" is None (user dont pass any parameter) , it will calculate the lsd 
-        # for the frequency bins up to 20 Hz till 20 kHz , for me , this is a good design , because it avoid calculates lsd for DC bin, 
-        # which is accurrate from an acoustic and dsp point of view , but introduce some incompatibilities with the lsd plots . So , I need
-        # to take a decision, on one hand, change the lsd() method logic to calculate the lsd by default for all frequency bins and on the other
-        # hand, adjust the lsd plots. 
         selected_frequency_indices = np.where(
             (frequency_bins_a >= 20.0) & (frequency_bins_a <= 20000.0)
         )[0]
@@ -855,8 +838,4 @@ def lsd(
         rms_over_positions_frequencies = np.sqrt(np.mean(np.square(difference_db), axis=(0, 2)))
         lsd_output = float(np.mean(rms_over_positions_frequencies))
 
-    #TODO: mean_lsd is redundant , it can be addressed by reduction = "global"
-
-    if mean_lsd_key:
-        return float(np.mean(np.asarray(lsd_output, dtype=float)))
     return lsd_output

@@ -1949,9 +1949,11 @@ def compare_lsd(
     """Plot full-grid LSD across source positions as a spatial scatter map.
 
     The function computes one LSD value per source position by averaging
-    across frequencies (using :func:`lsd` with ``mean_lsd=False`` and
+    across frequencies (using :func:`lsd` with ``frequencies=None`` and
     ``reduction="frequencies"``), then visualizes the result on an
     azimuth-elevation scatter with a colorbar in dB.
+    Frequency selection is delegated to :func:`lsd`, which uses its default
+    20 Hz to 20 kHz LSD band when ``frequencies=None``.
 
     Parameters
     ----------
@@ -1979,7 +1981,8 @@ def compare_lsd(
     Use Cases
     ---------
     - Inspect directional LSD distribution over the complete source grid.
-    - Compare spatial spectral mismatch between two HRTFs for one ear.
+    - Compare spatial spectral mismatch between two HRTFs for one ear using
+      the default LSD frequency band.
     - Detect high-error regions (e.g., rear or high-elevation sectors).
 
     Examples
@@ -1999,7 +2002,6 @@ def compare_lsd(
         lsd(
             hrtf_a=hrtf_a,
             hrtf_b=hrtf_b,
-            mean_lsd=False,
             ear=ear,
             plane="all",
             frequencies=None,
@@ -2087,6 +2089,9 @@ def compare_lsd_plane(
     ear: str = "left",
     elevation: float = 0.0,
     epsilon: float = 1e-12,
+    x_axis: str = "linear",
+    freq_min: float | None = None,
+    freq_max: float | None = None,
     colormap: str = "jet",
     show: bool = True,
     titles: bool = True,
@@ -2094,7 +2099,9 @@ def compare_lsd_plane(
     """Plot plane-restricted LSD as a frequency-angle heatmap.
 
     This function visualizes LSD values in dB for a canonical plane slice.
-    The x-axis is frequency (kHz), the y-axis is angle, and color encodes LSD:
+    It calls :func:`lsd` with ``reduction="none"`` so the output keeps one
+    value per selected plane position and selected frequency bin. The x-axis
+    is frequency (kHz), the y-axis is angle, and color encodes LSD:
     - ``plane="horizontal"`` uses signed azimuth on y (``-180..180``).
     - ``plane="median"`` uses polar angle on y (lateral-polar coordinates).
 
@@ -2113,6 +2120,14 @@ def compare_lsd_plane(
         Ignored for ``plane="median"``.
     epsilon : float, default=1e-12
         Positive floor passed to :func:`lsd` before dB conversion.
+    x_axis : {"linear", "log"}, default="linear"
+        Frequency-axis scale used for the heatmap x-axis.
+    freq_min : float | None, default=None
+        Minimum frequency in Hz included in the LSD heatmap. When omitted,
+        defaults to 20 Hz.
+    freq_max : float | None, default=None
+        Maximum frequency in Hz included in the LSD heatmap. When omitted,
+        defaults to 20000 Hz.
     colormap : str, default="jet"
         Matplotlib colormap used for heatmap coloring.
     show : bool, default=True
@@ -2135,6 +2150,8 @@ def compare_lsd_plane(
     - Use ``plane="horizontal"`` with ``elevation=0.0`` for first-pass analysis.
     - Use ``plane="median"`` when front/back and up/down spectral behavior is relevant.
     - Keep ``ear`` fixed (left or right) when comparing methods to avoid mixing channels.
+    - Use ``x_axis="log"`` when inspecting low-frequency and high-frequency
+      regions in the same heatmap.
 
     Examples
     --------
@@ -2150,6 +2167,9 @@ def compare_lsd_plane(
     ...     h2,
     ...     plane="median",
     ...     ear="right",
+    ...     x_axis="log",
+    ...     freq_min=100.0,
+    ...     freq_max=16000.0,
     ...     colormap="viridis",
     ...     show=False,
     ... )
@@ -2157,6 +2177,11 @@ def compare_lsd_plane(
     plane_key = str(plane).strip().lower()
     if plane_key not in {"horizontal", "median"}:
         raise ValueError("plane must be one of: horizontal, median")
+    x_axis_key = str(x_axis).strip().lower()
+    if x_axis_key not in {"linear", "log"}:
+        raise ValueError("x_axis must be one of: linear, log")
+    if hrtf_a.TF.frequency_bins is None:
+        raise ValueError("hrtf_a TF frequency_bins are required")
 
     if plane_key == "horizontal":
         selected_positions, _ = get_horizontal_plane(
@@ -2172,25 +2197,29 @@ def compare_lsd_plane(
     if selected_positions.size == 0:
         raise ValueError("Selected plane has no source positions")
 
+    frequency_bins = np.asarray(hrtf_a.TF.frequency_bins, dtype=float).reshape(-1)
+    resolved_freq_min = 20.0 if freq_min is None else float(freq_min)
+    resolved_freq_max = 20000.0 if freq_max is None else float(freq_max)
+    if not np.isfinite(resolved_freq_min) or not np.isfinite(resolved_freq_max):
+        raise ValueError("freq_min and freq_max must be finite values")
+    if resolved_freq_min >= resolved_freq_max:
+        raise ValueError("freq_min must be smaller than freq_max")
+    if x_axis_key == "log" and resolved_freq_min <= 0.0:
+        raise ValueError("freq_min must be positive for logarithmic frequency axis")
+    frequency_bins = frequency_bins[
+        (frequency_bins >= resolved_freq_min) & (frequency_bins <= resolved_freq_max)
+    ]
+    if frequency_bins.size < 2:
+        raise ValueError("Selected frequency range must contain at least two TF bins")
+
     lsd_values = np.asarray(
         lsd(
             hrtf_a=hrtf_a,
             hrtf_b=hrtf_b,
-            mean_lsd=False,
             ear=ear,
             plane=plane_key,
             elevation=elevation,
-            # TODO : solve the bug in compare_lsd_plane() wich trigs : "ValueError: LSD plane values frequency axis must match 
-            # TF frequency_bins" . Well , it's not actually a "bug" , it's more a design problem, 
-            # basically, lsd() method in hrtf.metrics by default is taking the frequency bins from 20 Hz to 20 kHz,
-            # why ? because I dont wanna calculate the lsd for DC bin and for frquencies up to 20 kHz , that is correct for lsd() method itself, 
-            # I dont't think it's a completely wrong take, but at the same time is affecting the lsd plots, why ? because I designed lsd plots with 
-            # some "safe guards" , for example hrtf_a and hrtf_b should be "compatible", in other words, they must be "similar" (source grid , 
-            # TF and IR "lenght" aka shape) to avoid some problems during the plot 'construction' . So , I need to take a desing decision:
-            # 1 - Keep the actual lsd() method behaviorial (I think is the best option) .
-            # 2 - Modify the lsd method to calculate the lsd , for all available frequency bins by default.  
-            #frequencies=None,
-            frequencies=hrtf_a.TF.frequency_bins,
+            frequencies=frequency_bins,
             reduction="none",
             epsilon=epsilon,
         ),
@@ -2201,7 +2230,6 @@ def compare_lsd_plane(
     if lsd_values.shape[0] != selected_positions.shape[0]:
         raise ValueError("LSD plane values must match selected positions count")
 
-    frequency_bins = np.asarray(hrtf_a.TF.frequency_bins, dtype=float).reshape(-1)
     if frequency_bins.size != lsd_values.shape[1]:
         raise ValueError("LSD plane values frequency axis must match TF frequency_bins")
 
@@ -2293,13 +2321,14 @@ def compare_lsd_plane(
         vmax=float(np.max(finite_heatmap_values)),
     )
 
-    frequency_axis_config = FrequencyLinearAxis.build(
+    frequency_axis_class = FrequencyLogAxis if x_axis_key == "log" else FrequencyLinearAxis
+    frequency_axis_config = frequency_axis_class.build(
         frequency_bins=frequency_bins,
         freq_min=float(np.min(frequency_bins)),
         freq_max=float(np.max(frequency_bins)),
         margin_ratio=0.0,
     )
-    FrequencyLinearAxis.apply(
+    frequency_axis_class.apply(
         ax=ax,
         axis="x",
         label=Labels.frequency,
