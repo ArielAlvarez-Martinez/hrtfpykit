@@ -32,7 +32,7 @@ class BaseDataset(
     def __init__(
         self,
         root: str | Path,
-        hrtf_transform: Callable | None = None,
+        dataset_hrtf_transform: Callable | None = None,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec
         | ITDSpec
@@ -63,7 +63,7 @@ class BaseDataset(
         self.config = type(self).config
         self.name = str(self.config.name)
         self.root = Path(root).expanduser()
-        self.hrtf_transform = hrtf_transform
+        self.dataset_hrtf_transform = dataset_hrtf_transform
         self.exclude_subject_ids = self.resolve_dataset_subject_ids(
             exclude_subject_ids,
             tuple(self.config.subject_ids),
@@ -85,13 +85,14 @@ class BaseDataset(
         self._cache_hrtf = True if len(self.hrtf_specs) == 0 else any(bool(spec.cache) for spec in self.hrtf_specs)
         self._hrtf_cache: dict[str, object] = {}
         self._dataset_transformed_hrtf_cache: dict[str, object] = {}
-        self._transformed_hrtf_cache: dict[tuple[str, int], object] = {}
+        self._spec_transformed_hrtf_cache: dict[tuple[str, int], object] = {}
         self._metric_cache: dict[tuple[str, int], np.ndarray] = {}
         self._sh_cache: dict[tuple[str, int], np.ndarray] = {}
 
         self.resolve_dataset_resources()
         self.resolve_dataset_subjects(split, split_ratio, split_seed)
         self.prepare_acoustic_context()
+        self.validate_spec_transform_row_compatibility()
         self._rows = build_rows(
             subject_ids=self.subject_ids,
             index_by=self.index_by,

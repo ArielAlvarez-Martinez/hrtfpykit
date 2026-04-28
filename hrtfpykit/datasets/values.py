@@ -110,7 +110,7 @@ class DatasetValueResolver:
     def select_hrtf_value(
         hrtf,
         row: dict[str, str | int | None],
-        selected_position_indices: list[int],
+        selected_position_indices: list[int] | None,
         selected_ears: list[tuple[str, int]],
         spec: HRTFSpec,
     ) -> np.ndarray:
@@ -147,7 +147,10 @@ class DatasetValueResolver:
         axis_names = ["position", "ear", sample_axis_name]
         if "position" not in spec_index_by:
             position_axis = axis_names.index("position")
-            if len(selected_position_indices) != values.shape[position_axis]:
+            if (
+                selected_position_indices is not None
+                and len(selected_position_indices) != values.shape[position_axis]
+            ):
                 values = np.take(values, selected_position_indices, axis=position_axis)
         else:
             if row["position_index"] is None:
@@ -155,7 +158,13 @@ class DatasetValueResolver:
                     f"HRTFSpec(index_by={spec.index_by!r}) requires position-resolved rows"
                 )
             position_axis = axis_names.index("position")
-            values = np.take(values, [int(row["position_index"])], axis=position_axis)
+            position_index = int(row["position_index"])
+            if position_index < 0 or position_index >= values.shape[position_axis]:
+                raise ValueError(
+                    f"HRTFSpec(index_by={spec.index_by!r}) position_index={position_index} "
+                    f"is out of range for {values.shape[position_axis]} source positions"
+                )
+            values = np.take(values, [position_index], axis=position_axis)
             values = np.squeeze(values, axis=position_axis)
             axis_names.pop(position_axis)
         if "ear" not in spec_index_by:
@@ -170,7 +179,13 @@ class DatasetValueResolver:
                     f"HRTFSpec(index_by={spec.index_by!r}) requires ear-resolved rows"
                 )
             ear_axis = axis_names.index("ear")
-            values = np.take(values, [int(row["ear_index"])], axis=ear_axis)
+            ear_index = int(row["ear_index"])
+            if ear_index < 0 or ear_index >= values.shape[ear_axis]:
+                raise ValueError(
+                    f"HRTFSpec(index_by={spec.index_by!r}) ear_index={ear_index} "
+                    f"is out of range for {values.shape[ear_axis]} ears"
+                )
+            values = np.take(values, [ear_index], axis=ear_axis)
             values = np.squeeze(values, axis=ear_axis)
             axis_names.pop(ear_axis)
         if "frequency" in spec_index_by:
@@ -183,7 +198,13 @@ class DatasetValueResolver:
                     f"HRTFSpec(index_by={spec.index_by!r}) requires frequency-resolved rows"
                 )
             frequency_axis = axis_names.index("frequency")
-            values = np.take(values, [int(row["frequency_index"])], axis=frequency_axis)
+            frequency_index = int(row["frequency_index"])
+            if frequency_index < 0 or frequency_index >= values.shape[frequency_axis]:
+                raise ValueError(
+                    f"HRTFSpec(index_by={spec.index_by!r}) frequency_index={frequency_index} "
+                    f"is out of range for {values.shape[frequency_axis]} frequency bins"
+                )
+            values = np.take(values, [frequency_index], axis=frequency_axis)
             values = np.squeeze(values, axis=frequency_axis)
             axis_names.pop(frequency_axis)
         if "samples" in spec_index_by:
@@ -196,7 +217,13 @@ class DatasetValueResolver:
                     f"HRTFSpec(index_by={spec.index_by!r}) requires sample-resolved rows"
                 )
             sample_axis = axis_names.index("samples")
-            values = np.take(values, [int(row["sample_index"])], axis=sample_axis)
+            sample_index = int(row["sample_index"])
+            if sample_index < 0 or sample_index >= values.shape[sample_axis]:
+                raise ValueError(
+                    f"HRTFSpec(index_by={spec.index_by!r}) sample_index={sample_index} "
+                    f"is out of range for {values.shape[sample_axis]} samples"
+                )
+            values = np.take(values, [sample_index], axis=sample_axis)
             values = np.squeeze(values, axis=sample_axis)
         return np.asarray(values)
 
@@ -289,22 +316,10 @@ class DatasetValueResolver:
         row: dict[str, str | int | None],
     ) -> np.ndarray:
         hrtf = self.get_subject_hrtf(subject_id)
-        use_hrtf_transform = (
-            spec.transform is not None and self.is_explicit_hrtf_transform(spec.transform)
-        )
-        if (
-            spec.transform is not None
-            and not use_hrtf_transform
-            and self.is_raw_hrtf_transform_method(spec.transform)
-        ):
-            raise ValueError(
-                "Raw Transform methods are not supported in HRTFSpec.transform. "
-                "Use hrtfpykit.datasets.HRTFTransform instead."
-            )
         transformed_hrtf = None
-        if use_hrtf_transform:
+        if spec.transform is not None:
             transform_cache_key = (subject_id, id(spec.transform))
-            transformed_hrtf = self._transformed_hrtf_cache.get(transform_cache_key)
+            transformed_hrtf = self._spec_transformed_hrtf_cache.get(transform_cache_key)
             if transformed_hrtf is None:
                 transformed_hrtf = spec.transform(hrtf)
                 if not self.is_hrtf_object(transformed_hrtf):
@@ -312,16 +327,53 @@ class DatasetValueResolver:
                         "HRTFTransform callables used in HRTFSpec.transform must return an HRTF object"
                     )
                 if self._cache_hrtf:
-                    self._transformed_hrtf_cache[transform_cache_key] = transformed_hrtf
+                    self._spec_transformed_hrtf_cache[transform_cache_key] = transformed_hrtf
+        if transformed_hrtf is not None:
+            spec_index_by = normalize_index_by(spec.index_by)
+            if "position" in spec_index_by:
+                transformed_position_count = int(
+                    transformed_hrtf.Sources.get_positions().shape[0]
+                )
+                if transformed_position_count != len(self._selected_position_indices):
+                    raise ValueError(
+                        "HRTFSpec.transform changed the source-position grid but "
+                        "HRTFSpec.index_by includes 'position'. Use dataset_hrtf_transform "
+                        "when transformed positions must define dataset rows, or remove "
+                        "'position' from this HRTFSpec.index_by."
+                    )
+            if "ear" in spec_index_by and transformed_hrtf.IR.values is not None:
+                transformed_ear_count = int(transformed_hrtf.IR.values.shape[-2])
+                if transformed_ear_count < len(self._selected_ears):
+                    raise ValueError(
+                        "HRTFSpec.transform changed the ear axis but HRTFSpec.index_by "
+                        "includes 'ear'. Use dataset_hrtf_transform when transformed ears "
+                        "must define dataset rows, or remove 'ear' from this HRTFSpec.index_by."
+                    )
+            if "frequency" in spec_index_by and transformed_hrtf.TF.values is not None:
+                transformed_frequency_count = int(transformed_hrtf.TF.values.shape[-1])
+                if transformed_frequency_count != len(self._selected_frequency_indices):
+                    raise ValueError(
+                        "HRTFSpec.transform changed the frequency axis but HRTFSpec.index_by "
+                        "includes 'frequency'. Use dataset_hrtf_transform when transformed "
+                        "frequencies must define dataset rows, or remove 'frequency' from "
+                        "this HRTFSpec.index_by."
+                    )
+            if "samples" in spec_index_by and transformed_hrtf.IR.values is not None:
+                transformed_sample_count = int(transformed_hrtf.IR.values.shape[-1])
+                if transformed_sample_count != len(self._selected_sample_indices):
+                    raise ValueError(
+                        "HRTFSpec.transform changed the sample axis but HRTFSpec.index_by "
+                        "includes 'samples'. Use dataset_hrtf_transform when transformed "
+                        "samples must define dataset rows, or remove 'samples' from this "
+                        "HRTFSpec.index_by."
+                    )
         value = self.select_hrtf_value(
             hrtf=hrtf if transformed_hrtf is None else transformed_hrtf,
             row=row,
-            selected_position_indices=self._selected_position_indices,
+            selected_position_indices=None if transformed_hrtf is not None else self._selected_position_indices,
             selected_ears=self._selected_ears,
             spec=spec,
         )
-        if spec.transform is not None and not use_hrtf_transform:
-            value = spec.transform(value)
         return value
 
     def get_itd_spec_value(
@@ -372,7 +424,7 @@ class DatasetValueResolver:
             value = np.asarray(
                 ild(
                     hrtf.IR,
-                    sample_rate=self.sample_rate,
+                    sample_rate=self.dataset_sample_rate,
                     fft_length=spec.fft_length,
                     mode=spec.mode,
                     output=spec.output,
@@ -382,7 +434,7 @@ class DatasetValueResolver:
             self._metric_cache[metric_cache_key] = value
         spec_index_by = normalize_index_by(spec.index_by)
         if "position" not in spec_index_by:
-            if value.shape[0] == self.available_positions.shape[0]:
+            if value.shape[0] == self.dataset_source_positions.shape[0]:
                 if len(self._selected_position_indices) != value.shape[0]:
                     value = np.take(value, self._selected_position_indices, axis=0)
         else:
@@ -390,7 +442,7 @@ class DatasetValueResolver:
                 raise ValueError(
                     f"ILDSpec(index_by={spec.index_by!r}) requires position-resolved rows"
                 )
-            if value.shape[0] == self.available_positions.shape[0]:
+            if value.shape[0] == self.dataset_source_positions.shape[0]:
                 value = np.asarray(value[int(row["position_index"])])
         if "frequency" in spec_index_by:
             if row["frequency_index"] is None:

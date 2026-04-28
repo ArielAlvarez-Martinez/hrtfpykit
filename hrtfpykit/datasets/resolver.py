@@ -76,12 +76,6 @@ class DatasetResourceResolver:
         return bool(getattr(transform, "__hrtf_transform__", False))
 
     @staticmethod
-    def is_raw_hrtf_transform_method(transform) -> bool:
-        transform_module = str(getattr(transform, "__module__", ""))
-        transform_qualname = str(getattr(transform, "__qualname__", ""))
-        return transform_module.endswith(".transforms") and transform_qualname.startswith("Transform.")
-
-    @staticmethod
     def normalize_anthropometry_select(
         select: str | tuple[str, ...] | list[str] | None,
     ) -> str | tuple[str, ...]:
@@ -364,10 +358,10 @@ class DatasetResourceResolver:
             lines.append(f"  excluded_subjects: {len(self.exclude_subject_ids)}")
         if getattr(self, "variant", None) is not None:
             lines.append(f"  variant: {self.variant}")
-        if self.sample_rate is not None:
-            lines.append(f"  sample_rate: {self.sample_rate}")
-        if self.selected_positions is not None:
-            lines.append(f"  selected_positions: {len(self.selected_positions)}")
+        if self.dataset_sample_rate is not None:
+            lines.append(f"  dataset_sample_rate: {self.dataset_sample_rate}")
+        if self.dataset_source_positions is not None:
+            lines.append(f"  dataset_source_positions: {len(self.dataset_source_positions)}")
         lines.append(self.format_resource_summary(self.resource_summary))
         return "\n".join(lines)
 
@@ -773,14 +767,14 @@ class DatasetResourceResolver:
         self.split_seed = split_seed
 
     def resolve_dataset_hrtf(self, subject_id: str, hrtf):
-        if self.hrtf_transform is None:
+        if self.dataset_hrtf_transform is None:
             return hrtf
         transformed_hrtf = self._dataset_transformed_hrtf_cache.get(subject_id)
         if transformed_hrtf is not None:
             return transformed_hrtf
-        transformed_hrtf = self.hrtf_transform(hrtf)
+        transformed_hrtf = self.dataset_hrtf_transform(hrtf)
         if not self.is_hrtf_object(transformed_hrtf):
-            raise ValueError("hrtf_transform must return an HRTF object")
+            raise ValueError("dataset_hrtf_transform must return an HRTF object")
         if self._cache_hrtf:
             self._dataset_transformed_hrtf_cache[subject_id] = transformed_hrtf
         return transformed_hrtf
@@ -815,9 +809,8 @@ class DatasetResourceResolver:
         return self.resolve_dataset_hrtf(resolved_subject_id, hrtf)
 
     def reset_acoustic_context(self) -> None:
-        self.sample_rate = None
-        self.available_positions = None
-        self.selected_positions = None
+        self.dataset_sample_rate = None
+        self.dataset_source_positions = None
         self.available_azimuth_angles = None
         self.available_elevation_angles = None
         self.azimuth_angles = None
@@ -831,10 +824,10 @@ class DatasetResourceResolver:
     # TODO : create a single configure function 
 
     def configure_reference_hrtf(self, reference_hrtf) -> None:
-        self.sample_rate = (
+        self.dataset_sample_rate = (
             None if reference_hrtf.IR.sample_rate is None else float(reference_hrtf.IR.sample_rate)
         )
-        self.available_positions = np.asarray(
+        self.dataset_source_positions = np.asarray(
             reference_hrtf.Sources.get_positions(angle_unit="degrees"),
             dtype=float,
         )
@@ -853,10 +846,6 @@ class DatasetResourceResolver:
                 self.primary_spatial_spec.plane,
                 reference_hrtf,
             )
-            self.selected_positions = np.asarray(
-                self.available_positions[self._selected_position_indices],
-                dtype=float,
-            )
 
     def configure_angle_context(self, reference_hrtf) -> None:
         spherical_positions = np.asarray(
@@ -872,6 +861,84 @@ class DatasetResourceResolver:
             )
             self.azimuth_angles = np.unique(np.round(selected_spherical_positions[:, 0], 2))
             self.elevation_angles = np.unique(np.round(selected_spherical_positions[:, 1], 2))
+
+    def validate_spec_transform_row_compatibility(self) -> None:
+        if len(self.hrtf_specs) == 0 or len(self.subject_ids) == 0:
+            return
+        row_axes = set(self.index_by)
+        if row_axes == {"subject"}:
+            return
+        reference_hrtf = self.get_subject_hrtf(self.subject_ids[0])
+        reference_position_count = int(reference_hrtf.Sources.get_positions().shape[0])
+        reference_ear_count = (
+            None if reference_hrtf.IR.values is None else int(reference_hrtf.IR.values.shape[-2])
+        )
+        reference_frequency_count = (
+            None if reference_hrtf.TF.values is None else int(reference_hrtf.TF.values.shape[-1])
+        )
+        reference_sample_count = (
+            None if reference_hrtf.IR.values is None else int(reference_hrtf.IR.values.shape[-1])
+        )
+        for spec in self.hrtf_specs:
+            if spec.transform is None:
+                continue
+            spec_index_by = set(normalize_index_by(spec.index_by))
+            transformed_hrtf = spec.transform(reference_hrtf)
+            if not self.is_hrtf_object(transformed_hrtf):
+                raise ValueError(
+                    "HRTFTransform callables used in HRTFSpec.transform must return an HRTF object"
+                )
+            transformed_position_count = int(transformed_hrtf.Sources.get_positions().shape[0])
+            if (
+                "position" in row_axes
+                and "position" not in spec_index_by
+                and transformed_position_count != reference_position_count
+            ):
+                raise ValueError(
+                    "HRTFSpec.transform changed the source-position grid while another spec "
+                    "uses position-resolved dataset rows. Include 'position' in this "
+                    "HRTFSpec.index_by, remove position indexing from the dataset, or use "
+                    "dataset_hrtf_transform to define the shared row grid."
+                )
+            if reference_ear_count is not None and transformed_hrtf.IR.values is not None:
+                transformed_ear_count = int(transformed_hrtf.IR.values.shape[-2])
+                if (
+                    "ear" in row_axes
+                    and "ear" not in spec_index_by
+                    and transformed_ear_count != reference_ear_count
+                ):
+                    raise ValueError(
+                        "HRTFSpec.transform changed the ear axis while another spec uses "
+                        "ear-resolved dataset rows. Include 'ear' in this HRTFSpec.index_by, "
+                        "remove ear indexing from the dataset, or use dataset_hrtf_transform "
+                        "to define the shared row grid."
+                    )
+            if reference_frequency_count is not None and transformed_hrtf.TF.values is not None:
+                transformed_frequency_count = int(transformed_hrtf.TF.values.shape[-1])
+                if (
+                    "frequency" in row_axes
+                    and "frequency" not in spec_index_by
+                    and transformed_frequency_count != reference_frequency_count
+                ):
+                    raise ValueError(
+                        "HRTFSpec.transform changed the frequency axis while another spec "
+                        "uses frequency-resolved dataset rows. Include 'frequency' in this "
+                        "HRTFSpec.index_by, remove frequency indexing from the dataset, or "
+                        "use dataset_hrtf_transform to define the shared row grid."
+                    )
+            if reference_sample_count is not None and transformed_hrtf.IR.values is not None:
+                transformed_sample_count = int(transformed_hrtf.IR.values.shape[-1])
+                if (
+                    "samples" in row_axes
+                    and "samples" not in spec_index_by
+                    and transformed_sample_count != reference_sample_count
+                ):
+                    raise ValueError(
+                        "HRTFSpec.transform changed the sample axis while another spec uses "
+                        "sample-resolved dataset rows. Include 'samples' in this HRTFSpec.index_by, "
+                        "remove sample indexing from the dataset, or use dataset_hrtf_transform "
+                        "to define the shared row grid."
+                    )
 
     def prepare_acoustic_context(self) -> None:
         self.reset_acoustic_context()

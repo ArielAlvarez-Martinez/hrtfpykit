@@ -385,13 +385,11 @@ class DatasetSpecPlanner:
 
     def validate_dataset_transform(self) -> None:
         if (
-            self.hrtf_transform is not None
-            and not self.is_explicit_hrtf_transform(self.hrtf_transform)
-            and self.is_raw_hrtf_transform_method(self.hrtf_transform)
+            self.dataset_hrtf_transform is not None
+            and not self.is_explicit_hrtf_transform(self.dataset_hrtf_transform)
         ):
             raise ValueError(
-                "Raw Transform methods are not supported in hrtf_transform. "
-                "Use hrtfpykit.datasets.HRTFTransform instead."
+                "dataset_hrtf_transform must be created with hrtfpykit.datasets.HRTFTransform"
             )
 
     def validate_dataset_requirements(self) -> None:
@@ -446,6 +444,10 @@ class DatasetSpecPlanner:
             if signal not in SUPPORTED_HRTF_SIGNALS:
                 raise ValueError(
                     f"Unsupported signal {spec.signal!r}. Expected one of {SUPPORTED_HRTF_SIGNALS}"
+                )
+            if spec.transform is not None and not self.is_explicit_hrtf_transform(spec.transform):
+                raise ValueError(
+                    "HRTFSpec.transform must be created with hrtfpykit.datasets.HRTFTransform"
                 )
             if domain == "time" and signal != "ir":
                 raise ValueError("HRTFSpec with domain='time' requires signal='ir'")

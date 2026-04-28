@@ -23,7 +23,7 @@ class HUTUBS(BaseDataset):
         self,
         root: str | Path,
         variant: str = "measured",
-        hrtf_transform=None,
+        dataset_hrtf_transform=None,
         download: bool = False,
         download_resources: str | tuple[str, ...] | list[str] = "all",
         download_hrtf_variant: str = "all",
@@ -72,7 +72,7 @@ class HUTUBS(BaseDataset):
             )
         super().__init__(
             root=root,
-            hrtf_transform=hrtf_transform,
+            dataset_hrtf_transform=dataset_hrtf_transform,
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,

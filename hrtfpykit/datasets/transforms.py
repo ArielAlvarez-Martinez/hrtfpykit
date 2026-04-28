@@ -17,7 +17,19 @@ class HRTFTransform:
             return method(*args, **kwargs)
 
         transform.__hrtf_transform__ = True
-        transform.__hrtf_transform_method_name__ = method_name
+        return transform
+
+    @staticmethod
+    def select(*args, **kwargs) -> Callable:
+        def transform(hrtf):
+            method = getattr(hrtf, "select", None)
+            if method is None or not callable(method):
+                raise AttributeError(
+                    f"HRTF select is not available on {type(hrtf)!r}"
+                )
+            return method(*args, **kwargs)
+
+        transform.__hrtf_transform__ = True
         return transform
 
     @staticmethod
