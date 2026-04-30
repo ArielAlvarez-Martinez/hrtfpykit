@@ -1,10 +1,23 @@
+from __future__ import annotations
+
 from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+import numpy as np
+
+if TYPE_CHECKING:
+    from ..hrtf.domain import IR, TF
+    from ..hrtf.hrtf import HRTF
 
 
 class HRTFTransform:
     @staticmethod
-    def build(method_name: str, *args, **kwargs) -> Callable:
-        def transform(hrtf):
+    def build(
+        method_name: str,
+        *args: object,
+        **kwargs: object,
+    ) -> Callable[[object], object]:
+        def transform(hrtf: object) -> object:
             if not hasattr(hrtf, "transform"):
                 raise TypeError(
                     "HRTFTransform expects an HRTF-like object with a transform attribute"
@@ -20,8 +33,11 @@ class HRTFTransform:
         return transform
 
     @staticmethod
-    def select(*args, **kwargs) -> Callable:
-        def transform(hrtf):
+    def select(
+        *args: object,
+        **kwargs: object,
+    ) -> Callable[[object], object]:
+        def transform(hrtf: object) -> object:
             method = getattr(hrtf, "select", None)
             if method is None or not callable(method):
                 raise AttributeError(
@@ -33,7 +49,7 @@ class HRTFTransform:
         return transform
 
     @staticmethod
-    def apply_window(window_name: str) -> Callable:
+    def apply_window(window_name: str) -> Callable[[object], object]:
         return HRTFTransform.build("apply_window", window_name)
 
     @staticmethod
@@ -41,7 +57,7 @@ class HRTFTransform:
         padding_length: int,
         location: str = "end",
         value: float = 0,
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "apply_padding",
             padding_length,
@@ -50,11 +66,11 @@ class HRTFTransform:
         )
 
     @staticmethod
-    def upsampling(new_sample_rate: float) -> Callable:
+    def upsampling(new_sample_rate: float) -> Callable[[object], object]:
         return HRTFTransform.build("upsampling", new_sample_rate)
 
     @staticmethod
-    def downsampling(new_sample_rate: float) -> Callable:
+    def downsampling(new_sample_rate: float) -> Callable[[object], object]:
         return HRTFTransform.build("downsampling", new_sample_rate)
 
     @staticmethod
@@ -63,7 +79,7 @@ class HRTFTransform:
         cutoff: float | tuple[float, float] | None = None,
         num_taps: int = 101,
         window: str | None = None,
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "apply_fir_filter",
             filter,
@@ -77,7 +93,7 @@ class HRTFTransform:
         filter: str,
         cutoff: float | tuple[float, float] | None = None,
         order: int = 10,
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "apply_iir_filter",
             filter,
@@ -90,7 +106,7 @@ class HRTFTransform:
         method: str = "homomorphic",
         fft_length: int | None = None,
         epsilon: float = 1e-12,
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "minimum_phase",
             method=method,
@@ -103,7 +119,7 @@ class HRTFTransform:
         weights: bool = False,
         magnitude_average: str = "log",
         attenuation: float | None = None,
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "to_ctf",
             weights=weights,
@@ -116,7 +132,7 @@ class HRTFTransform:
         weights: bool = False,
         magnitude_average: str = "log",
         attenuation: float | None = None,
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "to_dtf",
             weights=weights,
@@ -125,14 +141,14 @@ class HRTFTransform:
         )
 
     @staticmethod
-    def modify_ir(new_ir) -> Callable:
+    def modify_ir(new_ir: np.ndarray | IR | HRTF) -> Callable[[object], object]:
         return HRTFTransform.build("modify_ir", new_ir)
 
     @staticmethod
     def modify_phase(
-        new_phase,
+        new_phase: np.ndarray,
         unit: str = "degrees",
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "modify_phase",
             new_phase,
@@ -140,14 +156,14 @@ class HRTFTransform:
         )
 
     @staticmethod
-    def modify_tf(new_tf) -> Callable:
+    def modify_tf(new_tf: np.ndarray | TF | HRTF) -> Callable[[object], object]:
         return HRTFTransform.build("modify_tf", new_tf)
 
     @staticmethod
     def modify_magnitude(
-        new_magnitude,
+        new_magnitude: np.ndarray,
         scale: str = "linear",
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "modify_magnitude",
             new_magnitude,
@@ -156,9 +172,9 @@ class HRTFTransform:
 
     @staticmethod
     def apply_gain(
-        gain,
+        gain: float | np.ndarray,
         scale: str = "db",
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "apply_gain",
             gain,
@@ -166,11 +182,11 @@ class HRTFTransform:
         )
 
     @staticmethod
-    def modify_fft_length(new_fft_length: int) -> Callable:
+    def modify_fft_length(new_fft_length: int) -> Callable[[object], object]:
         return HRTFTransform.build("modify_fft_length", new_fft_length)
 
     @staticmethod
-    def modify_source_coordinate_system(coordinate_system: str) -> Callable:
+    def modify_source_coordinate_system(coordinate_system: str) -> Callable[[object], object]:
         return HRTFTransform.build(
             "modify_source_coordinate_system",
             coordinate_system,
@@ -180,7 +196,7 @@ class HRTFTransform:
     def add_itd(
         itd: float,
         unit: str = "samples",
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "add_itd",
             itd,
@@ -193,7 +209,7 @@ class HRTFTransform:
         thresh_level: float = -10.0,
         upper_cut_freq: float = 3000.0,
         filter_order: int = 10,
-    ) -> Callable:
+    ) -> Callable[[object], object]:
         return HRTFTransform.build(
             "delete_itd",
             method=method,

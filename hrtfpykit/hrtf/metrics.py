@@ -35,7 +35,7 @@ def itd(
     sample_rate : float | None, default=None
         Sample rate in Hz for NumPy input. When ``ir`` is an ``IR`` object and
         this value is omitted, ``IR.sample_rate`` is used.
-    output : {"seconds", "samples"}, default="seconds"
+    output : {"seconds", "samples"}, default="samples"
         Output unit of the returned ITD values.
     thresh_level : float, default=-10.0
         Threshold offset in dB used by the ``threshold`` method.

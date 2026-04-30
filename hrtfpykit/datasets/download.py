@@ -14,16 +14,17 @@ try:
 except ImportError:
     tqdm = None
 
+
 class BaseDownload:
     def __init__(
         self,
-        config: DatasetConfig,
+        config: type[DatasetConfig] | DatasetConfig,
         root: str | Path,
         excluded_subject_ids: tuple[str, ...] = tuple(),
     ) -> None:
-        self.config = config
-        self.root = self.normalize_root(Path(root))
-        self.excluded_subject_ids = tuple(dict.fromkeys(excluded_subject_ids))
+        self.config: type[DatasetConfig] | DatasetConfig = config
+        self.root: Path = self.normalize_root(Path(root))
+        self.excluded_subject_ids: tuple[str, ...] = tuple(dict.fromkeys(excluded_subject_ids))
 
     @staticmethod
     def preview_values(values: list[str] | tuple[str, ...], limit: int = 5) -> str:
@@ -400,7 +401,12 @@ class BaseDownload:
         downloaded_count = 0
         verified_count = 0
         failures: list[str] = []
-        if tqdm is None:
+        progress_bar = (
+            None
+            if tqdm is None
+            else tqdm(total=len(download_jobs), desc=f"{self.config.name} download", unit="file")
+        )
+        try:
             for job in download_jobs:
                 try:
                     status = self.download_file(
@@ -410,38 +416,18 @@ class BaseDownload:
                     )
                 except ValueError as exc:
                     failures.append(f"{job['relative_path']}: {exc}")
+                    if progress_bar is not None:
+                        progress_bar.update(1)
                     continue
                 if status == "downloaded":
                     downloaded_count += 1
                 else:
                     verified_count += 1
-            summary = self.format_download_summary(
-                download_jobs,
-                downloaded_count,
-                verified_count,
-                failures,
-            )
-            print(summary)
-            if len(failures) > 0:
-                raise ValueError(summary)
-            return
-        with tqdm(total=len(download_jobs), desc=f"{self.config.name} download", unit="file") as progress_bar:
-            for job in download_jobs:
-                try:
-                    status = self.download_file(
-                        str(job["url"]),
-                        Path(job["destination"]),
-                        checksum=job["checksum"],
-                    )
-                except ValueError as exc:
-                    failures.append(f"{job['relative_path']}: {exc}")
+                if progress_bar is not None:
                     progress_bar.update(1)
-                    continue
-                if status == "downloaded":
-                    downloaded_count += 1
-                else:
-                    verified_count += 1
-                progress_bar.update(1)
+        finally:
+            if progress_bar is not None:
+                progress_bar.close()
         summary = self.format_download_summary(
             download_jobs,
             downloaded_count,

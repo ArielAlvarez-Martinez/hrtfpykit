@@ -36,13 +36,13 @@ class AnthropometryConfig:
 @dataclass(frozen=True)
 class ImageConfig:
     extensions: tuple[str, ...]
-    supported_align_by: tuple[tuple[str, ...], ...]
+    supported_grouped_by: tuple[tuple[str, ...], ...]
 
 
 @dataclass(frozen=True)
 class VideoConfig:
     extensions: tuple[str, ...]
-    supported_align_by: tuple[tuple[str, ...], ...]
+    supported_grouped_by: tuple[tuple[str, ...], ...]
 
 
 @dataclass(frozen=True)
@@ -64,25 +64,26 @@ class DatasetConfig:
     download: DownloadConfig | None = None
 
 
-HUTUBS_CONFIG = DatasetConfig(
-    name="HUTUBS",
-    subject_ids=tuple(f"pp{index}" for index in range(1, 97)),
-    hrtf=HRTFConfig(
+@dataclass(frozen=True)
+class HUTUBSConfig(DatasetConfig):
+    name: str = "HUTUBS"
+    subject_ids: tuple[str, ...] = tuple(f"pp{index}" for index in range(1, 97))
+    hrtf: HRTFConfig | None = HRTFConfig(
         variants=("measured", "simulated"),
         default_variant="measured",
         path_pattern="{subject_id}_HRIRs_{variant}.sofa",
-    ),
-    mesh=MeshConfig(
+    )
+    mesh: MeshConfig | None = MeshConfig(
         path_pattern="{subject_id}_3DheadMesh{extension}",
         extensions=(".ply", ".stl"),
         official_extension=".ply",
-    ),
-    anthropometry=AnthropometryConfig(
+    )
+    anthropometry: AnthropometryConfig | None = AnthropometryConfig(
         path="AntrhopometricMeasures.csv",
         left_prefix="L_",
         right_prefix="R_",
-    ),
-    image=ImageConfig(
+    )
+    image: ImageConfig | None = ImageConfig(
         extensions=(
             ".png",
             ".jpg",
@@ -92,12 +93,12 @@ HUTUBS_CONFIG = DatasetConfig(
             ".tiff",
             ".webp",
         ),
-        supported_align_by=(
+        supported_grouped_by=(
             ("subject",),
             ("subject", "ear"),
         ),
-    ),
-    video=VideoConfig(
+    )
+    video: VideoConfig | None = VideoConfig(
         extensions=(
             ".mp4",
             ".avi",
@@ -105,14 +106,13 @@ HUTUBS_CONFIG = DatasetConfig(
             ".mkv",
             ".webm",
         ),
-        supported_align_by=(
+        supported_grouped_by=(
             ("subject",),
             ("subject", "ear"),
         ),
-    ),
-    download=DownloadConfig(
+    )
+    download: DownloadConfig | None = DownloadConfig(
         base_url="https://sofacoustics.org/data/database/hutubs",
         available_resources=("all", "hrtf", "mesh", "anthropometry"),
         checksums=HUTUBS_CHECKSUMS,
-    ),
-)
+    )

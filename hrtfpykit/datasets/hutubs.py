@@ -1,9 +1,12 @@
 from pathlib import Path
+from collections.abc import Sequence
+from typing import Callable
+import numpy as np
 
 from .base import BaseDataset
-from .config import HUTUBS_CONFIG
+from .config import HUTUBSConfig
 from .download import BaseDownload
-from .resolver import DatasetResourceResolver
+from .normalization import normalize_grouped_by
 from .specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -16,235 +19,138 @@ from .specs import (
 )
 
 
-class HUTUBS(BaseDataset):
-    config = HUTUBS_CONFIG
+class HUTUBS:
+    config = HUTUBSConfig
 
     def __init__(
         self,
         root: str | Path,
         variant: str = "measured",
-        dataset_hrtf_transform=None,
+        dataset_hrtf_transform: Callable[[object], object] | None = None,
         download: bool = False,
         download_resources: str | tuple[str, ...] | list[str] = "all",
         download_hrtf_variant: str = "all",
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
-        inputs: HRTFSpec
-        | ITDSpec
-        | ILDSpec
-        | SHSpec
-        | MeshSpec
-        | AnthropometrySpec
-        | ImageSpec
-        | VideoSpec
-        | tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
-        | None = None,
-        target: HRTFSpec
-        | ITDSpec
-        | ILDSpec
-        | SHSpec
-        | MeshSpec
-        | AnthropometrySpec
-        | ImageSpec
-        | VideoSpec
-        | tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]
-        | None = None,
+        inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None = None,
+        target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None = None,
         split: str = "all",
         split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
         split_seed: int = 0,
     ) -> None:
+        dataset_config = self.config
         self.variant = str(variant).strip().lower()
-        if self.variant not in self.config.hrtf.variants:
+        if dataset_config.hrtf is None:
+            raise ValueError("HUTUBS config does not define HRTF metadata")
+        if self.variant not in dataset_config.hrtf.variants:
             raise ValueError(
-                f"Unsupported variant {self.variant!r}. Expected one of {self.config.hrtf.variants}"
+                f"Unsupported variant {self.variant!r}. Expected one of {dataset_config.hrtf.variants}"
             )
-        resolved_exclude_subject_ids = type(self).resolve_dataset_subject_ids(
+        resolved_exclude_subject_ids = BaseDataset._resolve_dataset_subject_ids(
             exclude_subject_ids,
-            tuple(self.config.subject_ids),
+            tuple(dataset_config.subject_ids),
         )
         if download:
             BaseDownload(
-                config=self.config,
+                config=dataset_config,
                 root=root,
                 excluded_subject_ids=resolved_exclude_subject_ids,
             ).download(
                 download_resources=download_resources,
                 download_hrtf_variant=download_hrtf_variant,
             )
-        super().__init__(
+        self._dataset = BaseDataset(
             root=root,
+            config=dataset_config,
             dataset_hrtf_transform=dataset_hrtf_transform,
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,
+            variant=self.variant,
             split=split,
             split_ratio=split_ratio,
             split_seed=split_seed,
         )
+        self._dataset._anthropometry_value_resolver = self._resolve_anthropometry_value
 
-    @staticmethod
-    def build_anthropometry_column_maps(
-        values: dict[str, float | str | None],
-        left_prefix: str,
-        right_prefix: str,
-    ) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
-        exact_lookup: dict[str, str] = {}
-        neutral_lookup: dict[str, str] = {}
-        left_lookup: dict[str, str] = {}
-        right_lookup: dict[str, str] = {}
-        for name in values:
-            lowered_name = str(name).lower()
-            exact_lookup[lowered_name] = name
-            text = str(name)
-            if text.startswith(left_prefix):
-                left_lookup[text[len(left_prefix):].lower()] = name
-            elif text.startswith(right_prefix):
-                right_lookup[text[len(right_prefix):].lower()] = name
-            else:
-                neutral_lookup[lowered_name] = name
-        return exact_lookup, neutral_lookup, left_lookup, right_lookup
+    def __len__(self) -> int:
+        return len(self._dataset)
 
-    def get_anthropometry_prefixes(self) -> tuple[str, str]:
-        if self.config is None or self.config.anthropometry is None:
-            raise ValueError("HUTUBS anthropometry config is missing")
+    def __getitem__(self, index: int) -> dict[str, object]:
+        return self._dataset[index]
+
+    @property
+    def dataset_sample_rate(self) -> float | None:
+        return self._dataset._dataset_sample_rate
+
+    @property
+    def dataset_positions(self) -> np.ndarray | None:
+        return self._dataset._dataset_source_positions
+
+    @property
+    def dataset_azimuth_angles(self) -> np.ndarray | None:
         return (
-            str(self.config.anthropometry.left_prefix),
-            str(self.config.anthropometry.right_prefix),
+            self._dataset._azimuth_angles
+            if self._dataset._azimuth_angles is not None
+            else self._dataset._available_azimuth_angles
         )
 
-    @staticmethod
-    def get_anthropometry_search_scope(
-        ear: str,
-        left_prefix: str,
-        right_prefix: str,
-    ) -> str:
-        if ear == "left":
-            return f"shared columns or left-ear columns with prefix {left_prefix!r}"
-        if ear == "right":
-            return f"shared columns or right-ear columns with prefix {right_prefix!r}"
+    @property
+    def dataset_elevation_angles(self) -> np.ndarray | None:
         return (
-            f"shared columns, left-ear columns with prefix {left_prefix!r}, "
-            f"or right-ear columns with prefix {right_prefix!r}"
+            self._dataset._elevation_angles
+            if self._dataset._elevation_angles is not None
+            else self._dataset._available_elevation_angles
         )
 
-    @staticmethod
-    def select_complete_anthropometry_value(
-        values: dict[str, float | str | None],
-        ear: str,
-        left_prefix: str,
-        right_prefix: str,
-    ) -> dict[str, float | str | None]:
-        selected_values: dict[str, float | str | None] = {}
-        for name, value in values.items():
-            text = str(name)
-            if text.startswith(left_prefix):
-                if ear in {"left", "both"}:
-                    selected_values[name] = value
-                continue
-            if text.startswith(right_prefix):
-                if ear in {"right", "both"}:
-                    selected_values[name] = value
-                continue
-            selected_values[name] = value
-        return selected_values
+    @property
+    def excluded_subjects(self) -> list[str]:
+        return list(self._dataset._exclude_subject_ids)
 
-    def get_anthropometry_value(
+    @property
+    def available_subjects(self) -> list[str]:
+        return list(self._dataset._available_subject_ids)
+
+    def get_subject_hrtf(self, subject_id: str | int) -> object:
+        return self._dataset.get_subject_hrtf(subject_id)
+
+    def _resolve_anthropometry_value(
         self,
         spec: AnthropometrySpec,
         subject_id: str,
-    ) -> dict[str, float | str | None]:
-        values = self._anthropometry_rows[subject_id]
-        selected = DatasetResourceResolver.normalize_anthropometry_select(spec.select)
-        ear = DatasetResourceResolver.normalize_anthropometry_ear(spec.ear)
-        left_prefix, right_prefix = self.get_anthropometry_prefixes()
+        row: dict[str, str | int | None],
+        value: object,
+    ) -> object:
+        if not isinstance(value, dict):
+            return value
+        grouped_by = normalize_grouped_by(spec.grouped_by)
 
-        if selected == "complete":
-            value = self.select_complete_anthropometry_value(
-                values,
-                ear,
-                left_prefix,
-                right_prefix,
-            )
-            if spec.transform is not None:
-                value = spec.transform(value)
+        selected_ear = str(spec.ear).strip().lower() if spec.ear else None
+        if selected_ear == "both" or selected_ear == "":
+            selected_ear = None
+
+        if "ear" in grouped_by:
+            if selected_ear not in {"left", "right"}:
+                row_ear = row.get("ear")
+                if row_ear is not None and str(row_ear).strip().lower() in {"left", "right"}:
+                    selected_ear = str(row_ear).strip().lower()
+
+        if selected_ear is None:
             return value
 
-        exact_lookup, neutral_lookup, left_lookup, right_lookup = (
-            self.build_anthropometry_column_maps(
-                values,
-                left_prefix,
-                right_prefix,
+        config = self._dataset._config.anthropometry if self._dataset._config is not None else None
+        left_prefix = "L_"
+        right_prefix = "R_"
+        if config is not None:
+            left_prefix = str(config.left_prefix)
+            right_prefix = str(config.right_prefix)
+        target_prefix = left_prefix if selected_ear == "left" else right_prefix
+
+        return {
+            key: feature
+            for key, feature in value.items()
+            if str(key).startswith(target_prefix)
+            or (
+                not str(key).startswith(left_prefix)
+                and not str(key).startswith(right_prefix)
             )
-        )
-
-        selected_keys: list[str] = []
-        seen: set[str] = set()
-        missing_messages: list[str] = []
-        searched_locations = self.get_anthropometry_search_scope(
-            ear,
-            left_prefix,
-            right_prefix,
-        )
-
-        for requested in selected:
-            requested_text = str(requested).strip()
-            requested_key = requested_text.lower()
-            exact_name = exact_lookup.get(requested_key)
-            if exact_name is not None:
-                exact_text = str(exact_name)
-                if exact_text.startswith(left_prefix):
-                    column_description = f"left-ear column {exact_name!r}"
-                    include_column = ear in {"left", "both"}
-                elif exact_text.startswith(right_prefix):
-                    column_description = f"right-ear column {exact_name!r}"
-                    include_column = ear in {"right", "both"}
-                else:
-                    column_description = f"shared column {exact_name!r}"
-                    include_column = True
-                if include_column:
-                    if exact_name not in seen:
-                        seen.add(exact_name)
-                        selected_keys.append(exact_name)
-                    continue
-                missing_messages.append(
-                    f"{requested_text!r} matched "
-                    f"{column_description}, "
-                    f"but ear={ear!r} excludes it"
-                )
-                continue
-
-            neutral_name = neutral_lookup.get(requested_key)
-            if neutral_name is not None:
-                if neutral_name not in seen:
-                    seen.add(neutral_name)
-                    selected_keys.append(neutral_name)
-                continue
-
-            matched = False
-            if ear in {"left", "both"}:
-                left_name = left_lookup.get(requested_key)
-                if left_name is not None:
-                    if left_name not in seen:
-                        seen.add(left_name)
-                        selected_keys.append(left_name)
-                    matched = True
-            if ear in {"right", "both"}:
-                right_name = right_lookup.get(requested_key)
-                if right_name is not None:
-                    if right_name not in seen:
-                        seen.add(right_name)
-                        selected_keys.append(right_name)
-                    matched = True
-            if not matched:
-                missing_messages.append(
-                    f"{requested_text!r} was not found in {searched_locations}"
-                )
-
-        if len(missing_messages) > 0:
-            raise ValueError(
-                "Anthropometry select values could not be resolved for HUTUBS: "
-                + "; ".join(missing_messages)
-            )
-        value = {name: values[name] for name in selected_keys}
-        if spec.transform is not None:
-            value = spec.transform(value)
-        return value
+        }
