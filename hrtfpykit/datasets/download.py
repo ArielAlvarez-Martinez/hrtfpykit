@@ -8,6 +8,7 @@ import zipfile
 from urllib.parse import urlparse
 
 from .config import DatasetConfig
+from .summary import download_summary
 
 try:
     from tqdm.auto import tqdm
@@ -23,20 +24,11 @@ class BaseDownload:
         excluded_subject_ids: tuple[str, ...] = tuple(),
     ) -> None:
         self.config: type[DatasetConfig] | DatasetConfig = config
-        self.root: Path = self.normalize_root(Path(root))
+        self.root: Path = self.sanitize_root(Path(root))
         self.excluded_subject_ids: tuple[str, ...] = tuple(dict.fromkeys(excluded_subject_ids))
 
     @staticmethod
-    def preview_values(values: list[str] | tuple[str, ...], limit: int = 5) -> str:
-        if len(values) == 0:
-            return "none"
-        preview = ", ".join(str(value) for value in values[:limit])
-        if len(values) > limit:
-            preview = f"{preview}, ..."
-        return preview
-
-    @staticmethod
-    def normalize_root(root: Path) -> Path:
+    def sanitize_root(root: Path) -> Path:
         normalized = Path(root).expanduser()
         if normalized.exists() and not normalized.is_dir():
             raise ValueError(f"Dataset root must be a directory, got file: {normalized}")
@@ -63,7 +55,7 @@ class BaseDownload:
         return digest.hexdigest()
 
     @staticmethod
-    def normalize_checksum(checksum: str) -> str:
+    def sanitize_checksum(checksum: str) -> str:
         value = str(checksum).strip().lower()
         if value.startswith("sha256:"):
             value = value.split(":", 1)[1]
@@ -71,7 +63,7 @@ class BaseDownload:
             raise ValueError("Checksums must be SHA-256 hex digests")
         return value
 
-    def normalize_download_resources(
+    def sanitize_download_resources(
         self,
         requested: str | tuple[str, ...] | list[str],
     ) -> tuple[str, ...]:
@@ -90,7 +82,7 @@ class BaseDownload:
             raise ValueError(f"Unsupported download_resources: {invalid}")
         return normalized
 
-    def normalize_download_hrtf_variants(
+    def sanitize_download_hrtf_variants(
         self,
         requested: str,
     ) -> tuple[str, ...]:
@@ -111,11 +103,11 @@ class BaseDownload:
         return (requested_value,)
 
     def validate_download_root(self) -> Path:
-        self.root = self.normalize_root(self.root)
+        self.root = self.sanitize_root(self.root)
         self.root.mkdir(parents=True, exist_ok=True)
         return self.root
 
-    def resolve_download_path(self, filename: str) -> Path:
+    def compose_download_path(self, filename: str) -> Path:
         candidate = Path(filename)
         if candidate.is_absolute():
             raise ValueError(f"Download filename must be relative: {filename}")
@@ -244,7 +236,7 @@ class BaseDownload:
         download_resources: str | tuple[str, ...] | list[str] = "all",
         download_hrtf_variant: str = "all",
     ) -> list[dict[str, object]]:
-        resources = self.normalize_download_resources(download_resources)
+        resources = self.sanitize_download_resources(download_resources)
         download_jobs: list[dict[str, object]] = []
 
         if "hrtf" in resources:
@@ -258,13 +250,13 @@ class BaseDownload:
             subject_ids = self.get_included_subject_ids(
                 hrtf_subject_ids
             )
-            for variant in self.normalize_download_hrtf_variants(download_hrtf_variant):
+            for variant in self.sanitize_download_hrtf_variants(download_hrtf_variant):
                 for subject_id in subject_ids:
                     relative_path = self.config.hrtf.path_pattern.format(
                         subject_id=subject_id,
                         variant=variant,
                     )
-                    destination = self.resolve_download_path(relative_path)
+                    destination = self.compose_download_path(relative_path)
                     checksum = self.get_checksum(
                         "hrtf",
                         relative_path,
@@ -285,11 +277,6 @@ class BaseDownload:
         if "mesh" in resources:
             if self.config.mesh is None:
                 raise ValueError(f"{self.config.name} does not provide official mesh data")
-            mesh_extension = self.config.mesh.official_extension
-            if mesh_extension is None:
-                if len(self.config.mesh.extensions) == 0:
-                    raise ValueError(f"{self.config.name} mesh extensions are missing")
-                mesh_extension = self.config.mesh.extensions[0]
             mesh_subject_ids = (
                 tuple(self.config.subject_ids)
                 if self.config.mesh.subject_ids is None
@@ -301,9 +288,8 @@ class BaseDownload:
             for subject_id in subject_ids:
                 relative_path = self.config.mesh.path_pattern.format(
                     subject_id=subject_id,
-                    extension=mesh_extension,
                 )
-                destination = self.resolve_download_path(relative_path)
+                destination = self.compose_download_path(relative_path)
                 checksum = self.get_checksum("mesh", relative_path)
                 if checksum is None and self.has_checksum_map("mesh"):
                     continue
@@ -322,7 +308,7 @@ class BaseDownload:
             if self.config.anthropometry is None:
                 raise ValueError(f"{self.config.name} does not provide official anthropometry")
             relative_path = self.config.anthropometry.path
-            destination = self.resolve_download_path(relative_path)
+            destination = self.compose_download_path(relative_path)
             download_jobs.append(
                 {
                     "resource": "anthropometry",
@@ -336,49 +322,21 @@ class BaseDownload:
 
         return download_jobs
 
-    def format_download_summary(
+    def download_summary(
         self,
         download_jobs: list[dict[str, object]],
         downloaded_count: int,
         verified_count: int,
         failures: list[str],
     ) -> str:
-        resources: dict[str, int] = {}
-        subject_ids: set[str] = set()
-        variants: set[str] = set()
-        for job in download_jobs:
-            resource = str(job["resource"])
-            resources[resource] = resources.get(resource, 0) + 1
-            subject_id = job.get("subject_id")
-            if subject_id is not None:
-                subject_ids.add(str(subject_id))
-            variant = job.get("variant")
-            if variant is not None:
-                variants.add(str(variant))
-        lines = [
-            f"{self.config.name} download summary",
-            f"  root: {self.root}",
-            f"  planned_files: {len(download_jobs)}",
-            f"  downloaded_files: {downloaded_count}",
-            f"  verified_existing_files: {verified_count}",
-            f"  failed_files: {len(failures)}",
-            f"  subjects: {len(subject_ids)}",
-        ]
-        if len(variants) > 0:
-            lines.append(f"  variants: {', '.join(sorted(variants))}")
-        if len(resources) > 0:
-            lines.append(
-                "  resources: "
-                + ", ".join(f"{resource}={count}" for resource, count in sorted(resources.items()))
-            )
-        if len(failures) == 0:
-            lines.append(f"  status: {self.config.name} dataset downloaded successfully")
-        else:
-            lines.append(
-                "  failure_examples: " + self.preview_values(failures)
-            )
-            lines.append(f"  status: {self.config.name} dataset download finished with errors")
-        return "\n".join(lines)
+        return download_summary(
+            self.config,
+            self.root,
+            download_jobs,
+            downloaded_count,
+            verified_count,
+            failures,
+        )
 
     def download(
         self,
@@ -428,7 +386,7 @@ class BaseDownload:
         finally:
             if progress_bar is not None:
                 progress_bar.close()
-        summary = self.format_download_summary(
+        summary = self.download_summary(
             download_jobs,
             downloaded_count,
             verified_count,
@@ -441,7 +399,7 @@ class BaseDownload:
     def verify_checksum(self, path: Path, checksum: str | None) -> None:
         if checksum is None:
             return
-        expected = self.normalize_checksum(checksum)
+        expected = self.sanitize_checksum(checksum)
         current = self.compute_sha256(path)
         if current != expected:
             raise ValueError(

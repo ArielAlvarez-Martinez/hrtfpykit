@@ -13,9 +13,10 @@ from hrtfpykit.datasets.specs import (
     ITDSpec,
     ILDSpec,
     MeshSpec,
+    VideoSpec,
     SHSpec,
-    get_spec_name,
 )
+from hrtfpykit.datasets.specs_workflow import DatasetSpecWorkflow
 
 
 HUTUBS_ROOT = ""
@@ -25,13 +26,35 @@ EXCLUDED_SUBJECT_IDS = tuple(i for i in range(1, 97) if i not in SUBJECT_IDS)
 
 
 def _path_exists(path: str | Path) -> bool:
-    if isinstance(path, Path):
-        return path.exists()
-    return Path(path).exists()
+    if isinstance(path, str):
+        candidate = path.strip()
+    else:
+        candidate = str(path).strip()
+    if candidate == "":
+        return False
+    return Path(candidate).exists()
+
+
+def _requires_image_root(specs: Sequence[object]) -> bool:
+    return any(
+        isinstance(spec, (ImageSpec, VideoSpec)) and str(getattr(spec, "path", "")).strip() != ""
+        for spec in specs
+    )
+
+
+def _paths_available(
+    inputs: Sequence[object],
+    target: Sequence[object],
+) -> bool:
+    if not _path_exists(HUTUBS_ROOT):
+        return False
+    if _requires_image_root(inputs) or _requires_image_root(target):
+        return _path_exists(IMAGE_ROOT)
+    return True
 
 
 def _spec_key_names(specs: Sequence[object]) -> tuple[str, ...]:
-    return tuple(get_spec_name(spec) for spec in specs)
+    return tuple(DatasetSpecWorkflow.get_spec_name(spec) for spec in specs)
 
 
 def _uses_acoustic_specs(
@@ -352,17 +375,17 @@ HRTF_GRID_CASES = [
 
 
 def _build_dataset(
-    variant: str,
+    dataset_hrtf_variant: str,
     split: str,
     inputs: tuple[object, ...],
     target: tuple[object, ...],
 ) -> HUTUBS:
-    if not _path_exists(HUTUBS_ROOT) or not _path_exists(IMAGE_ROOT):
+    if not _paths_available(inputs, target):
         raise pytest.Skip(reason="Required local datasets are not available")
 
     return HUTUBS(
         root=HUTUBS_ROOT,
-        variant=variant,
+        dataset_hrtf_variant=dataset_hrtf_variant,
         inputs=inputs,
         target=target,
         split=split,
@@ -383,7 +406,7 @@ def test_hutubs_hrtf_spec_grid(
     transform: Callable | None,
     expected_error: str | None,
 ) -> None:
-    if not _path_exists(HUTUBS_ROOT) or not _path_exists(IMAGE_ROOT):
+    if not _path_exists(HUTUBS_ROOT):
         raise pytest.Skip(reason="Required local datasets are not available")
 
     spec_kwargs = {}
@@ -407,7 +430,7 @@ def test_hutubs_hrtf_spec_grid(
 
     if expected_error is None:
         dataset = _build_dataset(
-            variant="measured",
+            dataset_hrtf_variant="measured",
             split="all",
             inputs=(spec,),
             target=(),
@@ -422,7 +445,7 @@ def test_hutubs_hrtf_spec_grid(
 
     if expected_error == "runtime-bad-transform":
         dataset = _build_dataset(
-            variant="measured",
+            dataset_hrtf_variant="measured",
             split="all",
             inputs=(spec,),
             target=(),
@@ -436,7 +459,7 @@ def test_hutubs_hrtf_spec_grid(
 
     with pytest.raises((ValueError, TypeError), match=expected_error):
         _build_dataset(
-            variant="measured",
+            dataset_hrtf_variant="measured",
             split="all",
             inputs=(spec,),
             target=(),
@@ -444,7 +467,7 @@ def test_hutubs_hrtf_spec_grid(
 
 
 @pytest.mark.parametrize("split", ["all", "train", "validation", "test"])
-@pytest.mark.parametrize("variant", ["measured", "simulated"])
+@pytest.mark.parametrize("dataset_hrtf_variant", ["measured", "simulated"])
 @pytest.mark.parametrize(
     "specs",
     COMBINATIONS,
@@ -471,15 +494,25 @@ def test_hutubs_hrtf_spec_grid(
     ],
 )
 def test_hutubs_real_dataset_all_combinations(
-    variant: str,
+    dataset_hrtf_variant: str,
     split: str,
     specs: tuple[tuple[object, ...], tuple[object, ...]],
 ) -> None:
     inputs, target = specs
-    dataset = _build_dataset(variant=variant, split=split, inputs=inputs, target=target)
+    if not _paths_available(inputs, target):
+        raise pytest.Skip(reason="Required local datasets are not available")
 
-    assert dataset.variant == variant
-    assert dataset.available_subjects == [f"pp{subject_id}" for subject_id in SUBJECT_IDS]
+    dataset = _build_dataset(
+        dataset_hrtf_variant=dataset_hrtf_variant,
+        split=split,
+        inputs=inputs,
+        target=target,
+    )
+
+    assert dataset.dataset_hrtf_variant == dataset_hrtf_variant
+    assert dataset.dataset_available_subjects == [
+        f"pp{subject_id}" for subject_id in SUBJECT_IDS
+    ]
     assert len(dataset) > 0
     uses_acoustic = _uses_acoustic_specs(inputs, target)
     if uses_acoustic:
@@ -519,23 +552,23 @@ def test_hutubs_real_dataset_all_combinations(
 
 
 def test_hutubs_get_subject_hrtf_uses_selected_subject() -> None:
-    if not _path_exists(HUTUBS_ROOT) or not _path_exists(IMAGE_ROOT):
+    if not _paths_available((HRTFSpec(index_by=("subject", "position")),), ()):
         raise pytest.Skip(reason="Required local datasets are not available")
 
     dataset = _build_dataset(
-        variant="measured",
+        dataset_hrtf_variant="measured",
         split="all",
         inputs=(HRTFSpec(index_by=("subject", "position")),),
         target=(),
     )
-    expected_subject = dataset.available_subjects[0]
+    expected_subject = dataset.dataset_available_subjects[0]
     hrtf = dataset.get_subject_hrtf(expected_subject)
     assert hrtf.IR.values.size > 0
     assert hrtf.Sources is not None
 
 
 def test_hutubs_index_by_error_messages_are_actionable() -> None:
-    if not _path_exists(HUTUBS_ROOT) or not _path_exists(IMAGE_ROOT):
+    if not _path_exists(HUTUBS_ROOT):
         raise pytest.Skip(reason="Required local datasets are not available")
 
     with pytest.raises(
@@ -543,7 +576,7 @@ def test_hutubs_index_by_error_messages_are_actionable() -> None:
         match=r"ILDSpec index_by=\('subject', 'ear'\).*Supported index_by combinations for ILDSpec: \('subject',\), \('subject', 'position'\)",
     ):
         _build_dataset(
-            variant="measured",
+            dataset_hrtf_variant="measured",
             split="all",
             inputs=(ILDSpec(index_by=("subject", "ear"), mode="broad-band"),),
             target=(),
@@ -554,7 +587,7 @@ def test_hutubs_index_by_error_messages_are_actionable() -> None:
         match=r"SHSpec.ear_one_hot requires index_by to include 'ear'.*Supported index_by combinations for SHSpec:",
     ):
         _build_dataset(
-            variant="measured",
+            dataset_hrtf_variant="measured",
             split="all",
             inputs=(SHSpec(sh_order=2, index_by=("subject", "frequency"), ear_one_hot=True),),
             target=(),
@@ -567,7 +600,7 @@ def test_hutubs_len_matches_subject_count_for_ear_indexed_rows() -> None:
 
     dataset = HUTUBS(
         root=HUTUBS_ROOT,
-        variant="measured",
+        dataset_hrtf_variant="measured",
         inputs=(
             AnthropometrySpec(grouped_by=("subject", "ear"), ear_one_hot=True),
         ),
@@ -580,7 +613,7 @@ def test_hutubs_len_matches_subject_count_for_ear_indexed_rows() -> None:
                 ear_one_hot=True,
             ),
         ),
-        exclude_subject_ids=np.arange(6, 97),
+        exclude_subject_ids=tuple(int(value) for value in np.arange(6, 97)),
         split="all",
     )
 
@@ -590,5 +623,5 @@ def test_hutubs_len_matches_subject_count_for_ear_indexed_rows() -> None:
         for subject_id in SUBJECT_IDS
         if subject_id not in excluded_subjects
     ]
-    assert dataset.available_subjects == expected_subjects
+    assert dataset.dataset_available_subjects == expected_subjects
     assert len(dataset) == len(expected_subjects) * 2

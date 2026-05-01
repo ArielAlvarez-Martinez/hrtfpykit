@@ -129,9 +129,13 @@ class SHSpec:
 class MeshSpec:
     def __init__(
         self,
+        path: str | Path | None = None,
+        extensions: tuple[str, ...] | None = None,
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
+        self.path = path
+        self.extensions = extensions
         self.transform = transform
         self.name = name
 
@@ -139,6 +143,7 @@ class AnthropometrySpec:
     def __init__(
         self,
         path: str | Path | None = None,
+        extensions: tuple[str, ...] | None = None,
         exclude_row: int | Sequence[int] | None = None,
         exclude_column: int | Sequence[int] | None = None,
         accessed_by: str = "row",
@@ -174,6 +179,7 @@ class AnthropometrySpec:
             elif ear_value not in {"left", "right"}:
                 raise ValueError("AnthropometrySpec ear must be None, 'both', 'left', or 'right'")
         self.exclude_row = exclude_row
+        self.extensions = extensions
         self.exclude_column = exclude_column
         self.grouped_by = grouped_by_normalized
         self.ear = ear_value
@@ -191,6 +197,7 @@ class ImageSpec:
         self,
         path: str | Path | None = None,
         grouped_by: str | tuple[str, ...] = ("subject",),
+        extensions: tuple[str, ...] | None = None,
         ear_one_hot: bool = False,
         ear_index: bool = False,
         concatenate: bool = False,
@@ -199,6 +206,7 @@ class ImageSpec:
     ) -> None:
         self.path = path
         self.grouped_by = grouped_by
+        self.extensions = extensions
         self.ear_one_hot = ear_one_hot
         self.ear_index = ear_index
         self.concatenate = concatenate
@@ -210,6 +218,7 @@ class VideoSpec:
         self,
         path: str | Path | None = None,
         grouped_by: str | tuple[str, ...] = ("subject",),
+        extensions: tuple[str, ...] | None = None,
         ear_one_hot: bool = False,
         ear_index: bool = False,
         transform: Callable | None = None,
@@ -217,57 +226,8 @@ class VideoSpec:
     ) -> None:
         self.path = path
         self.grouped_by = grouped_by
+        self.extensions = extensions
         self.ear_one_hot = ear_one_hot
         self.ear_index = ear_index
         self.transform = transform
         self.name = name
-
-
-def get_spec_name(
-    spec: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
-) -> str:
-    explicit_name = getattr(spec, "name", None)
-    if explicit_name is not None:
-        name = str(explicit_name).strip()
-        if name == "":
-            raise ValueError("Dataset spec name must not be empty")
-        return name
-    if isinstance(spec, HRTFSpec):
-        return "hrtf"
-    if isinstance(spec, ITDSpec):
-        return "itd"
-    if isinstance(spec, ILDSpec):
-        return "ild"
-    if isinstance(spec, SHSpec):
-        return "sh"
-    if isinstance(spec, MeshSpec):
-        return "mesh"
-    if isinstance(spec, AnthropometrySpec):
-        return "anthropometry"
-    if isinstance(spec, ImageSpec):
-        return "image"
-    if isinstance(spec, VideoSpec):
-        return "video"
-    raise TypeError(f"Unsupported dataset spec: {type(spec)!r}")
-
-
-def normalize_specs(
-    specs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None,
-) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]:
-    if specs is None:
-        return tuple()
-    if isinstance(specs, str):
-        raise TypeError("inputs and target must use dataset spec objects, not strings")
-    if isinstance(specs, (HRTFSpec, ITDSpec, ILDSpec, SHSpec, MeshSpec, AnthropometrySpec, ImageSpec, VideoSpec)):
-        values = (specs,)
-    else:
-        values = tuple(specs)
-    names: set[str] = set()
-    normalized: list[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] = []
-    for spec in values:
-        name = get_spec_name(spec)
-        if name in names:
-            raise ValueError(f"Duplicate dataset spec name {name!r} is not allowed")
-        names.add(name)
-        normalized.append(spec)
-    return tuple(normalized)
