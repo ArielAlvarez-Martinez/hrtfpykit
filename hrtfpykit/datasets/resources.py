@@ -19,7 +19,7 @@ from .specs import (
 )
 from .sanitize import sanitize_extensions
 from .sanitize import sanitize_grouped_by
-from .split import DatasetSubjectSelectionPlanner
+from .split import DatasetSubjectSplitPlanner
 from .summary import resources_summary
 
 if TYPE_CHECKING:
@@ -453,7 +453,7 @@ class DatasetResources:
         excluded_subject_ids = set(getattr(dataset, "_exclude_subject_ids", tuple()))
         available_subject_ids = tuple(getattr(dataset, "_included_subject_ids", tuple()))
         if len(available_subject_ids) == 0:
-            sorted_subject_ids = DatasetSubjectSelectionPlanner.sort_subject_ids(
+            sorted_subject_ids = DatasetSubjectSplitPlanner.sort_subject_ids(
                 tuple(config.subject_ids)
             )
             available_subject_ids = tuple(
@@ -464,8 +464,8 @@ class DatasetResources:
             dataset._included_subject_ids = available_subject_ids
         subject_numbers = getattr(dataset, "_subject_numbers", None)
         if subject_numbers is None:
-            subject_numbers = DatasetSubjectSelectionPlanner.build_subject_number_map(
-                DatasetSubjectSelectionPlanner.sort_subject_ids(tuple(config.subject_ids))
+            subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
+                DatasetSubjectSplitPlanner.sort_subject_ids(tuple(config.subject_ids))
             )
         dataset._subject_numbers = subject_numbers
 

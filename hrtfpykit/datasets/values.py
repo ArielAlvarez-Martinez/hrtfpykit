@@ -17,7 +17,7 @@ from .specs import (
 from ..hrtf.dsp import imag, magnitude, magnitude_db, phase, real
 from ..hrtf.metrics import ild, itd
 from ..hrtf.sh import sht
-from .split import DatasetSubjectSelectionPlanner
+from .split import DatasetSubjectSplitPlanner
 
 if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
@@ -335,7 +335,7 @@ class DatasetSampleValueSelector:
         rows = self._anthropometry_rows
         if spec.accessed_by not in {"row", "column"}:
             raise ValueError("AnthropometrySpec accessed_by must be 'row' or 'column'")
-        mapped_subject_id = DatasetSubjectSelectionPlanner.map_subject_id(
+        mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
             subject_id,
             tuple(self._config.subject_ids),
         )

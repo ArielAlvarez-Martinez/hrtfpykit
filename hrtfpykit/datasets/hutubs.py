@@ -6,7 +6,7 @@ import numpy as np
 from .base import BaseDataset
 from .config import HUTUBSConfig
 from .download import BaseDownload
-from .split import DatasetSubjectSelectionPlanner
+from .split import DatasetSubjectSplitPlanner
 from .sanitize import sanitize_grouped_by
 from .specs import (
     AnthropometrySpec,
@@ -46,7 +46,7 @@ class HUTUBS:
             raise ValueError(
                 f"Unsupported dataset_hrtf_variant {self.dataset_hrtf_variant!r}. Expected one of {dataset_config.hrtf.variants}"
             )
-        mapped_exclude_subject_ids = DatasetSubjectSelectionPlanner.map_subject_ids(
+        mapped_exclude_subject_ids = DatasetSubjectSplitPlanner.map_subject_ids(
             exclude_subject_ids,
             tuple(dataset_config.subject_ids),
         )

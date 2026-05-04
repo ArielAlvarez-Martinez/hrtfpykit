@@ -66,7 +66,7 @@ class DatasetBuilder:
         )
         self._apply_subject_split(
             dataset=dataset,
-            split_plan=split_module.DatasetSubjectSelectionPlanner.build(
+            split_plan=split_module.DatasetSubjectSplitPlanner.build(
                 dataset,
                 split=split,
                 split_ratio=split_ratio,
@@ -114,7 +114,7 @@ class DatasetBuilder:
             if all_known:
                 dataset._exclude_subject_ids = tuple(dict.fromkeys(str(value) for value in raw_exclude_subject_ids))
             else:
-                dataset._exclude_subject_ids = split_module.DatasetSubjectSelectionPlanner.map_subject_ids(
+                dataset._exclude_subject_ids = split_module.DatasetSubjectSplitPlanner.map_subject_ids(
                     raw_exclude_subject_ids,
                     subject_ids,
                 )

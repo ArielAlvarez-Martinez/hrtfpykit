@@ -8,7 +8,7 @@ import numpy as np
 from scipy.io import loadmat
 
 from .. import hrtf
-from .split import DatasetSubjectSelectionPlanner
+from .split import DatasetSubjectSplitPlanner
 
 if TYPE_CHECKING:
     from .base import BaseDataset
@@ -24,7 +24,7 @@ def load_hrtf(
         subject_ids = tuple(dataset._subject_ids)
     if dataset._config is None:
         raise ValueError("Dataset config is not initialized")
-    mapped_subject_id = DatasetSubjectSelectionPlanner.map_subject_id(
+    mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
         subject_id,
         subject_ids,
     )
@@ -113,7 +113,7 @@ def load_anthropometry(
                 if raw_subject_id is None or str(raw_subject_id).strip() == "":
                     continue
                 try:
-                    subject_id = DatasetSubjectSelectionPlanner.map_subject_id(
+                    subject_id = DatasetSubjectSplitPlanner.map_subject_id(
                         raw_subject_id,
                         dataset_subject_ids,
                     )

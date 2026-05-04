@@ -20,7 +20,7 @@ class DatasetSubjectSplitPlan:
     split_seed: int
 
 
-class DatasetSubjectSelectionPlanner:
+class DatasetSubjectSplitPlanner:
     @staticmethod
     def sanitize_subject_id(value: str) -> str:
         return str(value).strip().lower()
@@ -105,13 +105,13 @@ class DatasetSubjectSelectionPlanner:
         if config is None:
             raise ValueError("Dataset config is not initialized")
         excluded_subject_ids = set(dataset._exclude_subject_ids)
-        sorted_subject_ids = tuple(DatasetSubjectSelectionPlanner.sort_subject_ids(config.subject_ids))
+        sorted_subject_ids = tuple(DatasetSubjectSplitPlanner.sort_subject_ids(config.subject_ids))
         available_subject_ids = tuple(
             subject_id
             for subject_id in sorted_subject_ids
             if subject_id not in excluded_subject_ids
         )
-        subject_numbers = DatasetSubjectSelectionPlanner.build_subject_number_map(
+        subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
             sorted_subject_ids
         )
         dataset._included_subject_ids = available_subject_ids
@@ -172,7 +172,7 @@ class DatasetSubjectSelectionPlanner:
         config = dataset._config
         if config is None:
             raise ValueError("Dataset config is not initialized")
-        DatasetSubjectSelectionPlanner.prepare_subject_scope(dataset)
+        DatasetSubjectSplitPlanner.prepare_subject_scope(dataset)
         required_subject_sets: list[set[str]] = []
         if len(dataset._get_specs((HRTFSpec, ITDSpec, ILDSpec, SHSpec))) > 0:
             required_subject_sets.append(set(dataset._hrtf_paths))
@@ -186,11 +186,11 @@ class DatasetSubjectSelectionPlanner:
             required_subject_sets.append({key[0] for key in dataset._video_index})
 
         if len(required_subject_sets) == 0:
-            subject_ids = DatasetSubjectSelectionPlanner.sort_subject_ids(
+            subject_ids = DatasetSubjectSplitPlanner.sort_subject_ids(
                 list(dataset._included_subject_ids)
             )
         else:
-            subject_ids = DatasetSubjectSelectionPlanner.sort_subject_ids(
+            subject_ids = DatasetSubjectSplitPlanner.sort_subject_ids(
                 set.intersection(*required_subject_sets)
             )
         if len(subject_ids) == 0 and len(required_subject_sets) > 0:
@@ -254,7 +254,7 @@ class DatasetSubjectSelectionPlanner:
                 f"{resource_summary_text}"
             )
 
-        selected_subject_ids = DatasetSubjectSelectionPlanner.split_subject_ids(
+        selected_subject_ids = DatasetSubjectSplitPlanner.split_subject_ids(
             subject_ids,
             split,
             split_ratio,
