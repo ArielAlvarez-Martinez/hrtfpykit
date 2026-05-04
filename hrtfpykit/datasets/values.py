@@ -380,36 +380,44 @@ class DatasetSampleValueSelector:
                 raw_value = matrix[:, subject_position]
         else:
             if mapped_subject_id not in rows:
-                raise KeyError(
-                    f"Anthropometry subject {subject_id!r} was not found"
-                )
-            row_values = dict(rows[mapped_subject_id])
-            if spec.accessed_by == "row":
-                raw_value = row_values
-            else:
-                subject_ids = tuple(rows)
-                if mapped_subject_id not in subject_ids:
+                if spec.accessed_by == "column":
+                    column_values: dict[str, float | str | None] = {}
+                    for row_key, row_values in rows.items():
+                        if not isinstance(row_values, dict):
+                            continue
+                        if mapped_subject_id in row_values:
+                            column_values[row_key] = row_values[mapped_subject_id]
+                    if len(column_values) == 0:
+                        raise KeyError(
+                            f"Anthropometry subject {subject_id!r} was not found"
+                        )
+                    raw_value = column_values
+                else:
                     raise KeyError(
                         f"Anthropometry subject {subject_id!r} was not found"
                     )
-                subject_position = list(subject_ids).index(mapped_subject_id)
-                column_keys = tuple(row_values)
-                if subject_position < 0 or subject_position >= len(column_keys):
-                    raise IndexError(
-                        f"Anthropometry column index {subject_position} is out of range for "
-                        f"{len(column_keys)} columns"
-                    )
-                column_key = column_keys[subject_position]
-                raw_value = {
-                    column_subject_id: row_values_by_subject[column_key]
-                    for column_subject_id, row_values_by_subject in rows.items()
-                }
+            else:
+                row_values = dict(rows[mapped_subject_id])
+                if spec.accessed_by == "row":
+                    raw_value = row_values
+                else:
+                    subject_position = list(self._subject_ids).index(mapped_subject_id)
+                    column_keys = tuple(row_values)
+                    if subject_position < 0 or subject_position >= len(column_keys):
+                        raise IndexError(
+                            f"Anthropometry column index {subject_position} is out of range for "
+                            f"{len(column_keys)} columns"
+                        )
+                    column_key = column_keys[subject_position]
+                    raw_value = {
+                        column_subject_id: row_values_by_subject[column_key]
+                        for column_subject_id, row_values_by_subject in rows.items()
+                    }
 
         selector = getattr(self, "_anthropometry_value_selector", None)
         if selector is not None and callable(selector):
             raw_value = selector(
                 spec=spec,
-                subject_id=subject_id,
                 row=row,
                 value=raw_value,
             )

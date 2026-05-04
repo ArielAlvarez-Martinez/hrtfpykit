@@ -85,7 +85,6 @@ class DatasetBuilder:
             selected_frequency_indices=dataset._selected_frequency_indices,
             selected_sample_indices=dataset._selected_sample_indices,
         )
-        print(dataset._format_load_summary())
 
     @staticmethod
     def _initialize_dataset_metadata(
@@ -99,25 +98,10 @@ class DatasetBuilder:
         dataset._name = str(config.name)
         dataset._root = Path(root).expanduser()
         dataset._dataset_hrtf_transform = dataset_hrtf_transform
-        if exclude_subject_ids is None:
-            dataset._exclude_subject_ids = tuple()
-        else:
-            if isinstance(exclude_subject_ids, tuple):
-                raw_exclude_subject_ids = tuple(exclude_subject_ids)
-            elif isinstance(exclude_subject_ids, list):
-                raw_exclude_subject_ids = tuple(exclude_subject_ids)
-            else:
-                raw_exclude_subject_ids = (exclude_subject_ids,)
-            subject_ids = tuple(config.subject_ids)
-            normalized_subject_ids = {str(value) for value in subject_ids}
-            all_known = all(str(value) in normalized_subject_ids for value in raw_exclude_subject_ids)
-            if all_known:
-                dataset._exclude_subject_ids = tuple(dict.fromkeys(str(value) for value in raw_exclude_subject_ids))
-            else:
-                dataset._exclude_subject_ids = split_module.DatasetSubjectSplitPlanner.map_subject_ids(
-                    raw_exclude_subject_ids,
-                    subject_ids,
-                )
+        dataset._exclude_subject_ids = split_module.DatasetSubjectSplitPlanner.map_subject_ids(
+            exclude_subject_ids,
+            tuple(config.subject_ids),
+        )
 
     @staticmethod
     def _initialize_variant(

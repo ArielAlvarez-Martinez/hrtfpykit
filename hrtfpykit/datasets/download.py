@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from .config import DatasetConfig
 from .summary import download_summary
+from .split import DatasetSubjectSplitPlanner
 
 try:
     from tqdm.auto import tqdm
@@ -21,11 +22,14 @@ class BaseDownload:
         self,
         config: type[DatasetConfig] | DatasetConfig,
         root: str | Path,
-        excluded_subject_ids: tuple[str, ...] = tuple(),
+        excluded_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
     ) -> None:
         self.config: type[DatasetConfig] | DatasetConfig = config
         self.root: Path = self.sanitize_root(Path(root))
-        self.excluded_subject_ids: tuple[str, ...] = tuple(dict.fromkeys(excluded_subject_ids))
+        self.excluded_subject_ids = DatasetSubjectSplitPlanner.map_subject_ids(
+            excluded_subject_ids,
+            tuple(config.subject_ids),
+        )
 
     @staticmethod
     def sanitize_root(root: Path) -> Path:
@@ -322,50 +326,32 @@ class BaseDownload:
 
         return download_jobs
 
-    def download_summary(
-        self,
-        download_jobs: list[dict[str, object]],
-        downloaded_count: int,
-        verified_count: int,
-        failures: list[str],
-    ) -> str:
-        return download_summary(
-            self.config,
-            self.root,
-            download_jobs,
-            downloaded_count,
-            verified_count,
-            failures,
-        )
-
     def download(
         self,
         download_resources: str | tuple[str, ...] | list[str] = "all",
         download_hrtf_variant: str = "all",
-    ) -> None:
+    ) -> tuple[bool, str]:
         self.validate_download_root()
         download_jobs = self.build_download_plan(
             download_resources=download_resources,
             download_hrtf_variant=download_hrtf_variant,
         )
         if len(download_jobs) == 0:
-            print(
-                f"{self.config.name} download summary\n"
-                f"  root: {self.root}\n"
-                "  planned_files: 0\n"
-                "  status: nothing to download"
+            summary = download_summary(
+                self.config,
+                self.root,
+                download_jobs,
+                downloaded_count=0,
+                verified_count=0,
+                failures=[],
             )
-            return
+            return False, summary
         downloaded_count = 0
         verified_count = 0
         failures: list[str] = []
-        progress_bar = (
-            None
-            if tqdm is None
-            else tqdm(total=len(download_jobs), desc=f"{self.config.name} download", unit="file")
-        )
+        progress_bar = None
         try:
-            for job in download_jobs:
+            for index, job in enumerate(download_jobs, start=1):
                 try:
                     status = self.download_file(
                         str(job["url"]),
@@ -374,27 +360,40 @@ class BaseDownload:
                     )
                 except ValueError as exc:
                     failures.append(f"{job['relative_path']}: {exc}")
-                    if progress_bar is not None:
-                        progress_bar.update(1)
-                    continue
+                    status = "failed"
                 if status == "downloaded":
                     downloaded_count += 1
-                else:
+                elif status == "verified":
                     verified_count += 1
+                if (
+                    progress_bar is None
+                    and status == "downloaded"
+                    and tqdm is not None
+                ):
+                    progress_bar = tqdm(
+                        total=len(download_jobs),
+                        initial=index - 1,
+                        desc=f"{self.config.name} download",
+                        unit="file",
+                    )
                 if progress_bar is not None:
                     progress_bar.update(1)
         finally:
             if progress_bar is not None:
                 progress_bar.close()
-        summary = self.download_summary(
+        summary = download_summary(
+            self.config,
+            self.root,
             download_jobs,
             downloaded_count,
             verified_count,
             failures,
         )
-        print(summary)
         if len(failures) > 0:
+            if downloaded_count > 0:
+                print(summary)
             raise ValueError(summary)
+        return downloaded_count > 0, summary
 
     def verify_checksum(self, path: Path, checksum: str | None) -> None:
         if checksum is None:

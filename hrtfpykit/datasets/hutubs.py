@@ -6,7 +6,7 @@ import numpy as np
 from .base import BaseDataset
 from .config import HUTUBSConfig
 from .download import BaseDownload
-from .split import DatasetSubjectSplitPlanner
+from . import summary as summary_module
 from .sanitize import sanitize_grouped_by
 from .specs import (
     AnthropometrySpec,
@@ -38,32 +38,29 @@ class HUTUBS:
         split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
         split_seed: int = 0,
     ) -> None:
-        dataset_config = self.config
         self.dataset_hrtf_variant = str(dataset_hrtf_variant).strip().lower()
-        if dataset_config.hrtf is None:
+        if self.config.hrtf is None:
             raise ValueError("HUTUBS config does not define HRTF metadata")
-        if self.dataset_hrtf_variant not in dataset_config.hrtf.variants:
+        if self.dataset_hrtf_variant not in self.config.hrtf.variants:
             raise ValueError(
-                f"Unsupported dataset_hrtf_variant {self.dataset_hrtf_variant!r}. Expected one of {dataset_config.hrtf.variants}"
+                f"Unsupported dataset_hrtf_variant {self.dataset_hrtf_variant!r}. Expected one of {self.config.hrtf.variants}"
             )
-        mapped_exclude_subject_ids = DatasetSubjectSplitPlanner.map_subject_ids(
-            exclude_subject_ids,
-            tuple(dataset_config.subject_ids),
-        )
         if download:
-            BaseDownload(
-                config=dataset_config,
+            downloaded, download_report = BaseDownload(
+                config=self.config,
                 root=root,
-                excluded_subject_ids=mapped_exclude_subject_ids,
+                excluded_subject_ids=exclude_subject_ids,
             ).download(
                 download_resources=download_resources,
                 download_hrtf_variant=download_hrtf_variant,
             )
+            if downloaded:
+                print(download_report)
         self._dataset = BaseDataset(
             root=root,
-            config=dataset_config,
+            config=self.config,
             dataset_hrtf_transform=dataset_hrtf_transform,
-            exclude_subject_ids=mapped_exclude_subject_ids,
+            exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,
             variant=self.dataset_hrtf_variant,
@@ -72,6 +69,8 @@ class HUTUBS:
             split_seed=split_seed,
         )
         self._dataset._anthropometry_value_selector = self._select_anthropometry_value
+        print(summary_module.resources_summary(self._dataset))
+        print(summary_module.dataset_summary(self._dataset))
 
     def __len__(self) -> int:
         return len(self._dataset)
@@ -117,7 +116,6 @@ class HUTUBS:
     def _select_anthropometry_value(
         self,
         spec: AnthropometrySpec,
-        subject_id: str,
         row: dict[str, str | int | None],
         value: object,
     ) -> object:

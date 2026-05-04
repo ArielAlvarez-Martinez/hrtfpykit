@@ -24,13 +24,6 @@ class AnthropometryConfig:
     left_prefix: str
     right_prefix: str
     extensions: tuple[str, ...] = (".csv", ".mat")
-    subject_column_candidates: tuple[str, ...] = (
-        "subject_id",
-        "subject",
-        "id",
-        "participant",
-        "pp",
-    )
 
 
 @dataclass(frozen=True)

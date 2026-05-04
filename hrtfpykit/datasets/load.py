@@ -75,7 +75,8 @@ def load_anthropometry(
 ) -> dict[str, dict[str, float | str | None]] | dict[str, object]:
     if dataset._config is None:
         raise ValueError("Dataset config is not initialized")
-    if str(accessed_by).strip().lower() not in {"row", "column"}:
+    accessed_by = str(accessed_by).strip().lower()
+    if accessed_by not in {"row", "column"}:
         raise ValueError("accessed_by must be 'row' or 'column'")
     dataset_subject_ids = tuple(dataset._config.subject_ids)
     mapped_path = Path(path).expanduser()
@@ -87,53 +88,118 @@ def load_anthropometry(
     if not mapped_extension.startswith("."):
         mapped_extension = f".{mapped_extension}"
     if mapped_extension == ".csv":
-        if dataset._config.anthropometry is not None:
-            subject_column_candidates = tuple(dataset._config.anthropometry.subject_column_candidates)
-        else:
-            subject_column_candidates = (
-                "subject_id",
-                "subject",
-                "id",
-                "participant",
-                "pp",
-            )
         with mapped_path.open("r", encoding="utf-8-sig", newline="") as file:
             reader = csv.DictReader(file)
             if reader.fieldnames is None or len(reader.fieldnames) == 0:
                 raise ValueError(f"Anthropometry file {mapped_path} does not contain headers")
-            fieldnames = {fieldname.lower(): fieldname for fieldname in reader.fieldnames}
-            subject_column = reader.fieldnames[0]
-            for candidate in subject_column_candidates:
-                if candidate.lower() in fieldnames:
-                    subject_column = fieldnames[candidate.lower()]
-                    break
-            parsed_rows: list[tuple[str, dict[str, float | str | None]]] = []
-            for row in reader:
-                raw_subject_id = row.get(subject_column)
-                if raw_subject_id is None or str(raw_subject_id).strip() == "":
-                    continue
-                try:
-                    subject_id = DatasetSubjectSplitPlanner.map_subject_id(
-                        raw_subject_id,
-                        dataset_subject_ids,
-                    )
-                except ValueError:
-                    continue
-                converted: dict[str, float | str | None] = {}
-                for key, value in row.items():
-                    if key is None or key == subject_column:
-                        continue
-                    text = str("" if value is None else value).strip()
-                    if text == "":
-                        converted[key] = None
+            fieldnames = tuple(reader.fieldnames)
+            if accessed_by == "row":
+                subject_column = fieldnames[0]
+                raw_rows: list[tuple[str, dict[str, float | str | None]]] = []
+                for row in reader:
+                    raw_subject_id = row.get(subject_column)
+                    if raw_subject_id is None or str(raw_subject_id).strip() == "":
                         continue
                     try:
-                        converted[key] = float(text)
+                        subject_id = DatasetSubjectSplitPlanner.map_subject_id(
+                            raw_subject_id,
+                            dataset_subject_ids,
+                        )
                     except ValueError:
-                        converted[key] = text
-                parsed_rows.append((subject_id, converted))
-            raw_rows = {subject_id: values for subject_id, values in parsed_rows}
-            row_keys = tuple(raw_rows)
+                        continue
+                    converted: dict[str, float | str | None] = {}
+                    for key in fieldnames:
+                        if key is None or key == subject_column:
+                            continue
+                        value = row.get(key)
+                        text = str("" if value is None else value).strip()
+                        if text == "":
+                            converted[str(key)] = None
+                            continue
+                        try:
+                            converted[str(key)] = float(text)
+                        except ValueError:
+                            converted[str(key)] = text
+                    raw_rows.append((subject_id, converted))
+
+                row_keys = tuple(subject_id for subject_id, _ in raw_rows)
+                row_indices: list[int] = []
+                if exclude_row is not None:
+                    if isinstance(exclude_row, int):
+                        row_indices = [int(exclude_row)]
+                    else:
+                        row_indices = [int(value) for value in exclude_row]
+                    for index in row_indices:
+                        if index < 0 or index >= len(row_keys):
+                            raise ValueError(
+                                f"Anthropometry row index {index} is out of range for {len(row_keys)} rows"
+                            )
+                selected_row_keys = set(row_indices)
+                rows: dict[str, dict[str, float | str | None]] = {}
+                for index, subject_id in enumerate(row_keys):
+                    if index in selected_row_keys:
+                        continue
+                    row_values = dict(raw_rows[index][1])
+                    column_keys = tuple(row_values)
+                    column_indices: list[int] = []
+                    if exclude_column is not None:
+                        if isinstance(exclude_column, int):
+                            column_indices = [int(exclude_column)]
+                        else:
+                            column_indices = [int(value) for value in exclude_column]
+                        for column_index in column_indices:
+                            if column_index < 0 or column_index >= len(column_keys):
+                                raise ValueError(
+                                    f"Anthropometry column index {column_index} is out of range for {len(column_keys)} columns"
+                                )
+                    selected_column_keys = {
+                        key
+                        for index, key in enumerate(column_keys)
+                        if index not in set(column_indices)
+                    }
+                    rows[subject_id] = {
+                        key: row_values[key]
+                        for key in row_values
+                        if key in selected_column_keys
+                    }
+                return rows
+
+            subject_columns = tuple(fieldnames[1:]) if len(fieldnames) > 1 else tuple()
+            if len(subject_columns) == 0:
+                raise ValueError(f"Anthropometry file {mapped_path} has no columns for subject IDs")
+            recognized_subject_columns: list[tuple[str, str]] = []
+            for subject_column in subject_columns:
+                try:
+                    mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
+                        subject_column,
+                        dataset_subject_ids,
+                    )
+                    recognized_subject_columns.append((subject_column, mapped_subject_id))
+                except ValueError:
+                    continue
+            if len(recognized_subject_columns) == 0:
+                raise ValueError(f"Anthropometry file {mapped_path} has no recognized subject columns")
+
+            rows: dict[str, dict[str, float | str | None]] = {}
+            raw_rows: list[tuple[str, dict[str, float | str | None]]] = []
+            for row in reader:
+                row_key = row.get(fieldnames[0], "")
+                row_label = str("" if row_key is None else row_key).strip()
+                if row_label == "":
+                    continue
+                row_values: dict[str, float | str | None] = {}
+                for source_column, mapped_subject_id in recognized_subject_columns:
+                    value = row.get(source_column)
+                    text = str("" if value is None else value).strip()
+                    if text == "":
+                        row_values[mapped_subject_id] = None
+                    else:
+                        try:
+                            row_values[mapped_subject_id] = float(text)
+                        except ValueError:
+                            row_values[mapped_subject_id] = text
+                raw_rows.append((row_label, row_values))
+
             row_indices: list[int] = []
             if exclude_row is not None:
                 if isinstance(exclude_row, int):
@@ -141,42 +207,38 @@ def load_anthropometry(
                 else:
                     row_indices = [int(value) for value in exclude_row]
                 for index in row_indices:
-                    if index < 0 or index >= len(row_keys):
+                    if index < 0 or index >= len(raw_rows):
                         raise ValueError(
-                            f"Anthropometry row index {index} is out of range for {len(row_keys)} rows"
+                            f"Anthropometry row index {index} is out of range for {len(raw_rows)} rows"
                         )
-            selected_row_keys = tuple(
-                key
-                for index, key in enumerate(row_keys)
-                if index not in set(row_indices)
-            )
             column_indices: list[int] = []
             if exclude_column is not None:
                 if isinstance(exclude_column, int):
                     column_indices = [int(exclude_column)]
                 else:
                     column_indices = [int(value) for value in exclude_column]
-            rows: dict[str, dict[str, float | str | None]] = {}
-            for row_key in selected_row_keys:
-                row_values = raw_rows[row_key]
-                column_keys = tuple(row_values)
-                if len(set(column_indices)) != len(column_indices):
-                    column_indices = list(dict.fromkeys(column_indices))
                 for index in column_indices:
-                    if index < 0 or index >= len(column_keys):
+                    if index < 0 or index >= len(recognized_subject_columns):
                         raise ValueError(
-                            f"Anthropometry column index {index} is out of range for {len(column_keys)} columns"
+                            f"Anthropometry column index {index} is out of range for {len(recognized_subject_columns)} columns"
                         )
-                selected_columns = tuple(
-                    key
-                    for index, key in enumerate(column_keys)
-                    if index not in set(column_indices)
-                )
-                selected_rows: dict[str, float | str | None] = {}
-                for key in selected_columns:
-                    selected_rows[key] = row_values[key]
-                rows[row_key] = selected_rows
-        return rows
+            selected_row_indices = set(row_indices)
+            removed_subject_positions = set(column_indices)
+            kept_subject_columns = [
+                (source_column, mapped_subject_id)
+                for position, (source_column, mapped_subject_id) in enumerate(recognized_subject_columns)
+                if position not in removed_subject_positions
+            ]
+            kept_subject_ids = tuple(subject_id for _, subject_id in kept_subject_columns)
+            for index, (row_label, row_values) in enumerate(raw_rows):
+                if index in selected_row_indices:
+                    continue
+                filtered_row: dict[str, float | str | None] = {}
+                for mapped_subject_id in tuple(row_values):
+                    if mapped_subject_id in kept_subject_ids:
+                        filtered_row[mapped_subject_id] = row_values[mapped_subject_id]
+                rows[row_label] = filtered_row
+            return rows
     if mapped_extension == ".mat":
         data = loadmat(mapped_path)
         if not isinstance(exclude_row, type(None)):
