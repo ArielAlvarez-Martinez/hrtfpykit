@@ -30,34 +30,26 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="Run the full HUTUBS test matrix (overrides default smoke mode)",
     )
-    parser.addoption(
-        "--stress",
-        action="store_true",
-        default=False,
-        help="Alias for --full",
-    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    hutubs_root = str(config.getoption("hutubs_root") or os.getenv("HUTUBS_ROOT", "")).strip()
-    image_path = str(
-        config.getoption("image_path")
-        or os.getenv("HUTUBS_IMAGE_PATH", os.getenv("HUTUBS_IMAGE_ROOT", ""))
-    ).strip()
+    hutubs_root = str(config.getoption("hutubs_root") or os.getenv("HUTUBS_TEST_HUTUBS_ROOT", "")).strip()
+    image_path = str(config.getoption("image_path") or os.getenv("HUTUBS_TEST_IMAGE_PATH", os.getenv("HUTUBS_IMAGE_PATH", os.getenv("HUTUBS_IMAGE_ROOT", "")))).strip()
     subjects = str(config.getoption("subjects") or os.getenv("HUTUBS_TEST_SUBJECT_LIMIT", "")).strip()
     full = bool(config.getoption("full"))
-    stress = bool(config.getoption("stress"))
-
     if hutubs_root != "":
         os.environ["HUTUBS_TEST_HUTUBS_ROOT"] = hutubs_root
         os.environ["HUTUBS_ROOT"] = hutubs_root
+
     if image_path != "":
         os.environ["HUTUBS_TEST_IMAGE_PATH"] = image_path
         os.environ["HUTUBS_IMAGE_PATH"] = image_path
         os.environ["HUTUBS_IMAGE_ROOT"] = image_path
+
     if subjects != "":
         os.environ["HUTUBS_TEST_SUBJECT_LIMIT"] = subjects
+
     if full:
         os.environ["HUTUBS_TEST_FULL"] = "1"
-    if stress:
-        os.environ["HUTUBS_TEST_STRESS"] = "1"
+    else:
+        os.environ.pop("HUTUBS_TEST_FULL", None)
