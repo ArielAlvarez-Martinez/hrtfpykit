@@ -45,43 +45,17 @@ class BaseDataset(DatasetSampleValueSelector):
     ) -> None:
         if config is None:
             raise ValueError("BaseDataset requires a dataset config")
-        self._initialize_dataset(
-            config=config,
-            root=root,
-            dataset_hrtf_transform=dataset_hrtf_transform,
-            exclude_subject_ids=exclude_subject_ids,
-            inputs=inputs,
-            target=target,
-            variant=variant,
-            split=split,
-            split_ratio=split_ratio,
-            split_seed=split_seed,
-        )
-
-    def _initialize_dataset(
-        self,
-        config: type[DatasetConfig] | DatasetConfig,
-        root: str | Path,
-        dataset_hrtf_transform: Callable[[object], object] | None,
-        exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None,
-        inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None,
-        target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None,
-        variant: str | None,
-        split: str,
-        split_ratio: tuple[float, float, float],
-        split_seed: int,
-    ) -> None:
         DatasetBuilder(self).build(
             config=config,
             root=root,
             dataset_hrtf_transform=dataset_hrtf_transform,
+            exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,
             variant=variant,
             split=split,
             split_ratio=split_ratio,
             split_seed=split_seed,
-            exclude_subject_ids=exclude_subject_ids,
         )
 
     def _get_specs(
