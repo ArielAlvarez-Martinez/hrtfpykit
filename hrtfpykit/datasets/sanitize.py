@@ -59,6 +59,24 @@ def sanitize_grouped_by(grouped_by: str | Sequence[str]) -> tuple[str, ...]:
     return normalized
 
 
+def sanitize_ear(ear: str | None) -> str | None:
+    if ear is None or str(ear).strip() == "":
+        return None
+    ear_value = str(ear).strip().lower()
+    if ear_value == "both":
+        return "both"
+    if ear_value in {"left", "right"}:
+        return ear_value
+    raise ValueError("AnthropometrySpec ear must be None, 'both', 'left', or 'right'")
+
+
+def sanitize_accessed_by(accessed_by: str) -> str:
+    accessed_by_value = str(accessed_by).strip().lower()
+    if accessed_by_value not in {"row", "column"}:
+        raise ValueError("AnthropometrySpec accessed_by must be 'row' or 'column'")
+    return accessed_by_value
+
+
 def sanitize_ears(ears: str | Sequence[str]) -> list[tuple[str, int]]:
     if isinstance(ears, str):
         value = str(ears).strip().lower()

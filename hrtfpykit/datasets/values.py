@@ -333,8 +333,6 @@ class DatasetSampleValueSelector:
         row: dict[str, str | int | None],
     ) -> object:
         rows = self._anthropometry_rows
-        if spec.accessed_by not in {"row", "column"}:
-            raise ValueError("AnthropometrySpec accessed_by must be 'row' or 'column'")
         mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
             subject_id,
             tuple(self._config.subject_ids),

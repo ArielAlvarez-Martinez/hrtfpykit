@@ -13,8 +13,10 @@ from .specs import (
     VideoSpec,
 )
 from .sanitize import (
+    sanitize_accessed_by,
     sanitize_grouped_by,
     sanitize_index_by,
+    sanitize_ear,
     sanitize_ears,
     sanitize_specs,
 )
@@ -207,6 +209,16 @@ class DatasetSpecWorkflow:
                     raise ValueError(
                         f"{type(spec).__name__} grouped_by={grouped_by!r} is not supported. "
                         f"Supported values: {SUPPORTED_MEDIA_GROUPED_BY}"
+                    )
+            spec.grouped_by = grouped_by
+            if isinstance(spec, AnthropometrySpec):
+                spec.accessed_by = sanitize_accessed_by(spec.accessed_by)
+                spec.ear = sanitize_ear(spec.ear)
+            if bool(spec.ear_one_hot) or bool(spec.ear_index):
+                if "ear" not in grouped_by:
+                    raise ValueError(
+                        f"{type(spec).__name__} ear encodings require grouped_by to include 'ear' "
+                        f"(got grouped_by={grouped_by!r})."
                     )
 
         input_names = tuple(self.get_spec_name(spec) for spec in input_specs)

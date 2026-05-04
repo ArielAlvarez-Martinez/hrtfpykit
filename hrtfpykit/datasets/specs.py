@@ -148,44 +148,18 @@ class AnthropometrySpec:
         exclude_column: int | Sequence[int] | None = None,
         accessed_by: str = "row",
         grouped_by: str | tuple[str, ...] = ("subject",),
-        ear: str | None = "",
+        ear: str | None = None,
         ear_one_hot: bool = False,
         ear_index: bool = False,
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
-        if isinstance(grouped_by, str):
-            grouped_by_normalized = (str(grouped_by).strip().lower(),)
-            if grouped_by_normalized[0] == "subject":
-                grouped_by_normalized = ("subject",)
-            elif grouped_by_normalized[0].startswith("subject-"):
-                grouped_by_normalized = tuple(
-                    part
-                    for part in grouped_by_normalized[0].split("-")
-                    if part != ""
-                )
-            else:
-                grouped_by_normalized = tuple(grouped_by_normalized)
-        else:
-            grouped_by_normalized = tuple(str(value).strip().lower() for value in grouped_by)
-        if grouped_by_normalized not in {("subject",), ("subject", "ear")}:
-            raise ValueError("AnthropometrySpec grouped_by must be ('subject',) or ('subject', 'ear')")
-        if ear is None or str(ear).strip() == "":
-            ear_value = None
-        else:
-            ear_value = str(ear).strip().lower()
-            if ear_value == "both":
-                ear_value = "both"
-            elif ear_value not in {"left", "right"}:
-                raise ValueError("AnthropometrySpec ear must be None, 'both', 'left', or 'right'")
         self.exclude_row = exclude_row
         self.extensions = extensions
         self.exclude_column = exclude_column
-        self.grouped_by = grouped_by_normalized
-        self.ear = ear_value
-        self.accessed_by = str(accessed_by).strip().lower()
-        if self.accessed_by not in {"row", "column"}:
-            raise ValueError("AnthropometrySpec accessed_by must be 'row' or 'column'")
+        self.grouped_by = grouped_by
+        self.ear = ear
+        self.accessed_by = accessed_by
         self.ear_one_hot = ear_one_hot
         self.ear_index = ear_index
         self.path = path
