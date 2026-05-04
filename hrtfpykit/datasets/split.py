@@ -154,6 +154,27 @@ class DatasetSubjectSelectionPlanner:
             for index in np.argsort(-(raw_counts - counts))[:remainder]:
                 counts[int(index)] += 1
 
+        split_indexes = {"train": 0, "validation": 1, "test": 2}
+        target_index = split_indexes[split_key]
+        ratio_by_index = (train_ratio, validation_ratio, test_ratio)
+        if ratio_by_index[target_index] > 0 and counts[target_index] == 0:
+            donor_indexes = [
+                index
+                for index, count in enumerate(counts)
+                if index != target_index and count > 0
+            ]
+            if len(donor_indexes) > 0:
+                donor_index = max(
+                    donor_indexes,
+                    key=lambda index: (
+                        int(counts[index]),
+                        float(raw_counts[index] - np.floor(raw_counts[index])),
+                        -abs(index - target_index),
+                    ),
+                )
+                counts[int(donor_index)] -= 1
+                counts[target_index] += 1
+
         train_end = int(counts[0])
         validation_end = int(counts[0] + counts[1])
         if split_key == "train":
