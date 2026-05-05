@@ -279,17 +279,33 @@ class DatasetResourcesScanner:
     def scan_hrtf_paths(
         config: type[DatasetConfig] | DatasetConfig,
         root: Path,
-        hrtf_variant: str | None,
+        dataset_hrtf_type: str | None,
+        dataset_hrtf_sample_rate: int | str | None,
+        dataset_hrtf_version: str | None,
         excluded_subject_ids: set[str],
         required: bool,
     ) -> tuple[dict[str, Path], dict[str, object] | None]:
         hrtf_paths: dict[str, Path] = {}
         if config.hrtf is None or not required:
             return hrtf_paths, None
+        if dataset_hrtf_type is None:
+            raise ValueError(f"{config.name} requires dataset_hrtf_type for HRTF resources")
+        hrtf_type_config = config.hrtf.types[dataset_hrtf_type]
+        sample_rate_label = None
+        if dataset_hrtf_sample_rate is not None:
+            sample_rate_label = str(dataset_hrtf_sample_rate)
+            if hrtf_type_config.sample_rate_labels is not None:
+                sample_rate_label = hrtf_type_config.sample_rate_labels.get(
+                    dataset_hrtf_sample_rate,
+                    sample_rate_label,
+                )
         hrtf_subject_ids = (
             tuple(config.subject_ids)
             if config.hrtf.subject_ids is None
             else tuple(config.hrtf.subject_ids)
+        )
+        subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
+            DatasetSubjectSplitPlanner.sort_subject_ids(tuple(config.subject_ids))
         )
         checked_hrtf_subject_ids = tuple(
             subject_id
@@ -297,9 +313,25 @@ class DatasetResourcesScanner:
             if subject_id not in excluded_subject_ids
         )
         for subject_id in checked_hrtf_subject_ids:
-            relative_path = config.hrtf.path_pattern.format(
+            version_label = None
+            if hrtf_type_config.version_labels is not None and dataset_hrtf_version is not None:
+                version_label = hrtf_type_config.version_labels.get(
+                    dataset_hrtf_version,
+                    str(dataset_hrtf_version),
+                )
+            relative_path = hrtf_type_config.path_pattern.format(
                 subject_id=subject_id,
-                variant=hrtf_variant,
+                subject_number=subject_numbers[subject_id],
+                type=dataset_hrtf_type,
+                hrtf_type=dataset_hrtf_type,
+                sample_rate=dataset_hrtf_sample_rate,
+                hrtf_sample_rate=dataset_hrtf_sample_rate,
+                sample_rate_label=sample_rate_label,
+                version=dataset_hrtf_version,
+                hrtf_version=dataset_hrtf_version,
+                version_label=version_label,
+                hrtf_version_label=version_label,
+                variant=dataset_hrtf_type,
             )
             candidate = (root / relative_path).expanduser()
             if candidate.is_file():
@@ -310,8 +342,10 @@ class DatasetResourcesScanner:
             if subject_id not in hrtf_paths
         )
         return hrtf_paths, {
-            "pattern": config.hrtf.path_pattern,
-            "hrtf_variant": hrtf_variant,
+            "pattern": hrtf_type_config.path_pattern,
+            "hrtf_type": dataset_hrtf_type,
+            "hrtf_sample_rate": dataset_hrtf_sample_rate,
+            "hrtf_version": dataset_hrtf_version,
             "checked": len(checked_hrtf_subject_ids),
             "found": len(hrtf_paths),
             "missing": len(missing_hrtf_subject_ids),
@@ -322,6 +356,8 @@ class DatasetResourcesScanner:
     def scan_mesh_paths(
         config: type[DatasetConfig] | DatasetConfig,
         root: Path,
+        dataset_mesh_type: str | None,
+        dataset_mesh_version: str | None,
         excluded_subject_ids: set[str],
         required: bool,
         extensions: tuple[str, ...] | None = None,
@@ -329,6 +365,12 @@ class DatasetResourcesScanner:
         mesh_paths: dict[str, Path] = {}
         if config.mesh is None or not required:
             return mesh_paths, None
+        mesh_type = dataset_mesh_type
+        if mesh_type is None:
+            mesh_type = "default" if "default" in config.mesh.types else config.mesh.default_type
+        if mesh_type is None:
+            raise ValueError(f"{config.name} requires dataset_mesh_type for mesh resources")
+        mesh_type_config = config.mesh.types[mesh_type]
         normalized_extensions = [extension.lower() for extension in tuple(extensions or tuple())]
         normalized_extensions = [
             extension if extension.startswith(".") else f".{extension}"
@@ -346,9 +388,25 @@ class DatasetResourcesScanner:
             for subject_id in mesh_subject_ids
             if subject_id not in excluded_subject_ids
         )
+        subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
+            DatasetSubjectSplitPlanner.sort_subject_ids(tuple(config.subject_ids))
+        )
         for subject_id in checked_mesh_subject_ids:
-            relative_path = config.mesh.path_pattern.format(
+            version_label = None
+            if mesh_type_config.version_labels is not None and dataset_mesh_version is not None:
+                version_label = mesh_type_config.version_labels.get(
+                    dataset_mesh_version,
+                    str(dataset_mesh_version),
+                )
+            relative_path = mesh_type_config.path_pattern.format(
                 subject_id=subject_id,
+                subject_number=subject_numbers[subject_id],
+                type=mesh_type,
+                mesh_type=mesh_type,
+                version=dataset_mesh_version,
+                mesh_version=dataset_mesh_version,
+                version_label=version_label,
+                mesh_version_label=version_label,
             )
             pattern_path = Path(relative_path)
             candidate_paths: list[Path] = []
@@ -376,7 +434,9 @@ class DatasetResourcesScanner:
             if subject_id not in mesh_paths
         )
         return mesh_paths, {
-            "pattern": config.mesh.path_pattern,
+            "pattern": mesh_type_config.path_pattern,
+            "mesh_type": mesh_type,
+            "mesh_version": dataset_mesh_version,
             "extensions": tuple(normalized_extensions),
             "checked": len(checked_mesh_subject_ids),
             "found": len(mesh_paths),
@@ -602,7 +662,9 @@ class DatasetResources:
         hrtf_paths, hrtf_summary = scanner.scan_hrtf_paths(
             config=config,
             root=root,
-            hrtf_variant=state.hrtf_variant if state.hrtf_variant is not None else None,
+            dataset_hrtf_type=state.dataset_hrtf_type,
+            dataset_hrtf_sample_rate=state.dataset_hrtf_sample_rate,
+            dataset_hrtf_version=state.dataset_hrtf_version,
             excluded_subject_ids=excluded_subject_set,
             required=has_acoustic_specs,
         )
@@ -637,6 +699,8 @@ class DatasetResources:
             mesh_paths, mesh_summary = scanner.scan_mesh_paths(
                 config=config,
                 root=mesh_root_path,
+                dataset_mesh_type=state.dataset_mesh_type,
+                dataset_mesh_version=state.dataset_mesh_version,
                 excluded_subject_ids=excluded_subject_set,
                 required=has_mesh_specs,
                 extensions=mesh_extensions,
@@ -693,6 +757,7 @@ class DatasetResources:
                     exclude_row=first_anthro_spec.exclude_row,
                     exclude_column=first_anthro_spec.exclude_column,
                     accessed_by=first_anthro_spec.accessed_by,
+                    subject_id=first_anthro_spec.subject_id,
                     extension=anthropometry_extension,
                     resource_name="Anthropometry",
                 )
@@ -752,6 +817,7 @@ class DatasetResources:
                     exclude_row=first_metadata_spec.exclude_row,
                     exclude_column=first_metadata_spec.exclude_column,
                     accessed_by=first_metadata_spec.accessed_by,
+                    subject_id=first_metadata_spec.subject_id,
                     extension=metadata_extension,
                     resource_name="Metadata",
                 )

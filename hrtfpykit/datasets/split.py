@@ -221,7 +221,11 @@ class DatasetSubjectSplitPlanner:
                     for key in (
                         "pattern",
                         "path",
-                        "hrtf_variant",
+                        "hrtf_type",
+                        "hrtf_sample_rate",
+                        "hrtf_version",
+                        "mesh_type",
+                        "mesh_version",
                         "extensions",
                         "checked",
                         "found",

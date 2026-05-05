@@ -81,6 +81,7 @@ def load_table(
     exclude_row: int | Sequence[int] | None = None,
     exclude_column: int | Sequence[int] | None = None,
     accessed_by: str = "row",
+    subject_id: bool = True,
     resource_name: str = "Table",
 ) -> dict[str, dict[str, float | str | None]] | dict[str, object]:
     state = dataset._state
@@ -105,22 +106,15 @@ def load_table(
                 raise ValueError(f"{resource_name} file {mapped_path} does not contain headers")
             fieldnames = tuple(reader.fieldnames)
             if accessed_by == "row":
-                subject_column = fieldnames[0]
                 raw_rows: list[tuple[str, dict[str, float | str | None]]] = []
-                for row in reader:
-                    raw_subject_id = row.get(subject_column)
-                    if raw_subject_id is None or str(raw_subject_id).strip() == "":
-                        continue
-                    try:
-                        subject_id = DatasetSubjectSplitPlanner.map_subject_id(
-                            raw_subject_id,
-                            dataset_subject_ids,
-                        )
-                    except ValueError:
-                        continue
+                data_fieldnames = fieldnames[1:] if subject_id else fieldnames
+                for row_index, row in enumerate(reader):
+                    if row_index >= len(dataset_subject_ids):
+                        break
+                    mapped_subject_id = dataset_subject_ids[row_index]
                     converted: dict[str, float | str | None] = {}
-                    for key in fieldnames:
-                        if key is None or key == subject_column:
+                    for key in data_fieldnames:
+                        if key is None:
                             continue
                         value = row.get(key)
                         text = str("" if value is None else value).strip()
@@ -131,7 +125,7 @@ def load_table(
                             converted[str(key)] = float(text)
                         except ValueError:
                             converted[str(key)] = text
-                    raw_rows.append((subject_id, converted))
+                    raw_rows.append((mapped_subject_id, converted))
 
                 row_keys = tuple(subject_id for subject_id, _ in raw_rows)
                 row_indices: list[int] = []
@@ -175,29 +169,26 @@ def load_table(
                     }
                 return rows
 
-            subject_columns = tuple(fieldnames[1:]) if len(fieldnames) > 1 else tuple()
+            subject_columns = tuple(fieldnames[1:]) if subject_id else fieldnames
             if len(subject_columns) == 0:
                 raise ValueError(f"{resource_name} file {mapped_path} has no columns for subject IDs")
-            recognized_subject_columns: list[tuple[str, str]] = []
-            for subject_column in subject_columns:
-                try:
-                    mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
-                        subject_column,
-                        dataset_subject_ids,
-                    )
-                    recognized_subject_columns.append((subject_column, mapped_subject_id))
-                except ValueError:
-                    continue
+            recognized_subject_columns: list[tuple[str, str]] = [
+                (subject_column, dataset_subject_ids[index])
+                for index, subject_column in enumerate(subject_columns[:len(dataset_subject_ids)])
+            ]
             if len(recognized_subject_columns) == 0:
                 raise ValueError(f"{resource_name} file {mapped_path} has no recognized subject columns")
 
             rows: dict[str, dict[str, float | str | None]] = {}
             raw_rows: list[tuple[str, dict[str, float | str | None]]] = []
             for row in reader:
-                row_key = row.get(fieldnames[0], "")
-                row_label = str("" if row_key is None else row_key).strip()
-                if row_label == "":
-                    continue
+                if subject_id:
+                    row_key = row.get(fieldnames[0], "")
+                    row_label = str("" if row_key is None else row_key).strip()
+                    if row_label == "":
+                        continue
+                else:
+                    row_label = str(len(raw_rows))
                 row_values: dict[str, float | str | None] = {}
                 for source_column, mapped_subject_id in recognized_subject_columns:
                     value = row.get(source_column)

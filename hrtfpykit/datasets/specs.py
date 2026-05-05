@@ -148,6 +148,7 @@ class AnthropometrySpec:
         exclude_column: int | Sequence[int] | None = None,
         accessed_by: str = "row",
         grouped_by: str | tuple[str, ...] = ("subject",),
+        subject_id: bool = True,
         ear: str | None = None,
         ear_one_hot: bool = False,
         ear_index: bool = False,
@@ -158,6 +159,7 @@ class AnthropometrySpec:
         self.extensions = extensions
         self.exclude_column = exclude_column
         self.grouped_by = grouped_by
+        self.subject_id = subject_id
         self.ear = ear
         self.accessed_by = accessed_by
         self.ear_one_hot = ear_one_hot
@@ -175,6 +177,7 @@ class MetadataSpec:
         exclude_column: int | Sequence[int] | None = None,
         accessed_by: str = "row",
         grouped_by: str | tuple[str, ...] = ("subject",),
+        subject_id: bool = True,
         ear: str | None = None,
         ear_one_hot: bool = False,
         ear_index: bool = False,
@@ -185,6 +188,7 @@ class MetadataSpec:
         self.extensions = extensions
         self.exclude_column = exclude_column
         self.grouped_by = grouped_by
+        self.subject_id = subject_id
         self.ear = ear
         self.accessed_by = accessed_by
         self.ear_one_hot = ear_one_hot

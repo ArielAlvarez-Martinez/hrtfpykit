@@ -23,11 +23,11 @@ class HUTUBS(BaseDataset):
     def __init__(
         self,
         root: str | Path,
-        dataset_hrtf_variant: str = "measured",
+        dataset_hrtf_type: str = "measured",
         dataset_hrtf_transform: Callable[[object], object] | None = None,
         download: bool = False,
         download_resources: str | tuple[str, ...] | list[str] = "all",
-        download_hrtf_variant: str = "all",
+        download_hrtf_type: str = "all",
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
@@ -36,12 +36,12 @@ class HUTUBS(BaseDataset):
         split_seed: int = 0,
         verbose: bool = False,
     ) -> None:
-        hrtf_variant = str(dataset_hrtf_variant).strip().lower()
+        hrtf_type = str(dataset_hrtf_type).strip().lower()
         if HUTUBSConfig.hrtf is None:
             raise ValueError("HUTUBS config does not define HRTF metadata")
-        if hrtf_variant not in HUTUBSConfig.hrtf.variants:
+        if hrtf_type not in HUTUBSConfig.hrtf.types:
             raise ValueError(
-                f"Unsupported dataset_hrtf_variant {hrtf_variant!r}. Expected one of {HUTUBSConfig.hrtf.variants}"
+                f"Unsupported dataset_hrtf_type {hrtf_type!r}. Expected one of {tuple(HUTUBSConfig.hrtf.types)}"
             )
         if download:
             downloaded, download_report = BaseDownload(
@@ -50,7 +50,11 @@ class HUTUBS(BaseDataset):
                 excluded_subject_ids=exclude_subject_ids,
             ).download(
                 download_resources=download_resources,
-                download_hrtf_variant=download_hrtf_variant,
+                download_hrtf_type=download_hrtf_type,
+                download_hrtf_sample_rate=None,
+                download_hrtf_version=None,
+                download_mesh_type=None,
+                download_mesh_version=None,
             )
             if downloaded:
                 if verbose:
@@ -62,7 +66,11 @@ class HUTUBS(BaseDataset):
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,
-            hrtf_variant=hrtf_variant,
+            dataset_hrtf_type=hrtf_type,
+            dataset_hrtf_sample_rate=None,
+            dataset_hrtf_version=None,
+            dataset_mesh_type=None,
+            dataset_mesh_version=None,
             split=split,
             split_ratio=split_ratio,
             split_seed=split_seed,

@@ -28,7 +28,11 @@ class DatasetState:
     root: Path = field(default_factory=Path)
     dataset_hrtf_transform: Callable[[object], object] | None = None
     excluded_subjects: tuple[str, ...] = ()
-    hrtf_variant: str | None = None
+    dataset_hrtf_type: str | None = None
+    dataset_hrtf_sample_rate: int | str | None = None
+    dataset_hrtf_version: str | None = None
+    dataset_mesh_type: str | None = None
+    dataset_mesh_version: str | None = None
 
     input_specs: tuple[DatasetSpec, ...] = ()
     target_specs: tuple[DatasetSpec, ...] = ()

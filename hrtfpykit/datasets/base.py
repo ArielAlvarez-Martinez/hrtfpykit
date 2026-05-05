@@ -38,7 +38,11 @@ class BaseDataset:
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
-        hrtf_variant: str | None = None,
+        dataset_hrtf_type: str | None = None,
+        dataset_hrtf_sample_rate: int | str | None = None,
+        dataset_hrtf_version: str | None = None,
+        dataset_mesh_type: str | None = None,
+        dataset_mesh_version: str | None = None,
         split: str = "all",
         split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
         split_seed: int = 0,
@@ -54,7 +58,11 @@ class BaseDataset:
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,
-            hrtf_variant=hrtf_variant,
+            dataset_hrtf_type=dataset_hrtf_type,
+            dataset_hrtf_sample_rate=dataset_hrtf_sample_rate,
+            dataset_hrtf_version=dataset_hrtf_version,
+            dataset_mesh_type=dataset_mesh_type,
+            dataset_mesh_version=dataset_mesh_version,
             split=split,
             split_ratio=split_ratio,
             split_seed=split_seed,
@@ -80,8 +88,24 @@ class BaseDataset:
         return self._state.root
 
     @property
-    def hrtf_variant(self) -> str | None:
-        return self._state.hrtf_variant
+    def dataset_hrtf_type(self) -> str | None:
+        return self._state.dataset_hrtf_type
+
+    @property
+    def dataset_hrtf_sample_rate(self) -> int | str | None:
+        return self._state.dataset_hrtf_sample_rate
+
+    @property
+    def dataset_hrtf_version(self) -> str | None:
+        return self._state.dataset_hrtf_version
+
+    @property
+    def dataset_mesh_type(self) -> str | None:
+        return self._state.dataset_mesh_type
+
+    @property
+    def dataset_mesh_version(self) -> str | None:
+        return self._state.dataset_mesh_version
 
     @property
     def split(self) -> str:

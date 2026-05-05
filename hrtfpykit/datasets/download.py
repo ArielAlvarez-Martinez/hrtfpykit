@@ -86,25 +86,35 @@ class BaseDownload:
             raise ValueError(f"Unsupported download_resources: {invalid}")
         return normalized
 
-    def sanitize_download_hrtf_variants(
+    def sanitize_download_values(
         self,
-        requested: str,
+        requested: str | int | tuple[str | int, ...] | list[str | int] | None,
+        available: tuple[str | int, ...],
+        default: str | int | None,
+        label: str,
     ) -> tuple[str, ...]:
-        dataset_variants = (
-            None if self.config.hrtf is None else tuple(self.config.hrtf.variants)
-        )
-        if dataset_variants is None or len(dataset_variants) == 0:
-            raise ValueError("Dataset variants are missing")
-        available_versions = tuple(str(value).strip().lower() for value in dataset_variants)
-        requested_value = str(requested).strip().lower()
-        if requested_value == "all":
-            return available_versions
-        if requested_value not in available_versions:
-            raise ValueError(
-                f"Unsupported download_hrtf_variant {requested!r}. "
-                f"Expected one of {available_versions + ('all',)}"
-            )
-        return (requested_value,)
+        if len(available) == 0:
+            if requested in (None, "all"):
+                return tuple()
+            if default is None:
+                raise ValueError(f"{label} is not supported by this dataset")
+            return (str(default),)
+        if requested is None:
+            if default is None:
+                return tuple(str(value) for value in available)
+            return (str(default),)
+        if isinstance(requested, (str, int)):
+            requested_values = (requested,)
+        else:
+            requested_values = tuple(requested)
+        normalized_available = {str(value).strip().lower(): value for value in available}
+        normalized_requested = tuple(str(value).strip().lower() for value in requested_values)
+        if "all" in normalized_requested:
+            return tuple(str(value) for value in available)
+        invalid = [value for value in normalized_requested if value not in normalized_available]
+        if invalid:
+            raise ValueError(f"Unsupported {label}: {invalid}. Expected one of {available + ('all',)}")
+        return tuple(str(normalized_available[value]) for value in normalized_requested)
 
     def validate_download_root(self) -> Path:
         self.root = self.sanitize_root(self.root)
@@ -134,7 +144,8 @@ class BaseDownload:
         self,
         resource: str,
         relative_path: str,
-        hrtf_variant: str | None = None,
+        hrtf_type: str | None = None,
+        hrtf_version: str | None = None,
     ) -> str | None:
         if self.config.download is None or self.config.download.checksums is None:
             return None
@@ -143,16 +154,22 @@ class BaseDownload:
         if resource_checksums is None:
             return None
         if resource == "hrtf":
-            if hrtf_variant is None:
-                raise ValueError("HRTF checksum lookup requires a variant")
+            if hrtf_type is None:
+                raise ValueError("HRTF checksum lookup requires a type")
             if not isinstance(resource_checksums, dict):
-                raise ValueError("HRTF checksums must be grouped by variant")
-            variant_checksums = resource_checksums.get(hrtf_variant)
-            if variant_checksums is None:
+                raise ValueError("HRTF checksums must be grouped by type")
+            type_checksums = resource_checksums.get(hrtf_type)
+            if type_checksums is None:
                 return None
-            if not isinstance(variant_checksums, dict):
-                raise ValueError("HRTF variant checksums must be a filename dictionary")
-            checksum = variant_checksums.get(relative_path)
+            if isinstance(type_checksums, dict) and hrtf_version is not None and hrtf_version in type_checksums:
+                version_checksums = type_checksums.get(hrtf_version)
+                if not isinstance(version_checksums, dict):
+                    raise ValueError("HRTF version checksums must be a filename dictionary")
+                checksum = version_checksums.get(relative_path)
+            else:
+                if not isinstance(type_checksums, dict):
+                    raise ValueError("HRTF type checksums must be a filename dictionary")
+                checksum = type_checksums.get(relative_path)
         elif isinstance(resource_checksums, dict):
             checksum = resource_checksums.get(relative_path)
         elif isinstance(resource_checksums, str):
@@ -238,7 +255,11 @@ class BaseDownload:
     def build_download_plan(
         self,
         download_resources: str | tuple[str, ...] | list[str] = "all",
-        download_hrtf_variant: str = "all",
+        download_hrtf_type: str | tuple[str, ...] | list[str] | None = "all",
+        download_hrtf_sample_rate: str | int | tuple[str | int, ...] | list[str | int] | None = None,
+        download_hrtf_version: str | tuple[str, ...] | list[str] | None = None,
+        download_mesh_type: str | tuple[str, ...] | list[str] | None = None,
+        download_mesh_version: str | tuple[str, ...] | list[str] | None = None,
     ) -> list[dict[str, object]]:
         resources = self.sanitize_download_resources(download_resources)
         download_jobs: list[dict[str, object]] = []
@@ -254,29 +275,103 @@ class BaseDownload:
             subject_ids = self.get_included_subject_ids(
                 hrtf_subject_ids
             )
-            for hrtf_variant in self.sanitize_download_hrtf_variants(download_hrtf_variant):
-                for subject_id in subject_ids:
-                    relative_path = self.config.hrtf.path_pattern.format(
-                        subject_id=subject_id,
-                        variant=hrtf_variant,
+            subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
+                DatasetSubjectSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids))
+            )
+            hrtf_types = self.sanitize_download_values(
+                download_hrtf_type,
+                tuple(self.config.hrtf.types),
+                self.config.hrtf.default_type,
+                "download_hrtf_type",
+            )
+            requested_hrtf_types = (
+                (download_hrtf_type,)
+                if isinstance(download_hrtf_type, (str, int)) or download_hrtf_type is None
+                else tuple(download_hrtf_type)
+            )
+            hrtf_type_all = any(str(value).strip().lower() == "all" for value in requested_hrtf_types)
+            for hrtf_type in hrtf_types:
+                hrtf_type_config = self.config.hrtf.types[hrtf_type]
+                try:
+                    hrtf_sample_rates = self.sanitize_download_values(
+                        download_hrtf_sample_rate,
+                        hrtf_type_config.sample_rates,
+                        hrtf_type_config.default_sample_rate,
+                        "download_hrtf_sample_rate",
                     )
-                    destination = self.compose_download_path(relative_path)
-                    checksum = self.get_checksum(
-                        "hrtf",
-                        relative_path,
-                        hrtf_variant=hrtf_variant,
+                except ValueError:
+                    if hrtf_type_all:
+                        continue
+                    raise
+                if len(hrtf_sample_rates) == 0:
+                    hrtf_sample_rates = (None,)
+                try:
+                    hrtf_versions = self.sanitize_download_values(
+                        download_hrtf_version,
+                        hrtf_type_config.versions,
+                        hrtf_type_config.default_version,
+                        "download_hrtf_version",
                     )
-                    download_jobs.append(
-                        {
-                            "resource": "hrtf",
-                            "subject_id": subject_id,
-                            "hrtf_variant": hrtf_variant,
-                            "relative_path": relative_path,
-                            "url": self.build_download_url(relative_path),
-                            "destination": destination,
-                            "checksum": checksum,
-                        }
-                    )
+                except ValueError:
+                    if hrtf_type_all:
+                        continue
+                    raise
+                if len(hrtf_versions) == 0:
+                    hrtf_versions = (None,)
+                for hrtf_sample_rate in hrtf_sample_rates:
+                    sample_rate_value: str | int | None = hrtf_sample_rate
+                    for available_sample_rate in hrtf_type_config.sample_rates:
+                        if str(available_sample_rate) == str(hrtf_sample_rate):
+                            sample_rate_value = available_sample_rate
+                            break
+                    sample_rate_label = None if sample_rate_value is None else str(sample_rate_value)
+                    if hrtf_type_config.sample_rate_labels is not None and sample_rate_value is not None:
+                        sample_rate_label = hrtf_type_config.sample_rate_labels.get(
+                            sample_rate_value,
+                            sample_rate_label,
+                        )
+                    for hrtf_version in hrtf_versions:
+                        hrtf_version_label = None
+                        if hrtf_type_config.version_labels is not None and hrtf_version is not None:
+                            hrtf_version_label = hrtf_type_config.version_labels.get(
+                                str(hrtf_version),
+                                str(hrtf_version),
+                            )
+                        for subject_id in subject_ids:
+                            relative_path = hrtf_type_config.path_pattern.format(
+                                subject_id=subject_id,
+                                subject_number=subject_numbers[subject_id],
+                                type=hrtf_type,
+                                hrtf_type=hrtf_type,
+                                sample_rate=sample_rate_value,
+                                hrtf_sample_rate=sample_rate_value,
+                                sample_rate_label=sample_rate_label,
+                                version=hrtf_version,
+                                hrtf_version=hrtf_version,
+                                version_label=hrtf_version_label,
+                                hrtf_version_label=hrtf_version_label,
+                                variant=hrtf_type,
+                            )
+                            destination = self.compose_download_path(relative_path)
+                            checksum = self.get_checksum(
+                                "hrtf",
+                                relative_path,
+                                hrtf_type=hrtf_type,
+                                hrtf_version=None if hrtf_version is None else str(hrtf_version),
+                            )
+                            download_jobs.append(
+                                {
+                                    "resource": "hrtf",
+                                    "subject_id": subject_id,
+                                    "hrtf_type": hrtf_type,
+                                    "hrtf_sample_rate": sample_rate_value,
+                                    "hrtf_version": hrtf_version,
+                                    "relative_path": relative_path,
+                                    "url": self.build_download_url(relative_path),
+                                    "destination": destination,
+                                    "checksum": checksum,
+                                }
+                            )
 
         if "mesh" in resources:
             if self.config.mesh is None:
@@ -289,24 +384,72 @@ class BaseDownload:
             subject_ids = self.get_included_subject_ids(
                 mesh_subject_ids
             )
-            for subject_id in subject_ids:
-                relative_path = self.config.mesh.path_pattern.format(
-                    subject_id=subject_id,
-                )
-                destination = self.compose_download_path(relative_path)
-                checksum = self.get_checksum("mesh", relative_path)
-                if checksum is None and self.has_checksum_map("mesh"):
-                    continue
-                download_jobs.append(
-                    {
-                        "resource": "mesh",
-                        "subject_id": subject_id,
-                        "relative_path": relative_path,
-                        "url": self.build_download_url(relative_path),
-                        "destination": destination,
-                        "checksum": checksum,
-                    }
-                )
+            subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
+                DatasetSubjectSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids))
+            )
+            mesh_types = self.sanitize_download_values(
+                download_mesh_type,
+                tuple(self.config.mesh.types),
+                self.config.mesh.default_type,
+                "download_mesh_type",
+            )
+            requested_mesh_types = (
+                (download_mesh_type,)
+                if isinstance(download_mesh_type, (str, int)) or download_mesh_type is None
+                else tuple(download_mesh_type)
+            )
+            mesh_type_all = any(str(value).strip().lower() == "all" for value in requested_mesh_types)
+            if len(mesh_types) == 0 and "default" in self.config.mesh.types:
+                mesh_types = ("default",)
+            for mesh_type in mesh_types:
+                mesh_type_config = self.config.mesh.types[mesh_type]
+                try:
+                    mesh_versions = self.sanitize_download_values(
+                        download_mesh_version,
+                        mesh_type_config.versions,
+                        mesh_type_config.default_version,
+                        "download_mesh_version",
+                    )
+                except ValueError:
+                    if mesh_type_all:
+                        continue
+                    raise
+                if len(mesh_versions) == 0:
+                    mesh_versions = (None,)
+                for mesh_version in mesh_versions:
+                    mesh_version_label = None
+                    if mesh_type_config.version_labels is not None and mesh_version is not None:
+                        mesh_version_label = mesh_type_config.version_labels.get(
+                            str(mesh_version),
+                            str(mesh_version),
+                        )
+                    for subject_id in subject_ids:
+                        relative_path = mesh_type_config.path_pattern.format(
+                            subject_id=subject_id,
+                            subject_number=subject_numbers[subject_id],
+                            type=mesh_type,
+                            mesh_type=mesh_type,
+                            version=mesh_version,
+                            mesh_version=mesh_version,
+                            version_label=mesh_version_label,
+                            mesh_version_label=mesh_version_label,
+                        )
+                        destination = self.compose_download_path(relative_path)
+                        checksum = self.get_checksum("mesh", relative_path)
+                        if checksum is None and self.has_checksum_map("mesh"):
+                            continue
+                        download_jobs.append(
+                            {
+                                "resource": "mesh",
+                                "subject_id": subject_id,
+                                "mesh_type": mesh_type,
+                                "mesh_version": mesh_version,
+                                "relative_path": relative_path,
+                                "url": self.build_download_url(relative_path),
+                                "destination": destination,
+                                "checksum": checksum,
+                            }
+                        )
 
         if "anthropometry" in resources:
             if self.config.anthropometry is None:
@@ -329,12 +472,20 @@ class BaseDownload:
     def download(
         self,
         download_resources: str | tuple[str, ...] | list[str] = "all",
-        download_hrtf_variant: str = "all",
+        download_hrtf_type: str | tuple[str, ...] | list[str] | None = "all",
+        download_hrtf_sample_rate: str | int | tuple[str | int, ...] | list[str | int] | None = None,
+        download_hrtf_version: str | tuple[str, ...] | list[str] | None = None,
+        download_mesh_type: str | tuple[str, ...] | list[str] | None = None,
+        download_mesh_version: str | tuple[str, ...] | list[str] | None = None,
     ) -> tuple[bool, str]:
         self.validate_download_root()
         download_jobs = self.build_download_plan(
             download_resources=download_resources,
-            download_hrtf_variant=download_hrtf_variant,
+            download_hrtf_type=download_hrtf_type,
+            download_hrtf_sample_rate=download_hrtf_sample_rate,
+            download_hrtf_version=download_hrtf_version,
+            download_mesh_type=download_mesh_type,
+            download_mesh_version=download_mesh_version,
         )
         if len(download_jobs) == 0:
             summary = download_summary(

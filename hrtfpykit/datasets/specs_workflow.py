@@ -74,8 +74,6 @@ class DatasetSpecWorkflow:
         input_specs = sanitize_specs(inputs)
         target_specs = sanitize_specs(target)
         specs = input_specs + target_specs
-        if len(specs) == 0:
-            raise ValueError("Dataset requires at least one dataset spec in inputs or target")
         indexed_specs = get_specs(specs, indexed=True)
         grouped_specs = get_specs(specs, grouped=True)
         position_selectable_specs = get_specs(specs, position_selectable=True)
