@@ -22,6 +22,7 @@ from hrtfpykit.datasets.specs import (
     SHSpec,
 )
 from hrtfpykit.datasets.specs_workflow import DatasetSpecWorkflow
+from hrtfpykit.datasets.split import DatasetSubjectSplitPlanner
 
 
 HUTUBS_ROOT = os.getenv("HUTUBS_TEST_HUTUBS_ROOT") or os.getenv("HUTUBS_ROOT")
@@ -577,6 +578,7 @@ def _build_dataset(
             split_ratio=(0.8, 0.1, 0.1),
             split_seed=0,
             exclude_subject_ids=excluded_subject_ids,
+            verbose=False,
         )
 
 
@@ -665,6 +667,21 @@ def _expected_available_subjects(
     return list(_selected_subject_ids(inputs, target))
 
 
+def _expected_selected_subjects(
+    inputs: Sequence[object],
+    target: Sequence[object],
+    split: str,
+) -> list[str]:
+    return list(
+        DatasetSubjectSplitPlanner.split_subject_ids(
+            _selected_subject_ids(inputs, target),
+            split=split,
+            split_ratio=(0.8, 0.1, 0.1),
+            split_seed=0,
+        )
+    )
+
+
 @pytest.mark.parametrize("split", _SPLIT_VALUES)
 @pytest.mark.parametrize("dataset_hrtf_variant", _VARIANT_VALUES)
 @pytest.mark.parametrize(
@@ -697,6 +714,11 @@ def test_hutubs_real_dataset_all_combinations(
     assert dataset.available_subjects == _expected_available_subjects(
         inputs,
         target,
+    )
+    assert dataset.selected_subjects == _expected_selected_subjects(
+        inputs,
+        target,
+        split=split,
     )
     assert len(dataset) > 0
     uses_acoustic = _uses_acoustic_specs(inputs, target)
@@ -746,7 +768,7 @@ def test_hutubs_get_subject_hrtf_uses_selected_subject() -> None:
         inputs=(HRTFSpec(index_by=("subject", "position")),),
         target=(),
     )
-    expected_subject = dataset.available_subjects[0]
+    expected_subject = dataset.selected_subjects[0]
     hrtf = dataset.get_subject_hrtf(expected_subject)
     assert hrtf.IR.values.size > 0
     assert hrtf.Sources is not None
@@ -811,8 +833,89 @@ def test_hutubs_len_matches_subject_count_for_ear_indexed_rows() -> None:
         target=target,
         exclude_subject_ids=excluded_subject_ids,
         split="all",
+        verbose=False,
     )
 
     expected_subjects = list(selected_subject_ids)
     assert dataset.available_subjects == expected_subjects
+    assert dataset.selected_subjects == expected_subjects
     assert len(dataset) == len(expected_subjects) * 2
+
+
+def test_hutubs_summary_reports_available_and_selected_subjects() -> None:
+    if not _path_exists(HUTUBS_ROOT):
+        pytest.skip(reason="Required HUTUBS local dataset is not available")
+
+    inputs = (HRTFSpec(index_by=("subject",)),)
+    selected_subject_ids = _selected_subject_ids(inputs, ())
+    if len(selected_subject_ids) == 0:
+        pytest.skip(reason="No subjects matched requested scope")
+    excluded_subject_ids = tuple(
+        subject_id
+        for subject_id in ALL_HUTUBS_SUBJECT_IDS
+        if subject_id not in set(selected_subject_ids)
+    )
+
+    dataset = HUTUBS(
+        root=HUTUBS_ROOT,
+        dataset_hrtf_variant="measured",
+        inputs=inputs,
+        target=(),
+        exclude_subject_ids=excluded_subject_ids,
+        split="train",
+        split_ratio=(0.8, 0.1, 0.1),
+        split_seed=0,
+        verbose=False,
+    )
+
+    summary = dataset.dataset_summary()
+    assert f"available_subjects: {len(dataset.available_subjects)}" in summary
+    assert f"selected_subjects: {len(dataset.selected_subjects)}" in summary
+    assert len(dataset.available_subjects) >= len(dataset.selected_subjects)
+
+
+def test_hutubs_constructor_verbose_false_is_quiet() -> None:
+    if not _path_exists(HUTUBS_ROOT):
+        pytest.skip(reason="Required HUTUBS local dataset is not available")
+
+    inputs = (HRTFSpec(index_by=("subject",)),)
+    selected_subject_ids = _selected_subject_ids(inputs, ())
+    if len(selected_subject_ids) == 0:
+        pytest.skip(reason="No subjects matched requested scope")
+    excluded_subject_ids = tuple(
+        subject_id
+        for subject_id in ALL_HUTUBS_SUBJECT_IDS
+        if subject_id not in set(selected_subject_ids)
+    )
+
+    output = io.StringIO()
+    with redirect_stdout(output):
+        dataset = HUTUBS(
+            root=HUTUBS_ROOT,
+            dataset_hrtf_variant="measured",
+            inputs=inputs,
+            target=(),
+            exclude_subject_ids=excluded_subject_ids,
+            split="all",
+            verbose=False,
+        )
+
+    assert output.getvalue() == ""
+    assert dataset.resources_summary() != ""
+    assert dataset.dataset_summary() != ""
+
+
+def test_spec_workflow_does_not_mutate_grouped_spec_objects() -> None:
+    image_spec = ImageSpec(path=IMAGE_ROOT, grouped_by="subject")
+    anthropometry_spec = AnthropometrySpec(accessed_by="ROW", grouped_by="subject-ear", ear="LEFT")
+
+    DatasetSpecWorkflow.build(
+        config=HUTUBSConfig,
+        inputs=(image_spec, anthropometry_spec),
+        target=(),
+    )
+
+    assert image_spec.grouped_by == "subject"
+    assert anthropometry_spec.accessed_by == "ROW"
+    assert anthropometry_spec.grouped_by == "subject-ear"
+    assert anthropometry_spec.ear == "LEFT"

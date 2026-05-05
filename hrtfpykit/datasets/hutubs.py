@@ -5,7 +5,6 @@ from typing import Callable
 from .base import BaseDataset
 from .config import HUTUBSConfig
 from .download import BaseDownload
-from . import summary as summary_module
 from .sanitize import sanitize_grouped_by
 from .specs import (
     AnthropometrySpec,
@@ -13,6 +12,7 @@ from .specs import (
     ImageSpec,
     ILDSpec,
     ITDSpec,
+    MetadataSpec,
     MeshSpec,
     SHSpec,
     VideoSpec,
@@ -29,18 +29,19 @@ class HUTUBS(BaseDataset):
         download_resources: str | tuple[str, ...] | list[str] = "all",
         download_hrtf_variant: str = "all",
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
-        inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None = None,
-        target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None = None,
+        inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
+        target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         split: str = "all",
         split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
         split_seed: int = 0,
+        verbose: bool = False,
     ) -> None:
-        variant = str(dataset_hrtf_variant).strip().lower()
+        hrtf_variant = str(dataset_hrtf_variant).strip().lower()
         if HUTUBSConfig.hrtf is None:
             raise ValueError("HUTUBS config does not define HRTF metadata")
-        if variant not in HUTUBSConfig.hrtf.variants:
+        if hrtf_variant not in HUTUBSConfig.hrtf.variants:
             raise ValueError(
-                f"Unsupported dataset_hrtf_variant {variant!r}. Expected one of {HUTUBSConfig.hrtf.variants}"
+                f"Unsupported dataset_hrtf_variant {hrtf_variant!r}. Expected one of {HUTUBSConfig.hrtf.variants}"
             )
         if download:
             downloaded, download_report = BaseDownload(
@@ -52,7 +53,8 @@ class HUTUBS(BaseDataset):
                 download_hrtf_variant=download_hrtf_variant,
             )
             if downloaded:
-                print(download_report)
+                if verbose:
+                    print(download_report)
         super().__init__(
             root=root,
             config=HUTUBSConfig,
@@ -60,14 +62,13 @@ class HUTUBS(BaseDataset):
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,
-            variant=variant,
+            hrtf_variant=hrtf_variant,
             split=split,
             split_ratio=split_ratio,
             split_seed=split_seed,
+            verbose=verbose,
         )
         self._state.anthropometry_value_selector = self._select_anthropometry_value
-        print(summary_module.resources_summary(self))
-        print(summary_module.dataset_summary(self))
 
     def _select_anthropometry_value(
         self,

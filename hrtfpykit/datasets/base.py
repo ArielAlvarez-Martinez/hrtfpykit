@@ -11,6 +11,7 @@ from .specs_workflow import DatasetSpecWorkflow
 from .config import DatasetConfig
 from .load import load_hrtf
 from .state import DatasetState
+from .summary import dataset_summary, resources_summary
 from .values import DatasetSampleValueSelector
 from .specs import (
     AnthropometrySpec,
@@ -18,6 +19,7 @@ from .specs import (
     ImageSpec,
     ILDSpec,
     ITDSpec,
+    MetadataSpec,
     MeshSpec,
     SHSpec,
     VideoSpec,
@@ -34,12 +36,13 @@ class BaseDataset:
         config: type[DatasetConfig] | DatasetConfig | None = None,
         dataset_hrtf_transform: Callable[[object], object] | None = None,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
-        inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None = None,
-        target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None = None,
-        variant: str | None = None,
+        inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
+        target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
+        hrtf_variant: str | None = None,
         split: str = "all",
         split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
         split_seed: int = 0,
+        verbose: bool = False,
     ) -> None:
         if config is None:
             raise ValueError("BaseDataset requires a dataset config")
@@ -51,22 +54,34 @@ class BaseDataset:
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,
-            variant=variant,
+            hrtf_variant=hrtf_variant,
             split=split,
             split_ratio=split_ratio,
             split_seed=split_seed,
+            verbose=verbose,
         )
+        self._state.resources_summary = resources_summary(self)
+        self._state.dataset_summary = dataset_summary(self)
+        if verbose:
+            print(self._state.resources_summary)
+            print(self._state.dataset_summary)
 
     def get_subject_hrtf(self, subject_id: str | int) -> "HRTF":
         return load_hrtf(self, subject_id)
+
+    def resources_summary(self) -> str:
+        return self._state.resources_summary
+
+    def dataset_summary(self) -> str:
+        return self._state.dataset_summary
 
     @property
     def root(self) -> Path:
         return self._state.root
 
     @property
-    def variant(self) -> str | None:
-        return self._state.variant
+    def hrtf_variant(self) -> str | None:
+        return self._state.hrtf_variant
 
     @property
     def split(self) -> str:
@@ -81,11 +96,11 @@ class BaseDataset:
         return self._state.split_seed
 
     @property
-    def inputs(self) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]:
+    def inputs(self) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec, ...]:
         return self._state.input_specs
 
     @property
-    def target(self) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]:
+    def target(self) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec, ...]:
         return self._state.target_specs
 
     @property
@@ -139,6 +154,10 @@ class BaseDataset:
     @property
     def available_subjects(self) -> list[str]:
         return list(self._state.available_subjects)
+
+    @property
+    def selected_subjects(self) -> list[str]:
+        return list(self._state.selected_subjects)
 
     def __len__(self) -> int:
         return len(self._state.rows)

@@ -11,13 +11,14 @@ from .specs import (
     ImageSpec,
     ILDSpec,
     ITDSpec,
+    MetadataSpec,
     MeshSpec,
     SHSpec,
     VideoSpec,
 )
 
 
-DatasetSpec = HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec
+DatasetSpec = HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec
 
 
 @dataclass
@@ -27,7 +28,7 @@ class DatasetState:
     root: Path = field(default_factory=Path)
     dataset_hrtf_transform: Callable[[object], object] | None = None
     excluded_subjects: tuple[str, ...] = ()
-    variant: str | None = None
+    hrtf_variant: str | None = None
 
     input_specs: tuple[DatasetSpec, ...] = ()
     target_specs: tuple[DatasetSpec, ...] = ()
@@ -57,10 +58,13 @@ class DatasetState:
     video_counts: dict[str, int] = field(default_factory=dict)
     anthropometry_path: Path | None = None
     anthropometry_rows: dict[str, object] = field(default_factory=dict)
+    metadata_path: Path | None = None
+    metadata_rows: dict[str, object] = field(default_factory=dict)
     resource_summary: dict[str, object] = field(default_factory=dict)
     subject_numbers: dict[str, int] = field(default_factory=dict)
 
     available_subjects: tuple[str, ...] = ()
+    selected_subjects: tuple[str, ...] = ()
     split: str = "all"
     split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1)
     split_seed: int = 0
@@ -80,3 +84,7 @@ class DatasetState:
 
     rows: list[dict[str, str | int | None]] = field(default_factory=list)
     anthropometry_value_selector: Callable[..., object] | None = None
+    metadata_value_selector: Callable[..., object] | None = None
+    resources_summary: str = ""
+    dataset_summary: str = ""
+    verbose: bool = False

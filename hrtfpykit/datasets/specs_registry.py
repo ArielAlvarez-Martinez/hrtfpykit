@@ -6,13 +6,14 @@ from .specs import (
     ImageSpec,
     ILDSpec,
     ITDSpec,
+    MetadataSpec,
     MeshSpec,
     SHSpec,
     VideoSpec,
 )
 
 
-DatasetSpec = HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec
+DatasetSpec = HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ SPEC_DESCRIPTORS = (
     DatasetSpecDescriptor(SHSpec, "sh", "hrtf", True, True, False, False, False, False, True, "get_sh_spec_value"),
     DatasetSpecDescriptor(MeshSpec, "mesh", "mesh", False, False, False, False, False, True, False, "get_mesh_spec_value"),
     DatasetSpecDescriptor(AnthropometrySpec, "anthropometry", "anthropometry", False, False, False, False, True, True, True, "get_anthropometry_spec_value"),
+    DatasetSpecDescriptor(MetadataSpec, "metadata", "metadata", False, False, False, False, True, True, True, "get_metadata_spec_value"),
     DatasetSpecDescriptor(ImageSpec, "image", "image", False, False, False, True, True, True, True, "get_image_spec_value"),
     DatasetSpecDescriptor(VideoSpec, "video", "video", False, False, False, True, True, True, True, "get_video_spec_value"),
 )

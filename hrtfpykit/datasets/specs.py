@@ -166,6 +166,33 @@ class AnthropometrySpec:
         self.transform = transform
         self.name = name
 
+class MetadataSpec:
+    def __init__(
+        self,
+        path: str | Path | None = None,
+        extensions: tuple[str, ...] | None = None,
+        exclude_row: int | Sequence[int] | None = None,
+        exclude_column: int | Sequence[int] | None = None,
+        accessed_by: str = "row",
+        grouped_by: str | tuple[str, ...] = ("subject",),
+        ear: str | None = None,
+        ear_one_hot: bool = False,
+        ear_index: bool = False,
+        transform: Callable | None = None,
+        name: str | None = None,
+    ) -> None:
+        self.exclude_row = exclude_row
+        self.extensions = extensions
+        self.exclude_column = exclude_column
+        self.grouped_by = grouped_by
+        self.ear = ear
+        self.accessed_by = accessed_by
+        self.ear_one_hot = ear_one_hot
+        self.ear_index = ear_index
+        self.path = path
+        self.transform = transform
+        self.name = name
+
 class ImageSpec:
     def __init__(
         self,

@@ -9,6 +9,7 @@ from .specs import (
     ImageSpec,
     ILDSpec,
     ITDSpec,
+    MetadataSpec,
     MeshSpec,
     SHSpec,
     VideoSpec,
@@ -32,13 +33,14 @@ class DatasetBuilder:
         config: type[DatasetConfig] | DatasetConfig,
         root: str | Path,
         dataset_hrtf_transform: Callable[[object], object] | None,
-        inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None,
-        target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None,
-        variant: str | None,
+        inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None,
+        target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None,
+        hrtf_variant: str | None,
         split: str,
         split_ratio: tuple[float, float, float],
         split_seed: int,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
+        verbose: bool = False,
     ) -> None:
         dataset = self._dataset
         state = DatasetState()
@@ -48,12 +50,13 @@ class DatasetBuilder:
         state.name = str(config.name)
         state.root = Path(root).expanduser()
         state.dataset_hrtf_transform = dataset_hrtf_transform
+        state.verbose = bool(verbose)
 
-        state.variant = None
+        state.hrtf_variant = None
         if config.hrtf is not None:
-            state.variant = str(config.hrtf.default_variant).strip().lower()
-        if variant is not None:
-            state.variant = variant
+            state.hrtf_variant = str(config.hrtf.default_variant).strip().lower()
+        if hrtf_variant is not None:
+            state.hrtf_variant = hrtf_variant
 
         spec_plan = DatasetSpecWorkflow.build(
             config=config,
@@ -90,6 +93,8 @@ class DatasetBuilder:
         state.video_counts = resource_plan.video_counts
         state.anthropometry_path = resource_plan.anthropometry_path
         state.anthropometry_rows = resource_plan.anthropometry_rows
+        state.metadata_path = resource_plan.metadata_path
+        state.metadata_rows = resource_plan.metadata_rows
         state.excluded_subjects = resource_plan.excluded_subjects
         state.resource_summary = resource_plan.resource_summary
         state.subject_numbers = resource_plan.subject_numbers
@@ -101,6 +106,7 @@ class DatasetBuilder:
             split_seed=split_seed,
         )
         state.available_subjects = split_plan.available_subjects
+        state.selected_subjects = split_plan.selected_subjects
         state.split = split_plan.split
         state.split_ratio = split_plan.split_ratio
         state.split_seed = split_plan.split_seed
@@ -123,7 +129,7 @@ class DatasetBuilder:
         }
 
         state.rows = self._build_rows(
-            subject_ids=state.available_subjects,
+            subject_ids=state.selected_subjects,
             index_by=state.index_by,
             selected_position_indices=state.selected_position_indices,
             selected_ears=state.selected_ears,

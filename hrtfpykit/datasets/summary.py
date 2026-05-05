@@ -36,6 +36,7 @@ def resources_summary(
         "hrtf": has_specs(state.specs, resource_name="hrtf"),
         "mesh": has_specs(state.specs, resource_name="mesh"),
         "anthropometry": has_specs(state.specs, resource_name="anthropometry"),
+        "metadata": has_specs(state.specs, resource_name="metadata"),
         "image": has_specs(state.specs, resource_name="image"),
         "video": has_specs(state.specs, resource_name="video"),
     }
@@ -66,14 +67,15 @@ def dataset_summary(dataset: object) -> str:
             f"  root: {state.root}",
             f"  split: {state.split}",
             f"  available_subjects: {len(state.available_subjects)}",
+            f"  selected_subjects: {len(state.selected_subjects)}",
             f"  excluded_subjects: {len(state.excluded_subjects)}",
             f"  samples: {len(state.rows)}",
             f"  inputs: {', '.join(state.input_names) if len(state.input_specs) > 0 else 'none'}",
             f"  target: {', '.join(state.target_names) if len(state.target_specs) > 0 else 'none'}",
         ]
     )
-    if state.variant is not None:
-        lines.append(f"  hrtf_variant: {state.variant}")
+    if state.hrtf_variant is not None:
+        lines.append(f"  hrtf_variant: {state.hrtf_variant}")
     if state.sample_rate is not None:
         lines.append(f"  sample_rate: {state.sample_rate}")
     if state.positions is not None:
@@ -92,16 +94,16 @@ def download_summary(
     planned_files = len(download_jobs)
     resources: dict[str, int] = {}
     subject_ids: set[str] = set()
-    variants: set[str] = set()
+    hrtf_variants: set[str] = set()
     for job in download_jobs:
         resource = str(job["resource"])
         resources[resource] = resources.get(resource, 0) + 1
         subject_id = job.get("subject_id")
         if subject_id is not None:
             subject_ids.add(str(subject_id))
-        variant = job.get("variant")
-        if variant is not None:
-            variants.add(str(variant))
+        hrtf_variant = job.get("hrtf_variant")
+        if hrtf_variant is not None:
+            hrtf_variants.add(str(hrtf_variant))
     lines = [
         _summary_title(f"{str(config.name).upper()} DOWNLOAD SUMMARY"),
         f"  root: {root}",
@@ -118,8 +120,8 @@ def download_summary(
                 f"  subjects: {len(subject_ids)}",
             ]
         )
-        if len(variants) > 0:
-            lines.append(f"  variants: {', '.join(sorted(variants))}")
+        if len(hrtf_variants) > 0:
+            lines.append(f"  hrtf_variants: {', '.join(sorted(hrtf_variants))}")
         if len(resources) > 0:
             lines.append(
                 "  resources: "

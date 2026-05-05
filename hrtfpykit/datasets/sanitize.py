@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from copy import copy
 
 from .specs import (
     AnthropometrySpec,
@@ -7,10 +8,16 @@ from .specs import (
     ILDSpec,
     SHSpec,
     MeshSpec,
+    MetadataSpec,
     VideoSpec,
     ImageSpec,
 )
+from .specs_registry import get_spec_name
 import numpy as np
+
+
+def sanitize_subject_id(value: str) -> str:
+    return str(value).strip().lower()
 
 
 def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
@@ -163,12 +170,13 @@ def sanitize_specs(
     | SHSpec
     | MeshSpec
     | AnthropometrySpec
+    | MetadataSpec
     | ImageSpec
     | VideoSpec
-    | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec]
+    | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec]
     | None,
 ) -> tuple[
-    HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
+    HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
     ...,
 ]:
     if specs is None:
@@ -184,6 +192,7 @@ def sanitize_specs(
             SHSpec,
             MeshSpec,
             AnthropometrySpec,
+            MetadataSpec,
             ImageSpec,
             VideoSpec,
         ),
@@ -193,14 +202,12 @@ def sanitize_specs(
         values = tuple(specs)
     names: set[str] = set()
     normalized: list[
-        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec
+        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec
     ] = []
-    from .specs_workflow import DatasetSpecWorkflow
-
     for spec in values:
-        name = DatasetSpecWorkflow.get_spec_name(spec)
+        name = get_spec_name(spec)
         if name in names:
             raise ValueError(f"Duplicate dataset spec name {name!r} is not allowed")
         names.add(name)
-        normalized.append(spec)
+        normalized.append(copy(spec))
     return tuple(normalized)

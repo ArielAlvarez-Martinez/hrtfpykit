@@ -6,6 +6,7 @@ import numpy as np
 from typing import TYPE_CHECKING
 
 from .specs_registry import has_specs
+from .sanitize import sanitize_subject_id
 
 if TYPE_CHECKING:
     from .base import BaseDataset
@@ -14,16 +15,13 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class DatasetSubjectSplitPlan:
     available_subjects: tuple[str, ...]
+    selected_subjects: tuple[str, ...]
     split: str
     split_ratio: tuple[float, float, float]
     split_seed: int
 
 
 class DatasetSubjectSplitPlanner:
-    @staticmethod
-    def sanitize_subject_id(value: str) -> str:
-        return str(value).strip().lower()
-
     @classmethod
     def map_subject_id(
         cls,
@@ -54,7 +52,7 @@ class DatasetSubjectSplitPlanner:
             if index < 1 or index > len(subject_ids):
                 raise ValueError(f"Subject index {index} is out of range for {len(subject_ids)} subjects")
             return subject_ids[index - 1]
-        normalized = cls.sanitize_subject_id(text)
+        normalized = sanitize_subject_id(text)
         if normalized.lower() in subject_map:
             return subject_map[normalized.lower()]
         raise ValueError(f"Unknown subject reference {value!r}")
@@ -175,6 +173,7 @@ class DatasetSubjectSplitPlanner:
         has_acoustic_specs = has_specs(state.specs, resource_name="hrtf")
         has_mesh_specs = has_specs(state.specs, resource_name="mesh")
         has_anthro_specs = has_specs(state.specs, resource_name="anthropometry")
+        has_metadata_specs = has_specs(state.specs, resource_name="metadata")
         has_image_specs = has_specs(state.specs, resource_name="image")
         has_video_specs = has_specs(state.specs, resource_name="video")
         required_subject_sets: list[set[str]] = []
@@ -184,6 +183,8 @@ class DatasetSubjectSplitPlanner:
             required_subject_sets.append(set(state.mesh_paths))
         if has_anthro_specs:
             required_subject_sets.append(set(state.anthropometry_rows))
+        if has_metadata_specs:
+            required_subject_sets.append(set(state.metadata_rows))
         if has_image_specs:
             required_subject_sets.append({key[0] for key in state.image_index})
         if has_video_specs:
@@ -205,6 +206,8 @@ class DatasetSubjectSplitPlanner:
                 available_counts.append(f"mesh={len(state.mesh_paths)}")
             if has_anthro_specs:
                 available_counts.append(f"anthropometry={len(state.anthropometry_rows)}")
+            if has_metadata_specs:
+                available_counts.append(f"metadata={len(state.metadata_rows)}")
             if has_image_specs:
                 available_counts.append(f"image={len({key[0] for key in state.image_index})}")
             if has_video_specs:
@@ -218,7 +221,7 @@ class DatasetSubjectSplitPlanner:
                     for key in (
                         "pattern",
                         "path",
-                        "variant",
+                        "hrtf_variant",
                         "extensions",
                         "checked",
                         "found",
@@ -268,7 +271,8 @@ class DatasetSubjectSplitPlanner:
             raise ValueError(f"Split {split!r} produced an empty dataset")
 
         return DatasetSubjectSplitPlan(
-            available_subjects=tuple(selected_subject_ids),
+            available_subjects=tuple(subject_ids),
+            selected_subjects=tuple(selected_subject_ids),
             split=split,
             split_ratio=split_ratio,
             split_seed=split_seed,

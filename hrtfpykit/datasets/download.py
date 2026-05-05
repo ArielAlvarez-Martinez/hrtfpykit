@@ -134,7 +134,7 @@ class BaseDownload:
         self,
         resource: str,
         relative_path: str,
-        variant: str | None = None,
+        hrtf_variant: str | None = None,
     ) -> str | None:
         if self.config.download is None or self.config.download.checksums is None:
             return None
@@ -143,11 +143,11 @@ class BaseDownload:
         if resource_checksums is None:
             return None
         if resource == "hrtf":
-            if variant is None:
+            if hrtf_variant is None:
                 raise ValueError("HRTF checksum lookup requires a variant")
             if not isinstance(resource_checksums, dict):
                 raise ValueError("HRTF checksums must be grouped by variant")
-            variant_checksums = resource_checksums.get(variant)
+            variant_checksums = resource_checksums.get(hrtf_variant)
             if variant_checksums is None:
                 return None
             if not isinstance(variant_checksums, dict):
@@ -254,23 +254,23 @@ class BaseDownload:
             subject_ids = self.get_included_subject_ids(
                 hrtf_subject_ids
             )
-            for variant in self.sanitize_download_hrtf_variants(download_hrtf_variant):
+            for hrtf_variant in self.sanitize_download_hrtf_variants(download_hrtf_variant):
                 for subject_id in subject_ids:
                     relative_path = self.config.hrtf.path_pattern.format(
                         subject_id=subject_id,
-                        variant=variant,
+                        variant=hrtf_variant,
                     )
                     destination = self.compose_download_path(relative_path)
                     checksum = self.get_checksum(
                         "hrtf",
                         relative_path,
-                        variant=variant,
+                        hrtf_variant=hrtf_variant,
                     )
                     download_jobs.append(
                         {
                             "resource": "hrtf",
                             "subject_id": subject_id,
-                            "variant": variant,
+                            "hrtf_variant": hrtf_variant,
                             "relative_path": relative_path,
                             "url": self.build_download_url(relative_path),
                             "destination": destination,
@@ -390,8 +390,6 @@ class BaseDownload:
             failures,
         )
         if len(failures) > 0:
-            if downloaded_count > 0:
-                print(summary)
             raise ValueError(summary)
         return downloaded_count > 0, summary
 

@@ -1,4 +1,5 @@
 import numpy as np
+from typing import TYPE_CHECKING
 
 from .sanitize import sanitize_ears, sanitize_grouped_by, sanitize_index_by
 from .specs import (
@@ -7,6 +8,7 @@ from .specs import (
     ImageSpec,
     ILDSpec,
     ITDSpec,
+    MetadataSpec,
     MeshSpec,
     SHSpec,
     VideoSpec,
@@ -17,30 +19,39 @@ from ..hrtf.metrics import ild, itd
 from ..hrtf.sh import sht
 from .split import DatasetSubjectSplitPlanner
 
+if TYPE_CHECKING:
+    from .base import BaseDataset
+
 
 class DatasetSampleValueSelector:
+    @staticmethod
     def get_sample_value(
-        self,
-        spec: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
+        dataset: "BaseDataset",
+        spec: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
         descriptor = get_spec_descriptor(spec)
-        return getattr(DatasetSampleValueSelector, descriptor.value_method_name)(self, spec, subject_id, row)
+        value_method = getattr(dataset, descriptor.value_method_name, None)
+        if value_method is not None:
+            return value_method(spec, subject_id, row)
+        return getattr(DatasetSampleValueSelector, descriptor.value_method_name)(dataset, spec, subject_id, row)
 
+    @staticmethod
     def get_mesh_spec_value(
-        self,
+        dataset: "BaseDataset",
         spec: MeshSpec,
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
-        value: object = str(self._state.mesh_paths[subject_id])
+        value: object = str(dataset._state.mesh_paths[subject_id])
         if spec.transform is not None:
             value = spec.transform(value)
         return value
 
+    @staticmethod
     def get_image_spec_value(
-        self,
+        dataset: "BaseDataset",
         spec: ImageSpec,
         subject_id: str,
         row: dict[str, str | int | None],
@@ -55,7 +66,7 @@ class DatasetSampleValueSelector:
         )
         media_key = (subject_id, None, ear)
         values: list[object] = []
-        state = self._state
+        state = dataset._state
         for value in state.image_index[media_key]:
             if spec.transform is not None:
                 value = spec.transform(value)
@@ -67,8 +78,9 @@ class DatasetSampleValueSelector:
             return values[0]
         return values
 
+    @staticmethod
     def get_video_spec_value(
-        self,
+        dataset: "BaseDataset",
         spec: VideoSpec,
         subject_id: str,
         row: dict[str, str | int | None],
@@ -83,7 +95,7 @@ class DatasetSampleValueSelector:
         )
         media_key = (subject_id, None, ear)
         values: list[object] = []
-        state = self._state
+        state = dataset._state
         for value in state.video_index[media_key]:
             if spec.transform is not None:
                 value = spec.transform(value)
@@ -92,8 +104,9 @@ class DatasetSampleValueSelector:
             return values[0]
         return values
 
+    @staticmethod
     def get_hrtf_spec_value(
-        self,
+        dataset: "BaseDataset",
         spec: HRTFSpec,
         subject_id: str,
         row: dict[str, str | int | None],
@@ -102,8 +115,8 @@ class DatasetSampleValueSelector:
         spec_ears = sanitize_ears(spec.ears)
         domain = str(spec.domain).strip().lower()
         signal = str(spec.signal).strip().lower()
-        state = self._state
-        hrtf = self.get_subject_hrtf(subject_id)
+        state = dataset._state
+        hrtf = dataset.get_subject_hrtf(subject_id)
         transformed_hrtf = None
         if spec.transform is not None:
             transform_cache_key = ("hrtf_transform", subject_id, id(spec.transform))
@@ -135,18 +148,24 @@ class DatasetSampleValueSelector:
                 values = tf_values
 
         axis_names = ["position", "ear", sample_axis_name]
-        selected_position_indices = (
-            None
-            if transformed_hrtf is not None
-            else state.spec_position_indices.get(id(spec), state.selected_position_indices)
-        )
+        selected_position_indices = state.spec_position_indices.get(id(spec), state.selected_position_indices)
         if "position" not in spec_index_by:
             position_axis = axis_names.index("position")
             if (
                 selected_position_indices is not None
                 and len(selected_position_indices) != values.shape[position_axis]
             ):
-                values = np.take(values, selected_position_indices, axis=position_axis)
+                if transformed_hrtf is None:
+                    values = np.take(values, selected_position_indices, axis=position_axis)
+                elif state.positions is not None and values.shape[position_axis] == state.positions.shape[0]:
+                    values = np.take(values, selected_position_indices, axis=position_axis)
+                else:
+                    raise ValueError(
+                        "HRTFSpec positions cannot be applied after transform because "
+                        f"the transformed HRTF position axis has {values.shape[position_axis]} values, "
+                        f"but the original dataset has {None if state.positions is None else state.positions.shape[0]} positions "
+                        f"and the spec selected {len(selected_position_indices)} positions"
+                    )
         else:
             position_axis = axis_names.index("position")
             position_index = int(row["position_index"])
@@ -187,17 +206,18 @@ class DatasetSampleValueSelector:
             values = np.squeeze(values, axis=sample_axis)
         return np.asarray(values)
 
+    @staticmethod
     def get_itd_spec_value(
-        self,
+        dataset: "BaseDataset",
         spec: ITDSpec,
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> np.ndarray:
         metric_cache_key = ("itd", subject_id, id(spec))
-        state = self._state
+        state = dataset._state
         value = state.cache.get(metric_cache_key)
         if value is None:
-            hrtf = self.get_subject_hrtf(subject_id)
+            hrtf = dataset.get_subject_hrtf(subject_id)
             value = np.asarray(
                 itd(
                     hrtf.IR,
@@ -220,17 +240,18 @@ class DatasetSampleValueSelector:
             value = spec.transform(value)
         return value
 
+    @staticmethod
     def get_ild_spec_value(
-        self,
+        dataset: "BaseDataset",
         spec: ILDSpec,
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> np.ndarray:
         metric_cache_key = ("ild", subject_id, id(spec))
-        state = self._state
+        state = dataset._state
         value = state.cache.get(metric_cache_key)
         if value is None:
-            hrtf = self.get_subject_hrtf(subject_id)
+            hrtf = dataset.get_subject_hrtf(subject_id)
             value = np.asarray(
                 ild(
                     hrtf.IR,
@@ -257,17 +278,18 @@ class DatasetSampleValueSelector:
             value = spec.transform(value)
         return value
 
+    @staticmethod
     def get_sh_spec_value(
-        self,
+        dataset: "BaseDataset",
         spec: SHSpec,
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> np.ndarray:
         sh_cache_key = ("sh", subject_id, id(spec))
-        state = self._state
+        state = dataset._state
         value = state.cache.get(sh_cache_key)
         if value is None:
-            hrtf = self.get_subject_hrtf(subject_id)
+            hrtf = dataset.get_subject_hrtf(subject_id)
             spec_ears = sanitize_ears(spec.ears)
             sh_ear = "both" if len(spec_ears) == 2 else spec_ears[0][0]
             value = np.asarray(
@@ -312,20 +334,21 @@ class DatasetSampleValueSelector:
             value = spec.transform(value)
         return value
 
+    @staticmethod
     def get_anthropometry_spec_value(
-        self,
+        dataset: "BaseDataset",
         spec: AnthropometrySpec,
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
-        state = self._state
+        state = dataset._state
         rows = state.anthropometry_rows
         mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
             subject_id,
             tuple(state.config.subject_ids),
         )
         try:
-            subject_position = list(state.available_subjects).index(mapped_subject_id)
+            subject_position = list(state.selected_subjects).index(mapped_subject_id)
         except ValueError as exc:
             raise KeyError(f"Anthropometry subject {subject_id!r} was not found") from exc
 
@@ -386,7 +409,7 @@ class DatasetSampleValueSelector:
                 if spec.accessed_by == "row":
                     raw_value = row_values
                 else:
-                    subject_position = list(state.available_subjects).index(mapped_subject_id)
+                    subject_position = list(state.selected_subjects).index(mapped_subject_id)
                     column_keys = tuple(row_values)
                     if subject_position < 0 or subject_position >= len(column_keys):
                         raise IndexError(
@@ -400,6 +423,105 @@ class DatasetSampleValueSelector:
                     }
 
         selector = state.anthropometry_value_selector
+        if selector is not None and callable(selector):
+            raw_value = selector(
+                spec=spec,
+                row=row,
+                value=raw_value,
+            )
+        if spec.transform is not None:
+            raw_value = spec.transform(raw_value)
+        return raw_value
+
+    @staticmethod
+    def get_metadata_spec_value(
+        dataset: "BaseDataset",
+        spec: MetadataSpec,
+        subject_id: str,
+        row: dict[str, str | int | None],
+    ) -> object:
+        state = dataset._state
+        rows = state.metadata_rows
+        mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
+            subject_id,
+            tuple(state.config.subject_ids),
+        )
+        try:
+            subject_position = list(state.selected_subjects).index(mapped_subject_id)
+        except ValueError as exc:
+            raise KeyError(f"Metadata subject {subject_id!r} was not found") from exc
+
+        if not isinstance(rows, dict) or not all(
+            isinstance(value, dict) for value in rows.values()
+        ):
+            matrix_values: object = rows
+            if isinstance(rows, dict):
+                matrix_candidates = {
+                    key: value
+                    for key, value in rows.items()
+                    if not str(key).startswith("__")
+                }
+                if len(matrix_candidates) != 1:
+                    raise ValueError(
+                        "MAT metadata access requires exactly one data matrix variable"
+                    )
+                matrix_values = next(iter(matrix_candidates.values()))
+            matrix = np.asarray(matrix_values)
+            if matrix.ndim < 2:
+                raise ValueError(
+                    "Metadata matrix access requires a two-dimensional value"
+                )
+            if spec.accessed_by == "row":
+                if subject_position < 0 or subject_position >= matrix.shape[0]:
+                    raise IndexError(
+                        f"Metadata row index {subject_position} is out of range for "
+                        f"{matrix.shape[0]} rows"
+                    )
+                raw_value = matrix[subject_position]
+            else:
+                if subject_position < 0 or subject_position >= matrix.shape[1]:
+                    raise IndexError(
+                        f"Metadata column index {subject_position} is out of range for "
+                        f"{matrix.shape[1]} columns"
+                    )
+                raw_value = matrix[:, subject_position]
+        else:
+            if mapped_subject_id not in rows:
+                if spec.accessed_by == "column":
+                    column_values: dict[str, float | str | None] = {}
+                    for row_key, row_values in rows.items():
+                        if not isinstance(row_values, dict):
+                            continue
+                        if mapped_subject_id in row_values:
+                            column_values[row_key] = row_values[mapped_subject_id]
+                    if len(column_values) == 0:
+                        raise KeyError(
+                            f"Metadata subject {subject_id!r} was not found"
+                        )
+                    raw_value = column_values
+                else:
+                    raise KeyError(
+                        f"Metadata subject {subject_id!r} was not found"
+                    )
+            else:
+                row_values = dict(rows[mapped_subject_id])
+                if spec.accessed_by == "row":
+                    raw_value = row_values
+                else:
+                    subject_position = list(state.selected_subjects).index(mapped_subject_id)
+                    column_keys = tuple(row_values)
+                    if subject_position < 0 or subject_position >= len(column_keys):
+                        raise IndexError(
+                            f"Metadata column index {subject_position} is out of range for "
+                            f"{len(column_keys)} columns"
+                        )
+                    column_key = column_keys[subject_position]
+                    raw_value = {
+                        column_subject_id: row_values_by_subject[column_key]
+                        for column_subject_id, row_values_by_subject in rows.items()
+                    }
+
+        selector = state.metadata_value_selector
         if selector is not None and callable(selector):
             raw_value = selector(
                 spec=spec,

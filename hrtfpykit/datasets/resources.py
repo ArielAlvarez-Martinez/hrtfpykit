@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from .config import DatasetConfig
 from .load import load_hrtf
-from .load import load_anthropometry
+from .load import load_table
 from .specs_registry import get_specs, has_specs
 from .sanitize import sanitize_extensions
 from .sanitize import sanitize_grouped_by
@@ -45,6 +45,7 @@ class DatasetResourcesValidator:
             )
         validated_hrtf_paths = {}
         validated_sample_rate = None
+        failed_hrtf_loads: list[tuple[str, Path, Exception]] = []
         for subject_id, path in hrtf_paths.items():
             if not path.exists():
                 warnings.warn(
@@ -60,7 +61,8 @@ class DatasetResourcesValidator:
                     hrtf_paths=hrtf_paths,
                     cache=state.cache,
                 )
-            except Exception:
+            except Exception as exc:
+                failed_hrtf_loads.append((subject_id, path, exc))
                 continue
             current_sample_rate = (
                 None if hrtf.IR.sample_rate is None else float(hrtf.IR.sample_rate)
@@ -74,6 +76,18 @@ class DatasetResourcesValidator:
                     f"and previous subjects use sample_rate={validated_sample_rate}"
                 )
             validated_hrtf_paths[subject_id] = path
+        if len(failed_hrtf_loads) > 0:
+            failure_lines = []
+            for subject_id, path, exc in failed_hrtf_loads[:10]:
+                failure_lines.append(
+                    f"{subject_id}: {path} ({type(exc).__name__}: {exc})"
+                )
+            if len(failed_hrtf_loads) > 10:
+                failure_lines.append(f"... {len(failed_hrtf_loads) - 10} more")
+            raise ValueError(
+                f"{state.name} failed to load {len(failed_hrtf_loads)} HRTF file(s): "
+                + "; ".join(failure_lines)
+            )
         return validated_hrtf_paths
 
     def validate_mesh_resources(self, mesh_summary: dict[str, object]) -> None:
@@ -106,11 +120,13 @@ class DatasetResourcesValidator:
             return
         missing_subject_ids = tuple(summary["missing_subject_ids"])
         if len(missing_subject_ids) > 0:
-            raise ValueError(
-                f"{state.name} image path is incompatible with the selected dataset subjects. "
-                f"Missing subject folders under {image_path}: "
+            warnings.warn(
+                f"{state.name}: {len(missing_subject_ids)} subjects do not have matching image folders/files under "
+                f"{image_path} and will be excluded when image is required "
+                f"("
                 f"{', '.join(str(value) for value in missing_subject_ids[:5])}"
-                f"{', ...' if len(missing_subject_ids) > 5 else ''}"
+                f"{', ...' if len(missing_subject_ids) > 5 else ''})",
+                stacklevel=2,
             )
         if len(set(image_counts.values())) > 1:
             warnings.warn(
@@ -131,11 +147,13 @@ class DatasetResourcesValidator:
             return
         missing_subject_ids = tuple(summary["missing_subject_ids"])
         if len(missing_subject_ids) > 0:
-            raise ValueError(
-                f"{state.name} video path is incompatible with the selected dataset subjects. "
-                f"Missing subject folders under {video_path}: "
+            warnings.warn(
+                f"{state.name}: {len(missing_subject_ids)} subjects do not have matching video folders/files under "
+                f"{video_path} and will be excluded when video is required "
+                f"("
                 f"{', '.join(str(value) for value in missing_subject_ids[:5])}"
-                f"{', ...' if len(missing_subject_ids) > 5 else ''}"
+                f"{', ...' if len(missing_subject_ids) > 5 else ''})",
+                stacklevel=2,
             )
         if len(set(video_counts.values())) > 1:
             warnings.warn(
@@ -164,6 +182,27 @@ class DatasetResourcesValidator:
         if not isinstance(anthropometry_rows, dict):
             raise ValueError(
                 f"{state.name} anthropometry data is invalid: expected a mapping but got {type(anthropometry_rows)!r}"
+            )
+
+    def validate_metadata_resources(
+        self,
+        metadata_path: Path | None,
+        metadata_rows: dict[str, object],
+    ) -> None:
+        state = self._dataset._state
+        if not has_specs(state.specs, resource_name="metadata"):
+            return
+        if metadata_path is None:
+            raise ValueError(
+                f"{state.name} requires a metadata file but none was selected"
+            )
+        if not metadata_path.is_file():
+            raise ValueError(
+                f"{state.name} metadata path is invalid: {metadata_path}"
+            )
+        if not isinstance(metadata_rows, dict):
+            raise ValueError(
+                f"{state.name} metadata data is invalid: expected a mapping but got {type(metadata_rows)!r}"
             )
 
 
@@ -203,10 +242,44 @@ class DatasetResourcesScanner:
         }
 
     @staticmethod
+    def scan_metadata_paths(
+        config: type[DatasetConfig] | DatasetConfig,
+        root: Path,
+        requested_path: Path | None,
+        required: bool,
+    ) -> tuple[Path | None, dict[str, object]]:
+        if config.metadata is None and requested_path is None and not required:
+            return None, {
+                "path": None,
+                "found": False,
+                "subjects": 0,
+                "rows": 0,
+            }
+        metadata_path = requested_path
+        if metadata_path is None and config.metadata is not None:
+            metadata_path = (root / config.metadata.path).expanduser()
+        if metadata_path is None:
+            return None, {
+                "path": None,
+                "found": False,
+                "subjects": 0,
+                "rows": 0,
+            }
+        return metadata_path, {
+            "path": str(metadata_path),
+            "found": metadata_path.is_file(),
+            "subjects": 0,
+            "rows": 0,
+            "extensions": tuple(config.metadata.extensions)
+            if config.metadata is not None and config.metadata.extensions is not None
+            else tuple(),
+        }
+
+    @staticmethod
     def scan_hrtf_paths(
         config: type[DatasetConfig] | DatasetConfig,
         root: Path,
-        variant: str | None,
+        hrtf_variant: str | None,
         excluded_subject_ids: set[str],
         required: bool,
     ) -> tuple[dict[str, Path], dict[str, object] | None]:
@@ -226,7 +299,7 @@ class DatasetResourcesScanner:
         for subject_id in checked_hrtf_subject_ids:
             relative_path = config.hrtf.path_pattern.format(
                 subject_id=subject_id,
-                variant=variant,
+                variant=hrtf_variant,
             )
             candidate = (root / relative_path).expanduser()
             if candidate.is_file():
@@ -238,7 +311,7 @@ class DatasetResourcesScanner:
         )
         return hrtf_paths, {
             "pattern": config.hrtf.path_pattern,
-            "variant": variant,
+            "hrtf_variant": hrtf_variant,
             "checked": len(checked_hrtf_subject_ids),
             "found": len(hrtf_paths),
             "missing": len(missing_hrtf_subject_ids),
@@ -318,6 +391,7 @@ class DatasetResourcesScanner:
         subject_numbers: dict[str, int],
         extensions: tuple[str, ...],
         grouped_by: tuple[str, ...],
+        ears: tuple[str, ...],
         resource_name: str,
     ) -> tuple[
         dict[tuple[str, int | None, str | None], list[str]],
@@ -369,12 +443,11 @@ class DatasetResourcesScanner:
                 ),
                 key=lambda file: sort_key(Path(file)),
             )
-            grouped_paths[(subject_id, None, None)] = subject_files
-            subject_count = len(subject_files)
             if "ear" in grouped_by:
-                for ear in ("left", "right"):
+                ear_files_by_name: dict[str, list[str]] = {}
+                for ear in ears:
                     ear_folder = subject_folder / ear
-                    files = sorted(
+                    ear_files_by_name[ear] = sorted(
                         (
                             str(file)
                             for file in ear_folder.rglob("*")
@@ -382,8 +455,15 @@ class DatasetResourcesScanner:
                         ),
                         key=lambda file: sort_key(Path(file)),
                     )
+                if any(len(files) == 0 for files in ear_files_by_name.values()):
+                    missing_subject_ids.append(subject_id)
+                    continue
+                grouped_paths[(subject_id, None, None)] = subject_files
+                for ear, files in ear_files_by_name.items():
                     grouped_paths[(subject_id, None, ear)] = files
+                subject_count = sum(len(files) for files in ear_files_by_name.values())
             else:
+                grouped_paths[(subject_id, None, None)] = subject_files
                 subject_count = len(subject_files)
             subject_counts[subject_id] = subject_count
         return grouped_paths, subject_counts, tuple(missing_subject_ids)
@@ -395,6 +475,7 @@ class DatasetResourcesScanner:
         subject_numbers: dict[str, int],
         extensions: tuple[str, ...],
         grouped_by: tuple[str, ...],
+        ears: tuple[str, ...],
     ) -> tuple[
         dict[tuple[str, int | None, str | None], list[str]],
         dict[str, int],
@@ -406,6 +487,7 @@ class DatasetResourcesScanner:
             subject_numbers,
             extensions,
             grouped_by,
+            ears,
             "Image",
         )
 
@@ -416,6 +498,7 @@ class DatasetResourcesScanner:
         subject_numbers: dict[str, int],
         extensions: tuple[str, ...],
         grouped_by: tuple[str, ...],
+        ears: tuple[str, ...],
     ) -> tuple[
         dict[tuple[str, int | None, str | None], list[str]],
         dict[str, int],
@@ -427,6 +510,7 @@ class DatasetResourcesScanner:
             subject_numbers,
             extensions,
             grouped_by,
+            ears,
             "Video",
         )
 
@@ -443,6 +527,8 @@ class DatasetResourcesPlan:
     video_counts: dict[str, int]
     anthropometry_path: Path | None
     anthropometry_rows: dict[str, object]
+    metadata_path: Path | None
+    metadata_rows: dict[str, object]
     excluded_subjects: tuple[str, ...]
     subject_numbers: dict[str, int]
     resource_summary: dict[str, object]
@@ -500,6 +586,8 @@ class DatasetResources:
         video_counts = {}
         anthropometry_path = None
         anthropometry_rows = {}
+        metadata_path = None
+        metadata_rows = {}
 
         validator = DatasetResourcesValidator(dataset)
         scanner = DatasetResourcesScanner()
@@ -507,13 +595,14 @@ class DatasetResources:
         has_acoustic_specs = has_specs(state.specs, resource_name="hrtf")
         has_mesh_specs = has_specs(state.specs, resource_name="mesh")
         has_anthro_specs = has_specs(state.specs, resource_name="anthropometry")
+        has_metadata_specs = has_specs(state.specs, resource_name="metadata")
         has_image_specs = has_specs(state.specs, resource_name="image")
         has_video_specs = has_specs(state.specs, resource_name="video")
 
         hrtf_paths, hrtf_summary = scanner.scan_hrtf_paths(
             config=config,
             root=root,
-            variant=state.variant if state.variant is not None else None,
+            hrtf_variant=state.hrtf_variant if state.hrtf_variant is not None else None,
             excluded_subject_ids=excluded_subject_set,
             required=has_acoustic_specs,
         )
@@ -598,13 +687,14 @@ class DatasetResources:
             if anthropometry_path is None or not anthropometry_path.is_file():
                 anthropometry_rows = {}
             else:
-                anthropometry_rows = load_anthropometry(
+                anthropometry_rows = load_table(
                     dataset,
                     path=anthropometry_path,
                     exclude_row=first_anthro_spec.exclude_row,
                     exclude_column=first_anthro_spec.exclude_column,
                     accessed_by=first_anthro_spec.accessed_by,
                     extension=anthropometry_extension,
+                    resource_name="Anthropometry",
                 )
                 anthropometry_summary = resources_summary(
                     checked=1,
@@ -621,6 +711,65 @@ class DatasetResources:
             anthropometry_rows,
         )
 
+        metadata_path, metadata_summary = scanner.scan_metadata_paths(
+            config=config,
+            root=root,
+            requested_path=None,
+            required=has_metadata_specs,
+        )
+        if metadata_summary is None:
+            metadata_summary = resources_summary(
+                checked=0,
+                found=0,
+                missing=0,
+            )
+
+        if has_metadata_specs:
+            metadata_specs = get_specs(state.specs, resource_name="metadata")
+            first_metadata_spec = metadata_specs[0]
+            requested_metadata_path = None if first_metadata_spec.path is None else first_metadata_spec.path
+            resolved_metadata_path = DatasetResources._resolve_optional_path(requested_metadata_path, root)
+            if resolved_metadata_path is not None:
+                metadata_path = resolved_metadata_path
+            metadata_extensions = sanitize_extensions(
+                resource_name="MetadataSpec",
+                extensions=first_metadata_spec.extensions,
+            )
+            if len(metadata_extensions) == 0 and config.metadata is not None:
+                metadata_extensions = sanitize_extensions(
+                    resource_name="MetadataConfig",
+                    extensions=config.metadata.extensions,
+                )
+            metadata_extension = (
+                metadata_extensions[0] if len(metadata_extensions) > 0 else None
+            )
+            if metadata_path is None or not metadata_path.is_file():
+                metadata_rows = {}
+            else:
+                metadata_rows = load_table(
+                    dataset,
+                    path=metadata_path,
+                    exclude_row=first_metadata_spec.exclude_row,
+                    exclude_column=first_metadata_spec.exclude_column,
+                    accessed_by=first_metadata_spec.accessed_by,
+                    extension=metadata_extension,
+                    resource_name="Metadata",
+                )
+                metadata_summary = resources_summary(
+                    checked=1,
+                    found=1,
+                    missing=0,
+                )
+        else:
+            metadata_path = None
+            metadata_rows = {}
+
+        resource_summary["metadata"] = metadata_summary
+        validator.validate_metadata_resources(
+            metadata_path,
+            metadata_rows,
+        )
+
         if has_image_specs:
             image_specs = get_specs(state.specs, resource_name="image")
             first_image_spec = image_specs[0]
@@ -629,6 +778,7 @@ class DatasetResources:
             requested_image_path = DatasetResources._resolve_optional_path(first_image_spec.path, root)
             image_path = requested_image_path
             grouped_by = ("subject",)
+            ears = tuple(ear for ear, _ in state.selected_ears) if len(state.selected_ears) > 0 else ("left", "right")
             if any("ear" in sanitize_grouped_by(spec.grouped_by) for spec in image_specs):
                 grouped_by = ("subject", "ear")
             image_extensions = sanitize_extensions(
@@ -646,6 +796,7 @@ class DatasetResources:
                 subject_numbers=subject_numbers,
                 extensions=image_extensions,
                 grouped_by=grouped_by,
+                ears=ears,
             )
             image_summary = resources_summary(
                 checked=len(resource_subjects),
@@ -670,6 +821,7 @@ class DatasetResources:
             requested_video_path = DatasetResources._resolve_optional_path(first_video_spec.path, root)
             video_path = requested_video_path
             grouped_by = ("subject",)
+            ears = tuple(ear for ear, _ in state.selected_ears) if len(state.selected_ears) > 0 else ("left", "right")
             if any("ear" in sanitize_grouped_by(spec.grouped_by) for spec in video_specs):
                 grouped_by = ("subject", "ear")
             video_extensions = sanitize_extensions(
@@ -687,6 +839,7 @@ class DatasetResources:
                 subject_numbers=subject_numbers,
                 extensions=video_extensions,
                 grouped_by=grouped_by,
+                ears=ears,
             )
             video_summary = resources_summary(
                 checked=len(resource_subjects),
@@ -713,6 +866,8 @@ class DatasetResources:
             video_counts=dict(video_counts),
             anthropometry_path=anthropometry_path,
             anthropometry_rows=dict(anthropometry_rows),
+            metadata_path=metadata_path,
+            metadata_rows=dict(metadata_rows),
             excluded_subjects=tuple(excluded_subjects),
             subject_numbers=dict(subject_numbers),
             resource_summary=dict(resource_summary),

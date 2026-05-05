@@ -27,6 +27,12 @@ class AnthropometryConfig:
 
 
 @dataclass(frozen=True)
+class MetadataConfig:
+    path: str
+    extensions: tuple[str, ...] = (".csv", ".mat")
+
+
+@dataclass(frozen=True)
 class ImageConfig:
     extensions: tuple[str, ...] = (".png",)
 
@@ -50,6 +56,7 @@ class DatasetConfig:
     hrtf: HRTFConfig | None = None
     mesh: MeshConfig | None = None
     anthropometry: AnthropometryConfig | None = None
+    metadata: MetadataConfig | None = None
     image: ImageConfig | None = None
     video: VideoConfig | None = None
     download: DownloadConfig | None = None

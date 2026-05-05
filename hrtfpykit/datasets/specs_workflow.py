@@ -7,6 +7,7 @@ from .specs import (
     ImageSpec,
     ILDSpec,
     ITDSpec,
+    MetadataSpec,
     MeshSpec,
     SHSpec,
     VideoSpec,
@@ -38,15 +39,15 @@ SUPPORTED_MEDIA_GROUPED_BY = (("subject",), ("subject", "ear"))
 @dataclass(frozen=True)
 class DatasetSpecPlan:
     input_specs: tuple[
-        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
+        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
         ...,
     ]
     target_specs: tuple[
-        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
+        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
         ...,
     ]
     specs: tuple[
-        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
+        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
         ...,
     ]
     input_names: tuple[str, ...]
@@ -67,8 +68,8 @@ class DatasetSpecWorkflow:
     def build(
         cls,
         config: type[DatasetConfig] | DatasetConfig,
-        inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None,
-        target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None,
+        inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None,
+        target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None,
     ) -> DatasetSpecPlan:
         input_specs = sanitize_specs(inputs)
         target_specs = sanitize_specs(target)
@@ -154,7 +155,7 @@ class DatasetSpecWorkflow:
                         f"Supported values: {SUPPORTED_MEDIA_GROUPED_BY}"
                     )
             spec.grouped_by = grouped_by
-            if descriptor.resource_name == "anthropometry":
+            if descriptor.resource_name in {"anthropometry", "metadata"}:
                 spec.accessed_by = sanitize_accessed_by(spec.accessed_by)
                 spec.ear = sanitize_ear(spec.ear)
             if bool(spec.ear_one_hot) or bool(spec.ear_index):
@@ -204,7 +205,7 @@ class DatasetSpecWorkflow:
             if len(selected_ears) == 0:
                 for spec in ear_selectable_specs:
                     descriptor = get_spec_descriptor(spec)
-                    if descriptor.resource_name != "anthropometry":
+                    if descriptor.resource_name not in {"anthropometry", "metadata"}:
                         continue
                     if "ear" not in sanitize_grouped_by(spec.grouped_by):
                         continue

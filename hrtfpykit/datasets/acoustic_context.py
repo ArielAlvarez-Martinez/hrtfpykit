@@ -106,7 +106,7 @@ class DatasetAcousticContext:
                 spec_position_indices=(),
             )
 
-        sample_subject_id = state.available_subjects[0]
+        sample_subject_id = state.selected_subjects[0]
         sample_hrtf = dataset.get_subject_hrtf(sample_subject_id)
         sample_rate = (
             None if sample_hrtf.IR.sample_rate is None else float(sample_hrtf.IR.sample_rate)

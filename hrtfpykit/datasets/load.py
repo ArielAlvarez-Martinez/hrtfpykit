@@ -1,7 +1,9 @@
 from pathlib import Path
 from collections.abc import Sequence
 import csv
+import io
 import warnings
+from contextlib import redirect_stdout
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -50,7 +52,11 @@ def load_hrtf(
     loaded_hrtf = selected_cache.get(cache_key)
     if loaded_hrtf is None:
         try:
-            loaded_hrtf = hrtf.load_hrtf(path)
+            if state.verbose:
+                loaded_hrtf = hrtf.load_hrtf(path)
+            else:
+                with redirect_stdout(io.StringIO()):
+                    loaded_hrtf = hrtf.load_hrtf(path)
             if state.dataset_hrtf_transform is not None:
                 loaded_hrtf = state.dataset_hrtf_transform(loaded_hrtf)
                 if not (
@@ -61,22 +67,21 @@ def load_hrtf(
                 ):
                     raise ValueError("dataset_hrtf_transform must return an HRTF object")
         except Exception as exc:
-            warnings.warn(
-                f"{state.name}: subject {mapped_subject_id} HRTF file could not be loaded: {path} ({exc})",
-                stacklevel=2,
-            )
-            raise
+            raise ValueError(
+                f"{state.name}: subject {mapped_subject_id} HRTF file could not be loaded: {path} ({exc})"
+            ) from exc
         selected_cache[cache_key] = loaded_hrtf
     return loaded_hrtf
 
 
-def load_anthropometry(
+def load_table(
     dataset: "BaseDataset",
     path: str | Path,
     extension: str | None = None,
     exclude_row: int | Sequence[int] | None = None,
     exclude_column: int | Sequence[int] | None = None,
     accessed_by: str = "row",
+    resource_name: str = "Table",
 ) -> dict[str, dict[str, float | str | None]] | dict[str, object]:
     state = dataset._state
     if state.config is None:
@@ -97,7 +102,7 @@ def load_anthropometry(
         with mapped_path.open("r", encoding="utf-8-sig", newline="") as file:
             reader = csv.DictReader(file)
             if reader.fieldnames is None or len(reader.fieldnames) == 0:
-                raise ValueError(f"Anthropometry file {mapped_path} does not contain headers")
+                raise ValueError(f"{resource_name} file {mapped_path} does not contain headers")
             fieldnames = tuple(reader.fieldnames)
             if accessed_by == "row":
                 subject_column = fieldnames[0]
@@ -138,7 +143,7 @@ def load_anthropometry(
                     for index in row_indices:
                         if index < 0 or index >= len(row_keys):
                             raise ValueError(
-                                f"Anthropometry row index {index} is out of range for {len(row_keys)} rows"
+                                f"{resource_name} row index {index} is out of range for {len(row_keys)} rows"
                             )
                 selected_row_keys = set(row_indices)
                 rows: dict[str, dict[str, float | str | None]] = {}
@@ -156,7 +161,7 @@ def load_anthropometry(
                         for column_index in column_indices:
                             if column_index < 0 or column_index >= len(column_keys):
                                 raise ValueError(
-                                    f"Anthropometry column index {column_index} is out of range for {len(column_keys)} columns"
+                                    f"{resource_name} column index {column_index} is out of range for {len(column_keys)} columns"
                                 )
                     selected_column_keys = {
                         key
@@ -172,7 +177,7 @@ def load_anthropometry(
 
             subject_columns = tuple(fieldnames[1:]) if len(fieldnames) > 1 else tuple()
             if len(subject_columns) == 0:
-                raise ValueError(f"Anthropometry file {mapped_path} has no columns for subject IDs")
+                raise ValueError(f"{resource_name} file {mapped_path} has no columns for subject IDs")
             recognized_subject_columns: list[tuple[str, str]] = []
             for subject_column in subject_columns:
                 try:
@@ -184,7 +189,7 @@ def load_anthropometry(
                 except ValueError:
                     continue
             if len(recognized_subject_columns) == 0:
-                raise ValueError(f"Anthropometry file {mapped_path} has no recognized subject columns")
+                raise ValueError(f"{resource_name} file {mapped_path} has no recognized subject columns")
 
             rows: dict[str, dict[str, float | str | None]] = {}
             raw_rows: list[tuple[str, dict[str, float | str | None]]] = []
@@ -215,7 +220,7 @@ def load_anthropometry(
                 for index in row_indices:
                     if index < 0 or index >= len(raw_rows):
                         raise ValueError(
-                            f"Anthropometry row index {index} is out of range for {len(raw_rows)} rows"
+                            f"{resource_name} row index {index} is out of range for {len(raw_rows)} rows"
                         )
             column_indices: list[int] = []
             if exclude_column is not None:
@@ -226,7 +231,7 @@ def load_anthropometry(
                 for index in column_indices:
                     if index < 0 or index >= len(recognized_subject_columns):
                         raise ValueError(
-                            f"Anthropometry column index {index} is out of range for {len(recognized_subject_columns)} columns"
+                            f"{resource_name} column index {index} is out of range for {len(recognized_subject_columns)} columns"
                         )
             selected_row_indices = set(row_indices)
             removed_subject_positions = set(column_indices)
@@ -277,5 +282,5 @@ def load_anthropometry(
             }
         return data
     raise ValueError(
-        "Anthropometry extension must be one of: .csv, .mat"
+        f"{resource_name} extension must be one of: .csv, .mat"
     )
