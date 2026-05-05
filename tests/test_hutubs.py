@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from hrtfpykit.datasets import HUTUBS
+from hrtfpykit.datasets.config import HUTUBSConfig
 from hrtfpykit.datasets.specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -29,7 +30,7 @@ IMAGE_ROOT = (
     or os.getenv("HUTUBS_IMAGE_PATH")
     or os.getenv("HUTUBS_IMAGE_ROOT")
 )
-ALL_HUTUBS_SUBJECT_IDS = tuple(HUTUBS.config.subject_ids)
+ALL_HUTUBS_SUBJECT_IDS = tuple(HUTUBSConfig.subject_ids)
 _RUN_FULL_HUTUBS_TESTS = (
     os.getenv("HUTUBS_TEST_FULL", "").strip() == "1"
 )
@@ -615,7 +616,7 @@ def test_hutubs_hrtf_spec_grid(
 
     if expected_workflow_error is not None:
         with pytest.raises((ValueError, TypeError), match=expected_workflow_error):
-            DatasetSpecWorkflow(HUTUBS.config).build(inputs=(spec,), target=())
+            DatasetSpecWorkflow.build(config=HUTUBSConfig, inputs=(spec,), target=())
         return
 
     if expected_dataset_error is not None:
@@ -692,19 +693,19 @@ def test_hutubs_real_dataset_all_combinations(
             pytest.skip(reason=str(exc))
         raise
 
-    assert dataset.dataset_hrtf_variant == dataset_hrtf_variant
-    assert dataset.dataset_available_subjects == _expected_available_subjects(
+    assert dataset.variant == dataset_hrtf_variant
+    assert dataset.available_subjects == _expected_available_subjects(
         inputs,
         target,
     )
     assert len(dataset) > 0
     uses_acoustic = _uses_acoustic_specs(inputs, target)
     if uses_acoustic:
-        assert isinstance(dataset.dataset_sample_rate, float)
-        assert dataset.dataset_positions is not None
+        assert isinstance(dataset.sample_rate, float)
+        assert dataset.positions is not None
     else:
-        assert dataset.dataset_sample_rate is None
-        assert dataset.dataset_positions is None
+        assert dataset.sample_rate is None
+        assert dataset.positions is None
 
     sample = dataset[0]
     assert isinstance(sample, dict)
@@ -745,7 +746,7 @@ def test_hutubs_get_subject_hrtf_uses_selected_subject() -> None:
         inputs=(HRTFSpec(index_by=("subject", "position")),),
         target=(),
     )
-    expected_subject = dataset.dataset_available_subjects[0]
+    expected_subject = dataset.available_subjects[0]
     hrtf = dataset.get_subject_hrtf(expected_subject)
     assert hrtf.IR.values.size > 0
     assert hrtf.Sources is not None
@@ -813,5 +814,5 @@ def test_hutubs_len_matches_subject_count_for_ear_indexed_rows() -> None:
     )
 
     expected_subjects = list(selected_subject_ids)
-    assert dataset.dataset_available_subjects == expected_subjects
+    assert dataset.available_subjects == expected_subjects
     assert len(dataset) == len(expected_subjects) * 2

@@ -7,16 +7,7 @@ from typing import TYPE_CHECKING
 from .config import DatasetConfig
 from .load import load_hrtf
 from .load import load_anthropometry
-from .specs import (
-    AnthropometrySpec,
-    HRTFSpec,
-    ImageSpec,
-    ILDSpec,
-    ITDSpec,
-    MeshSpec,
-    SHSpec,
-    VideoSpec,
-)
+from .specs_registry import get_specs, has_specs
 from .sanitize import sanitize_extensions
 from .sanitize import sanitize_grouped_by
 from .split import DatasetSubjectSplitPlanner
@@ -36,7 +27,7 @@ class DatasetResourcesValidator:
         hrtf_summary: dict[str, object],
     ) -> dict[str, Path]:
         state = self._dataset._state
-        if not any(isinstance(spec, (HRTFSpec, ITDSpec, ILDSpec, SHSpec)) for spec in state.specs):
+        if not has_specs(state.specs, resource_name="hrtf"):
             return hrtf_paths
         missing_hrtf_subject_ids = list(
             hrtf_summary.get(
@@ -87,7 +78,7 @@ class DatasetResourcesValidator:
 
     def validate_mesh_resources(self, mesh_summary: dict[str, object]) -> None:
         state = self._dataset._state
-        if not any(isinstance(spec, MeshSpec) for spec in state.specs):
+        if not has_specs(state.specs, resource_name="mesh"):
             return
         missing_mesh_subject_ids = tuple(
             mesh_summary.get(
@@ -111,7 +102,7 @@ class DatasetResourcesValidator:
         image_counts: dict[str, int],
     ) -> None:
         state = self._dataset._state
-        if not any(isinstance(spec, ImageSpec) for spec in state.specs):
+        if not has_specs(state.specs, resource_name="image"):
             return
         missing_subject_ids = tuple(summary["missing_subject_ids"])
         if len(missing_subject_ids) > 0:
@@ -136,7 +127,7 @@ class DatasetResourcesValidator:
         video_counts: dict[str, int],
     ) -> None:
         state = self._dataset._state
-        if not any(isinstance(spec, VideoSpec) for spec in state.specs):
+        if not has_specs(state.specs, resource_name="video"):
             return
         missing_subject_ids = tuple(summary["missing_subject_ids"])
         if len(missing_subject_ids) > 0:
@@ -160,7 +151,7 @@ class DatasetResourcesValidator:
         anthropometry_rows: dict[str, object],
     ) -> None:
         state = self._dataset._state
-        if not any(isinstance(spec, AnthropometrySpec) for spec in state.specs):
+        if not has_specs(state.specs, resource_name="anthropometry"):
             return
         if anthropometry_path is None:
             raise ValueError(
@@ -513,11 +504,11 @@ class DatasetResources:
         validator = DatasetResourcesValidator(dataset)
         scanner = DatasetResourcesScanner()
 
-        has_acoustic_specs = any(isinstance(spec, (HRTFSpec, ITDSpec, ILDSpec, SHSpec)) for spec in state.specs)
-        has_mesh_specs = any(isinstance(spec, MeshSpec) for spec in state.specs)
-        has_anthro_specs = any(isinstance(spec, AnthropometrySpec) for spec in state.specs)
-        has_image_specs = any(isinstance(spec, ImageSpec) for spec in state.specs)
-        has_video_specs = any(isinstance(spec, VideoSpec) for spec in state.specs)
+        has_acoustic_specs = has_specs(state.specs, resource_name="hrtf")
+        has_mesh_specs = has_specs(state.specs, resource_name="mesh")
+        has_anthro_specs = has_specs(state.specs, resource_name="anthropometry")
+        has_image_specs = has_specs(state.specs, resource_name="image")
+        has_video_specs = has_specs(state.specs, resource_name="video")
 
         hrtf_paths, hrtf_summary = scanner.scan_hrtf_paths(
             config=config,
@@ -538,7 +529,7 @@ class DatasetResources:
 
         if has_mesh_specs:
             mesh_root_path = root
-            mesh_specs = tuple(spec for spec in state.specs if isinstance(spec, MeshSpec))
+            mesh_specs = get_specs(state.specs, resource_name="mesh")
             first_mesh_spec = mesh_specs[0]
             requested_mesh_path = None if first_mesh_spec.path is None else first_mesh_spec.path
             resolved_mesh_path = DatasetResources._resolve_optional_path(requested_mesh_path, root)
@@ -586,7 +577,7 @@ class DatasetResources:
             )
 
         if has_anthro_specs:
-            anthropometry_specs = tuple(spec for spec in state.specs if isinstance(spec, AnthropometrySpec))
+            anthropometry_specs = get_specs(state.specs, resource_name="anthropometry")
             first_anthro_spec = anthropometry_specs[0]
             requested_anthro_path = None if first_anthro_spec.path is None else first_anthro_spec.path
             resolved_anthro_path = DatasetResources._resolve_optional_path(requested_anthro_path, root)
@@ -631,7 +622,7 @@ class DatasetResources:
         )
 
         if has_image_specs:
-            image_specs = tuple(spec for spec in state.specs if isinstance(spec, ImageSpec))
+            image_specs = get_specs(state.specs, resource_name="image")
             first_image_spec = image_specs[0]
             if first_image_spec.path is None:
                 raise ValueError("ImageSpec requires a path")
@@ -672,7 +663,7 @@ class DatasetResources:
             resource_summary["image"] = resources_summary()
 
         if has_video_specs:
-            video_specs = tuple(spec for spec in state.specs if isinstance(spec, VideoSpec))
+            video_specs = get_specs(state.specs, resource_name="video")
             first_video_spec = video_specs[0]
             if first_video_spec.path is None:
                 raise ValueError("VideoSpec requires a path")

@@ -11,6 +11,7 @@ from .specs import (
     SHSpec,
     VideoSpec,
 )
+from .specs_registry import get_spec_descriptor
 from ..hrtf.dsp import imag, magnitude, magnitude_db, phase, real
 from ..hrtf.metrics import ild, itd
 from ..hrtf.sh import sht
@@ -24,27 +25,19 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
-        state = self._state
-        if isinstance(spec, HRTFSpec):
-            return DatasetSampleValueSelector.get_hrtf_spec_value(self, spec, subject_id, row)
-        if isinstance(spec, ITDSpec):
-            return DatasetSampleValueSelector.get_itd_spec_value(self, spec, subject_id, row)
-        if isinstance(spec, ILDSpec):
-            return DatasetSampleValueSelector.get_ild_spec_value(self, spec, subject_id, row)
-        if isinstance(spec, SHSpec):
-            return DatasetSampleValueSelector.get_sh_spec_value(self, spec, subject_id, row)
-        if isinstance(spec, MeshSpec):
-            value: object = str(state.mesh_paths[subject_id])
-            if spec.transform is not None:
-                value = spec.transform(value)
-            return value
-        if isinstance(spec, AnthropometrySpec):
-            return DatasetSampleValueSelector.get_anthropometry_spec_value(self, spec, subject_id, row)
-        if isinstance(spec, ImageSpec):
-            return DatasetSampleValueSelector.get_image_spec_value(self, spec, subject_id, row)
-        if isinstance(spec, VideoSpec):
-            return DatasetSampleValueSelector.get_video_spec_value(self, spec, subject_id, row)
-        raise TypeError(f"Unsupported dataset spec: {type(spec)!r}")
+        descriptor = get_spec_descriptor(spec)
+        return getattr(DatasetSampleValueSelector, descriptor.value_method_name)(self, spec, subject_id, row)
+
+    def get_mesh_spec_value(
+        self,
+        spec: MeshSpec,
+        subject_id: str,
+        row: dict[str, str | int | None],
+    ) -> object:
+        value: object = str(self._state.mesh_paths[subject_id])
+        if spec.transform is not None:
+            value = spec.transform(value)
+        return value
 
     def get_image_spec_value(
         self,

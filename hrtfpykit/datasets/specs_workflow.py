@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import cast
 
 from .specs import (
     AnthropometrySpec,
@@ -11,6 +10,15 @@ from .specs import (
     MeshSpec,
     SHSpec,
     VideoSpec,
+)
+from .specs_registry import (
+    SPEC_DESCRIPTORS,
+    get_axis_compatibility_hint,
+    get_flag_compatibility_hint,
+    get_spec_descriptor,
+    get_spec_name,
+    get_specs,
+    get_supported_index,
 )
 from .sanitize import (
     sanitize_accessed_by,
@@ -67,82 +75,38 @@ class DatasetSpecWorkflow:
         specs = input_specs + target_specs
         if len(specs) == 0:
             raise ValueError("Dataset requires at least one dataset spec in inputs or target")
+        indexed_specs = get_specs(specs, indexed=True)
+        grouped_specs = get_specs(specs, grouped=True)
+        position_selectable_specs = get_specs(specs, position_selectable=True)
+        ear_selectable_specs = get_specs(specs, ear_selectable=True)
 
-        for spec_type, resource_name in (
-            (AnthropometrySpec, "anthropometry"),
-            (ImageSpec, "image"),
-            (VideoSpec, "video"),
-            (MeshSpec, "mesh"),
-        ):
+        for descriptor in SPEC_DESCRIPTORS:
+            if not descriptor.path_based:
+                continue
             explicit_paths = tuple(
                 str(spec.path)
                 for spec in specs
-                if isinstance(spec, spec_type) and getattr(spec, "path", None) is not None
+                if isinstance(spec, descriptor.spec_type) and getattr(spec, "path", None) is not None
             )
             if len(set(explicit_paths)) > 1:
                 raise ValueError(
-                    f"{resource_name} specs must not define different paths in the same dataset"
+                    f"{descriptor.resource_name} specs must not define different paths in the same dataset"
                 )
 
         dataset_index_by = None
         dataset_index_by_spec: str | None = None
-        for spec in cls.get_indexed_specs(specs):
+        for spec in indexed_specs:
             spec_index_by = sanitize_index_by(spec.index_by)
             spec_name = cls.get_spec_name(spec)
             spec_axes = set(spec_index_by[1:])
-            if isinstance(spec, HRTFSpec):
-                domain = str(spec.domain).strip().lower()
-                supported_axes = {"position", "ear", "samples"} if domain == "time" else {"position", "ear", "frequency"}
-                supported_index_by = (
-                    "('subject',), ('subject', 'position'), ('subject', 'ear'), "
-                    "('subject', 'samples'), ('subject', 'position', 'ear'), "
-                    "('subject', 'position', 'samples'), ('subject', 'ear', 'samples'), "
-                    "('subject', 'position', 'ear', 'samples')"
-                ) if domain == "time" else (
-                    "('subject',), ('subject', 'position'), ('subject', 'ear'), "
-                    "('subject', 'frequency'), ('subject', 'position', 'ear'), "
-                    "('subject', 'position', 'frequency'), ('subject', 'ear', 'frequency'), "
-                    "('subject', 'position', 'ear', 'frequency')"
-                )
-            elif isinstance(spec, ITDSpec):
-                supported_axes = {"position"}
-                supported_index_by = "('subject',), ('subject', 'position')"
-            elif isinstance(spec, ILDSpec):
-                supported_axes = {"position"}
-                if str(spec.mode).strip().lower() == "frequency-dependent":
-                    supported_axes.add("frequency")
-                    supported_index_by = (
-                        "('subject',), ('subject', 'position'), ('subject', 'frequency'), "
-                        "('subject', 'position', 'frequency')"
-                    )
-                else:
-                    supported_index_by = "('subject',), ('subject', 'position')"
-            elif isinstance(spec, SHSpec):
-                supported_axes = {"ear", "frequency"}
-                supported_index_by = (
-                    "('subject',), ('subject', 'ear'), ('subject', 'frequency'), "
-                    "('subject', 'ear', 'frequency')"
-                )
-            else:
-                supported_axes = set()
-                supported_index_by = "()"
+            supported_axes, supported_index_by = get_supported_index(spec)
 
             unsupported_axes = sorted(spec_axes - supported_axes)
             if len(unsupported_axes) > 0:
-                compatibility_hint = ""
-                if isinstance(spec, HRTFSpec):
-                    domain = str(spec.domain).strip().lower()
-                    if "frequency" in unsupported_axes and domain == "time":
-                        compatibility_hint = (
-                            " In HRTFSpec, the 'frequency' axis is available only when domain='frequency'."
-                        )
-                    elif "samples" in unsupported_axes and domain == "frequency":
-                        compatibility_hint = (
-                            " In HRTFSpec, the 'samples' axis is available only when domain='time'."
-                        )
-                elif isinstance(spec, ILDSpec):
-                    if "frequency" in unsupported_axes and str(spec.mode).strip().lower() != "frequency-dependent":
-                        compatibility_hint = " In ILDSpec, enable frequency indexing by setting mode='frequency-dependent'."
+                compatibility_hint = "".join(
+                    get_axis_compatibility_hint(spec, axis_name)
+                    for axis_name in unsupported_axes
+                )
 
                 raise ValueError(
                     f"{type(spec).__name__} index_by={spec_index_by!r} uses unsupported axes: "
@@ -163,22 +127,7 @@ class DatasetSpecWorkflow:
                 ("sample_index", "samples"),
             ):
                 if bool(getattr(spec, flag_name, False)) and axis_name not in spec_index_by:
-                    compatibility_hint = ""
-                    if isinstance(spec, HRTFSpec):
-                        domain = str(spec.domain).strip().lower()
-                        if axis_name == "frequency" and domain == "time":
-                            compatibility_hint = (
-                                " In HRTFSpec, set domain='frequency' to use frequency-indexed specs."
-                            )
-                        elif axis_name == "samples" and domain == "frequency":
-                            compatibility_hint = (
-                                " In HRTFSpec, set domain='time' to use sample-indexed specs."
-                            )
-                    elif isinstance(spec, ILDSpec):
-                        if axis_name == "frequency":
-                            compatibility_hint = (
-                                " In ILDSpec, set mode='frequency-dependent' to use frequency indexing."
-                            )
+                    compatibility_hint = get_flag_compatibility_hint(spec, axis_name)
 
                     raise ValueError(
                         f"{type(spec).__name__}.{flag_name} requires index_by to include {axis_name!r}. "
@@ -195,16 +144,17 @@ class DatasetSpecWorkflow:
                     "Pick one index_by for the full dataset."
                 )
 
-        for spec in cls.filter_specs((ImageSpec, VideoSpec, AnthropometrySpec), specs):
+        for spec in grouped_specs:
+            descriptor = get_spec_descriptor(spec)
             grouped_by = sanitize_grouped_by(spec.grouped_by)
-            if isinstance(spec, (ImageSpec, VideoSpec)):
+            if descriptor.media:
                 if grouped_by not in SUPPORTED_MEDIA_GROUPED_BY:
                     raise ValueError(
                         f"{type(spec).__name__} grouped_by={grouped_by!r} is not supported. "
                         f"Supported values: {SUPPORTED_MEDIA_GROUPED_BY}"
                     )
             spec.grouped_by = grouped_by
-            if isinstance(spec, AnthropometrySpec):
+            if descriptor.resource_name == "anthropometry":
                 spec.accessed_by = sanitize_accessed_by(spec.accessed_by)
                 spec.ear = sanitize_ear(spec.ear)
             if bool(spec.ear_one_hot) or bool(spec.ear_index):
@@ -217,15 +167,13 @@ class DatasetSpecWorkflow:
         input_names = tuple(cls.get_spec_name(spec) for spec in input_specs)
         target_names = tuple(cls.get_spec_name(spec) for spec in target_specs)
 
-        indexed_specs = cls.get_indexed_specs(specs)
         index_by = ("subject",) if len(indexed_specs) == 0 else sanitize_index_by(indexed_specs[0].index_by)
-        media_specs = cls.filter_specs((ImageSpec, VideoSpec, AnthropometrySpec), specs)
         if index_by == ("subject",) and any(
-            "ear" in sanitize_grouped_by(spec.grouped_by) for spec in media_specs
+            "ear" in sanitize_grouped_by(spec.grouped_by) for spec in grouped_specs
         ):
             index_by = ("subject", "ear")
         if "ear" not in index_by:
-            for spec in media_specs:
+            for spec in grouped_specs:
                 grouped_by = sanitize_grouped_by(spec.grouped_by)
                 if "ear" in grouped_by:
                     raise ValueError(
@@ -238,11 +186,11 @@ class DatasetSpecWorkflow:
 
         selected_ears: tuple[tuple[str, int], ...] = tuple()
         if "ear" in index_by:
-            ear_specs = cls.filter_specs((HRTFSpec, SHSpec, AnthropometrySpec), specs)
             for spec in indexed_specs:
                 if "ear" not in sanitize_index_by(spec.index_by):
                     continue
-                if isinstance(spec, (HRTFSpec, SHSpec)):
+                descriptor = get_spec_descriptor(spec)
+                if descriptor.ear_selectable:
                     spec_ears = tuple(sanitize_ears(spec.ears))
                 else:
                     continue
@@ -254,8 +202,9 @@ class DatasetSpecWorkflow:
                         f"Expected {selected_ears!r}, got {spec_ears!r} for {type(spec).__name__}"
                     )
             if len(selected_ears) == 0:
-                for spec in ear_specs:
-                    if not isinstance(spec, AnthropometrySpec):
+                for spec in ear_selectable_specs:
+                    descriptor = get_spec_descriptor(spec)
+                    if descriptor.resource_name != "anthropometry":
                         continue
                     if "ear" not in sanitize_grouped_by(spec.grouped_by):
                         continue
@@ -279,75 +228,44 @@ class DatasetSpecWorkflow:
             selected_ears=selected_ears,
             position_one_hot=any(
                 bool(spec.position_one_hot)
-                for spec in cls.filter_specs((HRTFSpec, ITDSpec, ILDSpec), specs)
+                for spec in position_selectable_specs
             ),
             position_index=any(
                 bool(spec.position_index)
-                for spec in cls.filter_specs((HRTFSpec, ITDSpec, ILDSpec), specs)
+                for spec in position_selectable_specs
             ),
             frequency_one_hot=any(
                 bool(spec.frequency_one_hot)
-                for spec in cls.filter_specs((HRTFSpec, ILDSpec, SHSpec), specs)
+                for spec in indexed_specs
+                if "frequency" in get_supported_index(spec)[0]
             ),
             frequency_index=any(
                 bool(spec.frequency_index)
-                for spec in cls.filter_specs((HRTFSpec, ILDSpec, SHSpec), specs)
+                for spec in indexed_specs
+                if "frequency" in get_supported_index(spec)[0]
             ),
-            sample_one_hot=any(bool(spec.sample_one_hot) for spec in cls.filter_specs((HRTFSpec,), specs)),
-            sample_index=any(bool(spec.sample_index) for spec in cls.filter_specs((HRTFSpec,), specs)),
+            sample_one_hot=any(
+                bool(spec.sample_one_hot)
+                for spec in indexed_specs
+                if "samples" in get_supported_index(spec)[0]
+            ),
+            sample_index=any(
+                bool(spec.sample_index)
+                for spec in indexed_specs
+                if "samples" in get_supported_index(spec)[0]
+            ),
             ear_one_hot=any(
                 bool(spec.ear_one_hot)
-                for spec in cls.filter_specs((HRTFSpec, SHSpec, ImageSpec, VideoSpec, AnthropometrySpec), specs)
+                for spec in ear_selectable_specs
             ),
             ear_index=any(
                 bool(spec.ear_index)
-                for spec in cls.filter_specs((HRTFSpec, SHSpec, ImageSpec, VideoSpec, AnthropometrySpec), specs)
+                for spec in ear_selectable_specs
             ),
         )
-
-
-    @staticmethod
-    def get_indexed_specs(
-        specs: tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...],
-    ) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec, ...]:
-        return cast(
-            tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec, ...],
-            tuple(
-                spec for spec in specs if isinstance(spec, (HRTFSpec, ITDSpec, ILDSpec, SHSpec))
-            ),
-        )
-
-    @staticmethod
-    def filter_specs(
-        spec_types: type[object] | tuple[type[object], ...],
-        specs: tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...],
-    ) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]:
-        return tuple(spec for spec in specs if isinstance(spec, spec_types))
 
     @staticmethod
     def get_spec_name(
         spec: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
     ) -> str:
-        explicit_name = getattr(spec, "name", None)
-        if explicit_name is not None:
-            name = str(explicit_name).strip()
-            if name == "":
-                raise ValueError("Dataset spec name must not be empty")
-            return name
-        if isinstance(spec, HRTFSpec):
-            return "hrtf"
-        if isinstance(spec, ITDSpec):
-            return "itd"
-        if isinstance(spec, ILDSpec):
-            return "ild"
-        if isinstance(spec, SHSpec):
-            return "sh"
-        if isinstance(spec, MeshSpec):
-            return "mesh"
-        if isinstance(spec, AnthropometrySpec):
-            return "anthropometry"
-        if isinstance(spec, ImageSpec):
-            return "image"
-        if isinstance(spec, VideoSpec):
-            return "video"
-        raise TypeError(f"Unsupported dataset spec: {type(spec)!r}")
+        return get_spec_name(spec)

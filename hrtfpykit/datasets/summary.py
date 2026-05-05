@@ -1,13 +1,4 @@
-from .specs import (
-    AnthropometrySpec,
-    HRTFSpec,
-    ImageSpec,
-    ILDSpec,
-    ITDSpec,
-    MeshSpec,
-    SHSpec,
-    VideoSpec,
-)
+from .specs_registry import has_specs
 
 
 def _summary_title(text: str, width: int = 54, marker: str = "=") -> str:
@@ -42,11 +33,11 @@ def resources_summary(
 
     state = dataset._state
     used_resource_specs = {
-        "hrtf": any(isinstance(spec, (HRTFSpec, ITDSpec, ILDSpec, SHSpec)) for spec in state.specs),
-        "mesh": any(isinstance(spec, MeshSpec) for spec in state.specs),
-        "anthropometry": any(isinstance(spec, AnthropometrySpec) for spec in state.specs),
-        "image": any(isinstance(spec, ImageSpec) for spec in state.specs),
-        "video": any(isinstance(spec, VideoSpec) for spec in state.specs),
+        "hrtf": has_specs(state.specs, resource_name="hrtf"),
+        "mesh": has_specs(state.specs, resource_name="mesh"),
+        "anthropometry": has_specs(state.specs, resource_name="anthropometry"),
+        "image": has_specs(state.specs, resource_name="image"),
+        "video": has_specs(state.specs, resource_name="video"),
     }
     if len(state.resource_summary) == 0:
         return f"{_summary_title('DATASET RESOURCES SUMMARY')}\n  none"

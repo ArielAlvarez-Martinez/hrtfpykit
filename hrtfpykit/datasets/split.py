@@ -5,7 +5,7 @@ import re
 import numpy as np
 from typing import TYPE_CHECKING
 
-from .specs import HRTFSpec, ITDSpec, ILDSpec, SHSpec, MeshSpec, AnthropometrySpec, ImageSpec, VideoSpec
+from .specs_registry import has_specs
 
 if TYPE_CHECKING:
     from .base import BaseDataset
@@ -172,11 +172,11 @@ class DatasetSubjectSplitPlanner:
         if config is None:
             raise ValueError("Dataset config is not initialized")
         resource_subjects, _ = DatasetSubjectSplitPlanner.prepare_subject_scope(dataset)
-        has_acoustic_specs = any(isinstance(spec, (HRTFSpec, ITDSpec, ILDSpec, SHSpec)) for spec in state.specs)
-        has_mesh_specs = any(isinstance(spec, MeshSpec) for spec in state.specs)
-        has_anthro_specs = any(isinstance(spec, AnthropometrySpec) for spec in state.specs)
-        has_image_specs = any(isinstance(spec, ImageSpec) for spec in state.specs)
-        has_video_specs = any(isinstance(spec, VideoSpec) for spec in state.specs)
+        has_acoustic_specs = has_specs(state.specs, resource_name="hrtf")
+        has_mesh_specs = has_specs(state.specs, resource_name="mesh")
+        has_anthro_specs = has_specs(state.specs, resource_name="anthropometry")
+        has_image_specs = has_specs(state.specs, resource_name="image")
+        has_video_specs = has_specs(state.specs, resource_name="video")
         required_subject_sets: list[set[str]] = []
         if has_acoustic_specs:
             required_subject_sets.append(set(state.hrtf_paths))
