@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from .checksums import HUTUBS_CHECKSUMS
+from .checksums import HUTUBS_CHECKSUMS, SONICOM_CHECKSUMS
 
 
 @dataclass(frozen=True)
@@ -175,5 +175,5 @@ class SONICOMConfig(DatasetConfig):
     download: DownloadConfig | None = DownloadConfig(
         base_url="https://transfer.ic.ac.uk:9090/2022_SONICOM-HRTF-DATASET",
         available_resources=("metadata", "hrtf", "mesh"),
-        checksums=None,
+        checksums=SONICOM_CHECKSUMS,
     )

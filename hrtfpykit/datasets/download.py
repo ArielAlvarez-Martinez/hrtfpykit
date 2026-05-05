@@ -146,6 +146,7 @@ class BaseDownload:
         relative_path: str,
         hrtf_type: str | None = None,
         hrtf_version: str | None = None,
+        hrtf_sample_rate: str | int | None = None,
     ) -> str | None:
         if self.config.download is None or self.config.download.checksums is None:
             return None
@@ -165,7 +166,17 @@ class BaseDownload:
                 version_checksums = type_checksums.get(hrtf_version)
                 if not isinstance(version_checksums, dict):
                     raise ValueError("HRTF version checksums must be a filename dictionary")
-                checksum = version_checksums.get(relative_path)
+                sample_rate_checksums = None
+                if hrtf_sample_rate is not None:
+                    sample_rate_checksums = version_checksums.get(hrtf_sample_rate)
+                    if sample_rate_checksums is None:
+                        sample_rate_checksums = version_checksums.get(str(hrtf_sample_rate))
+                if sample_rate_checksums is not None:
+                    if not isinstance(sample_rate_checksums, dict):
+                        raise ValueError("HRTF sample-rate checksums must be a filename dictionary")
+                    checksum = sample_rate_checksums.get(relative_path)
+                else:
+                    checksum = version_checksums.get(relative_path)
             else:
                 if not isinstance(type_checksums, dict):
                     raise ValueError("HRTF type checksums must be a filename dictionary")
@@ -358,6 +369,7 @@ class BaseDownload:
                                 relative_path,
                                 hrtf_type=hrtf_type,
                                 hrtf_version=None if hrtf_version is None else str(hrtf_version),
+                                hrtf_sample_rate=sample_rate_value,
                             )
                             download_jobs.append(
                                 {

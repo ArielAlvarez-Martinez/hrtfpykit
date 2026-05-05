@@ -1,4 +1,5 @@
 from .hutubs import HUTUBS
+from .sonicom import SONICOM
 from .specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -24,4 +25,5 @@ __all__ = [
     "VideoSpec",
     "HRTFTransform",
     "HUTUBS",
+    "SONICOM",
 ]
