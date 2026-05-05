@@ -19,35 +19,40 @@ def load_hrtf(
     dataset: "BaseDataset",
     subject_id: str | int,
     subject_ids: tuple[str, ...] | None = None,
+    hrtf_paths: dict[str, Path] | None = None,
+    cache: dict[object, object] | None = None,
 ) -> "HRTF":
+    state = dataset._state
     if subject_ids is None:
-        subject_ids = tuple(dataset._subject_ids)
-    if dataset._config is None:
+        subject_ids = tuple(state.available_subjects)
+    if state.config is None:
         raise ValueError("Dataset config is not initialized")
     mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
         subject_id,
         subject_ids,
     )
-    if mapped_subject_id not in dataset._hrtf_paths:
+    selected_hrtf_paths = state.hrtf_paths if hrtf_paths is None else hrtf_paths
+    selected_cache = state.cache if cache is None else cache
+    if mapped_subject_id not in selected_hrtf_paths:
         raise KeyError(
             f"Subject {subject_id!r} mapped to {mapped_subject_id!r} but does not have an available HRTF file"
         )
-    path = dataset._hrtf_paths[mapped_subject_id]
+    path = selected_hrtf_paths[mapped_subject_id]
     if not path.exists():
         warnings.warn(
-            f"{dataset._name}: subject {mapped_subject_id} HRTF path is missing: {path}",
+            f"{state.name}: subject {mapped_subject_id} HRTF path is missing: {path}",
             stacklevel=2,
         )
         raise FileNotFoundError(
             f"HRTF path is missing for subject {mapped_subject_id}: {path}"
         )
     cache_key = ("hrtf", mapped_subject_id)
-    loaded_hrtf = dataset._cache.get(cache_key)
+    loaded_hrtf = selected_cache.get(cache_key)
     if loaded_hrtf is None:
         try:
             loaded_hrtf = hrtf.load_hrtf(path)
-            if dataset._dataset_hrtf_transform is not None:
-                loaded_hrtf = dataset._dataset_hrtf_transform(loaded_hrtf)
+            if state.dataset_hrtf_transform is not None:
+                loaded_hrtf = state.dataset_hrtf_transform(loaded_hrtf)
                 if not (
                     hasattr(loaded_hrtf, "IR")
                     and hasattr(loaded_hrtf, "TF")
@@ -57,11 +62,11 @@ def load_hrtf(
                     raise ValueError("dataset_hrtf_transform must return an HRTF object")
         except Exception as exc:
             warnings.warn(
-                f"{dataset._name}: subject {mapped_subject_id} HRTF file could not be loaded: {path} ({exc})",
+                f"{state.name}: subject {mapped_subject_id} HRTF file could not be loaded: {path} ({exc})",
                 stacklevel=2,
             )
             raise
-        dataset._cache[cache_key] = loaded_hrtf
+        selected_cache[cache_key] = loaded_hrtf
     return loaded_hrtf
 
 
@@ -73,12 +78,13 @@ def load_anthropometry(
     exclude_column: int | Sequence[int] | None = None,
     accessed_by: str = "row",
 ) -> dict[str, dict[str, float | str | None]] | dict[str, object]:
-    if dataset._config is None:
+    state = dataset._state
+    if state.config is None:
         raise ValueError("Dataset config is not initialized")
     accessed_by = str(accessed_by).strip().lower()
     if accessed_by not in {"row", "column"}:
         raise ValueError("accessed_by must be 'row' or 'column'")
-    dataset_subject_ids = tuple(dataset._config.subject_ids)
+    dataset_subject_ids = tuple(state.config.subject_ids)
     mapped_path = Path(path).expanduser()
     mapped_extension = (
         mapped_path.suffix.lower()

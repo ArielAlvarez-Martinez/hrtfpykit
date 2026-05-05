@@ -13,8 +13,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class DatasetSubjectSplitPlan:
-    available_subject_ids: tuple[str, ...]
-    subject_ids: tuple[str, ...]
+    available_subjects: tuple[str, ...]
     split: str
     split_ratio: tuple[float, float, float]
     split_seed: int
@@ -101,22 +100,21 @@ class DatasetSubjectSplitPlanner:
     def prepare_subject_scope(
         dataset: "BaseDataset",
     ) -> tuple[tuple[str, ...], dict[str, int]]:
-        config = dataset._config
+        state = dataset._state
+        config = state.config
         if config is None:
             raise ValueError("Dataset config is not initialized")
-        excluded_subject_ids = set(dataset._exclude_subject_ids)
-        sorted_subject_ids = tuple(DatasetSubjectSplitPlanner.sort_subject_ids(config.subject_ids))
-        available_subject_ids = tuple(
+        excluded_subjects = set(state.excluded_subjects)
+        sorted_subjects = tuple(DatasetSubjectSplitPlanner.sort_subject_ids(config.subject_ids))
+        available_subjects = tuple(
             subject_id
-            for subject_id in sorted_subject_ids
-            if subject_id not in excluded_subject_ids
+            for subject_id in sorted_subjects
+            if subject_id not in excluded_subjects
         )
         subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
-            sorted_subject_ids
+            sorted_subjects
         )
-        dataset._included_subject_ids = available_subject_ids
-        dataset._subject_numbers = subject_numbers
-        return available_subject_ids, subject_numbers
+        return available_subjects, subject_numbers
 
     @staticmethod
     def split_subject_ids(
@@ -169,25 +167,31 @@ class DatasetSubjectSplitPlanner:
         split_ratio: tuple[float, float, float],
         split_seed: int,
     ) -> DatasetSubjectSplitPlan:
-        config = dataset._config
+        state = dataset._state
+        config = state.config
         if config is None:
             raise ValueError("Dataset config is not initialized")
-        DatasetSubjectSplitPlanner.prepare_subject_scope(dataset)
+        resource_subjects, _ = DatasetSubjectSplitPlanner.prepare_subject_scope(dataset)
+        has_acoustic_specs = any(isinstance(spec, (HRTFSpec, ITDSpec, ILDSpec, SHSpec)) for spec in state.specs)
+        has_mesh_specs = any(isinstance(spec, MeshSpec) for spec in state.specs)
+        has_anthro_specs = any(isinstance(spec, AnthropometrySpec) for spec in state.specs)
+        has_image_specs = any(isinstance(spec, ImageSpec) for spec in state.specs)
+        has_video_specs = any(isinstance(spec, VideoSpec) for spec in state.specs)
         required_subject_sets: list[set[str]] = []
-        if len(dataset._get_specs((HRTFSpec, ITDSpec, ILDSpec, SHSpec))) > 0:
-            required_subject_sets.append(set(dataset._hrtf_paths))
-        if len(dataset._get_specs(MeshSpec)) > 0:
-            required_subject_sets.append(set(dataset._mesh_paths))
-        if len(dataset._get_specs(AnthropometrySpec)) > 0:
-            required_subject_sets.append(set(dataset._anthropometry_rows))
-        if len(dataset._get_specs(ImageSpec)) > 0:
-            required_subject_sets.append({key[0] for key in dataset._image_index})
-        if len(dataset._get_specs(VideoSpec)) > 0:
-            required_subject_sets.append({key[0] for key in dataset._video_index})
+        if has_acoustic_specs:
+            required_subject_sets.append(set(state.hrtf_paths))
+        if has_mesh_specs:
+            required_subject_sets.append(set(state.mesh_paths))
+        if has_anthro_specs:
+            required_subject_sets.append(set(state.anthropometry_rows))
+        if has_image_specs:
+            required_subject_sets.append({key[0] for key in state.image_index})
+        if has_video_specs:
+            required_subject_sets.append({key[0] for key in state.video_index})
 
         if len(required_subject_sets) == 0:
             subject_ids = DatasetSubjectSplitPlanner.sort_subject_ids(
-                list(dataset._included_subject_ids)
+                list(resource_subjects)
             )
         else:
             subject_ids = DatasetSubjectSplitPlanner.sort_subject_ids(
@@ -195,21 +199,21 @@ class DatasetSubjectSplitPlanner:
             )
         if len(subject_ids) == 0 and len(required_subject_sets) > 0:
             available_counts = []
-            if len(dataset._get_specs((HRTFSpec, ITDSpec, ILDSpec, SHSpec))) > 0:
-                available_counts.append(f"hrtf={len(dataset._hrtf_paths)}")
-            if len(dataset._get_specs(MeshSpec)) > 0:
-                available_counts.append(f"mesh={len(dataset._mesh_paths)}")
-            if len(dataset._get_specs(AnthropometrySpec)) > 0:
-                available_counts.append(f"anthropometry={len(dataset._anthropometry_rows)}")
-            if len(dataset._get_specs(ImageSpec)) > 0:
-                available_counts.append(f"image={len({key[0] for key in dataset._image_index})}")
-            if len(dataset._get_specs(VideoSpec)) > 0:
-                available_counts.append(f"video={len({key[0] for key in dataset._video_index})}")
-            if len(dataset._resource_summary) == 0:
+            if has_acoustic_specs:
+                available_counts.append(f"hrtf={len(state.hrtf_paths)}")
+            if has_mesh_specs:
+                available_counts.append(f"mesh={len(state.mesh_paths)}")
+            if has_anthro_specs:
+                available_counts.append(f"anthropometry={len(state.anthropometry_rows)}")
+            if has_image_specs:
+                available_counts.append(f"image={len({key[0] for key in state.image_index})}")
+            if has_video_specs:
+                available_counts.append(f"video={len({key[0] for key in state.video_index})}")
+            if len(state.resource_summary) == 0:
                 resource_lines = ["Resource summary: none"]
             else:
                 resource_lines = ["Resource summary:"]
-                for resource_name, summary in dataset._resource_summary.items():
+                for resource_name, summary in state.resource_summary.items():
                     parts = [str(resource_name)]
                     for key in (
                         "pattern",
@@ -248,9 +252,9 @@ class DatasetSubjectSplitPlanner:
             resource_summary_text = "\n".join(resource_lines)
             raise ValueError(
                 "No subjects match the selected dataset configuration. "
-                f"Selected specs: {', '.join(sorted(set(dataset._input_names + dataset._target_names)))}. "
+                f"Selected specs: {', '.join(sorted(set(state.input_names + state.target_names)))}. "
                 f"Available subject counts by spec: {', '.join(available_counts)}. "
-                f"Root: {dataset._root}\n"
+                f"Root: {state.root}\n"
                 f"{resource_summary_text}"
             )
 
@@ -264,8 +268,7 @@ class DatasetSubjectSplitPlanner:
             raise ValueError(f"Split {split!r} produced an empty dataset")
 
         return DatasetSubjectSplitPlan(
-            available_subject_ids=tuple(subject_ids),
-            subject_ids=tuple(selected_subject_ids),
+            available_subjects=tuple(selected_subject_ids),
             split=split,
             split_ratio=split_ratio,
             split_seed=split_seed,

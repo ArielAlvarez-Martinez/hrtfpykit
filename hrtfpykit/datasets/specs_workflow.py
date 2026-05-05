@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 from .specs import (
     AnthropometrySpec,
@@ -22,9 +22,6 @@ from .sanitize import (
 )
 
 from .config import DatasetConfig
-
-if TYPE_CHECKING:
-    from ..hrtf.hrtf import HRTF
 
 
 SUPPORTED_MEDIA_GROUPED_BY = (("subject",), ("subject", "ear"))
@@ -57,15 +54,11 @@ class DatasetSpecPlan:
     ear_one_hot: bool
     ear_index: bool
 
-
-
-
 class DatasetSpecWorkflow:
-    def __init__(self, config: type[DatasetConfig] | DatasetConfig) -> None:
-        self.config = config
-
+    @classmethod
     def build(
-        self,
+        cls,
+        config: type[DatasetConfig] | DatasetConfig,
         inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None,
         target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec] | None,
     ) -> DatasetSpecPlan:
@@ -93,9 +86,9 @@ class DatasetSpecWorkflow:
 
         dataset_index_by = None
         dataset_index_by_spec: str | None = None
-        for spec in self.get_indexed_specs(specs):
+        for spec in cls.get_indexed_specs(specs):
             spec_index_by = sanitize_index_by(spec.index_by)
-            spec_name = self.get_spec_name(spec)
+            spec_name = cls.get_spec_name(spec)
             spec_axes = set(spec_index_by[1:])
             if isinstance(spec, HRTFSpec):
                 domain = str(spec.domain).strip().lower()
@@ -202,7 +195,7 @@ class DatasetSpecWorkflow:
                     "Pick one index_by for the full dataset."
                 )
 
-        for spec in self.filter_specs((ImageSpec, VideoSpec, AnthropometrySpec), specs):
+        for spec in cls.filter_specs((ImageSpec, VideoSpec, AnthropometrySpec), specs):
             grouped_by = sanitize_grouped_by(spec.grouped_by)
             if isinstance(spec, (ImageSpec, VideoSpec)):
                 if grouped_by not in SUPPORTED_MEDIA_GROUPED_BY:
@@ -221,12 +214,12 @@ class DatasetSpecWorkflow:
                         f"(got grouped_by={grouped_by!r})."
                     )
 
-        input_names = tuple(self.get_spec_name(spec) for spec in input_specs)
-        target_names = tuple(self.get_spec_name(spec) for spec in target_specs)
+        input_names = tuple(cls.get_spec_name(spec) for spec in input_specs)
+        target_names = tuple(cls.get_spec_name(spec) for spec in target_specs)
 
-        indexed_specs = self.get_indexed_specs(specs)
+        indexed_specs = cls.get_indexed_specs(specs)
         index_by = ("subject",) if len(indexed_specs) == 0 else sanitize_index_by(indexed_specs[0].index_by)
-        media_specs = self.filter_specs((ImageSpec, VideoSpec, AnthropometrySpec), specs)
+        media_specs = cls.filter_specs((ImageSpec, VideoSpec, AnthropometrySpec), specs)
         if index_by == ("subject",) and any(
             "ear" in sanitize_grouped_by(spec.grouped_by) for spec in media_specs
         ):
@@ -245,7 +238,7 @@ class DatasetSpecWorkflow:
 
         selected_ears: tuple[tuple[str, int], ...] = tuple()
         if "ear" in index_by:
-            ear_specs = self.filter_specs((HRTFSpec, SHSpec, AnthropometrySpec), specs)
+            ear_specs = cls.filter_specs((HRTFSpec, SHSpec, AnthropometrySpec), specs)
             for spec in indexed_specs:
                 if "ear" not in sanitize_index_by(spec.index_by):
                     continue
@@ -286,29 +279,29 @@ class DatasetSpecWorkflow:
             selected_ears=selected_ears,
             position_one_hot=any(
                 bool(spec.position_one_hot)
-                for spec in self.filter_specs((HRTFSpec, ITDSpec, ILDSpec), specs)
+                for spec in cls.filter_specs((HRTFSpec, ITDSpec, ILDSpec), specs)
             ),
             position_index=any(
                 bool(spec.position_index)
-                for spec in self.filter_specs((HRTFSpec, ITDSpec, ILDSpec), specs)
+                for spec in cls.filter_specs((HRTFSpec, ITDSpec, ILDSpec), specs)
             ),
             frequency_one_hot=any(
                 bool(spec.frequency_one_hot)
-                for spec in self.filter_specs((HRTFSpec, ILDSpec, SHSpec), specs)
+                for spec in cls.filter_specs((HRTFSpec, ILDSpec, SHSpec), specs)
             ),
             frequency_index=any(
                 bool(spec.frequency_index)
-                for spec in self.filter_specs((HRTFSpec, ILDSpec, SHSpec), specs)
+                for spec in cls.filter_specs((HRTFSpec, ILDSpec, SHSpec), specs)
             ),
-            sample_one_hot=any(bool(spec.sample_one_hot) for spec in self.filter_specs((HRTFSpec,), specs)),
-            sample_index=any(bool(spec.sample_index) for spec in self.filter_specs((HRTFSpec,), specs)),
+            sample_one_hot=any(bool(spec.sample_one_hot) for spec in cls.filter_specs((HRTFSpec,), specs)),
+            sample_index=any(bool(spec.sample_index) for spec in cls.filter_specs((HRTFSpec,), specs)),
             ear_one_hot=any(
                 bool(spec.ear_one_hot)
-                for spec in self.filter_specs((HRTFSpec, SHSpec, ImageSpec, VideoSpec, AnthropometrySpec), specs)
+                for spec in cls.filter_specs((HRTFSpec, SHSpec, ImageSpec, VideoSpec, AnthropometrySpec), specs)
             ),
             ear_index=any(
                 bool(spec.ear_index)
-                for spec in self.filter_specs((HRTFSpec, SHSpec, ImageSpec, VideoSpec, AnthropometrySpec), specs)
+                for spec in cls.filter_specs((HRTFSpec, SHSpec, ImageSpec, VideoSpec, AnthropometrySpec), specs)
             ),
         )
 

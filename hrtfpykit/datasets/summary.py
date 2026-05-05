@@ -22,6 +22,7 @@ def _summary_title(text: str, width: int = 54, marker: str = "=") -> str:
     right = padding - left
     return f"{marker * left}{content}{marker * right}"
 
+
 def resources_summary(
     dataset: object | None = None,
     *,
@@ -39,17 +40,18 @@ def resources_summary(
         }
         return summary
 
+    state = dataset._state
     used_resource_specs = {
-        "hrtf": len(dataset._get_specs((HRTFSpec, ITDSpec, ILDSpec, SHSpec))) > 0,
-        "mesh": len(dataset._get_specs(MeshSpec)) > 0,
-        "anthropometry": len(dataset._get_specs(AnthropometrySpec)) > 0,
-        "image": len(dataset._get_specs(ImageSpec)) > 0,
-        "video": len(dataset._get_specs(VideoSpec)) > 0,
+        "hrtf": any(isinstance(spec, (HRTFSpec, ITDSpec, ILDSpec, SHSpec)) for spec in state.specs),
+        "mesh": any(isinstance(spec, MeshSpec) for spec in state.specs),
+        "anthropometry": any(isinstance(spec, AnthropometrySpec) for spec in state.specs),
+        "image": any(isinstance(spec, ImageSpec) for spec in state.specs),
+        "video": any(isinstance(spec, VideoSpec) for spec in state.specs),
     }
-    if len(dataset._resource_summary) == 0:
+    if len(state.resource_summary) == 0:
         return f"{_summary_title('DATASET RESOURCES SUMMARY')}\n  none"
     resource_lines: list[str] = []
-    for resource_name, summary in dataset._resource_summary.items():
+    for resource_name, summary in state.resource_summary.items():
         if not used_resource_specs.get(resource_name, False):
             continue
         parts = [str(resource_name)]
@@ -66,26 +68,25 @@ def resources_summary(
 
 
 def dataset_summary(dataset: object) -> str:
-    lines: list[str] = [_summary_title(f"{str(dataset._name).upper()} DATASET SUMMARY")]
+    state = dataset._state
+    lines: list[str] = [_summary_title(f"{str(state.name).upper()} DATASET SUMMARY")]
     lines.extend(
         [
-        f"  root: {dataset._root}",
-        f"  split: {dataset._split}",
-        f"  subjects_loaded: {len(dataset._subject_ids)}",
-        f"  available_subjects: {len(dataset._available_subject_ids)}",
-        f"  samples: {len(dataset._rows)}",
-        f"  inputs: {', '.join(dataset._input_names) if len(dataset._input_specs) > 0 else 'none'}",
-        f"  target: {', '.join(dataset._target_names) if len(dataset._target_specs) > 0 else 'none'}",
-    ]
+            f"  root: {state.root}",
+            f"  split: {state.split}",
+            f"  available_subjects: {len(state.available_subjects)}",
+            f"  excluded_subjects: {len(state.excluded_subjects)}",
+            f"  samples: {len(state.rows)}",
+            f"  inputs: {', '.join(state.input_names) if len(state.input_specs) > 0 else 'none'}",
+            f"  target: {', '.join(state.target_names) if len(state.target_specs) > 0 else 'none'}",
+        ]
     )
-    if len(dataset._exclude_subject_ids) > 0:
-        lines.append(f"  excluded_subjects: {len(dataset._exclude_subject_ids)}")
-    if getattr(dataset, "variant", None) is not None:
-        lines.append(f"  dataset_hrtf_variant: {dataset.variant}")
-    if dataset._dataset_sample_rate is not None:
-        lines.append(f"  dataset_sample_rate: {dataset._dataset_sample_rate}")
-    if dataset._dataset_source_positions is not None:
-        lines.append(f"  dataset_source_positions: {len(dataset._dataset_source_positions)}")
+    if state.variant is not None:
+        lines.append(f"  hrtf_variant: {state.variant}")
+    if state.sample_rate is not None:
+        lines.append(f"  sample_rate: {state.sample_rate}")
+    if state.positions is not None:
+        lines.append(f"  positions: {len(state.positions)}")
     return "\n".join(lines)
 
 

@@ -1,9 +1,17 @@
 from .hrtf import load_hrtf
 
-__version__ = "1.0.0"
+from .metrics import itd, ild, itd_difference, ild_difference, lsd
+from .sh import SH, sht, sht_inverse, sht_error
 
 __all__ = [
-    "__version__",
+    "itd",
+    "ild",
+    "itd_difference",
+    "ild_difference",
+    "lsd",
+    "SH",
+    "sht",
+    "sht_inverse",
+    "sht_error",
     "load_hrtf"
 ]
-

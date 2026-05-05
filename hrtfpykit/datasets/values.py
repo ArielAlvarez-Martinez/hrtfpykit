@@ -1,6 +1,3 @@
-from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING
-
 import numpy as np
 
 from .sanitize import sanitize_ears, sanitize_grouped_by, sanitize_index_by
@@ -19,9 +16,6 @@ from ..hrtf.metrics import ild, itd
 from ..hrtf.sh import sht
 from .split import DatasetSubjectSplitPlanner
 
-if TYPE_CHECKING:
-    from ..hrtf.hrtf import HRTF
-
 
 class DatasetSampleValueSelector:
     def get_sample_value(
@@ -30,33 +24,26 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
+        state = self._state
         if isinstance(spec, HRTFSpec):
-            return self.get_hrtf_spec_value(spec, subject_id, row)
+            return DatasetSampleValueSelector.get_hrtf_spec_value(self, spec, subject_id, row)
         if isinstance(spec, ITDSpec):
-            return self.get_itd_spec_value(spec, subject_id, row)
+            return DatasetSampleValueSelector.get_itd_spec_value(self, spec, subject_id, row)
         if isinstance(spec, ILDSpec):
-            return self.get_ild_spec_value(spec, subject_id, row)
+            return DatasetSampleValueSelector.get_ild_spec_value(self, spec, subject_id, row)
         if isinstance(spec, SHSpec):
-            return self.get_sh_spec_value(spec, subject_id, row)
+            return DatasetSampleValueSelector.get_sh_spec_value(self, spec, subject_id, row)
         if isinstance(spec, MeshSpec):
-            value: object = str(self._mesh_paths[subject_id])
+            value: object = str(state.mesh_paths[subject_id])
             if spec.transform is not None:
                 value = spec.transform(value)
             return value
         if isinstance(spec, AnthropometrySpec):
-            return self.get_anthropometry_spec_value(spec, subject_id, row)
+            return DatasetSampleValueSelector.get_anthropometry_spec_value(self, spec, subject_id, row)
         if isinstance(spec, ImageSpec):
-            return self.get_image_spec_value(
-                spec=spec,
-                subject_id=subject_id,
-                row=row,
-            )
+            return DatasetSampleValueSelector.get_image_spec_value(self, spec, subject_id, row)
         if isinstance(spec, VideoSpec):
-            return self.get_video_spec_value(
-                spec=spec,
-                subject_id=subject_id,
-                row=row,
-            )
+            return DatasetSampleValueSelector.get_video_spec_value(self, spec, subject_id, row)
         raise TypeError(f"Unsupported dataset spec: {type(spec)!r}")
 
     def get_image_spec_value(
@@ -75,7 +62,8 @@ class DatasetSampleValueSelector:
         )
         media_key = (subject_id, None, ear)
         values: list[object] = []
-        for value in self._image_index[media_key]:
+        state = self._state
+        for value in state.image_index[media_key]:
             if spec.transform is not None:
                 value = spec.transform(value)
             values.append(value)
@@ -102,7 +90,8 @@ class DatasetSampleValueSelector:
         )
         media_key = (subject_id, None, ear)
         values: list[object] = []
-        for value in self._video_index[media_key]:
+        state = self._state
+        for value in state.video_index[media_key]:
             if spec.transform is not None:
                 value = spec.transform(value)
             values.append(value)
@@ -120,14 +109,15 @@ class DatasetSampleValueSelector:
         spec_ears = sanitize_ears(spec.ears)
         domain = str(spec.domain).strip().lower()
         signal = str(spec.signal).strip().lower()
+        state = self._state
         hrtf = self.get_subject_hrtf(subject_id)
         transformed_hrtf = None
         if spec.transform is not None:
             transform_cache_key = ("hrtf_transform", subject_id, id(spec.transform))
-            transformed_hrtf = self._cache.get(transform_cache_key)
+            transformed_hrtf = state.cache.get(transform_cache_key)
             if transformed_hrtf is None:
                 transformed_hrtf = spec.transform(hrtf)
-                self._cache[transform_cache_key] = transformed_hrtf
+                state.cache[transform_cache_key] = transformed_hrtf
 
         selected_hrtf = hrtf if transformed_hrtf is None else transformed_hrtf
         if domain == "time":
@@ -155,7 +145,7 @@ class DatasetSampleValueSelector:
         selected_position_indices = (
             None
             if transformed_hrtf is not None
-            else self._spec_position_indices.get(id(spec), self._selected_position_indices)
+            else state.spec_position_indices.get(id(spec), state.selected_position_indices)
         )
         if "position" not in spec_index_by:
             position_axis = axis_names.index("position")
@@ -211,7 +201,8 @@ class DatasetSampleValueSelector:
         row: dict[str, str | int | None],
     ) -> np.ndarray:
         metric_cache_key = ("itd", subject_id, id(spec))
-        value = self._cache.get(metric_cache_key)
+        state = self._state
+        value = state.cache.get(metric_cache_key)
         if value is None:
             hrtf = self.get_subject_hrtf(subject_id)
             value = np.asarray(
@@ -224,9 +215,9 @@ class DatasetSampleValueSelector:
                     filter_order=spec.filter_order,
                 )
             )
-            self._cache[metric_cache_key] = value
+            state.cache[metric_cache_key] = value
         spec_index_by = sanitize_index_by(spec.index_by)
-        selected_position_indices = self._spec_position_indices.get(id(spec), self._selected_position_indices)
+        selected_position_indices = state.spec_position_indices.get(id(spec), state.selected_position_indices)
         if "position" not in spec_index_by:
             if len(selected_position_indices) != value.shape[0]:
                 value = np.take(value, selected_position_indices, axis=0)
@@ -243,28 +234,29 @@ class DatasetSampleValueSelector:
         row: dict[str, str | int | None],
     ) -> np.ndarray:
         metric_cache_key = ("ild", subject_id, id(spec))
-        value = self._cache.get(metric_cache_key)
+        state = self._state
+        value = state.cache.get(metric_cache_key)
         if value is None:
             hrtf = self.get_subject_hrtf(subject_id)
             value = np.asarray(
                 ild(
                     hrtf.IR,
-                    sample_rate=self._dataset_sample_rate,
+                    sample_rate=state.sample_rate,
                     fft_length=spec.fft_length,
                     mode=spec.mode,
                     output=spec.output,
                     epsilon=spec.epsilon,
                 )
             )
-            self._cache[metric_cache_key] = value
+            state.cache[metric_cache_key] = value
         spec_index_by = sanitize_index_by(spec.index_by)
-        selected_position_indices = self._spec_position_indices.get(id(spec), self._selected_position_indices)
+        selected_position_indices = state.spec_position_indices.get(id(spec), state.selected_position_indices)
         if "position" not in spec_index_by:
-            if value.shape[0] == self._dataset_source_positions.shape[0]:
+            if state.positions is not None and value.shape[0] == state.positions.shape[0]:
                 if len(selected_position_indices) != value.shape[0]:
                     value = np.take(value, selected_position_indices, axis=0)
         else:
-            if value.shape[0] == self._dataset_source_positions.shape[0]:
+            if state.positions is not None and value.shape[0] == state.positions.shape[0]:
                 value = np.asarray(value[int(row["position_index"])])
         if "frequency" in spec_index_by:
             value = np.asarray(value[..., int(row["frequency_index"])])
@@ -279,7 +271,8 @@ class DatasetSampleValueSelector:
         row: dict[str, str | int | None],
     ) -> np.ndarray:
         sh_cache_key = ("sh", subject_id, id(spec))
-        value = self._cache.get(sh_cache_key)
+        state = self._state
+        value = state.cache.get(sh_cache_key)
         if value is None:
             hrtf = self.get_subject_hrtf(subject_id)
             spec_ears = sanitize_ears(spec.ears)
@@ -292,7 +285,7 @@ class DatasetSampleValueSelector:
                     epsilon=spec.epsilon,
                 ).C
             )
-            self._cache[sh_cache_key] = value
+            state.cache[sh_cache_key] = value
         spec_index_by = sanitize_index_by(spec.index_by)
         spec_ears = sanitize_ears(spec.ears)
         axis_names = ["coefficient", "frequency"]
@@ -332,13 +325,14 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
-        rows = self._anthropometry_rows
+        state = self._state
+        rows = state.anthropometry_rows
         mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
             subject_id,
-            tuple(self._config.subject_ids),
+            tuple(state.config.subject_ids),
         )
         try:
-            subject_position = list(self._subject_ids).index(mapped_subject_id)
+            subject_position = list(state.available_subjects).index(mapped_subject_id)
         except ValueError as exc:
             raise KeyError(f"Anthropometry subject {subject_id!r} was not found") from exc
 
@@ -399,7 +393,7 @@ class DatasetSampleValueSelector:
                 if spec.accessed_by == "row":
                     raw_value = row_values
                 else:
-                    subject_position = list(self._subject_ids).index(mapped_subject_id)
+                    subject_position = list(state.available_subjects).index(mapped_subject_id)
                     column_keys = tuple(row_values)
                     if subject_position < 0 or subject_position >= len(column_keys):
                         raise IndexError(
@@ -412,7 +406,7 @@ class DatasetSampleValueSelector:
                         for column_subject_id, row_values_by_subject in rows.items()
                     }
 
-        selector = getattr(self, "_anthropometry_value_selector", None)
+        selector = state.anthropometry_value_selector
         if selector is not None and callable(selector):
             raw_value = selector(
                 spec=spec,

@@ -10,8 +10,8 @@ from .build import (
 from .specs_workflow import DatasetSpecWorkflow
 from .config import DatasetConfig
 from .load import load_hrtf
+from .state import DatasetState
 from .values import DatasetSampleValueSelector
-from . import summary as dataset_summary_module
 from .specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -27,9 +27,7 @@ if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
 
 
-class BaseDataset(DatasetSampleValueSelector):
-    _config: type[DatasetConfig] | DatasetConfig | None = None
-
+class BaseDataset:
     def __init__(
         self,
         root: str | Path,
@@ -45,6 +43,7 @@ class BaseDataset(DatasetSampleValueSelector):
     ) -> None:
         if config is None:
             raise ValueError("BaseDataset requires a dataset config")
+        self._state = DatasetState()
         DatasetBuilder(self).build(
             config=config,
             root=root,
@@ -58,59 +57,114 @@ class BaseDataset(DatasetSampleValueSelector):
             split_seed=split_seed,
         )
 
-    def _get_specs(
-        self,
-        spec_types: type[object] | tuple[type[object], ...],
-        specs: tuple[
-            HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
-            ...,
-        ]
-        | None = None,
-    ) -> tuple[
-        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
-        ...,
-    ]:
-        selected_specs = self._specs if specs is None else specs
-        return DatasetSpecWorkflow.filter_specs(spec_types, selected_specs)
-
-    def _get_indexed_specs(
-        self,
-    ) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec, ...]:
-        return DatasetSpecWorkflow.get_indexed_specs(self._specs)
-
     def get_subject_hrtf(self, subject_id: str | int) -> "HRTF":
         return load_hrtf(self, subject_id)
 
-    def _format_load_summary(self) -> str:
-        return self.dataset_summary()
+    @property
+    def root(self) -> Path:
+        return self._state.root
 
-    def dataset_summary(self) -> str:
-        return dataset_summary_module.dataset_summary(self)
+    @property
+    def variant(self) -> str | None:
+        return self._state.variant
+
+    @property
+    def split(self) -> str:
+        return self._state.split
+
+    @property
+    def split_ratio(self) -> tuple[float, float, float]:
+        return self._state.split_ratio
+
+    @property
+    def split_seed(self) -> int:
+        return self._state.split_seed
+
+    @property
+    def inputs(self) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]:
+        return self._state.input_specs
+
+    @property
+    def target(self) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec, ...]:
+        return self._state.target_specs
+
+    @property
+    def sample_rate(self) -> float | None:
+        return self._state.sample_rate
+
+    @property
+    def positions(self) -> np.ndarray | None:
+        return self._state.positions
+
+    @property
+    def azimuth_angles(self) -> np.ndarray | None:
+        return self._state.azimuth_angles
+
+    @property
+    def elevation_angles(self) -> np.ndarray | None:
+        return self._state.elevation_angles
+
+    @property
+    def frequency_bins(self) -> np.ndarray | None:
+        return self._state.frequency_bins
+
+    @property
+    def sample_indices(self) -> np.ndarray | None:
+        return self._state.sample_indices
+
+    @property
+    def selected_position_indices(self) -> tuple[int, ...]:
+        return self._state.selected_position_indices
+
+    @property
+    def selected_azimuth_angles(self) -> np.ndarray | None:
+        return self._state.selected_azimuth_angles
+
+    @property
+    def selected_elevation_angles(self) -> np.ndarray | None:
+        return self._state.selected_elevation_angles
+
+    @property
+    def selected_frequency_indices(self) -> tuple[int, ...]:
+        return self._state.selected_frequency_indices
+
+    @property
+    def selected_sample_indices(self) -> tuple[int, ...]:
+        return self._state.selected_sample_indices
+
+    @property
+    def excluded_subjects(self) -> list[str]:
+        return list(self._state.excluded_subjects)
+
+    @property
+    def available_subjects(self) -> list[str]:
+        return list(self._state.available_subjects)
 
     def __len__(self) -> int:
-        return len(self._rows)
+        return len(self._state.rows)
 
     def __getitem__(self, index: int) -> dict[str, object]:
         if not isinstance(index, int):
             raise TypeError("Dataset indexing only supports integer indices")
-        row: dict[str, str | int | None] = self._rows[int(index)]
+        state = self._state
+        row: dict[str, str | int | None] = state.rows[int(index)]
         subject_id = str(row["subject_id"])
         inputs: dict[str, object] | None = None
         include_context_inputs = any(
             (
-                self._position_one_hot,
-                self._position_index,
-                self._ear_one_hot,
-                self._ear_index,
-                self._frequency_one_hot,
-                self._frequency_index,
-                self._sample_one_hot,
-                self._sample_index,
+                state.position_one_hot,
+                state.position_index,
+                state.ear_one_hot,
+                state.ear_index,
+                state.frequency_one_hot,
+                state.frequency_index,
+                state.sample_one_hot,
+                state.sample_index,
             )
         )
-        if len(self._input_specs) > 0 or include_context_inputs:
+        if len(state.input_specs) > 0 or include_context_inputs:
             inputs = {}
-            for spec in self._input_specs:
+            for spec in state.input_specs:
                 inputs[DatasetSpecWorkflow.get_spec_name(spec)] = DatasetSampleValueSelector.get_sample_value(
                     self,
                     spec,
@@ -119,48 +173,48 @@ class BaseDataset(DatasetSampleValueSelector):
                 )
             if row["selected_position_index"] is not None:
                 position_index = int(row["selected_position_index"])
-                if self._position_one_hot:
+                if state.position_one_hot:
                     position_encoding = np.zeros(
-                        len(self._selected_position_indices), dtype=float
+                        len(state.selected_position_indices), dtype=float
                     )
                     position_encoding[position_index] = 1.0
                     inputs["position_one_hot"] = position_encoding
-                if self._position_index:
+                if state.position_index:
                     inputs["position_index"] = position_index
             if row["selected_ear_index"] is not None:
                 ear_index = int(row["selected_ear_index"])
-                if self._ear_one_hot:
-                    ear_encoding = np.zeros(len(self._selected_ears), dtype=float)
+                if state.ear_one_hot:
+                    ear_encoding = np.zeros(len(state.selected_ears), dtype=float)
                     ear_encoding[ear_index] = 1.0
                     inputs["ear_one_hot"] = ear_encoding
-                if self._ear_index:
+                if state.ear_index:
                     inputs["ear_index"] = ear_index
             if row["selected_frequency_index"] is not None:
                 frequency_index = int(row["selected_frequency_index"])
-                if self._frequency_one_hot:
+                if state.frequency_one_hot:
                     frequency_encoding = np.zeros(
-                        len(self._selected_frequency_indices), dtype=float
+                        len(state.selected_frequency_indices), dtype=float
                     )
                     frequency_encoding[frequency_index] = 1.0
                     inputs["frequency_one_hot"] = frequency_encoding
-                if self._frequency_index:
+                if state.frequency_index:
                     inputs["frequency_index"] = frequency_index
             if row["selected_sample_index"] is not None:
                 sample_index = int(row["selected_sample_index"])
-                if self._sample_one_hot:
-                    sample_encoding = np.zeros(len(self._selected_sample_indices), dtype=float)
+                if state.sample_one_hot:
+                    sample_encoding = np.zeros(len(state.selected_sample_indices), dtype=float)
                     sample_encoding[sample_index] = 1.0
                     inputs["sample_one_hot"] = sample_encoding
-                if self._sample_index:
+                if state.sample_index:
                     inputs["sample_index"] = sample_index
 
         sample: dict[str, object] = {
             "inputs": inputs,
             "target": None,
         }
-        if len(self._target_specs) > 0:
+        if len(state.target_specs) > 0:
             target_values: dict[str, object] = {}
-            for spec in self._target_specs:
+            for spec in state.target_specs:
                 target_values[DatasetSpecWorkflow.get_spec_name(spec)] = DatasetSampleValueSelector.get_sample_value(
                     self,
                     spec,

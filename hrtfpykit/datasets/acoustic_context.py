@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from ..hrtf.coordinates import get_spherical_positions
 from ..hrtf.planes import get_frontal_plane, get_horizontal_plane, get_median_plane
-from .sanitize import sanitize_index_by
+from .sanitize import sanitize_index_by, sanitize_positions
 from .specs import HRTFSpec, ITDSpec, ILDSpec, SHSpec
 from .specs_workflow import DatasetSpecWorkflow
 
@@ -16,15 +16,15 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class DatasetAcousticContextPlan:
-    dataset_sample_rate: float | None
-    dataset_source_positions: np.ndarray | None
-    available_azimuth_angles: np.ndarray | None
-    available_elevation_angles: np.ndarray | None
+    sample_rate: float | None
+    positions: np.ndarray | None
     azimuth_angles: np.ndarray | None
     elevation_angles: np.ndarray | None
     frequency_bins: np.ndarray | None
     sample_indices: np.ndarray | None
     selected_position_indices: tuple[int, ...]
+    selected_azimuth_angles: np.ndarray | None
+    selected_elevation_angles: np.ndarray | None
     selected_frequency_indices: tuple[int, ...]
     selected_sample_indices: tuple[int, ...]
     spec_position_indices: tuple[tuple[int, tuple[int, ...]], ...]
@@ -37,8 +37,6 @@ class DatasetAcousticContext:
         plane: str | tuple[object, ...] | dict[str, object] | None,
         hrtf: "HRTF",
     ) -> list[int]:
-        from .sanitize import sanitize_positions
-
         position_count = int(hrtf.Sources.get_positions().shape[0])
         if plane is None:
             return sanitize_positions(positions, position_count)
@@ -84,43 +82,36 @@ class DatasetAcousticContext:
             )
         return [int(index) for index in np.asarray(indices, dtype=int).reshape(-1)]
 
-    @staticmethod
-    def _filter_specs(
-        specs: tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec, ...],
-        spec_types: type[object] | tuple[type[object], ...],
-    ) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec, ...]:
-        return tuple(spec for spec in specs if isinstance(spec, spec_types))
-
-    @staticmethod
-    def _indexed_specs(
-        specs: tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec, ...],
-    ) -> tuple[HRTFSpec | ITDSpec | ILDSpec | SHSpec, ...]:
-        return DatasetAcousticContext._filter_specs(specs, (HRTFSpec, ITDSpec, ILDSpec, SHSpec))
-
-    def build(self, dataset: "BaseDataset") -> DatasetAcousticContextPlan:
-        acoustic_specs = dataset._get_specs((HRTFSpec, ITDSpec, ILDSpec, SHSpec))
+    @classmethod
+    def build(cls, dataset: "BaseDataset") -> DatasetAcousticContextPlan:
+        state = dataset._state
+        acoustic_specs = tuple(
+            spec
+            for spec in state.specs
+            if isinstance(spec, (HRTFSpec, ITDSpec, ILDSpec, SHSpec))
+        )
         if len(acoustic_specs) == 0:
             return DatasetAcousticContextPlan(
-                dataset_sample_rate=None,
-                dataset_source_positions=None,
-                available_azimuth_angles=None,
-                available_elevation_angles=None,
+                sample_rate=None,
+                positions=None,
                 azimuth_angles=None,
                 elevation_angles=None,
                 frequency_bins=None,
                 sample_indices=None,
                 selected_position_indices=(),
+                selected_azimuth_angles=None,
+                selected_elevation_angles=None,
                 selected_frequency_indices=(),
                 selected_sample_indices=(),
                 spec_position_indices=(),
             )
 
-        sample_subject_id = dataset._subject_ids[0]
+        sample_subject_id = state.available_subjects[0]
         sample_hrtf = dataset.get_subject_hrtf(sample_subject_id)
-        dataset_sample_rate = (
+        sample_rate = (
             None if sample_hrtf.IR.sample_rate is None else float(sample_hrtf.IR.sample_rate)
         )
-        dataset_source_positions = np.asarray(
+        positions = np.asarray(
             sample_hrtf.Sources.get_positions(angle_unit="degrees"),
             dtype=float,
         )
@@ -139,7 +130,9 @@ class DatasetAcousticContext:
         sample_count_spec: str | None = None
         spec_position_indices: list[tuple[int, tuple[int, ...]]] = []
 
-        for spec in self._filter_specs(dataset._specs, (HRTFSpec, ITDSpec, ILDSpec)):
+        for spec in tuple(
+            spec for spec in state.specs if isinstance(spec, (HRTFSpec, ITDSpec, ILDSpec))
+        ):
             indices = DatasetAcousticContext.resolve_position_indices(
                 spec.positions,
                 spec.plane,
@@ -160,7 +153,7 @@ class DatasetAcousticContext:
                     "Pick one position selection for the full dataset."
                 )
 
-        for spec in self._indexed_specs(dataset._specs):
+        for spec in acoustic_specs:
             spec_name = DatasetSpecWorkflow.get_spec_name(spec)
             spec_index_by = sanitize_index_by(spec.index_by)
             if "frequency" in spec_index_by:
@@ -210,29 +203,29 @@ class DatasetAcousticContext:
             get_spherical_positions(sample_hrtf.Sources, angle_unit="degrees"),
             dtype=float,
         )
-        available_azimuth_angles = np.unique(np.round(spherical_positions[:, 0], 2))
-        available_elevation_angles = np.unique(np.round(spherical_positions[:, 1], 2))
+        azimuth_angles = np.unique(np.round(spherical_positions[:, 0], 2))
+        elevation_angles = np.unique(np.round(spherical_positions[:, 1], 2))
         if len(selected_position_indices) > 0:
             selected_spherical_positions = np.asarray(
                 spherical_positions[list(selected_position_indices)],
                 dtype=float,
             )
-            azimuth_angles = np.unique(np.round(selected_spherical_positions[:, 0], 2))
-            elevation_angles = np.unique(np.round(selected_spherical_positions[:, 1], 2))
+            selected_azimuth_angles = np.unique(np.round(selected_spherical_positions[:, 0], 2))
+            selected_elevation_angles = np.unique(np.round(selected_spherical_positions[:, 1], 2))
         else:
-            azimuth_angles = None
-            elevation_angles = None
+            selected_azimuth_angles = None
+            selected_elevation_angles = None
 
         return DatasetAcousticContextPlan(
-            dataset_sample_rate=dataset_sample_rate,
-            dataset_source_positions=dataset_source_positions,
-            available_azimuth_angles=available_azimuth_angles,
-            available_elevation_angles=available_elevation_angles,
+            sample_rate=sample_rate,
+            positions=positions,
             azimuth_angles=azimuth_angles,
             elevation_angles=elevation_angles,
             frequency_bins=frequency_bins,
             sample_indices=sample_indices,
             selected_position_indices=selected_position_indices,
+            selected_azimuth_angles=selected_azimuth_angles,
+            selected_elevation_angles=selected_elevation_angles,
             selected_frequency_indices=selected_frequency_indices,
             selected_sample_indices=selected_sample_indices,
             spec_position_indices=tuple(spec_position_indices),
