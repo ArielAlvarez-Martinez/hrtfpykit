@@ -154,6 +154,8 @@ class BaseDownload:
         hrtf_type: str | None = None,
         hrtf_version: str | None = None,
         hrtf_sample_rate: str | int | None = None,
+        mesh_type: str | None = None,
+        mesh_version: str | None = None,
     ) -> str | None:
         if self.config.download is None or self.config.download.checksums is None:
             return None
@@ -188,6 +190,22 @@ class BaseDownload:
                 if not isinstance(type_checksums, dict):
                     raise ValueError("HRTF type checksums must be a filename dictionary")
                 checksum = type_checksums.get(relative_path)
+        elif resource == "mesh":
+            if not isinstance(resource_checksums, dict):
+                raise ValueError("Mesh checksums must be grouped by type or filename")
+            type_checksums = None if mesh_type is None else resource_checksums.get(mesh_type)
+            if isinstance(type_checksums, dict):
+                version_checksums = None
+                if mesh_version is not None:
+                    version_checksums = type_checksums.get(mesh_version)
+                if version_checksums is not None:
+                    if not isinstance(version_checksums, dict):
+                        raise ValueError("Mesh version checksums must be a filename dictionary")
+                    checksum = version_checksums.get(relative_path)
+                else:
+                    checksum = type_checksums.get(relative_path)
+            else:
+                checksum = resource_checksums.get(relative_path)
         elif isinstance(resource_checksums, dict):
             checksum = resource_checksums.get(relative_path)
         elif isinstance(resource_checksums, str):
@@ -454,7 +472,12 @@ class BaseDownload:
                             mesh_version_label=mesh_version_label,
                         )
                         destination = self.compose_download_path(relative_path)
-                        checksum = self.get_checksum("mesh", relative_path)
+                        checksum = self.get_checksum(
+                            "mesh",
+                            relative_path,
+                            mesh_type=mesh_type,
+                            mesh_version=None if mesh_version is None else str(mesh_version),
+                        )
                         if checksum is None and self.has_checksum_map("mesh"):
                             continue
                         download_jobs.append(
