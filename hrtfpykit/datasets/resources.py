@@ -10,7 +10,7 @@ from .load import load_table
 from .specs_registry import get_specs, has_specs
 from .sanitize import sanitize_extensions
 from .sanitize import sanitize_grouped_by
-from .split import DatasetSubjectSplitPlanner
+from .split import DatasetSplitPlanner
 from .summary import resources_summary
 
 if TYPE_CHECKING:
@@ -304,8 +304,8 @@ class DatasetResourcesScanner:
             if config.hrtf.subject_ids is None
             else tuple(config.hrtf.subject_ids)
         )
-        subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
-            DatasetSubjectSplitPlanner.sort_subject_ids(tuple(config.subject_ids))
+        subject_numbers = DatasetSplitPlanner.build_subject_number_map(
+            DatasetSplitPlanner.sort_subject_ids(tuple(config.subject_ids))
         )
         checked_hrtf_subject_ids = tuple(
             subject_id
@@ -388,8 +388,8 @@ class DatasetResourcesScanner:
             for subject_id in mesh_subject_ids
             if subject_id not in excluded_subject_ids
         )
-        subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
-            DatasetSubjectSplitPlanner.sort_subject_ids(tuple(config.subject_ids))
+        subject_numbers = DatasetSplitPlanner.build_subject_number_map(
+            DatasetSplitPlanner.sort_subject_ids(tuple(config.subject_ids))
         )
         for subject_id in checked_mesh_subject_ids:
             version_label = None
@@ -616,11 +616,11 @@ class DatasetResources:
             raise ValueError("Dataset config is not initialized")
         config = state.config
         root = state.root
-        config_excluded_subjects = DatasetSubjectSplitPlanner.map_subject_ids(
+        config_excluded_subjects = DatasetSplitPlanner.map_subject_ids(
             tuple(config.excluded_subject_ids),
             tuple(config.subject_ids),
         )
-        requested_excluded_subjects = DatasetSubjectSplitPlanner.map_subject_ids(
+        requested_excluded_subjects = DatasetSplitPlanner.map_subject_ids(
             exclude_subject_ids,
             tuple(config.subject_ids),
         )
@@ -630,7 +630,7 @@ class DatasetResources:
         excluded_subject_set = set(excluded_subjects)
         resource_subjects = tuple()
         if len(resource_subjects) == 0:
-            sorted_subjects = DatasetSubjectSplitPlanner.sort_subject_ids(
+            sorted_subjects = DatasetSplitPlanner.sort_subject_ids(
                 tuple(config.subject_ids)
             )
             resource_subjects = tuple(
@@ -640,8 +640,8 @@ class DatasetResources:
             )
         subject_numbers = state.subject_numbers
         if len(subject_numbers) == 0:
-            subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
-                DatasetSubjectSplitPlanner.sort_subject_ids(tuple(config.subject_ids))
+            subject_numbers = DatasetSplitPlanner.build_subject_number_map(
+                DatasetSplitPlanner.sort_subject_ids(tuple(config.subject_ids))
             )
         resource_summary = {}
         mesh_paths = {}

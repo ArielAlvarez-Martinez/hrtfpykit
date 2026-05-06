@@ -17,7 +17,7 @@ from .specs_registry import get_spec_descriptor
 from ..hrtf.dsp import imag, magnitude, magnitude_db, phase, real
 from ..hrtf.metrics import ild, itd
 from ..hrtf.sh import sht
-from .split import DatasetSubjectSplitPlanner
+from .split import DatasetSplitPlanner
 
 if TYPE_CHECKING:
     from .base import BaseDataset
@@ -343,7 +343,7 @@ class DatasetSampleValueSelector:
     ) -> object:
         state = dataset._state
         rows = state.anthropometry_rows
-        mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
+        mapped_subject_id = DatasetSplitPlanner.map_subject_id(
             subject_id,
             tuple(state.config.subject_ids),
         )
@@ -442,7 +442,7 @@ class DatasetSampleValueSelector:
     ) -> object:
         state = dataset._state
         rows = state.metadata_rows
-        mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
+        mapped_subject_id = DatasetSplitPlanner.map_subject_id(
             subject_id,
             tuple(state.config.subject_ids),
         )

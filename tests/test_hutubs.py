@@ -22,7 +22,7 @@ from hrtfpykit.datasets.specs import (
     SHSpec,
 )
 from hrtfpykit.datasets.specs_workflow import DatasetSpecWorkflow
-from hrtfpykit.datasets.split import DatasetSubjectSplitPlanner
+from hrtfpykit.datasets.split import DatasetSplitPlanner
 
 
 HUTUBS_ROOT = os.getenv("HUTUBS_TEST_HUTUBS_ROOT") or os.getenv("HUTUBS_ROOT")
@@ -673,7 +673,7 @@ def _expected_selected_subjects(
     split: str,
 ) -> list[str]:
     return list(
-        DatasetSubjectSplitPlanner.split_subject_ids(
+        DatasetSplitPlanner.split_subject_ids(
             _selected_subject_ids(inputs, target),
             split=split,
             split_ratio=(0.8, 0.1, 0.1),

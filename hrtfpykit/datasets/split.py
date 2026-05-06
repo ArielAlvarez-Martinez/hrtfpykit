@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class DatasetSubjectSplitPlan:
+class DatasetSplitPlan:
     available_subjects: tuple[str, ...]
     selected_subjects: tuple[str, ...]
     split: str
@@ -21,7 +21,7 @@ class DatasetSubjectSplitPlan:
     split_seed: int
 
 
-class DatasetSubjectSplitPlanner:
+class DatasetSplitPlanner:
     @classmethod
     def map_subject_id(
         cls,
@@ -103,13 +103,13 @@ class DatasetSubjectSplitPlanner:
         if config is None:
             raise ValueError("Dataset config is not initialized")
         excluded_subjects = set(state.excluded_subjects)
-        sorted_subjects = tuple(DatasetSubjectSplitPlanner.sort_subject_ids(config.subject_ids))
+        sorted_subjects = tuple(DatasetSplitPlanner.sort_subject_ids(config.subject_ids))
         available_subjects = tuple(
             subject_id
             for subject_id in sorted_subjects
             if subject_id not in excluded_subjects
         )
-        subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
+        subject_numbers = DatasetSplitPlanner.build_subject_number_map(
             sorted_subjects
         )
         return available_subjects, subject_numbers
@@ -164,12 +164,12 @@ class DatasetSubjectSplitPlanner:
         split: str,
         split_ratio: tuple[float, float, float],
         split_seed: int,
-    ) -> DatasetSubjectSplitPlan:
+    ) -> DatasetSplitPlan:
         state = dataset._state
         config = state.config
         if config is None:
             raise ValueError("Dataset config is not initialized")
-        resource_subjects, _ = DatasetSubjectSplitPlanner.prepare_subject_scope(dataset)
+        resource_subjects, _ = DatasetSplitPlanner.prepare_subject_scope(dataset)
         has_acoustic_specs = has_specs(state.specs, resource_name="hrtf")
         has_mesh_specs = has_specs(state.specs, resource_name="mesh")
         has_anthro_specs = has_specs(state.specs, resource_name="anthropometry")
@@ -191,11 +191,11 @@ class DatasetSubjectSplitPlanner:
             required_subject_sets.append({key[0] for key in state.video_index})
 
         if len(required_subject_sets) == 0:
-            subject_ids = DatasetSubjectSplitPlanner.sort_subject_ids(
+            subject_ids = DatasetSplitPlanner.sort_subject_ids(
                 list(resource_subjects)
             )
         else:
-            subject_ids = DatasetSubjectSplitPlanner.sort_subject_ids(
+            subject_ids = DatasetSplitPlanner.sort_subject_ids(
                 set.intersection(*required_subject_sets)
             )
         if len(subject_ids) == 0 and len(required_subject_sets) > 0:
@@ -265,7 +265,7 @@ class DatasetSubjectSplitPlanner:
                 f"{resource_summary_text}"
             )
 
-        selected_subject_ids = DatasetSubjectSplitPlanner.split_subject_ids(
+        selected_subject_ids = DatasetSplitPlanner.split_subject_ids(
             subject_ids,
             split,
             split_ratio,
@@ -274,7 +274,7 @@ class DatasetSubjectSplitPlanner:
         if len(selected_subject_ids) == 0:
             raise ValueError(f"Split {split!r} produced an empty dataset")
 
-        return DatasetSubjectSplitPlan(
+        return DatasetSplitPlan(
             available_subjects=tuple(subject_ids),
             selected_subjects=tuple(selected_subject_ids),
             split=split,

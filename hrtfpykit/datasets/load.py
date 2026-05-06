@@ -10,7 +10,7 @@ import numpy as np
 from scipy.io import loadmat
 
 from .. import hrtf
-from .split import DatasetSubjectSplitPlanner
+from .split import DatasetSplitPlanner
 
 if TYPE_CHECKING:
     from .base import BaseDataset
@@ -29,7 +29,7 @@ def load_hrtf(
         subject_ids = tuple(state.available_subjects)
     if state.config is None:
         raise ValueError("Dataset config is not initialized")
-    mapped_subject_id = DatasetSubjectSplitPlanner.map_subject_id(
+    mapped_subject_id = DatasetSplitPlanner.map_subject_id(
         subject_id,
         subject_ids,
     )

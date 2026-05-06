@@ -18,7 +18,7 @@ from .resources import DatasetResources
 from .state import DatasetState
 from .acoustic_context import DatasetAcousticContext
 from .specs_workflow import DatasetSpecWorkflow
-from .split import DatasetSubjectSplitPlanner
+from .split import DatasetSplitPlanner
 
 if TYPE_CHECKING:
     from .base import BaseDataset
@@ -174,7 +174,7 @@ class DatasetBuilder:
         state.resource_summary = resource_plan.resource_summary
         state.subject_numbers = resource_plan.subject_numbers
 
-        split_plan = DatasetSubjectSplitPlanner.build(
+        split_plan = DatasetSplitPlanner.build(
             dataset,
             split=split,
             split_ratio=split_ratio,

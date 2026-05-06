@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from .config import DatasetConfig
 from .summary import download_summary
-from .split import DatasetSubjectSplitPlanner
+from .split import DatasetSplitPlanner
 
 try:
     from tqdm.auto import tqdm
@@ -26,11 +26,11 @@ class BaseDownload:
     ) -> None:
         self.config: type[DatasetConfig] | DatasetConfig = config
         self.root: Path = self.sanitize_root(Path(root))
-        config_excluded_subject_ids = DatasetSubjectSplitPlanner.map_subject_ids(
+        config_excluded_subject_ids = DatasetSplitPlanner.map_subject_ids(
             tuple(config.excluded_subject_ids),
             tuple(config.subject_ids),
         )
-        requested_excluded_subject_ids = DatasetSubjectSplitPlanner.map_subject_ids(
+        requested_excluded_subject_ids = DatasetSplitPlanner.map_subject_ids(
             excluded_subject_ids,
             tuple(config.subject_ids),
         )
@@ -311,8 +311,8 @@ class BaseDownload:
             subject_ids = self.get_included_subject_ids(
                 hrtf_subject_ids
             )
-            subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
-                DatasetSubjectSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids))
+            subject_numbers = DatasetSplitPlanner.build_subject_number_map(
+                DatasetSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids))
             )
             hrtf_types = self.sanitize_download_values(
                 download_hrtf_type,
@@ -421,8 +421,8 @@ class BaseDownload:
             subject_ids = self.get_included_subject_ids(
                 mesh_subject_ids
             )
-            subject_numbers = DatasetSubjectSplitPlanner.build_subject_number_map(
-                DatasetSubjectSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids))
+            subject_numbers = DatasetSplitPlanner.build_subject_number_map(
+                DatasetSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids))
             )
             mesh_types = self.sanitize_download_values(
                 download_mesh_type,
