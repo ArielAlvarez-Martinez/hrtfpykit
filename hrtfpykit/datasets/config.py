@@ -64,6 +64,7 @@ class DownloadConfig:
 class DatasetConfig:
     name: str
     subject_ids: tuple[str, ...]
+    excluded_subject_ids: tuple[str, ...] = ()
     hrtf: HRTFConfig | None = None
     mesh: MeshConfig | None = None
     anthropometry: AnthropometryConfig | None = None
@@ -114,6 +115,14 @@ class HUTUBSConfig(DatasetConfig):
 class SONICOMConfig(DatasetConfig):
     name: str = "SONICOM"
     subject_ids: tuple[str, ...] = tuple(f"P{index:04d}" for index in range(1, 401))
+    excluded_subject_ids: tuple[str, ...] = (
+        "P0253",
+        "P0258",
+        "P0270",
+        "P0272",
+        "P0275",
+        "P0396",
+    )
     hrtf: HRTFConfig | None = HRTFConfig(
         default_type="measured",
         types={

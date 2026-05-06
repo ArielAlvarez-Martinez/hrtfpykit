@@ -26,9 +26,16 @@ class BaseDownload:
     ) -> None:
         self.config: type[DatasetConfig] | DatasetConfig = config
         self.root: Path = self.sanitize_root(Path(root))
-        self.excluded_subject_ids = DatasetSubjectSplitPlanner.map_subject_ids(
+        config_excluded_subject_ids = DatasetSubjectSplitPlanner.map_subject_ids(
+            tuple(config.excluded_subject_ids),
+            tuple(config.subject_ids),
+        )
+        requested_excluded_subject_ids = DatasetSubjectSplitPlanner.map_subject_ids(
             excluded_subject_ids,
             tuple(config.subject_ids),
+        )
+        self.excluded_subject_ids = tuple(
+            dict.fromkeys(config_excluded_subject_ids + requested_excluded_subject_ids)
         )
 
     @staticmethod
@@ -476,6 +483,22 @@ class BaseDownload:
                     "url": self.build_download_url(relative_path),
                     "destination": destination,
                     "checksum": self.get_checksum("anthropometry", relative_path),
+                }
+            )
+
+        if "metadata" in resources:
+            if self.config.metadata is None:
+                raise ValueError(f"{self.config.name} does not provide official metadata")
+            relative_path = self.config.metadata.path
+            destination = self.compose_download_path(relative_path)
+            download_jobs.append(
+                {
+                    "resource": "metadata",
+                    "subject_id": None,
+                    "relative_path": relative_path,
+                    "url": self.build_download_url(relative_path),
+                    "destination": destination,
+                    "checksum": self.get_checksum("metadata", relative_path),
                 }
             )
 

@@ -61,6 +61,8 @@ def resources_summary(
 
 def dataset_summary(dataset: object) -> str:
     state = dataset._state
+    uses_hrtf = has_specs(state.specs, resource_name="hrtf")
+    uses_mesh = has_specs(state.specs, resource_name="mesh")
     lines: list[str] = [_summary_title(f"{str(state.name).upper()} DATASET SUMMARY")]
     lines.extend(
         [
@@ -74,15 +76,15 @@ def dataset_summary(dataset: object) -> str:
             f"  target: {', '.join(state.target_names) if len(state.target_specs) > 0 else 'none'}",
         ]
     )
-    if state.dataset_hrtf_type is not None:
+    if uses_hrtf and state.dataset_hrtf_type is not None:
         lines.append(f"  hrtf_type: {state.dataset_hrtf_type}")
-    if state.dataset_hrtf_sample_rate is not None:
+    if uses_hrtf and state.dataset_hrtf_sample_rate is not None:
         lines.append(f"  hrtf_sample_rate: {state.dataset_hrtf_sample_rate}")
-    if state.dataset_hrtf_version is not None:
+    if uses_hrtf and state.dataset_hrtf_version is not None:
         lines.append(f"  hrtf_version: {state.dataset_hrtf_version}")
-    if state.dataset_mesh_type is not None:
+    if uses_mesh and state.dataset_mesh_type is not None:
         lines.append(f"  mesh_type: {state.dataset_mesh_type}")
-    if state.dataset_mesh_version is not None:
+    if uses_mesh and state.dataset_mesh_version is not None:
         lines.append(f"  mesh_version: {state.dataset_mesh_version}")
     if state.sample_rate is not None:
         lines.append(f"  sample_rate: {state.sample_rate}")

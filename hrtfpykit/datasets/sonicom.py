@@ -29,7 +29,7 @@ class SONICOM(BaseDataset):
         dataset_mesh_version: str = "watertight",
         dataset_hrtf_transform: Callable[[object], object] | None = None,
         download: bool = False,
-        download_resources: str | tuple[str, ...] | list[str] = "metadata",
+        download_resources: str | tuple[str, ...] | list[str] = "hrtf",
         download_hrtf_type: str | tuple[str, ...] | list[str] | None = "measured",
         download_hrtf_sample_rate: int | str | tuple[int | str, ...] | list[int | str] | None = 44100,
         download_hrtf_version: str | tuple[str, ...] | list[str] | None = "Windowed",

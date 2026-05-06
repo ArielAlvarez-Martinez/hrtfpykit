@@ -616,9 +616,16 @@ class DatasetResources:
             raise ValueError("Dataset config is not initialized")
         config = state.config
         root = state.root
-        excluded_subjects = DatasetSubjectSplitPlanner.map_subject_ids(
+        config_excluded_subjects = DatasetSubjectSplitPlanner.map_subject_ids(
+            tuple(config.excluded_subject_ids),
+            tuple(config.subject_ids),
+        )
+        requested_excluded_subjects = DatasetSubjectSplitPlanner.map_subject_ids(
             exclude_subject_ids,
             tuple(config.subject_ids),
+        )
+        excluded_subjects = tuple(
+            dict.fromkeys(config_excluded_subjects + requested_excluded_subjects)
         )
         excluded_subject_set = set(excluded_subjects)
         resource_subjects = tuple()
