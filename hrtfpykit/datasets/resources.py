@@ -367,7 +367,7 @@ class DatasetResourcesScanner:
             return mesh_paths, None
         mesh_type = dataset_mesh_type
         if mesh_type is None:
-            mesh_type = "default" if "default" in config.mesh.types else None
+            mesh_type = "default" if "default" in config.mesh.types else config.mesh.default_type
         if mesh_type is None:
             raise ValueError(f"{config.name} requires dataset_mesh_type for mesh resources")
         mesh_type_config = config.mesh.types[mesh_type]

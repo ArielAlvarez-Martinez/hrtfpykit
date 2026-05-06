@@ -317,7 +317,7 @@ class BaseDownload:
             hrtf_types = self.sanitize_download_values(
                 download_hrtf_type,
                 tuple(self.config.hrtf.types),
-                None,
+                self.config.hrtf.default_type,
                 "download_hrtf_type",
             )
             requested_hrtf_types = (
@@ -332,7 +332,7 @@ class BaseDownload:
                     hrtf_sample_rates = self.sanitize_download_values(
                         download_hrtf_sample_rate,
                         hrtf_type_config.sample_rates,
-                        None,
+                        hrtf_type_config.default_sample_rate,
                         "download_hrtf_sample_rate",
                     )
                 except ValueError:
@@ -345,7 +345,7 @@ class BaseDownload:
                     hrtf_versions = self.sanitize_download_values(
                         download_hrtf_version,
                         hrtf_type_config.versions,
-                        None,
+                        hrtf_type_config.default_version,
                         "download_hrtf_version",
                     )
                 except ValueError:
@@ -427,7 +427,7 @@ class BaseDownload:
             mesh_types = self.sanitize_download_values(
                 download_mesh_type,
                 tuple(self.config.mesh.types),
-                None,
+                self.config.mesh.default_type,
                 "download_mesh_type",
             )
             requested_mesh_types = (
@@ -444,7 +444,7 @@ class BaseDownload:
                     mesh_versions = self.sanitize_download_values(
                         download_mesh_version,
                         mesh_type_config.versions,
-                        None,
+                        mesh_type_config.default_version,
                         "download_mesh_version",
                     )
                 except ValueError:
