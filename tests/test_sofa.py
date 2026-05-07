@@ -4,6 +4,7 @@ import warnings
 import numpy as np
 import pytest
 
+from hrtfpykit._warnings import SOFAConventionWarning
 from hrtfpykit.sofa.check import check_sofa_against_conventions, check_sofa_security
 from hrtfpykit.sofa.sofa import SOFA
 from hrtfpykit.sofa.sofa import load_sofa
@@ -72,9 +73,17 @@ def test_real_sofa_convention_check_reports_file_context() -> None:
     try:
         with warnings.catch_warnings(record=True) as record:
             warnings.simplefilter("always")
-            check_sofa_against_conventions(sofa.netCDF4_dataset)
+            result = check_sofa_against_conventions(sofa.netCDF4_dataset)
 
-        assert isinstance(record, list)
+        assert result["convention"]["name"] == getattr(
+            sofa.netCDF4_dataset,
+            "SOFAConventions",
+            None,
+        )
+        assert all(
+            issubclass(warning.category, SOFAConventionWarning)
+            for warning in record
+        )
     finally:
         sofa.netCDF4_dataset.close()
 
@@ -86,6 +95,7 @@ def test_real_sofa_security_check_runs_on_file() -> None:
         print_report=False,
     )
 
-    assert "passed" in report
-    assert "checks" in report
+    assert report["passed"] is True
     assert isinstance(report["checks"], list)
+    assert len(report["checks"]) > 0
+    assert all("name" in check and "passed" in check for check in report["checks"])

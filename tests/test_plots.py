@@ -31,22 +31,17 @@ from hrtfpykit.plots.sh import (
 
 SOFA_PATH = os.getenv("HRTFPYKIT_TEST_SOFA_PATH", "")
 SHOW_PLOTS = os.getenv("HRTFPYKIT_TEST_SHOW_PLOTS", "") == "1"
-VISUAL_PLOTS = os.getenv("HRTFPYKIT_TEST_VISUAL_PLOTS", "") == "1"
 COMPARE_SOFA_PATHS = [
     path
     for path in os.getenv("HRTFPYKIT_TEST_COMPARE_SOFA_PATHS", "").split(os.pathsep)
     if path.strip() != ""
 ]
-pytestmark = pytest.mark.skipif(
-    SOFA_PATH == "" or not os.path.exists(SOFA_PATH),
-    reason="Required local SOFA file is not available",
-)
 
 
 @pytest.fixture(autouse=True)
 def close_figures():
     yield
-    if SHOW_PLOTS or VISUAL_PLOTS:
+    if SHOW_PLOTS:
         plt.show()
     else:
         plt.close("all")
@@ -54,6 +49,8 @@ def close_figures():
 
 @pytest.fixture
 def real_hrtf() -> HRTF:
+    if SOFA_PATH == "" or not os.path.exists(SOFA_PATH):
+        pytest.skip("Required local SOFA file is not available")
     return load_hrtf(SOFA_PATH)
 
 
@@ -86,9 +83,8 @@ def assert_current_matplotlib_figure_has_axes() -> None:
     assert len(figure.axes) >= 1
 
 
-def test_plot_magnitude_accepts_real_hrtf_file() -> None:
-    hrtf = load_hrtf(SOFA_PATH)
-    result = hrtf.plot_magnitude(
+def test_plot_magnitude_accepts_real_hrtf_file(real_hrtf: HRTF) -> None:
+    result = real_hrtf.plot_magnitude(
         positions="front",
         ear="both",
         show=False,

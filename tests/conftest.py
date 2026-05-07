@@ -65,7 +65,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--visual",
         action="store_true",
         default=False,
-        help="Run curated visual plot checks using real SOFA files",
+        help="Display plots during plot tests; alias for --show",
     )
 
 
@@ -126,8 +126,3 @@ def pytest_configure(config: pytest.Config) -> None:
         os.environ["HRTFPYKIT_TEST_SHOW_PLOTS"] = "1"
     else:
         os.environ.pop("HRTFPYKIT_TEST_SHOW_PLOTS", None)
-
-    if visual:
-        os.environ["HRTFPYKIT_TEST_VISUAL_PLOTS"] = "1"
-    else:
-        os.environ.pop("HRTFPYKIT_TEST_VISUAL_PLOTS", None)

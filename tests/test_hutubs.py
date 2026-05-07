@@ -22,7 +22,6 @@ from hrtfpykit.datasets.specs import (
     SHSpec,
 )
 from hrtfpykit.datasets.specs_workflow import DatasetSpecWorkflow
-from hrtfpykit.datasets.split import DatasetSplitPlanner
 
 
 HUTUBS_ROOT = os.getenv("HUTUBS_TEST_HUTUBS_ROOT") or os.getenv("HUTUBS_ROOT")
@@ -672,14 +671,33 @@ def _expected_selected_subjects(
     target: Sequence[object],
     split: str,
 ) -> list[str]:
-    return list(
-        DatasetSplitPlanner.split_subject_ids(
-            _selected_subject_ids(inputs, target),
-            split=split,
-            split_ratio=(0.8, 0.1, 0.1),
-            split_seed=0,
-        )
+    subject_ids = list(_selected_subject_ids(inputs, target))
+    split_key = str(split).strip().lower()
+    if split_key == "all":
+        return subject_ids
+
+    rng = np.random.default_rng(0)
+    if len(subject_ids) > 1:
+        subject_ids = [subject_ids[index] for index in rng.permutation(len(subject_ids))]
+
+    split_ratio = (0.8, 0.1, 0.1)
+    raw_counts = np.asarray(
+        [len(subject_ids) * ratio for ratio in split_ratio],
+        dtype=float,
     )
+    counts = np.floor(raw_counts).astype(int)
+    remainder = int(len(subject_ids) - int(counts.sum()))
+    if remainder > 0:
+        for index in np.argsort(-(raw_counts - counts))[:remainder]:
+            counts[int(index)] += 1
+
+    train_end = int(counts[0])
+    validation_end = int(counts[0] + counts[1])
+    if split_key == "train":
+        return subject_ids[:train_end]
+    if split_key == "validation":
+        return subject_ids[train_end:validation_end]
+    return subject_ids[validation_end:]
 
 
 @pytest.mark.parametrize("split", _SPLIT_VALUES)
