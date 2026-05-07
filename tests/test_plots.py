@@ -1,11 +1,15 @@
+import os
+
 import matplotlib
 
-matplotlib.use("Agg")
+if os.getenv("HRTFPYKIT_TEST_SHOW_PLOTS", "") != "1":
+    matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
+<<<<<<< HEAD
 from hrtfpykit.plots.plots import (
     Axis,
     AxisOptions,
@@ -70,31 +74,62 @@ class DummyPlotHRTF(HRTFPlots):
     ) -> None:
         self.TF = DummyTF(magnitude_db, magnitude, frequency_bins)
         self.Sources = DummySources()
+=======
+from hrtfpykit.hrtf.hrtf import HRTF
+from hrtfpykit.hrtf import load_hrtf
+from hrtfpykit.plots.compare import (
+    compare_absolute_ild,
+    compare_absolute_itd,
+    compare_amplitude,
+    compare_ild_curve,
+    compare_ild_difference,
+    compare_itd_curve,
+    compare_itd_difference,
+    compare_lsd,
+    compare_lsd_plane,
+    compare_magnitude,
+)
+from hrtfpykit.plots.sh import (
+    plot_sht_reconstruction_comparison,
+    plot_sht_reconstruction_error,
+)
+
+
+SOFA_PATH = os.getenv("HRTFPYKIT_TEST_SOFA_PATH", "")
+SHOW_PLOTS = os.getenv("HRTFPYKIT_TEST_SHOW_PLOTS", "") == "1"
+VISUAL_PLOTS = os.getenv("HRTFPYKIT_TEST_VISUAL_PLOTS", "") == "1"
+COMPARE_SOFA_PATHS = [
+    path
+    for path in os.getenv("HRTFPYKIT_TEST_COMPARE_SOFA_PATHS", "").split(os.pathsep)
+    if path.strip() != ""
+]
+pytestmark = pytest.mark.skipif(
+    SOFA_PATH == "" or not os.path.exists(SOFA_PATH),
+    reason="Required local SOFA file is not available",
+)
+>>>>>>> dev
 
 
 @pytest.fixture(autouse=True)
 def close_figures():
     yield
-    plt.close("all")
+    if SHOW_PLOTS or VISUAL_PLOTS:
+        plt.show()
+    else:
+        plt.close("all")
 
 
 @pytest.fixture
-def dummy_hrtf() -> DummyPlotHRTF:
-    frequency_bins = np.array([0.0, 5_000.0, 10_000.0, 15_000.0, 20_000.0], dtype=float)
-    magnitude = np.array(
-        [[[1.0, 1.2, 1.4, 1.6, 1.8], [0.9, 1.1, 1.3, 1.5, 1.7]]],
-        dtype=float,
-    )
-    magnitude_db = np.array(
-        [[[0.0, 1.0, 2.0, 3.0, 4.0], [-1.0, 0.0, 1.0, 2.0, 3.0]]],
-        dtype=float,
-    )
-    return DummyPlotHRTF(magnitude_db, magnitude, frequency_bins)
+def real_hrtf() -> HRTF:
+    return load_hrtf(SOFA_PATH)
 
 
-def test_create_frequency_axis_linear_sets_scale_ticks_and_label() -> None:
-    fig, ax = plt.subplots()
+@pytest.fixture
+def comparison_hrtfs() -> list[HRTF]:
+    if len(COMPARE_SOFA_PATHS) < 2:
+        pytest.skip("Two real compare SOFA files must be passed with --compare-sofa-paths")
 
+<<<<<<< HEAD
     resolved = Axis.create_frequency_axis(
         ax=ax,
         axis="x",
@@ -172,6 +207,37 @@ def test_plot_magnitude_single_position_returns_layout_and_lines(
         x_axis="linear",
         freq_min=250.0,
         freq_max=20_000.0,
+=======
+    missing_paths = [
+        path
+        for path in COMPARE_SOFA_PATHS[:2]
+        if not os.path.exists(path)
+    ]
+    if len(missing_paths) > 0:
+        pytest.skip(
+            "Required compare SOFA files are not available: "
+            + ", ".join(missing_paths)
+        )
+
+    return [
+        load_hrtf(COMPARE_SOFA_PATHS[0]),
+        load_hrtf(COMPARE_SOFA_PATHS[1]),
+    ]
+
+
+def assert_current_matplotlib_figure_has_axes() -> None:
+    figure_numbers = plt.get_fignums()
+    assert len(figure_numbers) >= 1
+    figure = plt.figure(figure_numbers[-1])
+    assert len(figure.axes) >= 1
+
+
+def test_plot_magnitude_accepts_real_hrtf_file() -> None:
+    hrtf = load_hrtf(SOFA_PATH)
+    result = hrtf.plot_magnitude(
+        positions="front",
+        ear="both",
+>>>>>>> dev
         show=False,
     )
 
@@ -181,8 +247,8 @@ def test_plot_magnitude_single_position_returns_layout_and_lines(
     assert result is None
     assert len(fig.axes) == 1
     assert len(ax.lines) == 2
-    assert ax.get_xscale() == "linear"
     assert ax.get_xlabel() == "Frequency(kHz)"
+<<<<<<< HEAD
     assert ax.get_ylabel() == "Magnitude"
     assert ax.get_title() == "Front : [Azimuth= 0.0°, Elevation= 0.0°]"
 
@@ -259,3 +325,271 @@ def test_plot_magnitude_hides_unused_axis_for_three_positions(
     assert result is None
     assert len(fig.axes) == 4
     assert fig.axes[3].get_visible() is False
+=======
+    assert ax.get_ylabel() == "Magnitude (dB)"
+
+
+@pytest.mark.parametrize(
+    ("name", "plot_call"),
+    [
+        (
+            "plot_magnitude",
+            lambda hrtf: hrtf.plot_magnitude(
+                positions="front",
+                ear="both",
+                show=False,
+            ),
+        ),
+        (
+            "plot_amplitude",
+            lambda hrtf: hrtf.plot_amplitude(
+                positions="front",
+                ear="both",
+                show=False,
+            ),
+        ),
+        (
+            "plot_amplitude_and_magnitude",
+            lambda hrtf: hrtf.plot_amplitude_and_magnitude(
+                position="front",
+                ear="both",
+                show=False,
+            ),
+        ),
+        (
+            "plot_spectrum_plane",
+            lambda hrtf: hrtf.plot_spectrum_plane(
+                plane="horizontal",
+                ear="left",
+                show=False,
+            ),
+        ),
+        (
+            "plot_elevation_spectrum",
+            lambda hrtf: hrtf.plot_elevation_spectrum(
+                azimuth="front",
+                ear="left",
+                show=False,
+            ),
+        ),
+        (
+            "plot_itd_curve",
+            lambda hrtf: hrtf.plot_itd_curve(
+                show=False,
+            ),
+        ),
+        (
+            "plot_absolute_itd",
+            lambda hrtf: hrtf.plot_absolute_itd(
+                show=False,
+            ),
+        ),
+        (
+            "plot_ild_plane",
+            lambda hrtf: hrtf.plot_ild_plane(
+                plane="horizontal",
+                show=False,
+            ),
+        ),
+        (
+            "plot_ild_curve",
+            lambda hrtf: hrtf.plot_ild_curve(
+                show=False,
+            ),
+        ),
+        (
+            "plot_absolute_ild",
+            lambda hrtf: hrtf.plot_absolute_ild(
+                show=False,
+            ),
+        ),
+        (
+            "plot_source_grid",
+            lambda hrtf: hrtf.plot_source_grid(
+                show=False,
+            ),
+        ),
+        (
+            "plot_plane_grid",
+            lambda hrtf: hrtf.plot_plane_grid(
+                plane=["horizontal", "median", "frontal"],
+                show=False,
+            ),
+        ),
+    ],
+    ids=[
+        "plot_magnitude",
+        "plot_amplitude",
+        "plot_amplitude_and_magnitude",
+        "plot_spectrum_plane",
+        "plot_elevation_spectrum",
+        "plot_itd_curve",
+        "plot_absolute_itd",
+        "plot_ild_plane",
+        "plot_ild_curve",
+        "plot_absolute_ild",
+        "plot_source_grid",
+        "plot_plane_grid",
+    ],
+)
+def test_real_hrtf_plot_methods_create_matplotlib_figures(
+    real_hrtf: HRTF,
+    name: str,
+    plot_call,
+) -> None:
+    result = plot_call(real_hrtf)
+
+    assert result is None
+    assert_current_matplotlib_figure_has_axes()
+
+
+@pytest.mark.parametrize(
+    ("name", "plot_call"),
+    [
+        (
+            "compare_magnitude",
+            lambda hrtfs: compare_magnitude(
+                hrtfs,
+                positions="front",
+                ear="left",
+                show=False,
+            ),
+        ),
+        (
+            "compare_amplitude",
+            lambda hrtfs: compare_amplitude(
+                hrtfs,
+                positions="front",
+                ear="left",
+                show=False,
+            ),
+        ),
+        (
+            "compare_absolute_itd",
+            lambda hrtfs: compare_absolute_itd(
+                hrtfs,
+                show=False,
+            ),
+        ),
+        (
+            "compare_absolute_ild",
+            lambda hrtfs: compare_absolute_ild(
+                hrtfs,
+                show=False,
+            ),
+        ),
+        (
+            "compare_itd_curve",
+            lambda hrtfs: compare_itd_curve(
+                hrtfs,
+                show=False,
+            ),
+        ),
+        (
+            "compare_ild_curve",
+            lambda hrtfs: compare_ild_curve(
+                hrtfs,
+                show=False,
+            ),
+        ),
+        (
+            "compare_itd_difference",
+            lambda hrtfs: compare_itd_difference(
+                hrtfs[0],
+                hrtfs[1],
+                method="maxiacce",
+                show=False,
+            ),
+        ),
+        (
+            "compare_ild_difference",
+            lambda hrtfs: compare_ild_difference(
+                hrtfs[0],
+                hrtfs[1],
+                show=False,
+            ),
+        ),
+        (
+            "compare_lsd",
+            lambda hrtfs: compare_lsd(
+                hrtfs[0],
+                hrtfs[1],
+                ear="left",
+                show=False,
+            ),
+        ),
+        (
+            "compare_lsd_plane",
+            lambda hrtfs: compare_lsd_plane(
+                hrtfs[0],
+                hrtfs[1],
+                plane="horizontal",
+                ear="left",
+                show=False,
+            ),
+        ),
+    ],
+    ids=[
+        "compare_magnitude",
+        "compare_amplitude",
+        "compare_absolute_itd",
+        "compare_absolute_ild",
+        "compare_itd_curve",
+        "compare_ild_curve",
+        "compare_itd_difference",
+        "compare_ild_difference",
+        "compare_lsd",
+        "compare_lsd_plane",
+    ],
+)
+def test_real_hrtf_compare_plot_functions_create_matplotlib_figures(
+    comparison_hrtfs: list[HRTF],
+    name: str,
+    plot_call,
+) -> None:
+    result = plot_call(comparison_hrtfs)
+
+    assert result is None
+    assert_current_matplotlib_figure_has_axes()
+
+
+@pytest.mark.parametrize(
+    ("name", "plot_call"),
+    [
+        (
+            "plot_sht_reconstruction_comparison",
+            lambda hrtf, reconstructed_magnitude: plot_sht_reconstruction_comparison(
+                hrtf=hrtf,
+                reconstructed_magnitude=reconstructed_magnitude,
+                position="front",
+                ear="left",
+                show=False,
+            ),
+        ),
+        (
+            "plot_sht_reconstruction_error",
+            lambda hrtf, reconstructed_magnitude: plot_sht_reconstruction_error(
+                hrtf=hrtf,
+                reconstructed_magnitude=reconstructed_magnitude,
+                position="front",
+                ear="left",
+                show=False,
+            ),
+        ),
+    ],
+    ids=[
+        "plot_sht_reconstruction_comparison",
+        "plot_sht_reconstruction_error",
+    ],
+)
+def test_real_hrtf_sh_plot_functions_create_matplotlib_figures(
+    real_hrtf: HRTF,
+    name: str,
+    plot_call,
+) -> None:
+    reconstructed_magnitude = np.asarray(real_hrtf.TF.magnitude, dtype=float)
+    result = plot_call(real_hrtf, reconstructed_magnitude)
+
+    assert result is None
+    assert_current_matplotlib_figure_has_axes()
+>>>>>>> dev
