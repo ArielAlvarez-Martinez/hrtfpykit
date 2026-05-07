@@ -1,4 +1,5 @@
 from pathlib import Path
+from collections.abc import Mapping
 import gzip
 import hashlib
 import tarfile
@@ -18,6 +19,34 @@ except ImportError:
 
 
 class BaseDownload:
+    """Download and verify official dataset resources.
+
+    ``BaseDownload`` is the shared downloader used by dataset classes before
+    construction. It converts a dataset config and selector arguments into a
+    concrete download plan, writes files under the dataset root, verifies archive
+    integrity, and checks SHA-256 digests when checksums are available.
+
+    Parameters
+    ----------
+    config : DatasetConfig or type[DatasetConfig]
+        Dataset configuration with official download metadata.
+    root : str or Path
+        Local root where downloaded resources are stored.
+    excluded_subject_ids : str, int, sequence, or None, default=None
+        Subject references excluded from subject-specific download jobs.
+
+    Returns
+    -------
+    BaseDownload Downloader object used to build plans and download selected
+    resources.
+
+    Use Cases
+    ---------
+    - Download official resources before constructing a dataset.
+    - Verify already-downloaded files using checksums and archive checks.
+    - Select only specific HRTF or mesh variants for download.
+    """
+
     def __init__(
         self,
         config: type[DatasetConfig] | DatasetConfig,
@@ -40,6 +69,26 @@ class BaseDownload:
 
     @staticmethod
     def sanitize_root(root: Path) -> Path:
+        """Normalize and validate a dataset download root.
+
+        The downloader accepts user-provided roots but must guarantee that later
+        writes target a directory, not an existing file. This helper expands and
+        resolves the path before download planning or file writes occur.
+
+        Parameters
+        ----------
+        root : Path
+            Candidate root path.
+
+        Returns
+        -------
+        Path Resolved root path.
+
+        Use Cases
+        ---------
+        - Reject file paths used as roots.
+        - Normalize user-provided download roots.
+        """
         normalized = Path(root).expanduser()
         if normalized.exists() and not normalized.is_dir():
             raise ValueError(f"Dataset root must be a directory, got file: {normalized}")
@@ -47,6 +96,26 @@ class BaseDownload:
 
     @staticmethod
     def validate_download_url(url: str) -> str:
+        """Validate an HTTPS download URL before use.
+
+        Dataset downloads should not silently accept insecure or malformed URLs. This
+        helper enforces the URL scheme and host early so download failures are
+        reported before file transfer.
+
+        Parameters
+        ----------
+        url : str
+            URL to validate.
+
+        Returns
+        -------
+        str Original URL when valid.
+
+        Use Cases
+        ---------
+        - Reject non-HTTPS downloads.
+        - Ensure download URLs include a host.
+        """
         parsed = urlparse(url)
         if parsed.scheme.lower() != "https":
             raise ValueError(f"Only https downloads are allowed, got: {url}")
@@ -56,6 +125,26 @@ class BaseDownload:
 
     @staticmethod
     def compute_sha256(path: Path) -> str:
+        """Compute the SHA-256 digest for a local file.
+
+        The downloader reads the file in chunks so large SOFA, mesh, or archive
+        resources can be verified without loading the entire file into memory. The
+        result is used both for verification and checksum generation workflows.
+
+        Parameters
+        ----------
+        path : Path
+            File path to hash.
+
+        Returns
+        -------
+        str SHA-256 hex digest.
+
+        Use Cases
+        ---------
+        - Verify downloaded files.
+        - Generate checksum entries for known resources.
+        """
         digest = hashlib.sha256()
         with path.open("rb") as file:
             while True:
@@ -67,6 +156,26 @@ class BaseDownload:
 
     @staticmethod
     def sanitize_checksum(checksum: str) -> str:
+        """Normalize and validate a SHA-256 checksum string.
+
+        Checksums can be written with or without a ``sha256:`` prefix, but the
+        downloader stores and compares plain lowercase hex digests. This helper
+        rejects malformed values before they are used in verification.
+
+        Parameters
+        ----------
+        checksum : str
+            Checksum string, optionally prefixed by ``sha256:``.
+
+        Returns
+        -------
+        str Lowercase SHA-256 hex digest.
+
+        Use Cases
+        ---------
+        - Accept checksum strings from config maps.
+        - Reject malformed checksum values.
+        """
         value = str(checksum).strip().lower()
         if value.startswith("sha256:"):
             value = value.split(":", 1)[1]
@@ -78,6 +187,27 @@ class BaseDownload:
         self,
         requested: str | tuple[str, ...] | list[str],
     ) -> tuple[str, ...]:
+        """Normalize requested download resource names.
+
+        This helper validates the resource groups requested by the user against the
+        dataset config and expands the pseudo-resource ``all``. It keeps dataset
+        constructors small while making unsupported download requests fail before any
+        network operation.
+
+        Parameters
+        ----------
+        requested : str or sequence of str
+            Requested resource names.
+
+        Returns
+        -------
+        tuple of str Normalized resource names.
+
+        Use Cases
+        ---------
+        - Expand ``'all'`` into available resource groups.
+        - Reject unsupported download resources.
+        """
         if self.config.download is None:
             raise ValueError(f"{self.config.name} does not define downloadable resources")
         if isinstance(requested, str):
@@ -100,6 +230,32 @@ class BaseDownload:
         default: str | int | None,
         label: str,
     ) -> tuple[str, ...]:
+        """Normalize selector values used by download planning.
+
+        HRTF and mesh downloads can be selected by type, version, and sample rate.
+        This helper handles ``None``, scalar values, sequences, ``all``, and
+        validation against available values through one selector rule set.
+
+        Parameters
+        ----------
+        requested : str, int, sequence, or None
+            Requested selector values.
+        available : tuple
+            Available selector values.
+        default : str, int, or None
+            Optional fallback value.
+        label : str
+            Error label for validation messages.
+
+        Returns
+        -------
+        tuple of str Normalized selector values.
+
+        Use Cases
+        ---------
+        - Expand ``'all'`` selector values.
+        - Validate HRTF and mesh variant selectors.
+        """
         if len(available) == 0:
             if requested in (None, "all"):
                 return tuple()
@@ -124,11 +280,47 @@ class BaseDownload:
         return tuple(str(normalized_available[value]) for value in normalized_requested)
 
     def validate_download_root(self) -> Path:
+        """Create and validate the downloader root directory.
+
+        This method is called immediately before downloads so path checks and
+        directory creation happen at the boundary where files may be written. It
+        updates ``self.root`` with the resolved path used by subsequent jobs.
+
+        Returns
+        -------
+        Path Resolved root directory.
+
+        Use Cases
+        ---------
+        - Ensure the download destination exists.
+        - Revalidate root before writing files.
+        """
         self.root = self.sanitize_root(self.root)
         self.root.mkdir(parents=True, exist_ok=True)
         return self.root
 
     def compose_download_path(self, filename: str) -> Path:
+        """Resolve a destination path under the dataset root.
+
+        Download configs provide relative resource paths, and this method turns them
+        into absolute local paths while rejecting absolute paths or ``..`` escapes. It
+        is the downloader boundary that prevents resource path templates from writing
+        outside the dataset root.
+
+        Parameters
+        ----------
+        filename : str
+            Relative resource path.
+
+        Returns
+        -------
+        Path Absolute destination path under the root.
+
+        Use Cases
+        ---------
+        - Prevent absolute or parent-directory escaping paths.
+        - Map resource relative paths to local files.
+        """
         candidate = Path(filename)
         if candidate.is_absolute():
             raise ValueError(f"Download filename must be relative: {filename}")
@@ -142,6 +334,26 @@ class BaseDownload:
         return destination
 
     def build_download_url(self, filename: str) -> str:
+        """Compose a full download URL from a relative resource path.
+
+        The method combines the dataset download base URL with one planned relative
+        path, then validates the resulting URL through the shared HTTPS rules. This
+        keeps URL generation deterministic and centralized.
+
+        Parameters
+        ----------
+        filename : str
+            Relative resource path.
+
+        Returns
+        -------
+        str Validated HTTPS download URL.
+
+        Use Cases
+        ---------
+        - Build file URLs from dataset download config.
+        - Keep URL validation centralized.
+        """
         if self.config.download is None:
             raise ValueError(f"{self.config.name} does not define an official download base URL")
         validated_base_url = self.validate_download_url(self.config.download.base_url.rstrip("/"))
@@ -157,6 +369,32 @@ class BaseDownload:
         mesh_type: str | None = None,
         mesh_version: str | None = None,
     ) -> str | None:
+        """Look up the checksum for one planned resource path.
+
+        Checksum maps can be flat or hierarchical by HRTF type/version/sample-rate or
+        mesh type/version. This method hides that structure from plan builders and
+        returns the exact checksum relevant to one concrete resource path.
+
+        Parameters
+        ----------
+        resource : str
+            Resource group name.
+        relative_path : str
+            Relative resource path.
+        hrtf_type, hrtf_version, hrtf_sample_rate : str, int, or None
+            HRTF selector context for hierarchical checksum maps.
+        mesh_type, mesh_version : str or None
+            Mesh selector context for hierarchical checksum maps.
+
+        Returns
+        -------
+        str or None SHA-256 checksum when available.
+
+        Use Cases
+        ---------
+        - Resolve HRTF checksums by type, version, and sample rate.
+        - Resolve mesh checksums by type and version.
+        """
         if self.config.download is None or self.config.download.checksums is None:
             return None
         checksums = self.config.download.checksums
@@ -219,11 +457,51 @@ class BaseDownload:
         return checksum
 
     def has_checksum_map(self, resource: str) -> bool:
+        """Return whether a resource uses a path-based checksum map.
+
+        Some resources, especially SONICOM mesh variants, use checksum maps to
+        represent actual server availability. Plan builders use this method to skip
+        jobs not present in the map instead of inventing unavailable downloads.
+
+        Parameters
+        ----------
+        resource : str
+            Resource group name.
+
+        Returns
+        -------
+        bool ``True`` when checksums for the resource are dictionary-based.
+
+        Use Cases
+        ---------
+        - Skip unavailable checksum-mapped resources.
+        - Distinguish single-file and path-mapped checksums.
+        """
         if self.config.download is None or self.config.download.checksums is None:
             return False
         return isinstance(self.config.download.checksums.get(resource), dict)
 
     def get_included_subject_ids(self, subject_ids: tuple[str, ...]) -> tuple[str, ...]:
+        """Filter subject IDs by downloader exclusions.
+
+        The downloader combines config-level and user-level exclusions once during
+        initialization. This helper applies that normalized exclusion set to each
+        subject-specific resource family.
+
+        Parameters
+        ----------
+        subject_ids : tuple of str
+            Candidate subject IDs.
+
+        Returns
+        -------
+        tuple of str Subject IDs not excluded from downloads.
+
+        Use Cases
+        ---------
+        - Apply config and user exclusions to download jobs.
+        - Reuse subject filtering for HRTF and mesh resources.
+        """
         excluded_subject_ids_set = set(self.excluded_subject_ids)
         return tuple(
             subject_id for subject_id in subject_ids if subject_id not in excluded_subject_ids_set
@@ -235,6 +513,31 @@ class BaseDownload:
         destination: Path,
         checksum: str | None = None,
     ) -> str:
+        """Download or verify one planned file.
+
+        This method validates the URL, verifies existing destinations, downloads to a
+        temporary ``.part`` file when needed, checks size and integrity, then
+        atomically moves the verified file into place. It is the file-write path for the downloader.
+
+        Parameters
+        ----------
+        url : str
+            HTTPS source URL.
+        destination : Path
+            Local destination path.
+        checksum : str or None
+            Optional SHA-256 checksum.
+
+        Returns
+        -------
+        str ``'downloaded'`` when fetched or ``'verified'`` when existing file passed
+        validation.
+
+        Use Cases
+        ---------
+        - Safely download individual resources.
+        - Replace corrupt existing files with verified downloads.
+        """
         validated_url = self.validate_download_url(url)
         destination.parent.mkdir(parents=True, exist_ok=True)
 
@@ -291,14 +594,74 @@ class BaseDownload:
     def build_download_plan(
         self,
         download_resources: str | tuple[str, ...] | list[str] = "all",
-        download_hrtf_type: str | tuple[str, ...] | list[str] | None = "all",
-        download_hrtf_sample_rate: str | int | tuple[str | int, ...] | list[str | int] | None = None,
-        download_hrtf_version: str | tuple[str, ...] | list[str] | None = None,
-        download_mesh_type: str | tuple[str, ...] | list[str] | None = None,
-        download_mesh_version: str | tuple[str, ...] | list[str] | None = None,
+        download_hrtf_variant: str | Mapping[str, object] | None = "all",
+        download_mesh_variant: str | Mapping[str, object] | None = None,
     ) -> list[dict[str, object]]:
+        """Build the file-level download plan for selected resources.
+
+        The plan expands resource groups, subject scopes, HRTF variants, mesh
+        variants, path templates, URLs, destinations, and checksums into concrete
+        jobs. It performs planning without writing files, which lets constructors and
+        tests inspect download intent separately from execution.
+
+        This planner only uses download arguments. It does not inspect dataset specs,
+        dataset construction variants, or any future ``BaseDataset`` state. Passing
+        ``"all"`` in a download variant expands that download axis across the
+        available values declared by the dataset config.
+
+        Parameters
+        ----------
+        download_resources : str or sequence of str, default='all'
+            Resource groups to include in the plan. This value is not inferred from
+            dataset specs.
+        download_hrtf_variant : str, dict, or None, default='all'
+            HRTF variant requested for download. This value is independent from any
+            dataset construction HRTF variant.
+        download_mesh_variant : str, dict, or None, default=None
+            Mesh variant requested for download. This value is independent from any
+            dataset construction mesh variant.
+
+        Returns
+        -------
+        list of dict Planned download jobs containing resource names, selectors, URLs,
+        destinations, subjects, relative paths, and checksums.
+
+        Use Cases
+        ---------
+        - Inspect what would be downloaded before writing files.
+        - Generate subject-specific HRTF or mesh download jobs.
+        - Skip unavailable checksum-mapped resources cleanly.
+        """
+
         resources = self.sanitize_download_resources(download_resources)
         download_jobs: list[dict[str, object]] = []
+        if isinstance(download_hrtf_variant, Mapping):
+            unknown_keys = set(download_hrtf_variant) - {"type", "sample_rate", "version"}
+            if len(unknown_keys) > 0:
+                raise ValueError(
+                    f"Unsupported download_hrtf_variant keys {tuple(sorted(unknown_keys))}. "
+                    "Expected keys are ('type', 'sample_rate', 'version')"
+                )
+            hrtf_variant_type = download_hrtf_variant.get("type")
+            hrtf_variant_sample_rate = download_hrtf_variant.get("sample_rate")
+            hrtf_variant_version = download_hrtf_variant.get("version")
+        else:
+            hrtf_variant_type = download_hrtf_variant
+            hrtf_variant_sample_rate = None
+            hrtf_variant_version = None
+
+        if isinstance(download_mesh_variant, Mapping):
+            unknown_keys = set(download_mesh_variant) - {"type", "version"}
+            if len(unknown_keys) > 0:
+                raise ValueError(
+                    f"Unsupported download_mesh_variant keys {tuple(sorted(unknown_keys))}. "
+                    "Expected keys are ('type', 'version')"
+                )
+            mesh_variant_type = download_mesh_variant.get("type")
+            mesh_variant_version = download_mesh_variant.get("version")
+        else:
+            mesh_variant_type = download_mesh_variant
+            mesh_variant_version = None
 
         if "hrtf" in resources:
             if self.config.hrtf is None:
@@ -315,25 +678,25 @@ class BaseDownload:
                 DatasetSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids))
             )
             hrtf_types = self.sanitize_download_values(
-                download_hrtf_type,
+                hrtf_variant_type,
                 tuple(self.config.hrtf.types),
                 None,
-                "download_hrtf_type",
+                "download_hrtf_variant['type']",
             )
             requested_hrtf_types = (
-                (download_hrtf_type,)
-                if isinstance(download_hrtf_type, (str, int)) or download_hrtf_type is None
-                else tuple(download_hrtf_type)
+                (hrtf_variant_type,)
+                if isinstance(hrtf_variant_type, (str, int)) or hrtf_variant_type is None
+                else tuple(hrtf_variant_type)
             )
             hrtf_type_all = any(str(value).strip().lower() == "all" for value in requested_hrtf_types)
             for hrtf_type in hrtf_types:
                 hrtf_type_config = self.config.hrtf.types[hrtf_type]
                 try:
                     hrtf_sample_rates = self.sanitize_download_values(
-                        download_hrtf_sample_rate,
+                        hrtf_variant_sample_rate,
                         hrtf_type_config.sample_rates,
                         None,
-                        "download_hrtf_sample_rate",
+                        "download_hrtf_variant['sample_rate']",
                     )
                 except ValueError:
                     if hrtf_type_all:
@@ -343,10 +706,10 @@ class BaseDownload:
                     hrtf_sample_rates = (None,)
                 try:
                     hrtf_versions = self.sanitize_download_values(
-                        download_hrtf_version,
+                        hrtf_variant_version,
                         hrtf_type_config.versions,
                         None,
-                        "download_hrtf_version",
+                        "download_hrtf_variant['version']",
                     )
                 except ValueError:
                     if hrtf_type_all:
@@ -400,9 +763,13 @@ class BaseDownload:
                                 {
                                     "resource": "hrtf",
                                     "subject_id": subject_id,
-                                    "hrtf_type": hrtf_type,
-                                    "hrtf_sample_rate": sample_rate_value,
-                                    "hrtf_version": hrtf_version,
+                                    "hrtf_variant": {
+                                        "type": hrtf_type,
+                                        "sample_rate": sample_rate_value,
+                                        "version": hrtf_version,
+                                    }
+                                    if sample_rate_value is not None or hrtf_version is not None
+                                    else hrtf_type,
                                     "relative_path": relative_path,
                                     "url": self.build_download_url(relative_path),
                                     "destination": destination,
@@ -425,15 +792,15 @@ class BaseDownload:
                 DatasetSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids))
             )
             mesh_types = self.sanitize_download_values(
-                download_mesh_type,
+                mesh_variant_type,
                 tuple(self.config.mesh.types),
                 None,
-                "download_mesh_type",
+                "download_mesh_variant['type']",
             )
             requested_mesh_types = (
-                (download_mesh_type,)
-                if isinstance(download_mesh_type, (str, int)) or download_mesh_type is None
-                else tuple(download_mesh_type)
+                (mesh_variant_type,)
+                if isinstance(mesh_variant_type, (str, int)) or mesh_variant_type is None
+                else tuple(mesh_variant_type)
             )
             mesh_type_all = any(str(value).strip().lower() == "all" for value in requested_mesh_types)
             if len(mesh_types) == 0 and "default" in self.config.mesh.types:
@@ -442,10 +809,10 @@ class BaseDownload:
                 mesh_type_config = self.config.mesh.types[mesh_type]
                 try:
                     mesh_versions = self.sanitize_download_values(
-                        download_mesh_version,
+                        mesh_variant_version,
                         mesh_type_config.versions,
                         None,
-                        "download_mesh_version",
+                        "download_mesh_variant['version']",
                     )
                 except ValueError:
                     if mesh_type_all:
@@ -484,8 +851,12 @@ class BaseDownload:
                             {
                                 "resource": "mesh",
                                 "subject_id": subject_id,
-                                "mesh_type": mesh_type,
-                                "mesh_version": mesh_version,
+                                "mesh_variant": {
+                                    "type": mesh_type,
+                                    "version": mesh_version,
+                                }
+                                if mesh_version is not None
+                                else mesh_type,
                                 "relative_path": relative_path,
                                 "url": self.build_download_url(relative_path),
                                 "destination": destination,
@@ -530,20 +901,50 @@ class BaseDownload:
     def download(
         self,
         download_resources: str | tuple[str, ...] | list[str] = "all",
-        download_hrtf_type: str | tuple[str, ...] | list[str] | None = "all",
-        download_hrtf_sample_rate: str | int | tuple[str | int, ...] | list[str | int] | None = None,
-        download_hrtf_version: str | tuple[str, ...] | list[str] | None = None,
-        download_mesh_type: str | tuple[str, ...] | list[str] | None = None,
-        download_mesh_version: str | tuple[str, ...] | list[str] | None = None,
+        download_hrtf_variant: str | Mapping[str, object] | None = "all",
+        download_mesh_variant: str | Mapping[str, object] | None = None,
     ) -> tuple[bool, str]:
+        """Download or verify the selected official resources.
+
+        This method validates the root, builds the plan, executes each job, tracks
+        downloaded and verified files, and returns a human-readable summary. It raises
+        one combined error if any planned job fails so callers get complete context
+        instead of a silent partial dataset.
+
+        Download execution follows the explicit download plan. It does not fall back
+        to specs, dataset HRTF variants, or dataset mesh variants when a resource or
+        variant is missing from the download arguments.
+
+        Parameters
+        ----------
+        download_resources : str or sequence of str, default='all'
+            Resource groups to download or verify. This value is not inferred from
+            dataset specs.
+        download_hrtf_variant : str, dict, or None, default='all'
+            HRTF variant requested for download. This value is independent from any
+            dataset construction HRTF variant.
+        download_mesh_variant : str, dict, or None, default=None
+            Mesh variant requested for download. This value is independent from any
+            dataset construction mesh variant.
+
+        Returns
+        -------
+        tuple[bool, str] ``True`` and a summary when at least one file was downloaded;
+        ``False`` and a summary when all planned files already existed or no jobs were
+        needed.
+
+        Use Cases
+        ---------
+        - Download resources from a dataset constructor.
+        - Verify existing official files before dataset construction.
+        - Raise one detailed error if any planned file fails.
+        """
+
         self.validate_download_root()
         download_jobs = self.build_download_plan(
             download_resources=download_resources,
-            download_hrtf_type=download_hrtf_type,
-            download_hrtf_sample_rate=download_hrtf_sample_rate,
-            download_hrtf_version=download_hrtf_version,
-            download_mesh_type=download_mesh_type,
-            download_mesh_version=download_mesh_version,
+            download_hrtf_variant=download_hrtf_variant,
+            download_mesh_variant=download_mesh_variant,
         )
         if len(download_jobs) == 0:
             summary = download_summary(
@@ -603,6 +1004,24 @@ class BaseDownload:
         return downloaded_count > 0, summary
 
     def verify_checksum(self, path: Path, checksum: str | None) -> None:
+        """Verify a file against an optional SHA-256 checksum.
+
+        The method does nothing when a checksum is unavailable, but when one is
+        provided it computes the current digest and raises on mismatch. This supports
+        datasets with partial checksum coverage while still enforcing integrity where
+        known.
+
+        Parameters
+        ----------
+        path : Path
+            File path to verify.
+        checksum : str or None
+            Expected checksum. ``None`` disables checksum validation.
+
+        Returns
+        -------
+        None Raises when checksum validation fails.
+        """
         if checksum is None:
             return
         expected = self.sanitize_checksum(checksum)
@@ -613,6 +1032,26 @@ class BaseDownload:
             )
 
     def verify_archive_integrity(self, path: Path) -> None:
+        """Verify archive containers can be opened and traversed.
+
+        Archive downloads can be non-empty and checksum-free while still being
+        corrupt. This method performs format-specific integrity checks for
+        ZIP, TAR, and GZIP files before a download is accepted.
+
+        Parameters
+        ----------
+        path : Path
+            Downloaded file path.
+
+        Returns
+        -------
+        None Raises when archive integrity checks fail.
+
+        Use Cases
+        ---------
+        - Detect corrupt ZIP, TAR, and GZIP downloads.
+        - Validate archives before moving temporary files into place.
+        """
         suffix = path.suffix.lower()
         lower_name = path.name.lower()
         if lower_name.endswith(".zip"):
@@ -633,6 +1072,24 @@ class BaseDownload:
                         break
 
     def verify_downloaded_file(self, path: Path, checksum: str | None) -> None:
+        """Verify a downloaded file is present, non-empty, structurally valid, and
+        checksum-valid.
+
+        This method combines basic file checks, archive integrity checks, and optional
+        SHA-256 validation. It is used for both existing files and temporary downloads
+        before dataset construction uses them.
+
+        Parameters
+        ----------
+        path : Path
+            Downloaded file path.
+        checksum : str or None
+            Optional SHA-256 checksum.
+
+        Returns
+        -------
+        None Raises when the file is missing, empty, corrupt, or checksum-invalid.
+        """
         if not path.exists():
             raise ValueError(f"Downloaded file is missing: {path}")
         if not path.is_file():

@@ -2,6 +2,29 @@ from .specs_registry import has_specs
 
 
 def _summary_title(text: str, width: int = 54, marker: str = "=") -> str:
+    """Format a centered summary title.
+
+    Summary output is intentionally plain text so it works in terminals, notebooks,
+    and logs. This helper formats the shared title line used by resource, dataset,
+    and download summaries.
+
+    Parameters
+    ----------
+    text : str
+        Title text.
+    width : int
+        Desired output width.
+    marker : str
+        Padding marker.
+
+    Returns
+    -------
+    str Formatted title line.
+
+    Use Cases
+    ---------
+    - Format dataset, resource, and download summary titles.
+    """
     cleaned = str(text).strip()
     if width <= 0:
         return cleaned
@@ -22,6 +45,39 @@ def resources_summary(
     missing: int = 0,
     missing_subject_ids: tuple[str, ...] | list[str] = tuple(),
 ) -> dict[str, object] | str:
+    """Create a resource summary dictionary or formatted dataset resource summary.
+
+    The function has two modes: scanner mode returns a dictionary from
+    counts, and dataset mode formats the stored summaries for resources actually
+    used by selected specs. This keeps scanner bookkeeping and user-facing summary
+    text aligned.
+
+    Parameters
+    ----------
+    dataset : object or None, default=None
+        Dataset instance to summarize. If ``None``, returns a resource summary
+        dictionary from the count arguments.
+    checked : int, default=0
+        Number of resource entries checked.
+    found : int, default=0
+        Number of resource entries found.
+    missing : int, default=0
+        Number of resource entries missing.
+    missing_subject_ids : tuple or list of str, default=()
+        Subject IDs missing this resource.
+
+    Returns
+    -------
+    dict or str Resource summary dictionary when ``dataset`` is ``None``;
+    otherwise a formatted summary string.
+
+    Use Cases
+    ---------
+    - Store scanner count results in dataset state.
+    - Print a user-facing resource summary.
+    - Keep missing-subject information attached to resource names.
+    """
+
     if dataset is None:
         summary: dict[str, object] = {
             "checked": checked,
@@ -60,6 +116,29 @@ def resources_summary(
 
 
 def dataset_summary(dataset: object) -> str:
+    """Create a formatted summary for a constructed dataset.
+
+    The summary is built from final dataset state, not constructor arguments, so
+    it reflects exclusions, resource intersection, split selection, selected
+    specs, variants, and acoustic metadata after construction. It is the main
+    summary view for a dataset instance.
+
+    Parameters
+    ----------
+    dataset : object
+        Dataset instance with initialized dataset state.
+
+    Returns
+    -------
+    str Human-readable dataset summary.
+
+    Use Cases
+    ---------
+    - Inspect selected specs, subject counts, and split information.
+    - Confirm selected HRTF and mesh variants.
+    - Log dataset construction in scripts or notebooks.
+    """
+
     state = dataset._state
     uses_hrtf = has_specs(state.specs, resource_name="hrtf")
     uses_mesh = has_specs(state.specs, resource_name="mesh")
@@ -76,16 +155,26 @@ def dataset_summary(dataset: object) -> str:
             f"  target: {', '.join(state.target_names) if len(state.target_specs) > 0 else 'none'}",
         ]
     )
-    if uses_hrtf and state.dataset_hrtf_type is not None:
-        lines.append(f"  hrtf_type: {state.dataset_hrtf_type}")
-    if uses_hrtf and state.dataset_hrtf_sample_rate is not None:
-        lines.append(f"  hrtf_sample_rate: {state.dataset_hrtf_sample_rate}")
-    if uses_hrtf and state.dataset_hrtf_version is not None:
-        lines.append(f"  hrtf_version: {state.dataset_hrtf_version}")
-    if uses_mesh and state.dataset_mesh_type is not None:
-        lines.append(f"  mesh_type: {state.dataset_mesh_type}")
-    if uses_mesh and state.dataset_mesh_version is not None:
-        lines.append(f"  mesh_version: {state.dataset_mesh_version}")
+    if uses_hrtf and state.dataset_hrtf_variant is not None:
+        if isinstance(state.dataset_hrtf_variant, dict):
+            hrtf_variant = ", ".join(
+                f"{key}={value}"
+                for key, value in state.dataset_hrtf_variant.items()
+                if value is not None
+            )
+        else:
+            hrtf_variant = str(state.dataset_hrtf_variant)
+        lines.append(f"  hrtf_variant: {hrtf_variant}")
+    if uses_mesh and state.dataset_mesh_variant is not None:
+        if isinstance(state.dataset_mesh_variant, dict):
+            mesh_variant = ", ".join(
+                f"{key}={value}"
+                for key, value in state.dataset_mesh_variant.items()
+                if value is not None
+            )
+        else:
+            mesh_variant = str(state.dataset_mesh_variant)
+        lines.append(f"  mesh_variant: {mesh_variant}")
     if state.sample_rate is not None:
         lines.append(f"  sample_rate: {state.sample_rate}")
     if state.positions is not None:
@@ -101,35 +190,71 @@ def download_summary(
     verified_count: int,
     failures: list[str],
 ) -> str:
+    """Create a formatted summary for a dataset download operation.
+
+    The summary aggregates planned jobs, downloaded files, verified existing
+    files, failures, subjects, resources, and selected variants. It is returned
+    after successful downloads and embedded in raised errors when any job fails.
+
+    Parameters
+    ----------
+    config : DatasetConfig
+        Dataset configuration used by the downloader.
+    root : str or Path
+        Local download root.
+    download_jobs : list of dict
+        Planned download job records.
+    downloaded_count : int
+        Number of files downloaded in this run.
+    verified_count : int
+        Number of existing files verified without download.
+    failures : list of str
+        Download or verification failure messages.
+
+    Returns
+    -------
+    str Human-readable download summary.
+
+    Use Cases
+    ---------
+    - Print download results from concrete dataset constructors.
+    - Raise a detailed error when one or more downloads fail.
+    - Report selected HRTF or mesh variants in download workflows.
+    """
+
     planned_files = len(download_jobs)
     resources: dict[str, int] = {}
     subject_ids: set[str] = set()
-    hrtf_types: set[str] = set()
-    hrtf_sample_rates: set[str] = set()
-    hrtf_versions: set[str] = set()
-    mesh_types: set[str] = set()
-    mesh_versions: set[str] = set()
+    hrtf_variants: set[str] = set()
+    mesh_variants: set[str] = set()
     for job in download_jobs:
         resource = str(job["resource"])
         resources[resource] = resources.get(resource, 0) + 1
         subject_id = job.get("subject_id")
         if subject_id is not None:
             subject_ids.add(str(subject_id))
-        hrtf_type = job.get("hrtf_type")
-        if hrtf_type is not None:
-            hrtf_types.add(str(hrtf_type))
-        hrtf_sample_rate = job.get("hrtf_sample_rate")
-        if hrtf_sample_rate is not None:
-            hrtf_sample_rates.add(str(hrtf_sample_rate))
-        hrtf_version = job.get("hrtf_version")
-        if hrtf_version is not None:
-            hrtf_versions.add(str(hrtf_version))
-        mesh_type = job.get("mesh_type")
-        if mesh_type is not None:
-            mesh_types.add(str(mesh_type))
-        mesh_version = job.get("mesh_version")
-        if mesh_version is not None:
-            mesh_versions.add(str(mesh_version))
+        hrtf_variant = job.get("hrtf_variant")
+        if isinstance(hrtf_variant, dict):
+            hrtf_variants.add(
+                ", ".join(
+                    f"{key}={value}"
+                    for key, value in hrtf_variant.items()
+                    if value is not None
+                )
+            )
+        elif hrtf_variant is not None:
+            hrtf_variants.add(str(hrtf_variant))
+        mesh_variant = job.get("mesh_variant")
+        if isinstance(mesh_variant, dict):
+            mesh_variants.add(
+                ", ".join(
+                    f"{key}={value}"
+                    for key, value in mesh_variant.items()
+                    if value is not None
+                )
+            )
+        elif mesh_variant is not None:
+            mesh_variants.add(str(mesh_variant))
     lines = [
         _summary_title(f"{str(config.name).upper()} DOWNLOAD SUMMARY"),
         f"  root: {root}",
@@ -146,16 +271,10 @@ def download_summary(
                 f"  subjects: {len(subject_ids)}",
             ]
         )
-        if len(hrtf_types) > 0:
-            lines.append(f"  hrtf_types: {', '.join(sorted(hrtf_types))}")
-        if len(hrtf_sample_rates) > 0:
-            lines.append(f"  hrtf_sample_rates: {', '.join(sorted(hrtf_sample_rates))}")
-        if len(hrtf_versions) > 0:
-            lines.append(f"  hrtf_versions: {', '.join(sorted(hrtf_versions))}")
-        if len(mesh_types) > 0:
-            lines.append(f"  mesh_types: {', '.join(sorted(mesh_types))}")
-        if len(mesh_versions) > 0:
-            lines.append(f"  mesh_versions: {', '.join(sorted(mesh_versions))}")
+        if len(hrtf_variants) > 0:
+            lines.append(f"  hrtf_variants: {'; '.join(sorted(hrtf_variants))}")
+        if len(mesh_variants) > 0:
+            lines.append(f"  mesh_variants: {'; '.join(sorted(mesh_variants))}")
         if len(resources) > 0:
             lines.append(
                 "  resources: "

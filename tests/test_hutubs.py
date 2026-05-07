@@ -710,7 +710,7 @@ def test_hutubs_real_dataset_all_combinations(
             pytest.skip(reason=str(exc))
         raise
 
-    assert dataset.variant == dataset_hrtf_variant
+    assert dataset.dataset_hrtf_variant == dataset_hrtf_variant
     assert dataset.available_subjects == _expected_available_subjects(
         inputs,
         target,

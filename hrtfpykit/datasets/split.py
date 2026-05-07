@@ -14,6 +14,32 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class DatasetSplitPlan:
+    """Store available and selected subjects after split planning.
+
+    Parameters
+    ----------
+    available_subjects : tuple of str
+        Subjects available after resource intersection and exclusions.
+    selected_subjects : tuple of str
+        Subjects selected for the requested split.
+    split : str
+        Requested split name.
+    split_ratio : tuple of float
+        Train, validation, and test split ratios.
+    split_seed : int
+        Seed used for deterministic split assignment.
+
+    Returns
+    -------
+    DatasetSplitPlan Immutable split plan consumed by ``DatasetBuilder``.
+
+    Use Cases
+    ---------
+    - Keep resource availability separate from train/validation/test selection.
+    - Build dataset rows from selected split subjects.
+    - Report available and selected subject counts in summaries.
+    """
+
     available_subjects: tuple[str, ...]
     selected_subjects: tuple[str, ...]
     split: str
@@ -22,12 +48,49 @@ class DatasetSplitPlan:
 
 
 class DatasetSplitPlanner:
+    """Plan dataset subject mapping, sorting, exclusion, and split selection.
+
+    This utility normalizes subject references, intersects resource availability,
+    and produces deterministic train, validation, and test subject selections.
+
+    Use Cases
+    ---------
+    - Normalize subject references such as ``1``, ``'pp1'``, or ``'subject_1'``.
+    - Produce deterministic train/validation/test subject splits.
+    - Intersect selected specs with available resource subject sets.
+    """
+
     @classmethod
     def map_subject_id(
         cls,
         value: str | int,
         subject_ids: tuple[str, ...],
     ) -> str:
+        """Map one user subject reference to a canonical subject ID.
+
+        The mapper accepts exact IDs, integer positions, numeric strings, and
+        ``subject1``/``subject_1`` style references. It always returns the canonical
+        ID from the dataset config so downstream state never mixes user aliases with
+        official subject IDs.
+
+        Parameters
+        ----------
+        value : str or int
+            User subject reference.
+        subject_ids : tuple of str
+            Canonical subject IDs accepted by the dataset.
+
+        Returns
+        -------
+        str Canonical subject ID.
+
+        Use Cases
+        ---------
+        - Accept integer subject references.
+        - Accept ``subject1`` or ``subject_1`` style references.
+        - Normalize subject references in loading and exclusion paths.
+        """
+
         if len(subject_ids) == 0:
             raise ValueError("subject_ids must not be empty")
         if isinstance(value, int):
@@ -63,6 +126,28 @@ class DatasetSplitPlanner:
         values: str | int | tuple[str | int, ...] | list[str | int] | None,
         subject_ids: tuple[str, ...],
     ) -> tuple[str, ...]:
+        """Map one or more subject references to canonical IDs.
+
+        This helper applies ``map_subject_id`` to optional scalar or sequence inputs,
+        removes duplicates while preserving order, and returns a tuple. It is used for
+        config exclusions, user exclusions, and download filtering.
+
+        Parameters
+        ----------
+        values : str, int, sequence, or None
+            User subject references.
+        subject_ids : tuple of str
+            Canonical subject IDs.
+
+        Returns
+        -------
+        tuple of str Unique canonical subject IDs preserving input order.
+
+        Use Cases
+        ---------
+        - Normalize config and user exclusions.
+        - Accept mixed integer and string subject references.
+        """
         if values is None:
             return tuple()
         if isinstance(values, (str, int)):
@@ -71,6 +156,26 @@ class DatasetSplitPlanner:
 
     @staticmethod
     def sort_subject_ids(subject_ids: set[str] | list[str] | tuple[str, ...]) -> list[str]:
+        """Sort subject IDs by trailing numeric value.
+
+        Dataset subject IDs often contain prefixes such as ``pp`` or ``P`` followed by
+        numbers. This helper keeps natural numeric ordering stable, so ``pp2`` appears
+        before ``pp10`` in splits, summaries, and path numbering.
+
+        Parameters
+        ----------
+        subject_ids : set, list, or tuple
+            Subject IDs to sort.
+
+        Returns
+        -------
+        list of str Naturally sorted subject IDs.
+
+        Use Cases
+        ---------
+        - Keep pp1 before pp10.
+        - Build deterministic subject scopes.
+        """
         def subject_sort_key(value: str) -> tuple[int, str]:
             match = re.search(r"(\d+)$", str(value))
             if match is None:
@@ -81,6 +186,25 @@ class DatasetSplitPlanner:
 
     @staticmethod
     def build_subject_number_map(subject_ids: tuple[str, ...]) -> dict[str, int]:
+        """Build numeric subject identifiers from canonical IDs.
+
+        Some resource path patterns require a subject number in addition to the
+        canonical ID. This helper extracts trailing digits when available and falls
+        back to one-based ordering for non-numeric IDs.
+
+        Parameters
+        ----------
+        subject_ids : tuple of str
+            Canonical subject IDs.
+
+        Returns
+        -------
+        dict Mapping from subject ID to numeric identifier.
+
+        Use Cases
+        ---------
+        - Format resource path patterns requiring subject numbers.
+        """
         return {
             str(subject_id): int(match.group(1))
             if (match is not None and match.group(1) != "")
@@ -98,6 +222,26 @@ class DatasetSplitPlanner:
     def prepare_subject_scope(
         dataset: "BaseDataset",
     ) -> tuple[tuple[str, ...], dict[str, int]]:
+        """Prepare the non-excluded subject scope for a dataset.
+
+        This method combines dataset config subjects with normalized exclusions and
+        builds the subject-number map used by path formatters. It provides the pre-
+        resource-intersection subject universe for later split planning.
+
+        Parameters
+        ----------
+        dataset : BaseDataset
+            Dataset with initialized config and exclusions.
+
+        Returns
+        -------
+        tuple Available subject IDs and subject number map.
+
+        Use Cases
+        ---------
+        - Initialize split planning from config subjects.
+        - Apply exclusions before resource intersection.
+        """
         state = dataset._state
         config = state.config
         if config is None:
@@ -121,6 +265,35 @@ class DatasetSplitPlanner:
         split_ratio: tuple[float, float, float],
         split_seed: int,
     ) -> list[str]:
+        """Split subject IDs into all, train, validation, or test subsets.
+
+        The splitter shuffles subjects deterministically with the provided seed,
+        converts ratios into integer counts, assigns remainders deterministically, and
+        returns only the requested subset. It is deliberately independent of resource
+        scanning so it can be tested in isolation.
+
+        Parameters
+        ----------
+        subject_ids : sequence of str
+            Ordered subject IDs available for splitting.
+        split : {'all', 'train', 'validation', 'test'}
+            Split subset to return.
+        split_ratio : tuple of float
+            Train, validation, and test ratios. Values must sum to one.
+        split_seed : int
+            Random seed used to shuffle subjects deterministically.
+
+        Returns
+        -------
+        list of str Subject IDs selected for the requested split.
+
+        Use Cases
+        ---------
+        - Build reproducible train/validation/test datasets.
+        - Test split behavior without constructing a full dataset.
+        - Reuse split logic across dataset integrations.
+        """
+
         split_key = str(split).strip().lower()
         if split_key == "all":
             return list(subject_ids)
@@ -165,6 +338,34 @@ class DatasetSplitPlanner:
         split_ratio: tuple[float, float, float],
         split_seed: int,
     ) -> DatasetSplitPlan:
+        """Build a split plan from dataset resources and selected specs.
+
+        This method intersects available subjects across every resource family
+        required by the current specs, reports detailed availability context when the
+        intersection is empty, and then applies the requested train/validation/test
+        split. It is the boundary between resource availability and row-generation
+        subject selection.
+
+        Parameters
+        ----------
+        dataset : BaseDataset
+            Dataset with resource and spec state initialized.
+        split : str
+            Requested split name.
+        split_ratio : tuple of float
+            Train, validation, and test ratios.
+        split_seed : int
+            Deterministic split seed.
+
+        Returns
+        -------
+        DatasetSplitPlan Available and selected subjects for the dataset.
+
+        Use Cases
+        ---------
+        - Intersect resource availability across selected specs.
+        - Build subject splits after resource scanning.
+        """
         state = dataset._state
         config = state.config
         if config is None:
@@ -221,11 +422,8 @@ class DatasetSplitPlanner:
                     for key in (
                         "pattern",
                         "path",
-                        "hrtf_type",
-                        "hrtf_sample_rate",
-                        "hrtf_version",
-                        "mesh_type",
-                        "mesh_version",
+                        "hrtf_variant",
+                        "mesh_variant",
                         "extensions",
                         "checked",
                         "found",

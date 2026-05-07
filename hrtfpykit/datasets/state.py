@@ -23,16 +23,20 @@ DatasetSpec = HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySp
 
 @dataclass
 class DatasetState:
+    """Explicit mutable state owned by one dataset instance.
+
+    ``DatasetState`` contains the schema filled by ``DatasetBuilder`` during
+    construction. Build phases return plans, and the builder writes the final
+    values here so dataset modules do not create scattered private attributes on
+    ``BaseDataset``.
+    """
     config: type[DatasetConfig] | DatasetConfig | None = None
     name: str = ""
     root: Path = field(default_factory=Path)
     dataset_hrtf_transform: Callable[[object], object] | None = None
     excluded_subjects: tuple[str, ...] = ()
-    dataset_hrtf_type: str | None = None
-    dataset_hrtf_sample_rate: int | str | None = None
-    dataset_hrtf_version: str | None = None
-    dataset_mesh_type: str | None = None
-    dataset_mesh_version: str | None = None
+    dataset_hrtf_variant: str | dict[str, object] | None = None
+    dataset_mesh_variant: str | dict[str, object] | None = None
 
     input_specs: tuple[DatasetSpec, ...] = ()
     target_specs: tuple[DatasetSpec, ...] = ()

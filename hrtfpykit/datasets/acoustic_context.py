@@ -16,6 +16,33 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class DatasetAcousticContextPlan:
+    """Store acoustic context derived from the selected HRTF resources.
+
+    Parameters
+    ----------
+    sample_rate : float or None
+        Dataset-level sample rate.
+    positions, azimuth_angles, elevation_angles : numpy.ndarray or None
+        Full source-position context.
+    frequency_bins, sample_indices : numpy.ndarray or None
+        Frequency and time-sample context.
+    selected_position_indices, selected_frequency_indices, selected_sample_indices : tuple of int
+        Indices selected by specs for row generation.
+    selected_azimuth_angles, selected_elevation_angles : numpy.ndarray or None
+        Angles corresponding to selected positions.
+    spec_position_indices : tuple
+        Per-spec position selections keyed by spec identity.
+
+    Returns
+    -------
+    DatasetAcousticContextPlan Immutable acoustic context plan consumed by
+    ``DatasetBuilder``.
+
+    Use Cases
+    ---------
+    - Keep acoustic metadata explicit after HRTF inspection.
+    - Share selected axes with row generation and value selectors.
+    """
     sample_rate: float | None
     positions: np.ndarray | None
     azimuth_angles: np.ndarray | None
@@ -31,12 +58,44 @@ class DatasetAcousticContextPlan:
 
 
 class DatasetAcousticContext:
+    """Resolve acoustic axes and selected position context for dataset specs.
+
+    This utility derives sample rate, positions, frequency bins, sample indices,
+    selected axes, and per-spec position mappings during dataset construction.
+    """
+
     @staticmethod
     def resolve_position_indices(
         positions: str | tuple[int, ...] | list[int] | np.ndarray,
         plane: str | tuple[object, ...] | dict[str, object] | None,
         hrtf: "HRTF",
     ) -> list[int]:
+        """Resolve explicit or plane-based source position indices for one acoustic spec.
+
+        The resolver accepts either direct position indices or a named plane selector,
+        then converts that request into concrete source indices from the sample HRTF
+        source grid. It rejects ambiguous combinations, such as a plane selector mixed
+        with custom position indices, so all specs share a clear position-selection
+        contract.
+
+        Parameters
+        ----------
+        positions : str or sequence of int
+            Explicit position selection or ``'all'``.
+        plane : str, tuple, dict, or None
+            Optional horizontal, median, or frontal plane selector.
+        hrtf : HRTF
+            HRTF object used to inspect source positions.
+
+        Returns
+        -------
+        list of int Source position indices selected for a spec.
+
+        Use Cases
+        ---------
+        - Convert plane selectors into source-position indices.
+        - Validate position selections against the HRTF source grid.
+        """
         position_count = int(hrtf.Sources.get_positions().shape[0])
         if plane is None:
             return sanitize_positions(positions, position_count)
@@ -84,6 +143,29 @@ class DatasetAcousticContext:
 
     @classmethod
     def build(cls, dataset: "BaseDataset") -> DatasetAcousticContextPlan:
+        """Build acoustic context for a constructed dataset state.
+
+        This method inspects one available subject HRTF to derive dataset-level
+        acoustic metadata and validates that all indexed acoustic specs agree on
+        shared row axes. It separates full dataset context from selected context so
+        public properties can report both the original resource grid and the spec-
+        selected subset.
+
+        Parameters
+        ----------
+        dataset : BaseDataset
+            Dataset with resources, specs, and selected subjects initialized.
+
+        Returns
+        -------
+        DatasetAcousticContextPlan Acoustic context used by state assignment and row
+        generation.
+
+        Use Cases
+        ---------
+        - Inspect one sample HRTF to derive shared acoustic axes.
+        - Validate consistent frequency, sample, and position indexing.
+        """
         state = dataset._state
         acoustic_specs = tuple(
             spec

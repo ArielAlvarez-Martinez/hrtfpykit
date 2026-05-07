@@ -24,6 +24,39 @@ def load_hrtf(
     hrtf_paths: dict[str, Path] | None = None,
     cache: dict[object, object] | None = None,
 ) -> "HRTF":
+    """Load one subject HRTF through a dataset context.
+
+    This function is the low-level implementation behind
+    ``BaseDataset.get_subject_hrtf`` and acoustic value extraction. It maps user
+    subject references, finds the selected resource path, uses the dataset cache,
+    applies the dataset-level HRTF transform, and wraps loading errors with
+    subject/path context.
+
+    Parameters
+    ----------
+    dataset : BaseDataset
+        Dataset instance that owns state, paths, transforms, and cache.
+    subject_id : str or int
+        Subject reference to map and load.
+    subject_ids : tuple of str or None, default=None
+        Optional subject scope used for mapping. ``None`` uses available dataset
+        subjects.
+    hrtf_paths : dict or None, default=None
+        Optional subject-to-path map. ``None`` uses dataset state paths.
+    cache : dict or None, default=None
+        Optional cache dictionary. ``None`` uses dataset state cache.
+
+    Returns
+    -------
+    HRTF Loaded HRTF object after applying any dataset-level HRTF transform.
+
+    Use Cases
+    ---------
+    - Load HRTF data for direct inspection.
+    - Share HRTF cache behavior across value selectors.
+    - Apply dataset-level transforms before acoustic spec extraction.
+    """
+
     state = dataset._state
     if subject_ids is None:
         subject_ids = tuple(state.available_subjects)
@@ -84,6 +117,41 @@ def load_table(
     subject_id: bool = True,
     resource_name: str = "Table",
 ) -> dict[str, dict[str, float | str | None]] | dict[str, object]:
+    """Load a CSV or MAT table and align it to dataset subject IDs.
+
+    This function implements the shared table behavior used by metadata and
+    anthropometry resources. It maps row- or column-oriented tables onto canonical
+    dataset subject IDs, applies row/column exclusions, converts simple numeric
+    values, and keeps MAT variables available for matrix-style access.
+
+    Parameters
+    ----------
+    dataset : BaseDataset
+        Dataset instance that provides canonical subject IDs.
+    path : str or Path
+        Table path to load.
+    extension : str or None, default=None
+        Explicit extension override. ``None`` uses ``path.suffix``.
+    exclude_row, exclude_column : int, sequence of int, or None, default=None
+        Row or column indices removed from the loaded table.
+    accessed_by : {'row', 'column'}, default='row'
+        Whether subjects are represented by table rows or columns.
+    subject_id : bool, default=True
+        Whether the table includes a leading subject identifier row or column.
+    resource_name : str, default='Table'
+        Resource label used in validation errors.
+
+    Returns
+    -------
+    dict Table data mapped to dataset subject IDs, or a MAT variable mapping.
+
+    Use Cases
+    ---------
+    - Load anthropometry tables for ``AnthropometrySpec``.
+    - Load metadata tables for ``MetadataSpec``.
+    - Normalize external subject labels to dataset subject ordering.
+    """
+
     state = dataset._state
     if state.config is None:
         raise ValueError("Dataset config is not initialized")

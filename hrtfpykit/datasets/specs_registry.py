@@ -18,6 +18,25 @@ DatasetSpec = HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySp
 
 @dataclass(frozen=True)
 class DatasetSpecDescriptor:
+    """Describe one dataset spec type in the central registry.
+
+    Parameters
+    ----------
+    spec_type : type
+        Concrete spec class.
+    name : str
+        Default public sample key.
+    resource_name : str
+        Resource family used by the spec.
+    indexed, acoustic, position_selectable, media, grouped, path_based, ear_selectable : bool
+        Behavioral flags consumed by workflow, resources, and values.
+    value_method_name : str
+        Selector method name used to resolve sample values.
+
+    Returns
+    -------
+    DatasetSpecDescriptor Immutable registry entry.
+    """
     spec_type: type
     name: str
     resource_name: str
@@ -45,6 +64,27 @@ SPEC_DESCRIPTORS = (
 
 
 def get_spec_descriptor(spec: DatasetSpec) -> DatasetSpecDescriptor:
+    """Return the registry descriptor for a spec object.
+
+    This is the central type-to-behavior lookup for dataset specs. Workflow
+    validation, resource scanning, split intersection, and value dispatch all use
+    descriptors so spec taxonomy stays in one module instead of scattered
+    ``isinstance`` branches.
+
+    Parameters
+    ----------
+    spec : dataset spec
+        Spec object to classify.
+
+    Returns
+    -------
+    DatasetSpecDescriptor Descriptor matching the spec type.
+
+    Use Cases
+    ---------
+    - Centralize spec taxonomy.
+    - Dispatch value selection and resource scanning.
+    """
     for descriptor in SPEC_DESCRIPTORS:
         if isinstance(spec, descriptor.spec_type):
             return descriptor
@@ -52,6 +92,26 @@ def get_spec_descriptor(spec: DatasetSpec) -> DatasetSpecDescriptor:
 
 
 def get_spec_name(spec: DatasetSpec) -> str:
+    """Resolve the public name for a spec.
+
+    A spec can provide an explicit ``name`` to control its sample key; otherwise
+    the registry default is used. Centralizing this rule keeps duplicate-name
+    validation and sample dictionary construction use the same naming rule.
+
+    Parameters
+    ----------
+    spec : dataset spec
+        Spec object to name.
+
+    Returns
+    -------
+    str Explicit spec name or descriptor default.
+
+    Use Cases
+    ---------
+    - Build sample dictionaries.
+    - Detect duplicate spec names.
+    """
     explicit_name = getattr(spec, "name", None)
     if explicit_name is not None:
         name = str(explicit_name).strip()
@@ -73,6 +133,34 @@ def get_specs(
     path_based: bool | None = None,
     ear_selectable: bool | None = None,
 ) -> tuple[DatasetSpec, ...]:
+    """Filter specs by descriptor properties.
+
+    Many build phases need to ask questions such as which specs are acoustic,
+    which require media, or which use a resource family. This helper performs
+    those descriptor-based filters without duplicating spec-type logic in each
+    phase.
+
+    Parameters
+    ----------
+    specs : tuple of specs
+        Specs to filter.
+    resource_name : str or None, default=None
+        Resource family filter.
+    indexed, acoustic, position_selectable : bool or None, default=None
+        Descriptor property filters.
+    media, grouped, path_based, ear_selectable : bool or None, default=None
+        Descriptor property filters.
+
+    Returns
+    -------
+    tuple of specs
+        Specs matching all provided filters.
+
+    Use Cases
+    ---------
+    - Find specs requiring a resource.
+    - Select indexed or acoustic specs for validation.
+    """
     selected_specs: list[DatasetSpec] = []
     for spec in specs:
         descriptor = get_spec_descriptor(spec)
@@ -108,6 +196,26 @@ def has_specs(
     path_based: bool | None = None,
     ear_selectable: bool | None = None,
 ) -> bool:
+    """Return whether any specs match descriptor filters.
+
+    This convenience wrapper is used when a phase only needs a yes/no answer, such
+    as whether to scan a resource or include a summary entry. It keeps boolean
+    resource decisions aligned with ``get_specs`` filtering.
+
+    Parameters
+    ----------
+    specs : tuple of specs
+        Specs to inspect. **filters Descriptor filters.
+
+    Returns
+    -------
+    bool ``True`` when at least one spec matches.
+
+    Use Cases
+    ---------
+    - Decide whether to scan a resource.
+    - Decide whether to include summary entries.
+    """
     return len(
         get_specs(
             specs,
@@ -124,6 +232,27 @@ def has_specs(
 
 
 def get_supported_index(spec: DatasetSpec) -> tuple[set[str], str]:
+    """Return supported row axes for an indexed spec.
+
+    Different specs support different row axes depending on what value they
+    produce; for example time-domain HRTF specs support samples while frequency-
+    domain specs support frequency. This helper provides both machine-checkable
+    axes and human-readable combinations for errors.
+
+    Parameters
+    ----------
+    spec : dataset spec
+        Spec to inspect.
+
+    Returns
+    -------
+    tuple Supported axis set and human-readable combinations.
+
+    Use Cases
+    ---------
+    - Validate ``index_by``.
+    - Build actionable compatibility errors.
+    """
     if isinstance(spec, HRTFSpec):
         domain = str(spec.domain).strip().lower()
         supported_axes = {"position", "ear", "samples"} if domain == "time" else {"position", "ear", "frequency"}
@@ -159,6 +288,27 @@ def get_supported_index(spec: DatasetSpec) -> tuple[set[str], str]:
 
 
 def get_axis_compatibility_hint(spec: DatasetSpec, axis_name: str) -> str:
+    """Return a hint for unsupported axis usage.
+
+    When validation rejects an axis, the error also needs configuration guidance.
+    This helper adds spec-specific guidance, such as switching HRTF domain before
+    using frequency indexing.
+
+    Parameters
+    ----------
+    spec : dataset spec
+        Spec being validated.
+    axis_name : str
+        Unsupported axis name.
+
+    Returns
+    -------
+    str Additional compatibility hint, or an empty string.
+
+    Use Cases
+    ---------
+    - Improve spec validation errors.
+    """
     if isinstance(spec, HRTFSpec):
         domain = str(spec.domain).strip().lower()
         if axis_name == "frequency" and domain == "time":
@@ -172,6 +322,27 @@ def get_axis_compatibility_hint(spec: DatasetSpec, axis_name: str) -> str:
 
 
 def get_flag_compatibility_hint(spec: DatasetSpec, axis_name: str) -> str:
+    """Return a hint for unsupported context flag usage.
+
+    One-hot and index flags require the corresponding row axis. This helper adds
+    spec-specific guidance when a flag is incompatible with the current spec
+    configuration.
+
+    Parameters
+    ----------
+    spec : dataset spec
+        Spec being validated.
+    axis_name : str
+        Axis required by a context flag.
+
+    Returns
+    -------
+    str Additional compatibility hint, or an empty string.
+
+    Use Cases
+    ---------
+    - Improve one-hot and index flag validation errors.
+    """
     if isinstance(spec, HRTFSpec):
         domain = str(spec.domain).strip().lower()
         if axis_name == "frequency" and domain == "time":

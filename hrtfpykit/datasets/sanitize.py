@@ -17,10 +17,51 @@ import numpy as np
 
 
 def sanitize_subject_id(value: str) -> str:
+    """Normalize a subject identifier for loose user matching.
+
+    Subject references can arrive with whitespace or different casing, while
+    dataset configs keep canonical IDs. This helper provides the normalized
+    form used by subject mapping without replacing the canonical value returned to
+    callers.
+
+    Parameters
+    ----------
+    value : str
+        Subject identifier to normalize.
+
+    Returns
+    -------
+    str Lowercase stripped subject identifier.
+
+    Use Cases
+    ---------
+    - Compare user subject references with dataset IDs.
+    """
     return str(value).strip().lower()
 
 
 def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
+    """Normalize and validate dataset row axes.
+
+    Indexed specs must agree on a subject-first row structure, and only supported
+    axes can appear after ``subject``. This helper converts string shorthand into
+    tuples and rejects duplicate, incompatible, or ambiguous axes early in spec
+    planning.
+
+    Parameters
+    ----------
+    index_by : str or sequence of str
+        Requested dataset row axes.
+
+    Returns
+    -------
+    tuple of str Normalized row axes.
+
+    Use Cases
+    ---------
+    - Validate acoustic spec indexing.
+    - Enforce subject-first row axes.
+    """
     allowed_axes = {"position", "ear", "frequency", "samples"}
     if isinstance(index_by, str):
         value = str(index_by).strip().lower()
@@ -51,6 +92,26 @@ def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
 
 
 def sanitize_grouped_by(grouped_by: str | Sequence[str]) -> tuple[str, ...]:
+    """Normalize and validate grouped resource axes.
+
+    Table and media resources can be grouped by subject or subject-ear. This
+    helper keeps that contract explicit so scanners and value selectors do not
+    need to interpret arbitrary grouping combinations.
+
+    Parameters
+    ----------
+    grouped_by : str or sequence of str
+        Requested grouping axes.
+
+    Returns
+    -------
+    tuple of str Normalized grouping axes.
+
+    Use Cases
+    ---------
+    - Validate table and media grouping.
+    - Support subject and subject-ear resources.
+    """
     if isinstance(grouped_by, str):
         value = str(grouped_by).strip().lower()
         if value == "subject":
@@ -67,6 +128,25 @@ def sanitize_grouped_by(grouped_by: str | Sequence[str]) -> tuple[str, ...]:
 
 
 def sanitize_ear(ear: str | None) -> str | None:
+    """Normalize a table ear selector.
+
+    Anthropometry and metadata specs can request no ear, both ears, or one side
+    when grouped by ear. This helper centralizes accepted values so workflow
+    validation and value selection use the same vocabulary.
+
+    Parameters
+    ----------
+    ear : str or None
+        Ear selector.
+
+    Returns
+    -------
+    str or None Normalized ear selector.
+
+    Use Cases
+    ---------
+    - Validate anthropometry and metadata ear selection.
+    """
     if ear is None or str(ear).strip() == "":
         return None
     ear_value = str(ear).strip().lower()
@@ -78,6 +158,25 @@ def sanitize_ear(ear: str | None) -> str | None:
 
 
 def sanitize_accessed_by(accessed_by: str) -> str:
+    """Normalize table access direction.
+
+    Table specs support row-oriented or column-oriented subject layouts. This
+    helper validates the setting before table loading so row/column indexing
+    errors remain tied to spec planning.
+
+    Parameters
+    ----------
+    accessed_by : str
+        Table access direction.
+
+    Returns
+    -------
+    str ``'row'`` or ``'column'``.
+
+    Use Cases
+    ---------
+    - Validate metadata and anthropometry table specs.
+    """
     accessed_by_value = str(accessed_by).strip().lower()
     if accessed_by_value not in {"row", "column"}:
         raise ValueError("AnthropometrySpec accessed_by must be 'row' or 'column'")
@@ -85,6 +184,26 @@ def sanitize_accessed_by(accessed_by: str) -> str:
 
 
 def sanitize_ears(ears: str | Sequence[str]) -> list[tuple[str, int]]:
+    """Normalize HRTF ear selection into labels and source indices.
+
+    HRTF-like resources use left/right source-ear indices, while user specs use
+    readable names such as ``both`` or ``left``. This helper returns both
+    representations and rejects duplicate or unsupported ear requests.
+
+    Parameters
+    ----------
+    ears : str or sequence of str
+        Ear selection.
+
+    Returns
+    -------
+    list of tuple Ear labels and source ear indices.
+
+    Use Cases
+    ---------
+    - Build ear-indexed rows.
+    - Validate left/right/both ear selections.
+    """
     if isinstance(ears, str):
         value = str(ears).strip().lower()
         if value == "both":
@@ -114,6 +233,27 @@ def sanitize_positions(
     positions: str | Sequence[int] | np.ndarray,
     position_count: int,
 ) -> list[int]:
+    """Normalize source position selection against a known position count.
+
+    Position selectors can request all positions or explicit integer indices. This
+    helper validates emptiness, duplicates, and bounds so acoustic context
+    building receives a validated index list.
+
+    Parameters
+    ----------
+    positions : str, sequence, or numpy.ndarray
+        Requested position selection.
+    position_count : int
+        Number of positions available.
+
+    Returns
+    -------
+    list of int Validated position indices.
+
+    Use Cases
+    ---------
+    - Validate HRTF, ITD, and ILD position selections.
+    """
     if isinstance(positions, str):
         value = str(positions).strip().lower()
         if value != "all":
@@ -137,6 +277,27 @@ def sanitize_extensions(
     resource_name: str,
     extensions: tuple[str, ...] | list[str] | None,
 ) -> tuple[str, ...]:
+    """Normalize resource file extension filters.
+
+    Specs and configs may provide extensions with or without a leading dot. This
+    helper validates entries, rejects path-like values, lowercases them, and
+    removes duplicates before resource scanning.
+
+    Parameters
+    ----------
+    resource_name : str
+        Resource label used in errors.
+    extensions : tuple, list, or None
+        Extension values to normalize.
+
+    Returns
+    -------
+    tuple of str Unique lowercase extensions beginning with ``.``.
+
+    Use Cases
+    ---------
+    - Validate media, mesh, and table extension filters.
+    """
     if extensions is None:
         return tuple()
     normalized: list[str] = []
@@ -179,6 +340,26 @@ def sanitize_specs(
     HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
     ...,
 ]:
+    """Normalize input or target specs into copied spec tuples.
+
+    Dataset construction should never mutate caller-owned spec objects. This
+    helper accepts ``None``, a single spec, or a sequence, copies each spec, and
+    rejects duplicate public names before workflow validation continues.
+
+    Parameters
+    ----------
+    specs : spec, sequence of specs, or None
+        User-provided specs.
+
+    Returns
+    -------
+    tuple of specs Copied and name-validated specs.
+
+    Use Cases
+    ---------
+    - Avoid mutating caller-owned spec objects.
+    - Reject duplicate public sample names.
+    """
     if specs is None:
         return tuple()
     if isinstance(specs, str):

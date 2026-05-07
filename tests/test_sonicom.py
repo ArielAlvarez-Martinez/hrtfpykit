@@ -46,9 +46,11 @@ def test_sonicom_default_windowed_hrtf_download_plan(tmp_path: Path) -> None:
         root=tmp_path,
     ).build_download_plan(
         download_resources="hrtf",
-        download_hrtf_type="measured",
-        download_hrtf_sample_rate=44100,
-        download_hrtf_version="Windowed",
+        download_hrtf_variant={
+            "type": "measured",
+            "sample_rate": 44100,
+            "version": "Windowed",
+        },
     )
 
     relative_paths = {str(job["relative_path"]) for job in jobs}

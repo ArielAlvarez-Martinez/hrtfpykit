@@ -18,6 +18,11 @@ if TYPE_CHECKING:
 
 
 class DatasetResourcesValidator:
+    """Validate scanned resources against the selected specs.
+
+    ``DatasetResourcesValidator`` checks the resource plans produced by scanners
+    before subject intersection and split planning continue.
+    """
     def __init__(self, dataset: "BaseDataset") -> None:
         self._dataset = dataset
 
@@ -26,6 +31,29 @@ class DatasetResourcesValidator:
         hrtf_paths: dict[str, Path],
         hrtf_summary: dict[str, object],
     ) -> dict[str, Path]:
+        """Validate HRTF paths and loadability before split planning.
+
+        The scanner can find files by path pattern, but construction should fail if
+        those files are corrupt or incompatible with the HRTF loader. This validator
+        loads each candidate, enforces consistent sample rate, collects failures, and
+        returns only usable subject paths.
+
+        Parameters
+        ----------
+        hrtf_paths : dict
+            Subject-to-path HRTF resources.
+        hrtf_summary : dict
+            Scanner summary for HRTF resources.
+
+        Returns
+        -------
+        dict Validated subject-to-path HRTF resources.
+
+        Use Cases
+        ---------
+        - Fail on corrupt HRTF files.
+        - Enforce consistent sample rates across subjects.
+        """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="hrtf"):
             return hrtf_paths
@@ -91,6 +119,26 @@ class DatasetResourcesValidator:
         return validated_hrtf_paths
 
     def validate_mesh_resources(self, mesh_summary: dict[str, object]) -> None:
+        """Validate scanned mesh resource summary.
+
+        Mesh files participate in subject intersection like other required resources,
+        but missing subjects are reported through warnings rather than hidden. This
+        validator keeps that reporting behavior separate from path scanning.
+
+        Parameters
+        ----------
+        mesh_summary : dict
+            Scanner summary for mesh resources.
+
+        Returns
+        -------
+        None Emits warnings for missing mesh subjects.
+
+        Use Cases
+        ---------
+        - Report mesh resources excluded by intersection.
+        - Keep mesh validation separate from scanning.
+        """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="mesh"):
             return
@@ -115,6 +163,25 @@ class DatasetResourcesValidator:
         image_path: Path | None,
         image_counts: dict[str, int],
     ) -> None:
+        """Validate scanned image resources for selected specs.
+
+        The scanner indexes subject or subject-ear image files, while this validator
+        reports missing subjects and uneven media counts. Missing media subjects are
+        removed later during resource intersection.
+
+        Parameters
+        ----------
+        summary : dict
+            Scanner summary for image resources.
+        image_path : Path or None
+            Image root path.
+        image_counts : dict
+            Per-subject image counts.
+
+        Returns
+        -------
+        None Emits warnings for missing or uneven image resources.
+        """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="image"):
             return
@@ -142,6 +209,25 @@ class DatasetResourcesValidator:
         video_path: Path | None,
         video_counts: dict[str, int],
     ) -> None:
+        """Validate scanned video resources for selected specs.
+
+        The scanner indexes subject or subject-ear video files, while this validator
+        reports missing subjects and uneven media counts. It mirrors image validation
+        so media resource behavior uses the same validation path.
+
+        Parameters
+        ----------
+        summary : dict
+            Scanner summary for video resources.
+        video_path : Path or None
+            Video root path.
+        video_counts : dict
+            Per-subject video counts.
+
+        Returns
+        -------
+        None Emits warnings for missing or uneven video resources.
+        """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="video"):
             return
@@ -168,6 +254,23 @@ class DatasetResourcesValidator:
         anthropometry_path: Path | None,
         anthropometry_rows: dict[str, object],
     ) -> None:
+        """Validate selected anthropometry resources after table loading.
+
+        Anthropometry specs require a real table path and loaded mapping data. This
+        method turns missing files or invalid loaded values into explicit construction
+        errors before split intersection uses the resource.
+
+        Parameters
+        ----------
+        anthropometry_path : Path or None
+            Selected anthropometry table path.
+        anthropometry_rows : dict
+            Loaded anthropometry rows.
+
+        Returns
+        -------
+        None Raises when required anthropometry resources are invalid.
+        """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="anthropometry"):
             return
@@ -189,6 +292,23 @@ class DatasetResourcesValidator:
         metadata_path: Path | None,
         metadata_rows: dict[str, object],
     ) -> None:
+        """Validate selected metadata resources after table loading.
+
+        Metadata specs require a real table path and loaded mapping data. This method
+        keeps metadata validation separate from anthropometry while preserving the
+        same table-resource contract.
+
+        Parameters
+        ----------
+        metadata_path : Path or None
+            Selected metadata table path.
+        metadata_rows : dict
+            Loaded metadata rows.
+
+        Returns
+        -------
+        None Raises when required metadata resources are invalid.
+        """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="metadata"):
             return
@@ -197,8 +317,23 @@ class DatasetResourcesValidator:
                 f"{state.name} requires a metadata file but none was selected"
             )
         if not metadata_path.is_file():
+            metadata_specs = get_specs(state.specs, resource_name="metadata")
+            metadata_spec_path = None
+            if len(metadata_specs) > 0:
+                metadata_spec_path = metadata_specs[0].path
+            config_metadata_path = None
+            if state.config is not None and state.config.metadata is not None:
+                config_metadata_path = state.root / state.config.metadata.path
             raise ValueError(
-                f"{state.name} metadata path is invalid: {metadata_path}"
+                f"{state.name} metadata resource is required because MetadataSpec is requested, "
+                f"but the selected metadata file does not exist or is not a file. "
+                f"selected_path={metadata_path}; "
+                f"root={state.root}; "
+                f"metadata_spec_path={metadata_spec_path}; "
+                f"config_metadata_path={config_metadata_path}; "
+                f"fix: place the metadata file at selected_path, pass MetadataSpec(path=...), "
+                f"or download it with download=True and download_resources='metadata' "
+                f"or download_resources=('hrtf', 'metadata')."
             )
         if not isinstance(metadata_rows, dict):
             raise ValueError(
@@ -207,6 +342,12 @@ class DatasetResourcesValidator:
 
 
 class DatasetResourcesScanner:
+    """Scan dataset roots for resources requested by specs.
+
+    This utility locates HRTF, mesh, table, image, and video resources from config
+    paths, spec path overrides, and per-subject path patterns.
+    """
+
     @staticmethod
     def scan_anthropometry_paths(
         config: type[DatasetConfig] | DatasetConfig,
@@ -214,6 +355,26 @@ class DatasetResourcesScanner:
         requested_path: Path | None,
         required: bool,
     ) -> tuple[Path | None, dict[str, object]]:
+        """Scan for the anthropometry table required by selected specs.
+
+        This scanner resolves either an explicit spec path or the dataset-configured
+        anthropometry path and returns a summary without loading the table. Loading
+        happens later so path scanning, validation, and table parsing stay separate.
+
+        Parameters
+        ----------
+        *args, **kwargs Scanner arguments describing config, root, subject scope,
+        extensions, grouping, and required state.
+
+        Returns
+        -------
+        tuple Resource paths or indexes plus scanner summary data.
+
+        Use Cases
+        ---------
+        - Locate anthropometry table without mutating dataset state.
+        - Produce summary data for validation and split intersection.
+        """
         if config.anthropometry is None or not required:
             return None, {
                 "path": None,
@@ -248,6 +409,26 @@ class DatasetResourcesScanner:
         requested_path: Path | None,
         required: bool,
     ) -> tuple[Path | None, dict[str, object]]:
+        """Scan for the metadata table required by selected specs.
+
+        This scanner resolves either an explicit spec path or the dataset-configured
+        metadata path and returns a summary without loading the table. Keeping
+        metadata separate from anthropometry prevents path and state collisions.
+
+        Parameters
+        ----------
+        *args, **kwargs Scanner arguments describing config, root, subject scope,
+        extensions, grouping, and required state.
+
+        Returns
+        -------
+        tuple Resource paths or indexes plus scanner summary data.
+
+        Use Cases
+        ---------
+        - Locate metadata table without mutating dataset state.
+        - Produce summary data for validation and split intersection.
+        """
         if config.metadata is None and requested_path is None and not required:
             return None, {
                 "path": None,
@@ -279,24 +460,51 @@ class DatasetResourcesScanner:
     def scan_hrtf_paths(
         config: type[DatasetConfig] | DatasetConfig,
         root: Path,
-        dataset_hrtf_type: str | None,
-        dataset_hrtf_sample_rate: int | str | None,
-        dataset_hrtf_version: str | None,
+        dataset_hrtf_variant: str | dict[str, object] | None,
         excluded_subject_ids: set[str],
         required: bool,
     ) -> tuple[dict[str, Path], dict[str, object] | None]:
+        """Scan for HRTF files required by selected acoustic specs.
+
+        The scanner formats the dataset HRTF path pattern with subject IDs, subject
+        numbers, type, sample-rate, and version selectors. It returns the paths that
+        exist plus a summary of checked, found, and missing subjects for validation
+        and error reporting.
+
+        Parameters
+        ----------
+        *args, **kwargs Scanner arguments describing config, root, subject scope,
+        extensions, grouping, and required state.
+
+        Returns
+        -------
+        tuple Resource paths or indexes plus scanner summary data.
+
+        Use Cases
+        ---------
+        - Locate HRTF files without mutating dataset state.
+        - Produce summary data for validation and split intersection.
+        """
         hrtf_paths: dict[str, Path] = {}
         if config.hrtf is None or not required:
             return hrtf_paths, None
-        if dataset_hrtf_type is None:
-            raise ValueError(f"{config.name} requires dataset_hrtf_type for HRTF resources")
-        hrtf_type_config = config.hrtf.types[dataset_hrtf_type]
+        if isinstance(dataset_hrtf_variant, dict):
+            hrtf_type = str(dataset_hrtf_variant["type"])
+            hrtf_sample_rate = dataset_hrtf_variant.get("sample_rate")
+            hrtf_version = dataset_hrtf_variant.get("version")
+        else:
+            hrtf_type = dataset_hrtf_variant
+            hrtf_sample_rate = None
+            hrtf_version = None
+        if hrtf_type is None:
+            raise ValueError(f"{config.name} requires dataset_hrtf_variant for HRTF resources")
+        hrtf_type_config = config.hrtf.types[hrtf_type]
         sample_rate_label = None
-        if dataset_hrtf_sample_rate is not None:
-            sample_rate_label = str(dataset_hrtf_sample_rate)
+        if hrtf_sample_rate is not None:
+            sample_rate_label = str(hrtf_sample_rate)
             if hrtf_type_config.sample_rate_labels is not None:
                 sample_rate_label = hrtf_type_config.sample_rate_labels.get(
-                    dataset_hrtf_sample_rate,
+                    hrtf_sample_rate,
                     sample_rate_label,
                 )
         hrtf_subject_ids = (
@@ -314,24 +522,24 @@ class DatasetResourcesScanner:
         )
         for subject_id in checked_hrtf_subject_ids:
             version_label = None
-            if hrtf_type_config.version_labels is not None and dataset_hrtf_version is not None:
+            if hrtf_type_config.version_labels is not None and hrtf_version is not None:
                 version_label = hrtf_type_config.version_labels.get(
-                    dataset_hrtf_version,
-                    str(dataset_hrtf_version),
+                    hrtf_version,
+                    str(hrtf_version),
                 )
             relative_path = hrtf_type_config.path_pattern.format(
                 subject_id=subject_id,
                 subject_number=subject_numbers[subject_id],
-                type=dataset_hrtf_type,
-                hrtf_type=dataset_hrtf_type,
-                sample_rate=dataset_hrtf_sample_rate,
-                hrtf_sample_rate=dataset_hrtf_sample_rate,
+                type=hrtf_type,
+                hrtf_type=hrtf_type,
+                sample_rate=hrtf_sample_rate,
+                hrtf_sample_rate=hrtf_sample_rate,
                 sample_rate_label=sample_rate_label,
-                version=dataset_hrtf_version,
-                hrtf_version=dataset_hrtf_version,
+                version=hrtf_version,
+                hrtf_version=hrtf_version,
                 version_label=version_label,
                 hrtf_version_label=version_label,
-                variant=dataset_hrtf_type,
+                variant=hrtf_type,
             )
             candidate = (root / relative_path).expanduser()
             if candidate.is_file():
@@ -343,9 +551,13 @@ class DatasetResourcesScanner:
         )
         return hrtf_paths, {
             "pattern": hrtf_type_config.path_pattern,
-            "hrtf_type": dataset_hrtf_type,
-            "hrtf_sample_rate": dataset_hrtf_sample_rate,
-            "hrtf_version": dataset_hrtf_version,
+            "hrtf_variant": {
+                "type": hrtf_type,
+                "sample_rate": hrtf_sample_rate,
+                "version": hrtf_version,
+            }
+            if hrtf_sample_rate is not None or hrtf_version is not None
+            else hrtf_type,
             "checked": len(checked_hrtf_subject_ids),
             "found": len(hrtf_paths),
             "missing": len(missing_hrtf_subject_ids),
@@ -356,20 +568,44 @@ class DatasetResourcesScanner:
     def scan_mesh_paths(
         config: type[DatasetConfig] | DatasetConfig,
         root: Path,
-        dataset_mesh_type: str | None,
-        dataset_mesh_version: str | None,
+        dataset_mesh_variant: str | dict[str, object] | None,
         excluded_subject_ids: set[str],
         required: bool,
         extensions: tuple[str, ...] | None = None,
     ) -> tuple[dict[str, Path], dict[str, object] | None]:
+        """Scan for mesh files required by selected mesh specs.
+
+        The scanner resolves the selected mesh variant, applies extension candidates,
+        formats per-subject path patterns, and records which subjects have usable
+        mesh files. It does not load mesh geometry.
+
+        Parameters
+        ----------
+        *args, **kwargs Scanner arguments describing config, root, subject scope,
+        extensions, grouping, and required state.
+
+        Returns
+        -------
+        tuple Resource paths or indexes plus scanner summary data.
+
+        Use Cases
+        ---------
+        - Locate mesh files without mutating dataset state.
+        - Produce summary data for validation and split intersection.
+        """
         mesh_paths: dict[str, Path] = {}
         if config.mesh is None or not required:
             return mesh_paths, None
-        mesh_type = dataset_mesh_type
+        if isinstance(dataset_mesh_variant, dict):
+            mesh_type = str(dataset_mesh_variant["type"])
+            mesh_version = dataset_mesh_variant.get("version")
+        else:
+            mesh_type = dataset_mesh_variant
+            mesh_version = None
         if mesh_type is None:
             mesh_type = "default" if "default" in config.mesh.types else None
         if mesh_type is None:
-            raise ValueError(f"{config.name} requires dataset_mesh_type for mesh resources")
+            raise ValueError(f"{config.name} requires dataset_mesh_variant for mesh resources")
         mesh_type_config = config.mesh.types[mesh_type]
         normalized_extensions = [extension.lower() for extension in tuple(extensions or tuple())]
         normalized_extensions = [
@@ -393,18 +629,18 @@ class DatasetResourcesScanner:
         )
         for subject_id in checked_mesh_subject_ids:
             version_label = None
-            if mesh_type_config.version_labels is not None and dataset_mesh_version is not None:
+            if mesh_type_config.version_labels is not None and mesh_version is not None:
                 version_label = mesh_type_config.version_labels.get(
-                    dataset_mesh_version,
-                    str(dataset_mesh_version),
+                    mesh_version,
+                    str(mesh_version),
                 )
             relative_path = mesh_type_config.path_pattern.format(
                 subject_id=subject_id,
                 subject_number=subject_numbers[subject_id],
                 type=mesh_type,
                 mesh_type=mesh_type,
-                version=dataset_mesh_version,
-                mesh_version=dataset_mesh_version,
+                version=mesh_version,
+                mesh_version=mesh_version,
                 version_label=version_label,
                 mesh_version_label=version_label,
             )
@@ -435,8 +671,12 @@ class DatasetResourcesScanner:
         )
         return mesh_paths, {
             "pattern": mesh_type_config.path_pattern,
-            "mesh_type": mesh_type,
-            "mesh_version": dataset_mesh_version,
+            "mesh_variant": {
+                "type": mesh_type,
+                "version": mesh_version,
+            }
+            if mesh_version is not None
+            else mesh_type,
             "extensions": tuple(normalized_extensions),
             "checked": len(checked_mesh_subject_ids),
             "found": len(mesh_paths),
@@ -458,6 +698,27 @@ class DatasetResourcesScanner:
         dict[str, int],
         tuple[str, ...],
     ]:
+        """Scan subject-grouped media folders for image or video resources.
+
+        This shared media scanner supports subject folders named by canonical ID,
+        ``subjectN``, or ``subject_N`` and can enforce subject-ear grouping. It
+        returns a media index keyed by subject and optional ear so value selection can
+        be row-context aware.
+
+        Parameters
+        ----------
+        *args, **kwargs Scanner arguments describing config, root, subject scope,
+        extensions, grouping, and required state.
+
+        Returns
+        -------
+        tuple Resource paths or indexes plus scanner summary data.
+
+        Use Cases
+        ---------
+        - Locate media files without mutating dataset state.
+        - Produce summary data for validation and split intersection.
+        """
         grouped_paths: dict[tuple[str, int | None, str | None], list[str]] = {}
         if not path.exists():
             raise ValueError(f"{resource_name} path does not exist: {path}")
@@ -541,6 +802,26 @@ class DatasetResourcesScanner:
         dict[str, int],
         tuple[str, ...],
     ]:
+        """Scan image files by delegating to the shared media scanner.
+
+        The method preserves image-specific resource naming while reusing the same
+        subject and ear grouping behavior as videos. This keeps media resource
+        policies shared without duplicating scan logic.
+
+        Parameters
+        ----------
+        *args, **kwargs Scanner arguments describing config, root, subject scope,
+        extensions, grouping, and required state.
+
+        Returns
+        -------
+        tuple Resource paths or indexes plus scanner summary data.
+
+        Use Cases
+        ---------
+        - Locate image files without mutating dataset state.
+        - Produce summary data for validation and split intersection.
+        """
         return DatasetResourcesScanner.scan_media_paths(
             path,
             subject_ids,
@@ -564,6 +845,26 @@ class DatasetResourcesScanner:
         dict[str, int],
         tuple[str, ...],
     ]:
+        """Scan video files by delegating to the shared media scanner.
+
+        The method preserves video-specific resource naming while reusing the same
+        subject and ear grouping behavior as images. This keeps media resource
+        policies shared without duplicating scan logic.
+
+        Parameters
+        ----------
+        *args, **kwargs Scanner arguments describing config, root, subject scope,
+        extensions, grouping, and required state.
+
+        Returns
+        -------
+        tuple Resource paths or indexes plus scanner summary data.
+
+        Use Cases
+        ---------
+        - Locate video files without mutating dataset state.
+        - Produce summary data for validation and split intersection.
+        """
         return DatasetResourcesScanner.scan_media_paths(
             path,
             subject_ids,
@@ -577,6 +878,31 @@ class DatasetResourcesScanner:
 
 @dataclass(frozen=True)
 class DatasetResourcesPlan:
+    """Store resource scan output for dataset state assignment.
+
+    Parameters
+    ----------
+    hrtf_paths, mesh_paths : dict
+        Subject resource maps.
+    image_path, video_path : Path or None
+        Media root paths.
+    image_index, video_index : dict
+        Media indexes keyed by subject and optional ear.
+    anthropometry_path, metadata_path : Path or None
+        Table paths.
+    anthropometry_rows, metadata_rows : dict
+        Loaded table rows.
+    excluded_subjects : tuple of str
+        Combined config and user exclusions.
+    subject_numbers : dict
+        Subject numeric identifiers.
+    resource_summary : dict
+        Resource summary by resource name.
+
+    Returns
+    -------
+    DatasetResourcesPlan Immutable plan consumed by ``DatasetBuilder``.
+    """
     hrtf_paths: dict[str, Path]
     mesh_paths: dict[str, Path]
     image_path: Path | None
@@ -594,11 +920,35 @@ class DatasetResourcesPlan:
     resource_summary: dict[str, object]
 
 class DatasetResources:
+    """Build resource plans from dataset specs and configuration.
+
+    This utility scans only the resource families required by selected specs, loads
+    table resources, indexes media resources, and returns the resource plan consumed
+    by ``DatasetBuilder``.
+    """
+
     @staticmethod
     def _resolve_optional_path(
         path: str | Path | None,
         root: Path,
     ) -> Path | None:
+        """Resolve an optional user-provided path against the dataset root.
+
+        Specs may override configured resource locations with either absolute or
+        relative paths. This helper normalizes that override once so scanner code can
+        work with concrete paths.
+
+        Parameters
+        ----------
+        path : str, Path, or None
+            Optional path to resolve.
+        root : Path
+            Dataset root for relative paths.
+
+        Returns
+        -------
+        Path or None Absolute path or ``None`` when no path was provided.
+        """
         if path is None:
             return None
         resolved_path = Path(path).expanduser()
@@ -611,6 +961,30 @@ class DatasetResources:
         dataset: "BaseDataset",
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
     ) -> DatasetResourcesPlan:
+        """Build the complete resource plan for a dataset instance.
+
+        This method decides which resource families are required by the selected
+        specs, applies subject exclusions, scans resource paths, loads tables, indexes
+        media, validates results, and packages everything into an explicit plan. It is
+        the only place resource discovery is assigned into dataset state.
+
+        Parameters
+        ----------
+        dataset : BaseDataset
+            Dataset whose state contains config, root, specs, and selectors.
+        exclude_subject_ids : str, int, sequence, or None
+            Additional subject exclusions.
+
+        Returns
+        -------
+        DatasetResourcesPlan Resource plan assigned into dataset state.
+
+        Use Cases
+        ---------
+        - Intersect selected specs with available resources.
+        - Load anthropometry and metadata tables.
+        - Index image and video media paths.
+        """
         state = dataset._state
         if state.config is None:
             raise ValueError("Dataset config is not initialized")
@@ -669,9 +1043,7 @@ class DatasetResources:
         hrtf_paths, hrtf_summary = scanner.scan_hrtf_paths(
             config=config,
             root=root,
-            dataset_hrtf_type=state.dataset_hrtf_type,
-            dataset_hrtf_sample_rate=state.dataset_hrtf_sample_rate,
-            dataset_hrtf_version=state.dataset_hrtf_version,
+            dataset_hrtf_variant=state.dataset_hrtf_variant,
             excluded_subject_ids=excluded_subject_set,
             required=has_acoustic_specs,
         )
@@ -706,8 +1078,7 @@ class DatasetResources:
             mesh_paths, mesh_summary = scanner.scan_mesh_paths(
                 config=config,
                 root=mesh_root_path,
-                dataset_mesh_type=state.dataset_mesh_type,
-                dataset_mesh_version=state.dataset_mesh_version,
+                dataset_mesh_variant=state.dataset_mesh_variant,
                 excluded_subject_ids=excluded_subject_set,
                 required=has_mesh_specs,
                 extensions=mesh_extensions,

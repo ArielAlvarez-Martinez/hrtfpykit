@@ -38,6 +38,38 @@ SUPPORTED_MEDIA_GROUPED_BY = (("subject",), ("subject", "ear"))
 
 @dataclass(frozen=True)
 class DatasetSpecPlan:
+    """Store normalized specs and shared dataset indexing decisions.
+
+    Parameters
+    ----------
+    input_specs : tuple of specs
+        Specs exposed under ``sample['inputs']`` after sanitization.
+    target_specs : tuple of specs
+        Specs exposed under ``sample['target']`` after sanitization.
+    specs : tuple of specs
+        Combined input and target specs.
+    input_names, target_names : tuple of str
+        Public sample keys for input and target values.
+    index_by : tuple of str
+        Shared dataset row axes selected from the indexed specs.
+    selected_ears : tuple of tuple
+        Ear labels and source ear indices used by ear-indexed rows.
+    position_one_hot, position_index, frequency_one_hot, frequency_index : bool
+        Flags indicating which row context encodings should be added.
+    sample_one_hot, sample_index, ear_one_hot, ear_index : bool
+        Flags indicating which sample and ear context encodings should be added.
+
+    Returns
+    -------
+    DatasetSpecPlan Immutable plan consumed by ``DatasetBuilder``.
+
+    Use Cases
+    ---------
+    - Make spec normalization output explicit.
+    - Keep one row-indexing contract across all indexed specs.
+    - Tell sample extraction which context encodings to include.
+    """
+
     input_specs: tuple[
         HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
         ...,
@@ -64,6 +96,22 @@ class DatasetSpecPlan:
     ear_index: bool
 
 class DatasetSpecWorkflow:
+    """Normalize and validate dataset specs before resource scanning.
+
+    ``DatasetSpecWorkflow`` turns user-provided input and target specs into one
+    coherent dataset plan. It validates duplicate names, path consistency,
+    supported index axes, shared ``index_by`` behavior, grouped media behavior,
+    ear selection, and requested row-context encodings.
+
+    This utility returns the normalized spec plan consumed by ``DatasetBuilder``.
+
+    Use Cases
+    ---------
+    - Validate specs before resource scanning.
+    - Enforce one shared dataset row-axis contract.
+    - Normalize copied specs without mutating caller-owned spec objects.
+    """
+
     @classmethod
     def build(
         cls,
@@ -71,6 +119,33 @@ class DatasetSpecWorkflow:
         inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None,
         target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None,
     ) -> DatasetSpecPlan:
+        """Build a normalized spec plan from input and target specs.
+
+        This method is the spec validation pipeline for dataset construction. It
+        copies user specs, validates names and path consistency, enforces one shared
+        indexed row structure, checks spec-specific axis compatibility, normalizes
+        grouped resources, and decides which row context encodings must be produced.
+
+        Parameters
+        ----------
+        config : DatasetConfig or type[DatasetConfig]
+            Dataset configuration used for resource availability rules.
+        inputs : spec, sequence of specs, or None
+            Specs exposed under ``sample['inputs']``.
+        target : spec, sequence of specs, or None
+            Specs exposed under ``sample['target']``.
+
+        Returns
+        -------
+        DatasetSpecPlan Normalized spec plan used by dataset construction.
+
+        Use Cases
+        ---------
+        - Validate all specs before scanning resources.
+        - Compute the shared dataset ``index_by`` axes.
+        - Determine whether row context encodings are needed.
+        """
+
         input_specs = sanitize_specs(inputs)
         target_specs = sanitize_specs(target)
         specs = input_specs + target_specs
@@ -267,4 +342,26 @@ class DatasetSpecWorkflow:
     def get_spec_name(
         spec: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
     ) -> str:
+        """Resolve the public sample key for a dataset spec.
+
+        The workflow exposes this wrapper so call sites do not depend directly on
+        registry internals. It keeps input/target dictionary naming, duplicate-name
+        checks, and value assignment aligned with the central spec registry.
+
+        Parameters
+        ----------
+        spec : dataset spec
+            Spec object whose name should be resolved.
+
+        Returns
+        -------
+        str Explicit spec name when provided, otherwise the registry default.
+
+        Use Cases
+        ---------
+        - Build ``sample['inputs']`` and ``sample['target']`` dictionaries.
+        - Validate duplicate spec names.
+        - Preserve custom keys from named specs.
+        """
+
         return get_spec_name(spec)
