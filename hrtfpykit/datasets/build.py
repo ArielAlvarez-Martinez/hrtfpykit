@@ -60,76 +60,72 @@ class DatasetBuilder:
         state.dataset_hrtf_sample_rate = None
         state.dataset_hrtf_version = None
         if config.hrtf is not None:
-            hrtf_type = (
-                str(config.hrtf.default_type).strip().lower()
-                if dataset_hrtf_type is None
-                else str(dataset_hrtf_type).strip().lower()
-            )
-            if hrtf_type not in config.hrtf.types:
-                raise ValueError(
-                    f"Unsupported dataset_hrtf_type {hrtf_type!r}. Expected one of {tuple(config.hrtf.types)}"
-                )
-            hrtf_type_config = config.hrtf.types[hrtf_type]
-            hrtf_sample_rate = (
-                hrtf_type_config.default_sample_rate
-                if dataset_hrtf_sample_rate is None
-                else dataset_hrtf_sample_rate
-            )
-            if len(hrtf_type_config.sample_rates) == 0 and dataset_hrtf_sample_rate is not None:
-                raise ValueError(
-                    f"dataset_hrtf_sample_rate is not supported for dataset_hrtf_type={hrtf_type!r}"
-                )
-            if len(hrtf_type_config.sample_rates) > 0 and hrtf_sample_rate not in hrtf_type_config.sample_rates:
-                raise ValueError(
-                    f"Unsupported dataset_hrtf_sample_rate {hrtf_sample_rate!r} for dataset_hrtf_type={hrtf_type!r}. "
-                    f"Expected one of {hrtf_type_config.sample_rates}"
-                )
-            hrtf_version = (
-                hrtf_type_config.default_version
-                if dataset_hrtf_version is None
-                else str(dataset_hrtf_version)
-            )
-            if len(hrtf_type_config.versions) == 0 and dataset_hrtf_version is not None:
-                raise ValueError(
-                    f"dataset_hrtf_version is not supported for dataset_hrtf_type={hrtf_type!r}"
-                )
-            if len(hrtf_type_config.versions) > 0 and hrtf_version not in hrtf_type_config.versions:
-                raise ValueError(
-                    f"Unsupported dataset_hrtf_version {hrtf_version!r} for dataset_hrtf_type={hrtf_type!r}. "
-                    f"Expected one of {hrtf_type_config.versions}"
-                )
-            state.dataset_hrtf_type = hrtf_type
-            state.dataset_hrtf_sample_rate = hrtf_sample_rate
-            state.dataset_hrtf_version = hrtf_version
+            hrtf_type = None if dataset_hrtf_type is None else str(dataset_hrtf_type).strip().lower()
+            if hrtf_type is not None:
+                if hrtf_type not in config.hrtf.types:
+                    raise ValueError(
+                        f"Unsupported dataset_hrtf_type {hrtf_type!r}. Expected one of {tuple(config.hrtf.types)}"
+                    )
+                hrtf_type_config = config.hrtf.types[hrtf_type]
+                hrtf_sample_rate = dataset_hrtf_sample_rate
+                if len(hrtf_type_config.sample_rates) == 0 and dataset_hrtf_sample_rate is not None:
+                    raise ValueError(
+                        f"dataset_hrtf_sample_rate is not supported for dataset_hrtf_type={hrtf_type!r}"
+                    )
+                if len(hrtf_type_config.sample_rates) > 0:
+                    if hrtf_sample_rate is None:
+                        raise ValueError(
+                            f"{config.name} requires dataset_hrtf_sample_rate for dataset_hrtf_type={hrtf_type!r}"
+                        )
+                    if hrtf_sample_rate not in hrtf_type_config.sample_rates:
+                        raise ValueError(
+                            f"Unsupported dataset_hrtf_sample_rate {hrtf_sample_rate!r} for dataset_hrtf_type={hrtf_type!r}. "
+                            f"Expected one of {hrtf_type_config.sample_rates}"
+                        )
+                hrtf_version = None if dataset_hrtf_version is None else str(dataset_hrtf_version)
+                if len(hrtf_type_config.versions) == 0 and dataset_hrtf_version is not None:
+                    raise ValueError(
+                        f"dataset_hrtf_version is not supported for dataset_hrtf_type={hrtf_type!r}"
+                    )
+                if len(hrtf_type_config.versions) > 0:
+                    if hrtf_version is None:
+                        raise ValueError(
+                            f"{config.name} requires dataset_hrtf_version for dataset_hrtf_type={hrtf_type!r}"
+                        )
+                    if hrtf_version not in hrtf_type_config.versions:
+                        raise ValueError(
+                            f"Unsupported dataset_hrtf_version {hrtf_version!r} for dataset_hrtf_type={hrtf_type!r}. "
+                            f"Expected one of {hrtf_type_config.versions}"
+                        )
+                state.dataset_hrtf_type = hrtf_type
+                state.dataset_hrtf_sample_rate = hrtf_sample_rate
+                state.dataset_hrtf_version = hrtf_version
 
         state.dataset_mesh_type = None
         state.dataset_mesh_version = None
         if config.mesh is not None:
-            mesh_type = (
-                config.mesh.default_type
-                if dataset_mesh_type is None
-                else str(dataset_mesh_type).strip().lower()
-            )
+            mesh_type = None if dataset_mesh_type is None else str(dataset_mesh_type).strip().lower()
             if mesh_type is not None:
                 if mesh_type not in config.mesh.types:
                     raise ValueError(
                         f"Unsupported dataset_mesh_type {mesh_type!r}. Expected one of {tuple(config.mesh.types)}"
                     )
                 mesh_type_config = config.mesh.types[mesh_type]
-                mesh_version = (
-                    mesh_type_config.default_version
-                    if dataset_mesh_version is None
-                    else str(dataset_mesh_version)
-                )
+                mesh_version = None if dataset_mesh_version is None else str(dataset_mesh_version)
                 if len(mesh_type_config.versions) == 0 and dataset_mesh_version is not None:
                     raise ValueError(
                         f"dataset_mesh_version is not supported for dataset_mesh_type={mesh_type!r}"
                     )
-                if len(mesh_type_config.versions) > 0 and mesh_version not in mesh_type_config.versions:
-                    raise ValueError(
-                        f"Unsupported dataset_mesh_version {mesh_version!r} for dataset_mesh_type={mesh_type!r}. "
-                        f"Expected one of {mesh_type_config.versions}"
-                    )
+                if len(mesh_type_config.versions) > 0:
+                    if mesh_version is None:
+                        raise ValueError(
+                            f"{config.name} requires dataset_mesh_version for dataset_mesh_type={mesh_type!r}"
+                        )
+                    if mesh_version not in mesh_type_config.versions:
+                        raise ValueError(
+                            f"Unsupported dataset_mesh_version {mesh_version!r} for dataset_mesh_type={mesh_type!r}. "
+                            f"Expected one of {mesh_type_config.versions}"
+                        )
                 state.dataset_mesh_type = mesh_type
                 state.dataset_mesh_version = mesh_version
 
