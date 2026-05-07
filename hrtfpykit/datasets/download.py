@@ -24,7 +24,7 @@ class BaseDownload:
     ``BaseDownload`` is the shared downloader used by dataset classes before
     construction. It converts a dataset config and selector arguments into a
     concrete download plan, writes files under the dataset root, verifies archive
-    integrity, and checks SHA-256 digests when checksums are available.
+    integrity, and verifies every planned file against a SHA-256 checksum.
 
     Parameters
     ----------
@@ -388,7 +388,8 @@ class BaseDownload:
 
         Returns
         -------
-        str or None SHA-256 checksum when available.
+        str
+            SHA-256 checksum for the planned resource path.
 
         Use Cases
         ---------
@@ -396,11 +397,15 @@ class BaseDownload:
         - Resolve mesh checksums by type and version.
         """
         if self.config.download is None or self.config.download.checksums is None:
-            return None
+            raise ValueError(
+                f"{self.config.name} cannot download {resource!r} resources because no checksum map is configured"
+            )
         checksums = self.config.download.checksums
         resource_checksums = checksums.get(resource)
         if resource_checksums is None:
-            return None
+            raise ValueError(
+                f"{self.config.name} cannot download {resource!r} resources because no checksums are configured for that resource"
+            )
         if resource == "hrtf":
             if hrtf_type is None:
                 raise ValueError("HRTF checksum lookup requires a type")
@@ -408,7 +413,9 @@ class BaseDownload:
                 raise ValueError("HRTF checksums must be grouped by type")
             type_checksums = resource_checksums.get(hrtf_type)
             if type_checksums is None:
-                return None
+                raise ValueError(
+                    f"{self.config.name} is missing HRTF checksums for type={hrtf_type!r}"
+                )
             if isinstance(type_checksums, dict) and hrtf_version is not None and hrtf_version in type_checksums:
                 version_checksums = type_checksums.get(hrtf_version)
                 if not isinstance(version_checksums, dict):
@@ -451,35 +458,12 @@ class BaseDownload:
         else:
             raise ValueError(f"{resource} checksums must be a string or filename dictionary")
         if checksum is None:
-            return None
+            raise ValueError(
+                f"{self.config.name} is missing a checksum for {resource!r} resource {relative_path!r}"
+            )
         if not isinstance(checksum, str):
             raise ValueError(f"{resource} checksum for {relative_path} must be a string")
         return checksum
-
-    def has_checksum_map(self, resource: str) -> bool:
-        """Return whether a resource uses a path-based checksum map.
-
-        Some resources, especially SONICOM mesh variants, use checksum maps to
-        represent actual server availability. Plan builders use this method to skip
-        jobs not present in the map instead of inventing unavailable downloads.
-
-        Parameters
-        ----------
-        resource : str
-            Resource group name.
-
-        Returns
-        -------
-        bool ``True`` when checksums for the resource are dictionary-based.
-
-        Use Cases
-        ---------
-        - Skip unavailable checksum-mapped resources.
-        - Distinguish single-file and path-mapped checksums.
-        """
-        if self.config.download is None or self.config.download.checksums is None:
-            return False
-        return isinstance(self.config.download.checksums.get(resource), dict)
 
     def get_included_subject_ids(self, subject_ids: tuple[str, ...]) -> tuple[str, ...]:
         """Filter subject IDs by downloader exclusions.
@@ -511,7 +495,7 @@ class BaseDownload:
         self,
         url: str,
         destination: Path,
-        checksum: str | None = None,
+        checksum: str,
     ) -> str:
         """Download or verify one planned file.
 
@@ -525,8 +509,8 @@ class BaseDownload:
             HTTPS source URL.
         destination : Path
             Local destination path.
-        checksum : str or None
-            Optional SHA-256 checksum.
+        checksum : str
+            Required SHA-256 checksum.
 
         Returns
         -------
@@ -630,7 +614,7 @@ class BaseDownload:
         ---------
         - Inspect what would be downloaded before writing files.
         - Generate subject-specific HRTF or mesh download jobs.
-        - Skip unavailable checksum-mapped resources cleanly.
+        - Fail before network transfer when a planned file has no checksum.
         """
 
         resources = self.sanitize_download_resources(download_resources)
@@ -845,8 +829,6 @@ class BaseDownload:
                             mesh_type=mesh_type,
                             mesh_version=None if mesh_version is None else str(mesh_version),
                         )
-                        if checksum is None and self.has_checksum_map("mesh"):
-                            continue
                         download_jobs.append(
                             {
                                 "resource": "mesh",
@@ -1003,27 +985,23 @@ class BaseDownload:
             raise ValueError(summary)
         return downloaded_count > 0, summary
 
-    def verify_checksum(self, path: Path, checksum: str | None) -> None:
-        """Verify a file against an optional SHA-256 checksum.
+    def verify_checksum(self, path: Path, checksum: str) -> None:
+        """Verify a file against its required SHA-256 checksum.
 
-        The method does nothing when a checksum is unavailable, but when one is
-        provided it computes the current digest and raises on mismatch. This supports
-        datasets with partial checksum coverage while still enforcing integrity where
-        known.
+        The method computes the current digest and raises on mismatch. Missing
+        checksums are not valid for downloader-managed resources.
 
         Parameters
         ----------
         path : Path
             File path to verify.
-        checksum : str or None
-            Expected checksum. ``None`` disables checksum validation.
+        checksum : str
+            Expected SHA-256 checksum.
 
         Returns
         -------
         None Raises when checksum validation fails.
         """
-        if checksum is None:
-            return
         expected = self.sanitize_checksum(checksum)
         current = self.compute_sha256(path)
         if current != expected:
@@ -1034,8 +1012,8 @@ class BaseDownload:
     def verify_archive_integrity(self, path: Path) -> None:
         """Verify archive containers can be opened and traversed.
 
-        Archive downloads can be non-empty and checksum-free while still being
-        corrupt. This method performs format-specific integrity checks for
+        Archive downloads can be non-empty and checksum-valid while still being
+        structurally corrupt. This method performs format-specific integrity checks for
         ZIP, TAR, and GZIP files before a download is accepted.
 
         Parameters
@@ -1071,11 +1049,11 @@ class BaseDownload:
                     if len(chunk) == 0:
                         break
 
-    def verify_downloaded_file(self, path: Path, checksum: str | None) -> None:
+    def verify_downloaded_file(self, path: Path, checksum: str) -> None:
         """Verify a downloaded file is present, non-empty, structurally valid, and
         checksum-valid.
 
-        This method combines basic file checks, archive integrity checks, and optional
+        This method combines basic file checks, archive integrity checks, and required
         SHA-256 validation. It is used for both existing files and temporary downloads
         before dataset construction uses them.
 
@@ -1083,8 +1061,8 @@ class BaseDownload:
         ----------
         path : Path
             Downloaded file path.
-        checksum : str or None
-            Optional SHA-256 checksum.
+        checksum : str
+            Expected SHA-256 checksum.
 
         Returns
         -------
