@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-import os
-from pathlib import Path
-
-=======
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import redirect_stdout
 from dataclasses import replace
@@ -13,16 +8,12 @@ import re
 from pathlib import Path
 
 import numpy as np
->>>>>>> dev
 import pytest
 
 from hrtfpykit.datasets import SONICOM
 from hrtfpykit.datasets.checksums import SONICOM_CHECKSUMS
 from hrtfpykit.datasets.config import SONICOMConfig
 from hrtfpykit.datasets.download import BaseDownload
-<<<<<<< HEAD
-from hrtfpykit.datasets.specs import MetadataSpec
-=======
 from hrtfpykit.datasets.specs import (
     HRTFSpec,
     ILDSpec,
@@ -33,13 +24,10 @@ from hrtfpykit.datasets.specs import (
 )
 from hrtfpykit.datasets.specs_workflow import DatasetSpecWorkflow
 from hrtfpykit.datasets.split import DatasetSplitPlanner
->>>>>>> dev
 
 
 SONICOM_ROOT = os.getenv("SONICOM_TEST_ROOT") or os.getenv("SONICOM_ROOT")
 RUN_SONICOM_DOWNLOAD_TESTS = os.getenv("SONICOM_TEST_DOWNLOAD", "").strip() == "1"
-<<<<<<< HEAD
-=======
 _RUN_FULL_SONICOM_TESTS = os.getenv("SONICOM_TEST_FULL", "").strip() == "1"
 ALL_SONICOM_SUBJECT_IDS = tuple(
     subject_id
@@ -484,7 +472,6 @@ def _expected_selected_subjects(
             split_seed=0,
         )
     )
->>>>>>> dev
 
 
 def test_sonicom_config_subject_exclusions() -> None:
@@ -500,16 +487,7 @@ def test_sonicom_config_subject_exclusions() -> None:
 
 
 def test_sonicom_metadata_download_plan(tmp_path: Path) -> None:
-<<<<<<< HEAD
-    jobs = BaseDownload(
-        config=SONICOMConfig,
-        root=tmp_path,
-    ).build_download_plan(
-        download_resources="metadata",
-    )
-=======
     jobs = BaseDownload(config=SONICOMConfig, root=tmp_path).build_download_plan(download_resources="metadata")
->>>>>>> dev
 
     assert len(jobs) == 1
     assert jobs[0]["resource"] == "metadata"
@@ -518,22 +496,9 @@ def test_sonicom_metadata_download_plan(tmp_path: Path) -> None:
 
 
 def test_sonicom_default_windowed_hrtf_download_plan(tmp_path: Path) -> None:
-<<<<<<< HEAD
-    jobs = BaseDownload(
-        config=SONICOMConfig,
-        root=tmp_path,
-    ).build_download_plan(
-        download_resources="hrtf",
-        download_hrtf_variant={
-            "type": "measured",
-            "sample_rate": 44100,
-            "version": "Windowed",
-        },
-=======
     jobs = BaseDownload(config=SONICOMConfig, root=tmp_path).build_download_plan(
         download_resources="hrtf",
         download_hrtf_variant={"type": "measured", "sample_rate": 44100, "version": "Windowed"},
->>>>>>> dev
     )
 
     relative_paths = {str(job["relative_path"]) for job in jobs}
@@ -552,21 +517,6 @@ def test_sonicom_windowed_checksums_cover_default_sample_rates() -> None:
     assert len(windowed[96000]) == 394
 
 
-<<<<<<< HEAD
-def test_sonicom_metadata_only_construction_requires_local_root() -> None:
-    if SONICOM_ROOT is None or not Path(SONICOM_ROOT).expanduser().exists():
-        pytest.skip(reason="SONICOM local dataset root is not available")
-
-    dataset = SONICOM(
-        root=SONICOM_ROOT,
-        inputs=MetadataSpec(),
-        target=None,
-        verbose=False,
-    )
-
-    assert len(dataset.available_subjects) > 0
-    assert dataset.inputs[0].name is None
-=======
 def test_sonicom_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
     config = replace(
         SONICOMConfig(),
@@ -780,16 +730,11 @@ def test_sonicom_invalid_variant_keys_are_rejected() -> None:
 
     with pytest.raises(ValueError, match="Unsupported dataset_mesh_variant keys"):
         SONICOM(root=SONICOM_ROOT, dataset_mesh_variant={"type": "scanned", "bad": "value"}, inputs=None, target=None)
->>>>>>> dev
 
 
 @pytest.mark.skipif(
     not RUN_SONICOM_DOWNLOAD_TESTS,
-<<<<<<< HEAD
-    reason="Set SONICOM_TEST_DOWNLOAD=1 to run network download tests",
-=======
     reason="Set SONICOM_TEST_DOWNLOAD=1 or pass --sonicom-download to run network download tests",
->>>>>>> dev
 )
 def test_sonicom_metadata_download(tmp_path: Path) -> None:
     dataset = SONICOM(
