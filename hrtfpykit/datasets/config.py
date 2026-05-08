@@ -25,11 +25,6 @@ class ResourceTypeConfig:
     ResourceTypeConfig Immutable resource-type description used by scanners and
     downloaders.
 
-    Use Cases
-    ---------
-    - Describe measured and synthetic HRTF layouts.
-    - Describe mesh variants such as raw, scanned, or watertight.
-    - Keep resource path formatting separate from dataset constructor defaults.
     """
 
     path_pattern: str
@@ -56,11 +51,6 @@ class HRTFConfig:
     HRTFConfig Immutable HRTF resource description used by dataset scanning and
     downloading.
 
-    Use Cases
-    ---------
-    - Declare measured, simulated, or synthetic HRTF resource families.
-    - Restrict HRTF resources to a subset of dataset subjects.
-    - Keep available variants separate from user-selected dataset defaults.
     """
 
     types: dict[str, ResourceTypeConfig]
@@ -86,11 +76,6 @@ class MeshConfig:
     MeshConfig Immutable mesh resource description used by dataset scanning and
     downloading.
 
-    Use Cases
-    ---------
-    - Declare scanned or synthetic mesh resources.
-    - Support multiple mesh file extensions.
-    - Restrict mesh resources to a subset of dataset subjects.
     """
 
     types: dict[str, ResourceTypeConfig]
@@ -117,11 +102,6 @@ class AnthropometryConfig:
     -------
     AnthropometryConfig Immutable anthropometry resource description.
 
-    Use Cases
-    ---------
-    - Register physical measurement tables for dataset construction.
-    - Configure ear-specific field prefixes.
-    - Support CSV or MAT anthropometry resources.
     """
 
     path: str
@@ -145,11 +125,6 @@ class MetadataConfig:
     -------
     MetadataConfig Immutable metadata resource description.
 
-    Use Cases
-    ---------
-    - Register general subject annotations for dataset construction.
-    - Keep metadata separate from anthropometry resources.
-    - Support CSV or MAT metadata resources.
     """
 
     path: str
@@ -169,11 +144,6 @@ class ImageConfig:
     -------
     ImageConfig Immutable image resource description.
 
-    Use Cases
-    ---------
-    - Configure subject image scanning.
-    - Restrict image datasets to selected file formats.
-    - Pair image specs with acoustic specs.
     """
 
     extensions: tuple[str, ...] = (".png",)
@@ -192,11 +162,6 @@ class VideoConfig:
     -------
     VideoConfig Immutable video resource description.
 
-    Use Cases
-    ---------
-    - Configure subject video scanning.
-    - Restrict video datasets to selected file formats.
-    - Pair video specs with acoustic specs.
     """
 
     extensions: tuple[str, ...] = (".mp4",)
@@ -219,11 +184,6 @@ class DownloadConfig:
     -------
     DownloadConfig Immutable download description consumed by ``BaseDownload``.
 
-    Use Cases
-    ---------
-    - Register official dataset download endpoints.
-    - Limit downloads to supported resource groups.
-    - Attach checksums for integrity validation.
     """
 
     base_url: str
@@ -253,11 +213,6 @@ class DatasetConfig:
     DatasetConfig Immutable dataset-family description consumed by
     ``BaseDataset``.
 
-    Use Cases
-    ---------
-    - Add a new dataset integration.
-    - Declare official resource layouts without selecting runtime defaults.
-    - Share one config between resource scanning and downloading.
     """
 
     name: str

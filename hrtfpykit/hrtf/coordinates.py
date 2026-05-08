@@ -24,12 +24,6 @@ def get_position_queries(
         Normalized list of queries, where numeric entries are returned as
         ``np.ndarray`` and string entries are returned as lowercase strings.
 
-    Use Cases
-    ---------
-    - Normalize user input before resolving source-grid positions.
-    - Accept either one query or many queries through the same API.
-    - Support mixed named and numeric position inputs.
-
     Examples
     --------
     Normalize one named query:
@@ -122,12 +116,6 @@ def get_named_positions(
         Mapping from ``{"front", "left", "back", "right"}`` to spherical
         ``(azimuth, elevation)`` position arrays.
 
-    Use Cases
-    ---------
-    - Resolve named source queries into numeric coordinates.
-    - Generate canonical front, left, back, and right references.
-    - Build plot labels or directional selections.
-
     Examples
     --------
     Look up the canonical front direction:
@@ -178,12 +166,6 @@ def get_position_alias(
     str | None
         One of ``{"front", "left", "back", "right"}`` when the position
         matches a canonical horizontal cardinal direction, otherwise ``None``.
-
-    Use Cases
-    ---------
-    - Replace explicit coordinates with directional aliases in plot titles.
-    - Recognize canonical positions after coordinate conversion.
-    - Build cleaner user-facing labels for horizontal positions.
 
     Examples
     --------
@@ -274,12 +256,6 @@ def get_spherical_positions(
     np.ndarray
         Source positions with shape ``(N, 3)`` in spherical
         ``(azimuth, elevation, radius)`` coordinates.
-
-    Use Cases
-    ---------
-    - Normalize any source-grid coordinate system to spherical.
-    - Reuse one spherical conversion path across multiple source queries.
-    - Prepare angle-based analyses from cartesian or lateral-polar grids.
 
     Examples
     --------
@@ -390,11 +366,6 @@ def spherical_to_cartesian(
         Array with shape ``(..., 3)`` containing cartesian ``(x, y, z)``
         coordinates.
 
-    Use Cases
-    ---------
-    - Convert spherical source grids for 3D plotting.
-    - Prepare source positions for cartesian geometric processing.
-
     Examples
     --------
     Convert the front direction into cartesian coordinates:
@@ -463,11 +434,6 @@ def cartesian_to_spherical(
         Array with shape ``(..., 3)`` containing spherical
         ``(azimuth, elevation, radius)`` coordinates.
 
-    Use Cases
-    ---------
-    - Inspect cartesian grids in SOFA-style azimuth and elevation.
-    - Convert cartesian source data before plane or direction queries.
-
     Examples
     --------
     Convert the front cartesian point into spherical coordinates:
@@ -525,11 +491,6 @@ def cartesian_to_lateral_polar(
     np.ndarray
         Array with shape ``(..., 3)`` containing lateral-polar
         ``(lateral, polar, radius)`` coordinates.
-
-    Use Cases
-    ---------
-    - Convert cartesian source grids into interaural-style coordinates.
-    - Prepare source data for median-plane analyses.
 
     Examples
     --------
@@ -593,11 +554,6 @@ def lateral_polar_to_cartesian(
     np.ndarray
         Array with shape ``(..., 3)`` containing cartesian ``(x, y, z)``
         coordinates.
-
-    Use Cases
-    ---------
-    - Convert interaural-style source definitions into cartesian form.
-    - Feed lateral-polar datasets into 3D plotting or geometric processing.
 
     Examples
     --------
@@ -668,11 +624,6 @@ def spherical_to_lateral_polar(
         Array with shape ``(..., 3)`` containing lateral-polar
         ``(lateral, polar, radius)`` coordinates.
 
-    Use Cases
-    ---------
-    - Convert SOFA spherical data into interaural-style coordinates.
-    - Prepare spherical grids for median-plane and lateral-angle workflows.
-
     Examples
     --------
     Convert the front spherical direction into lateral-polar coordinates:
@@ -708,11 +659,6 @@ def lateral_polar_to_spherical(
     np.ndarray
         Array with shape ``(..., 3)`` containing spherical
         ``(azimuth, elevation, radius)`` coordinates.
-
-    Use Cases
-    ---------
-    - Convert interaural-style coordinates back into SOFA-style angles.
-    - Compare lateral-polar datasets with spherical source grids.
 
     Examples
     --------
@@ -754,12 +700,6 @@ def get_closest_position_index(
     -------
     int
         Exact-match index when available; otherwise nearest-match index.
-
-    Use Cases
-    ---------
-    - Resolve numeric queries against a discrete source grid.
-    - Match angle-only spherical or lateral-polar queries with wrap-aware distance.
-    - Select the nearest available source position when an exact match is absent.
 
     Examples
     --------

@@ -104,12 +104,6 @@ class HRTFPlots:
         -------
         None
 
-        Use Cases
-        ---------
-        - Compare magnitude responses across several source positions.
-        - Inspect left, right, or binaural magnitude structure at one location.
-        - Generate figures for later display with ``show=False``.
-
         Examples
         --------
         Load a measured HRTF and compare two practical listening directions:
@@ -323,12 +317,6 @@ class HRTFPlots:
         -------
         None
 
-        Use Cases
-        ---------
-        - Inspect HRIR waveform shape for one or several directions.
-        - Compare left and right ear impulse responses at the same position.
-        - Generate waveform figures for later display with ``show=False``.
-
         Examples
         --------
         Load an HRIR set and compare the front and right directions in samples:
@@ -511,12 +499,6 @@ class HRTFPlots:
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Inspect time-domain and frequency-domain behavior for the same direction.
-        - Compare left and right ear waveform and magnitude structure together.
-        - Create a compact two-subplot summary for one position.
 
         Examples
         --------
@@ -809,13 +791,6 @@ class HRTFPlots:
         -------
         None
 
-        Use Cases
-        ---------
-        - Inspect a horizontal-plane spectrum over azimuth.
-        - Inspect the median-plane spectrum over polar angle.
-        - Compare left and right ear spectral structure in the same plane.
-        - Create plane-based HRTF heatmaps without showing them immediately.
-
         Examples
         --------
         Load a measured HRTF and inspect the horizontal-plane spectrum for the left ear:
@@ -1095,12 +1070,6 @@ class HRTFPlots:
         -------
         None
 
-        Use Cases
-        ---------
-        - Inspect how magnitude changes with elevation at a fixed azimuth.
-        - Compare left and right ear spectral structure along one azimuth slice.
-        - Create elevation-spectrum heatmaps without showing them immediately.
-
         Examples
         --------
         Load a measured HRTF and inspect how the front spectrum changes with elevation:
@@ -1329,12 +1298,6 @@ class HRTFPlots:
         -------
         None
 
-        Use Cases
-        ---------
-        - Inspect how signed ITD changes around the horizontal plane.
-        - Compare left-side and right-side timing cues using a signed azimuth axis.
-        - Generate a horizontal-plane ITD curve for later display with ``show=False``.
-
         Examples
         --------
         Load a measured HRTF and inspect its horizontal-plane ITD trend:
@@ -1465,12 +1428,6 @@ class HRTFPlots:
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Inspect the azimuth-dependent ITD pattern in a horizontal plane.
-        - Visualize binaural timing cues using a compact polar representation.
-        - Generate an ITD figure for later display with ``show=False``.
 
         Examples
         --------
@@ -1604,12 +1561,6 @@ class HRTFPlots:
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Inspect frequency-dependent ILD over the horizontal plane.
-        - Inspect frequency-dependent ILD over the canonical median plane.
-        - Generate an ILD heatmap without showing it immediately.
 
         Examples
         --------
@@ -1813,12 +1764,6 @@ class HRTFPlots:
         -------
         None
 
-        Use Cases
-        ---------
-        - Inspect how signed ILD changes around the horizontal plane.
-        - Compare left-side and right-side level cues using a signed azimuth axis.
-        - Generate a horizontal-plane ILD curve for later display with ``show=False``.
-
         Examples
         --------
         Load a measured HRTF and inspect broad-band ILD across the horizontal plane:
@@ -1950,12 +1895,6 @@ class HRTFPlots:
         -------
         None
 
-        Use Cases
-        ---------
-        - Inspect the azimuth-dependent ILD pattern in a horizontal plane.
-        - Visualize binaural level cues using a compact polar representation.
-        - Generate an ILD figure for later display with ``show=False``.
-
         Examples
         --------
         Load a measured HRTF and summarize absolute ILD in a polar view:
@@ -2068,13 +2007,6 @@ class HRTFPlots:
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Inspect the spatial sampling pattern of a source grid.
-        - Check how dense or sparse a dataset is across directions.
-        - Visualize the currently selected subset of sources after spatial
-          selection or transformation.
 
         Examples
         --------
@@ -2190,13 +2122,6 @@ class HRTFPlots:
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Inspect the geometry of the canonical horizontal, median, and frontal
-          planes in a dataset.
-        - Verify whether a dataset contains the expected plane coverage.
-        - Compare several canonical planes in one spatial grid view.
 
         Examples
         --------

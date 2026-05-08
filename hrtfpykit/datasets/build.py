@@ -86,10 +86,6 @@ class DatasetBuilder:
         None
             Assigns the final dataset state in-place.
 
-        Use Cases
-        ---------
-        - Execute spec planning, resource scanning, splitting, and acoustic context.
-        - Build rows for ``BaseDataset.__getitem__``.
         """
         dataset = self._dataset
         state = DatasetState()
@@ -323,10 +319,6 @@ class DatasetBuilder:
         list of dict
             Row records consumed by ``BaseDataset.__getitem__``.
 
-        Use Cases
-        ---------
-        - Expand subject-level resources into indexed sample rows.
-        - Keep row context explicit for value selectors.
         """
         rows: list[dict[str, str | int | None]] = []
         include_position = "position" in index_by

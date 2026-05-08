@@ -28,11 +28,6 @@ class Figure:
         -------
         None
 
-        Use Cases
-        ---------
-        - Build a 2D, 3D, or polar figure with consistent layout handling.
-        - Reuse one figure abstraction across plot methods.
-
         Examples
         --------
         >>> from hrtfpykit.plots.layouts import Layout_1
@@ -58,10 +53,6 @@ class Figure:
         Returns
         -------
         None
-
-        Use Cases
-        ---------
-        - Keep typography and figure styling consistent across plots.
 
         Examples
         --------
@@ -100,11 +91,6 @@ class Figure:
         -------
         tuple[plt.Figure, np.ndarray]
             Matplotlib figure and flattened object array of subplot axes.
-
-        Use Cases
-        ---------
-        - Create plotting canvases for single or multi-subplot layouts.
-        - Create projected axes while keeping one common layout pipeline.
 
         Examples
         --------
@@ -161,11 +147,6 @@ class Figure:
         plt.Axes
             Selected subplot axis.
 
-        Use Cases
-        ---------
-        - Access subplot axes using stable position names like ``"main"``.
-        - Access subplot axes by numeric index in loops.
-
         Examples
         --------
         >>> from hrtfpykit.plots.layouts import Layout_1
@@ -199,10 +180,6 @@ class Figure:
         -------
         None
 
-        Use Cases
-        ---------
-        - Hide unused panels when plotting fewer items than layout capacity.
-
         Examples
         --------
         >>> from hrtfpykit.plots.layouts import Layout_2Vertical
@@ -232,10 +209,6 @@ class Figure:
         -------
         object
             Matplotlib artist returned by ``TwoDimension.create``.
-
-        Use Cases
-        ---------
-        - Draw waveform and curve plots through one shared wrapper.
 
         Examples
         --------
@@ -300,10 +273,6 @@ class Figure:
         -------
         object
             Matplotlib mesh artist returned by ``Heatmap.create``.
-
-        Use Cases
-        ---------
-        - Render spectrum and plane heatmaps with shared figure integration.
 
         Examples
         --------
@@ -371,10 +340,6 @@ class Figure:
         -------
         object
             Matplotlib artist returned by ``ThreeDimension.create``.
-
-        Use Cases
-        ---------
-        - Render source-grid and plane-grid 3D scatter views.
 
         Examples
         --------

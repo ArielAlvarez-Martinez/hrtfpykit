@@ -1586,14 +1586,6 @@ def tf_from_ir(
         For ``IR`` input, returns the updated ``TF`` object linked to the same
         ``HRTF`` instance.
 
-    Use Cases
-    ---------
-    - Rebuild the TF after cropping, padding, windowing, or filtering HRIR
-      data.
-    - Refresh frequency bins after changing the working FFT length.
-    - Convert standalone IR arrays into one-sided spectra outside the HRTF
-      object model.
-
     Examples
     --------
     Window one measured HRIR, rebuild its TF, and inspect the synchronized FFT length:
@@ -1716,12 +1708,6 @@ def ir_from_tf(
         For NumPy input, returns ``(ir_values, sample_rate, fft_length_used)``.
         For ``TF`` input, returns the updated ``IR`` object linked to the same
         ``HRTF`` instance.
-
-    Use Cases
-    ---------
-    - Rebuild HRIR data after magnitude-only or phase-only TF edits.
-    - Convert one-sided TF arrays back into the time domain.
-    - Restore sample-rate and FFT metadata from frequency-bin spacing.
 
     Design Rules
     ------------

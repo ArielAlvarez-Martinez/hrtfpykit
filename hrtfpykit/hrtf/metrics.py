@@ -50,12 +50,6 @@ def itd(
         ITD values with shape ``ir.shape[:-2]``. Positive values mean the left
         ear is delayed relative to the right ear.
 
-    Use Cases
-    ---------
-    - Estimate directional ITD cues directly from HRIR data.
-    - Compare onset-delay behavior between two binaural renderings.
-    - Build ITD curves over a source grid before spatial plotting.
-
     Examples
     --------
     Estimate ITD in samples for a short binaural impulse:
@@ -214,12 +208,6 @@ def ild(
         greater than the right-ear level, and negative values mean the
         right-ear level is greater than the left-ear level.
 
-    Use Cases
-    ---------
-    - Measure broad-band level asymmetry between left and right ears.
-    - Compute per-frequency ILD cues for spectral analysis.
-    - Build ILD features for comparison and quality metrics.
-
     Examples
     --------
     Measure the broad-band ILD of a simple binaural impulse:
@@ -350,12 +338,6 @@ def itd_difference(
         Absolute ITD differences per position with shape ``[positions]`` (or
         the corresponding leading source shape for selected subsets).
 
-    Use Cases
-    ---------
-    - Quantify per-position ITD changes after individualization.
-    - Compare ITD impact of two processing pipelines.
-    - Build position-wise ITD error curves relative to a reference HRTF.
-
     Notes
     -----
     Both HRTFs must have the same source grid. If source positions differ,
@@ -462,12 +444,6 @@ def ild_difference(
         shape is ``[positions]``. For ``mode="frequency-dependent"``, the
         shape is ``[positions, frequency_bins]``.
 
-    Use Cases
-    ---------
-    - Quantify per-position ILD changes after individualization.
-    - Compare ILD impact of two processing pipelines.
-    - Build position-wise ILD error curves relative to a reference HRTF.
-
     Notes
     -----
     Both HRTFs must have the same source grid. If source positions differ,
@@ -552,18 +528,18 @@ def lsd(
 ) -> np.ndarray | float:
     """Compute log-spectral distortion (LSD) between two HRTFs in dB.
 
-    This method compares two HRTFs in the logarithmic (dB) domain using the
-    selected ear configuration. It can evaluate the left ear, the right ear,
-    or both ears together. When ``ear="both"``, LSD is computed for both ear
-    channels and then averaged across the ear axis before any optional output
-    reduction. It supports full-grid evaluation, plane-restricted evaluation,
-    frequency selection, and reduction modes for per-position, per-frequency,
-    or global scalar outputs.
+    LSD compares two HRTFs in the logarithmic magnitude domain. The comparison
+    can use one ear, both ears, all source positions, a selected spatial plane,
+    explicit source positions, explicit frequency bins, or a reduced scalar
+    result.
 
-    Design rule
-    -----------
-    When ``frequencies=None``, LSD is computed only in the 20 Hz to 20 kHz
-    band. This excludes DC (0 Hz) by default.
+    When ``ear="both"``, the function computes LSD for both ear channels and
+    averages across ears before applying the requested ``reduction``.
+
+    When ``frequencies=None``, the comparison uses only bins between 20 Hz and
+    20 kHz. This excludes DC by default. Pass
+    ``frequencies=hrtf.TF.frequency_bins`` to use every available frequency
+    bin.
 
     Parameters
     ----------
@@ -572,19 +548,12 @@ def lsd(
     hrtf_b : HRTF
         Second HRTF used in the comparison.
     ear : {"left", "right", "both"}, default="both"
-        Ear configuration used during the comparison.
-
-        - ``"left"`` evaluates only the left-ear TF values.
-        - ``"right"`` evaluates only the right-ear TF values.
-        - ``"both"`` evaluates both ear channels and averages the resulting
-          LSD values across ears.
+        Ear channel selection. ``"both"`` compares both channels and averages
+        their LSD values.
     plane : {"all", "horizontal", "median"}, default="all"
-        Spatial subset of source positions:
-
-        - ``"all"`` uses the full source grid.
-        - ``"horizontal"`` uses the nearest available horizontal plane at
-          ``elevation``.
-        - ``"median"`` uses the canonical median plane.
+        Spatial subset used before comparison. ``"all"`` uses the full source
+        grid, ``"horizontal"`` uses the nearest horizontal plane at
+        ``elevation``, and ``"median"`` uses the canonical median plane.
     elevation : float, default=0.0
         Requested elevation in degrees used only when
         ``plane="horizontal"``.
@@ -594,22 +563,13 @@ def lsd(
         and numeric spherical queries). When provided, the resolved positions
         are intersected with the selected ``plane``.
     frequencies : float | list[float] | tuple[float, ...] | np.ndarray | None, default=None
-        Optional frequency selector in Hz. Accepts multiple frequency bins. Each target is mapped 
-        to the nearest available TF bin. ``None`` selects bins in the 20 Hz to 20 kHz band. If you
-        want to calculate LSD for all available frequency bins, pass
-        ``frequencies=hrtf.TF.frequency_bins``.
+        Optional frequency selector in Hz. Each requested frequency is mapped
+        to the nearest available TF bin. ``None`` selects the 20 Hz to 20 kHz
+        band.
     reduction : {"none", "locations", "frequencies", "global"}, default="none"
-        Aggregation mode applied after dB difference computation:
-
-        - ``"none"``:
-          returns absolute dB differences per selected position and frequency.
-        - ``"locations"``:
-          returns RMS over locations for each selected frequency.
-        - ``"frequencies"``:
-          returns RMS over frequencies for each selected location.
-        - ``"global"``:
-          returns one global RMS value across all selected locations and
-          frequencies.
+        Aggregation mode. ``"none"`` returns values per selected position and
+        frequency, ``"locations"`` reduces over positions, ``"frequencies"``
+        reduces over frequencies, and ``"global"`` returns one scalar.
     epsilon : float, default=1e-12
         Positive lower bound applied to magnitudes before conversion to dB.
         This avoids invalid values from ``log10(0)``.
@@ -617,55 +577,18 @@ def lsd(
     Returns
     -------
     np.ndarray | float
-        LSD values in dB. Shape depends on ``reduction`` and on whether a
-        single frequency was selected:
-
-        - ``reduction="none"``:
-          ``(positions, frequencies)`` or ``(positions,)`` for one frequency.
-        - ``reduction="locations"``:
-          ``(frequencies,)`` or ``float`` for one frequency.
-        - ``reduction="frequencies"``:
-          ``(positions,)``.
-        - ``reduction="global"``:
-          ``float``.
-
-    Use Cases
-    ---------
-    - Compare two full HRTFs across all positions and all frequencies.
-    - Evaluate LSD per frequency while averaging across spatial locations.
-    - Evaluate LSD per location while averaging across frequencies.
-    - Inspect LSD in a specific horizontal elevation plane.
-    - Inspect LSD in the canonical median plane at one target frequency.
+        LSD values in dB. With ``reduction="none"``, the output is indexed by
+        selected position and frequency. With ``reduction="locations"``, the
+        output is indexed by frequency. With ``reduction="frequencies"``, the
+        output is indexed by position. With ``reduction="global"``, the output
+        is a scalar.
 
     Examples
     --------
-    Global LSD scalar for the selected configuration:
-
-    >>> lsd_scalar = lsd(hrtf_a, hrtf_b, reduction="global")
-
-    Full LSD map across all positions and frequencies for the left ear:
-
-    >>> lsd_map = lsd(
-    ...     hrtf_a,
-    ...     hrtf_b,
-    ...     ear="left",
-    ...     reduction="none",
-    ... )
-    >>> lsd_map.ndim
-    2
-
-    Per-frequency LSD averaged across locations:
-
-    >>> lsd_per_frequency = lsd(
-    ...     hrtf_a,
-    ...     hrtf_b,
-    ...     ear="left",
-    ...     reduction="locations",
-    ... )
-
-    Per-location LSD averaged across frequencies in a horizontal plane:
-
-    >>> lsd_per_location = lsd(
+    >>> lsd(hrtf_a, hrtf_b, reduction="global")
+    >>> lsd(hrtf_a, hrtf_b, ear="left", reduction="none")
+    >>> lsd(hrtf_a, hrtf_b, ear="left", reduction="locations")
+    >>> lsd(
     ...     hrtf_a,
     ...     hrtf_b,
     ...     ear="right",
@@ -673,10 +596,7 @@ def lsd(
     ...     elevation=0.0,
     ...     reduction="frequencies",
     ... )
-
-    Global scalar LSD at one selected frequency in the median plane:
-
-    >>> lsd_plane_scalar = lsd(
+    >>> lsd(
     ...     hrtf_a,
     ...     hrtf_b,
     ...     ear="left",

@@ -46,11 +46,6 @@ class Ear(Legends):
         -------
         None
 
-        Use Cases
-        ---------
-        - Add consistent ear legends for waveform and magnitude plots.
-        - Override default left/right labels in custom figures.
-
         Examples
         --------
         >>> import matplotlib.pyplot as plt

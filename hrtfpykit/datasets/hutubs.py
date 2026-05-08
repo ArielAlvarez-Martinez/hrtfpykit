@@ -96,12 +96,6 @@ class HUTUBS(BaseDataset):
         HUTUBS Dataset object supporting indexed sample extraction and subject HRTF
         loading.
 
-        Use Cases
-        ---------
-        - Build HUTUBS HRIR/HRTF datasets for learning or analysis.
-        - Combine HUTUBS HRTFs with anthropometry, mesh, image, or video specs.
-        - Download official HUTUBS resources into a local root.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -184,10 +178,6 @@ class HUTUBS(BaseDataset):
         object Filtered value containing the requested ear-specific fields and shared
         fields.
 
-        Use Cases
-        ---------
-        - Apply HUTUBS left/right anthropometry prefixes.
-        - Keep generic anthropometry loading separate from HUTUBS field selection.
         """
         if not isinstance(value, dict):
             return value

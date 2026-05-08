@@ -78,21 +78,6 @@ def load_hrtf(
         Loaded HRTF object with ``IR``, ``TF``, ``SOFAConventions``, and
         ``fft_length`` populated.
 
-    Use Cases
-    ---------
-    - Load HRIR-based SOFA files and work in both domains.
-    - Load HRTF-based SOFA files while preserving original frequency bins.
-    - Enable Mesh2HRTF-compatible reconstruction when required by the source
-      convention pipeline.
-
-    Best Practices
-    --------------
-    - Keep ``check_sofa_against_conventions=True`` in production pipelines.
-    - Use ``fft_length`` only when a fixed transform size is explicitly needed.
-    - Fail fast on malformed SOFA variables instead of bypassing validation.
-    - Keep one-sided ``N`` vectors in ``SimpleFreeFieldHRTF`` files.
-    - Include DC explicitly in exported ``SimpleFreeFieldHRTF`` data whenever possible.
-
     Examples
     --------
     >>> from hrtfpykit import load_hrtf
@@ -300,21 +285,12 @@ class HRTF(HRTFPlots):
         HRTF
             New object with copied IR, TF, source-selection state, and metadata.
 
-        Use Cases
-        ---------
-        - Branch a processing pipeline without mutating the original object.
-        - Preserve current selection while testing alternative transforms.
-
         Examples
         --------
         >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf_branch = hrtf.clone()
         >>> _ = hrtf_branch.transform.apply_gain(-3.0, scale="db")
 
-        Best Practices
-        --------------
-        - Clone before destructive experimentation when reproducibility matters.
-        - Treat cloned and original objects as independent processing branches.
         """
         sofa_clone = self.Sofa
         if self.Sofa is not None:
@@ -353,11 +329,6 @@ class HRTF(HRTFPlots):
             Current instance after restoring IR/TF, source-state, and metadata
             from the backed SOFA object.
 
-        Use Cases
-        ---------
-        - Discard all in-memory transforms and return to original data.
-        - Recover a clean baseline before running a new processing pipeline.
-
         Examples
         --------
         >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
@@ -369,11 +340,6 @@ class HRTF(HRTFPlots):
         >>> hrtf.is_transformed()
         False
 
-        Best Practices
-        --------------
-        - Use ``reset`` instead of reloading from disk when the same backed SOFA
-          object should be preserved.
-        - Run ``save`` before reset if transformed data must be kept.
         """
         if self.Sofa is None:
             raise ValueError("Cannot reset an HRTF without a loaded SOFA dataset")
@@ -478,11 +444,6 @@ class HRTF(HRTFPlots):
             ``True`` if at least one transformation or selection modified current
             in-memory data; ``False`` otherwise.
 
-        Use Cases
-        ---------
-        - Check if :meth:`update_sofa` is needed before saving.
-        - Build guard logic in processing pipelines.
-
         Examples
         --------
         >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
@@ -492,9 +453,6 @@ class HRTF(HRTFPlots):
         >>> transformed.is_transformed()
         True
 
-        Best Practices
-        --------------
-        - Use this check before expensive SOFA synchronization workflows.
         """
         return self._transformed
 
@@ -519,12 +477,6 @@ class HRTF(HRTFPlots):
         None
             This method updates ``self.Sofa`` in-place and does not return data.
 
-        Use Cases
-        ---------
-        - Persist transformed HRTF/HRIR values into SOFA variables before save.
-        - Export the current object in HRIR or HRTF SOFA convention.
-        - Commit selected-position subsets into a resized SOFA structure.
-
         Examples
         --------
         >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
@@ -538,11 +490,6 @@ class HRTF(HRTFPlots):
         ...     sofa_convention="SimpleFreeFieldHRTF",
         ... )
 
-        Best Practices
-        --------------
-        - Keep ``change_sofa_dimensions=False`` unless a shape change is expected.
-        - Use ``sofa_convention='same'`` for metadata-preserving updates.
-        - Use explicit convention switching only for deliberate export workflows.
         """
         if self.Sofa is None or self.Sofa.netCDF4_dataset is None:
             raise ValueError("SOFA dataset is not loaded")
@@ -910,11 +857,6 @@ class HRTF(HRTFPlots):
         Path
             Path to the saved SOFA file.
 
-        Use Cases
-        ---------
-        - Export transformed HRTF files.
-        - Save selected subsets to standalone SOFA files.
-
         Examples
         --------
         >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
@@ -925,11 +867,6 @@ class HRTF(HRTFPlots):
         ...     change_sofa_dimensions=True,
         ... )
 
-        Best Practices
-        --------------
-        - For position subsets or FFT-length changes, enable
-          ``change_sofa_dimensions=True``.
-        - Keep convention explicit when creating deliverables for external tools.
         """
         if self.Sofa is None:
             raise ValueError("SOFA dataset is not loaded")
@@ -983,24 +920,12 @@ class HRTF(HRTFPlots):
         HRTF
             New HRTF object containing the selected subset.
 
-        Use Cases
-        ---------
-        - Isolate a spatial plane for analysis and plotting.
-        - Build single-ear datasets.
-        - Crop impulse responses for latency-window studies.
-
         Examples
         --------
         >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
         >>> horizontal = hrtf.select(plane="horizontal", plane_angle=0.0, ear="left")
         >>> front_slice = hrtf.select(positions=["front"], start_seconds=0.0, end_seconds=0.01)
 
-        Best Practices
-        --------------
-        - Use either index-based crop (``start/end``) or time-based crop
-          (``start_seconds/end_seconds``), never both.
-        - Prefer ``plane`` selection for reproducible geometric subsets.
-        - Keep ``ear='both'`` unless unilateral analysis is required.
         """
         transformed_hrtf = self.clone()
         selected_indices: np.ndarray | None = None

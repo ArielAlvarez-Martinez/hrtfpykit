@@ -43,10 +43,6 @@ class Axis(ABC):
         -------
         None
 
-        Use Cases
-        ---------
-        - Apply shared axis labels from plot-specific axis classes.
-        - Keep 2D and 3D label assignment in one utility.
         """
         if axis not in {"x", "y", "z"}:
             raise ValueError("axis accepts 'x', 'y', or 'z'")
@@ -104,10 +100,6 @@ class DirectionAxis(Axis, ABC):
         -------
         None
 
-        Use Cases
-        ---------
-        - Format azimuth, elevation, and polar axes with one shared logic path.
-        - Keep endpoint labels clean by placing only interior major ticks.
         """
         resolved_tick_step = 20.0 if tick_step is None else float(tick_step)
         if resolved_tick_step <= 0.0:
@@ -245,10 +237,6 @@ class FrequencyLogAxis(Axis):
         dict[str, float | tuple[float, ...] | tuple[str, ...]]
             Frequency-axis configuration dictionary.
 
-        Use Cases
-        ---------
-        - Configure log-frequency axes for magnitude or spectrum plots.
-        - Keep frequency tick policy consistent across plot methods.
         """
         return build_frequency_axis(
             scale="log",
@@ -734,10 +722,6 @@ class RadialAxisPolarProjection(Axis):
         -------
         None
 
-        Use Cases
-        ---------
-        - Format absolute ITD and ILD polar plots.
-        - Keep radial labels and ticks consistent between metrics.
         """
         if getattr(ax, "name", "") != "polar":
             raise ValueError("RadialAxisPolarProjection requires a polar axis")

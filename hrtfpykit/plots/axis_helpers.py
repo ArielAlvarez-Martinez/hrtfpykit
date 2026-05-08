@@ -50,11 +50,6 @@ def build_frequency_axis(
         Dictionary with ``ticks``, ``labels``, ``freq_min``, ``freq_max``, and
         ``margin_ratio`` after validation and range filtering.
 
-    Use Cases
-    ---------
-    - Create one shared frequency-axis config for multiple subplots.
-    - Validate frequency bounds and labels before rendering.
-    - Filter visible ticks to the selected frequency range.
     """
     resolved_frequency_bins = None
     if frequency_bins is not None:
@@ -163,11 +158,6 @@ def apply_frequency_axis(
     -------
     None
 
-    Use Cases
-    ---------
-    - Apply consistent frequency formatting in linear and logarithmic plots.
-    - Reuse validated tick/label configs across plot methods.
-    - Disable minor ticks and scientific offset text for frequency axes.
     """
     if axis not in {"x", "y", "z"}:
         raise ValueError("axis accepts 'x', 'y', or 'z'")
@@ -243,10 +233,6 @@ def resolve_three_dimensional_axis_geometry(
         ``axis_half_span`` is derived from the maximum span among x, y, and z
         dimensions, with a minimum total span of ``1.0``.
 
-    Use Cases
-    ---------
-    - Build equal-scale 3D source-grid views.
-    - Keep x/y/z ranges symmetric around the data center.
     """
     resolved_cartesian_positions = np.asarray(cartesian_positions, dtype=float)
     if (
@@ -295,10 +281,6 @@ def create_sources_grid_direction_markers(
     -------
     None
 
-    Use Cases
-    ---------
-    - Annotate 3D source-grid plots with orientation cues.
-    - Keep direction markers visually proportional to axis size.
     """
     resolved_axis_half_span = float(axis_half_span)
     if not np.isfinite(resolved_axis_half_span) or resolved_axis_half_span <= 0.0:

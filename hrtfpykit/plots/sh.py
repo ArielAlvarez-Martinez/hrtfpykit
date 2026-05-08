@@ -48,11 +48,6 @@ def plot_sht_reconstruction_comparison(
     -------
     None
 
-    Use Cases
-    ---------
-    - Visual inspection of SH reconstruction quality at one direction.
-    - Compare reconstructed and original magnitude in linear or dB units.
-
     Examples
     --------
     >>> reconstructed = sht_inverse(sh)
@@ -225,11 +220,6 @@ def plot_sht_reconstruction_error(
     Returns
     -------
     None
-
-    Use Cases
-    ---------
-    - Inspect signed reconstruction error versus frequency.
-    - Track RMS error shown in the subplot title for one direction.
 
     Examples
     --------

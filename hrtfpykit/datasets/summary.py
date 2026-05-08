@@ -21,9 +21,6 @@ def _summary_title(text: str, width: int = 54, marker: str = "=") -> str:
     -------
     str Formatted title line.
 
-    Use Cases
-    ---------
-    - Format dataset, resource, and download summary titles.
     """
     cleaned = str(text).strip()
     if width <= 0:
@@ -71,11 +68,6 @@ def resources_summary(
     dict or str Resource summary dictionary when ``dataset`` is ``None``;
     otherwise a formatted summary string.
 
-    Use Cases
-    ---------
-    - Store scanner count results in dataset state.
-    - Print a user-facing resource summary.
-    - Keep missing-subject information attached to resource names.
     """
 
     if dataset is None:
@@ -132,11 +124,6 @@ def dataset_summary(dataset: object) -> str:
     -------
     str Human-readable dataset summary.
 
-    Use Cases
-    ---------
-    - Inspect selected specs, subject counts, and split information.
-    - Confirm selected HRTF and mesh variants.
-    - Log dataset construction in scripts or notebooks.
     """
 
     state = dataset._state
@@ -215,11 +202,6 @@ def download_summary(
     -------
     str Human-readable download summary.
 
-    Use Cases
-    ---------
-    - Print download results from concrete dataset constructors.
-    - Raise a detailed error when one or more downloads fail.
-    - Report selected HRTF or mesh variants in download workflows.
     """
 
     planned_files = len(download_jobs)

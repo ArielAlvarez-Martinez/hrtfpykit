@@ -64,12 +64,6 @@ class HRTFSpec:
         -------
         HRTFSpec Specification object consumed by dataset construction.
 
-        Use Cases
-        ---------
-        - Use HRIR arrays as model inputs or targets.
-        - Index a dataset by subject, position, ear, frequency, or samples.
-        - Select a subset of source positions or a named acoustic plane.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -149,12 +143,6 @@ class ITDSpec:
         -------
         ITDSpec Specification object consumed by dataset construction.
 
-        Use Cases
-        ---------
-        - Train models on ITD targets derived from HRTF files.
-        - Compare ITD values across selected positions.
-        - Add binaural localization features to dataset inputs.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -232,12 +220,6 @@ class ILDSpec:
         -------
         ILDSpec Specification object consumed by dataset construction.
 
-        Use Cases
-        ---------
-        - Use ILD values as binaural features.
-        - Build frequency-indexed ILD datasets.
-        - Generate ILD targets from source HRTF resources.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -308,12 +290,6 @@ class SHSpec:
         -------
         SHSpec Specification object consumed by dataset construction.
 
-        Use Cases
-        ---------
-        - Represent HRTFs with a spherical-harmonic basis.
-        - Build frequency-indexed acoustic datasets.
-        - Train models on SH-domain HRTF targets.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -366,12 +342,6 @@ class MeshSpec:
         Returns
         -------
         MeshSpec Specification object consumed by dataset construction.
-
-        Use Cases
-        ---------
-        - Pair HRTF data with subject head meshes.
-        - Build geometry-only datasets.
-        - Override mesh locations for local derived resources.
 
         Examples
         --------
@@ -437,12 +407,6 @@ class AnthropometrySpec:
         Returns
         -------
         AnthropometrySpec Specification object consumed by dataset construction.
-
-        Use Cases
-        ---------
-        - Add physical head or ear measurements to HRTF samples.
-        - Select left/right anthropometry fields for ear-indexed rows.
-        - Load CSV or MAT anthropometry tables beside acoustic resources.
 
         Examples
         --------
@@ -520,12 +484,6 @@ class MetadataSpec:
         -------
         MetadataSpec Specification object consumed by dataset construction.
 
-        Use Cases
-        ---------
-        - Add subject annotations to HRTF samples.
-        - Keep metadata separate from anthropometric measurements.
-        - Load CSV or MAT metadata tables beside acoustic resources.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import SONICOM
@@ -588,12 +546,6 @@ class ImageSpec:
         -------
         ImageSpec Specification object consumed by dataset construction.
 
-        Use Cases
-        ---------
-        - Pair HRTFs with subject images.
-        - Build ear-image datasets with left/right folders.
-        - Apply image loading or preprocessing through ``transform``.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -654,12 +606,6 @@ class VideoSpec:
         Returns
         -------
         VideoSpec Specification object consumed by dataset construction.
-
-        Use Cases
-        ---------
-        - Pair HRTFs with subject videos.
-        - Build ear-video datasets with left/right folders.
-        - Apply video loading or preprocessing through ``transform``.
 
         Examples
         --------

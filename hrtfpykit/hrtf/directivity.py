@@ -53,13 +53,6 @@ def ctf_from_hrtf(
         ``TF.values.shape == (1, 2, F)`` and
         ``IR.values.shape == (1, 2, hrtf.IR.ir_length)``.
 
-    Use Cases
-    ---------
-    - Derive a common spectral reference from a measured HRTF.
-    - Prepare a CTF object for later DTF-style directivity decomposition.
-    - Export a common binaural response while preserving compatibility with the
-      HRTF API.
-
     Design Notes
     ------------
     - The CTF is estimated in the frequency domain, so its inverse FFT length
@@ -287,15 +280,6 @@ def dtf_from_hrtf(
         ``TF.values.shape == (M, 2, F)`` and
         ``IR.values.shape == (M, 2, hrtf.IR.ir_length)``.
 
-    Use Cases
-    ---------
-    - Remove the common spectral component of an HRTF while preserving the
-      directional structure.
-    - Prepare DTF data for directivity analysis or later recombination with a
-      CTF.
-    - Export an HRTF-shaped directional response that remains compatible with
-      the rest of the HRTF API.
-
     Design Notes
     ------------
     - The DTF division is carried out on the active TF grid, so the raw
@@ -448,13 +432,6 @@ def hrtf_from_dtf_and_ctf(
         New HRTF object containing the reconstructed transfer function and
         impulse response. The reconstructed source layout follows the DTF, and
         the reconstructed IR length follows ``dtf.IR.ir_length``.
-
-    Use Cases
-    ---------
-    - Reconstruct an HRTF after separate CTF and DTF analysis.
-    - Verify that a DTF/CTF decomposition is internally consistent.
-    - Recombine a directional response with a common reference response while
-      staying inside the HRTF API.
 
     Design Notes
     ------------

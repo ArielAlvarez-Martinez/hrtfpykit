@@ -33,11 +33,6 @@ class DatasetSampleValueSelector:
     Dataset subclasses can override selector methods with the same names to
     customize specific resource behavior.
 
-    Use Cases
-    ---------
-    - Extract acoustic, mesh, table, image, and video values from rows.
-    - Apply spec-level transforms after row selection.
-    - Provide extension points for dataset-specific value behavior.
     """
 
     @staticmethod
@@ -71,11 +66,6 @@ class DatasetSampleValueSelector:
         -------
         object Concrete sample value for the given spec and row.
 
-        Use Cases
-        ---------
-        - Route specs through the centralized registry.
-        - Keep ``BaseDataset.__getitem__`` independent of concrete spec types.
-        - Allow dataset subclasses to override resource-specific selection.
         """
 
         descriptor = get_spec_descriptor(spec)
@@ -113,11 +103,6 @@ class DatasetSampleValueSelector:
         -------
         object Mesh path string or transformed mesh value.
 
-        Use Cases
-        ---------
-        - Pair subject meshes with HRTF samples.
-        - Return local mesh paths for downstream geometry loading.
-        - Apply a mesh transform before returning the value.
         """
 
         value: object = str(dataset._state.mesh_paths[subject_id])
@@ -155,11 +140,6 @@ class DatasetSampleValueSelector:
         object Image path, list of image paths, transformed image values, or a
         concatenated array when ``spec.concatenate=True``.
 
-        Use Cases
-        ---------
-        - Pair images with acoustic samples.
-        - Select left/right media for ear-indexed datasets.
-        - Apply image loading or preprocessing transforms.
         """
 
         grouped_by = sanitize_grouped_by(spec.grouped_by)
@@ -212,11 +192,6 @@ class DatasetSampleValueSelector:
         -------
         object Video path, list of video paths, or transformed video values.
 
-        Use Cases
-        ---------
-        - Pair videos with acoustic samples.
-        - Select left/right media for ear-indexed datasets.
-        - Apply video loading or preprocessing transforms.
         """
 
         grouped_by = sanitize_grouped_by(spec.grouped_by)
@@ -268,11 +243,6 @@ class DatasetSampleValueSelector:
         -------
         numpy.ndarray HRTF or HRIR value selected from the loaded subject HRTF.
 
-        Use Cases
-        ---------
-        - Extract full or indexed HRIR/HRTF arrays.
-        - Apply spec-level transforms after HRTF loading.
-        - Return signal variants such as magnitude, phase, real, or imaginary TF.
         """
 
         spec_index_by = sanitize_index_by(spec.index_by)
@@ -398,11 +368,6 @@ class DatasetSampleValueSelector:
         -------
         numpy.ndarray ITD value selected from the calculated subject ITD array.
 
-        Use Cases
-        ---------
-        - Derive ITD features from subject HRTFs.
-        - Cache repeated metric calculations per subject and spec.
-        - Return full-position or single-position ITD values.
         """
 
         metric_cache_key = ("itd", subject_id, id(spec))
@@ -461,11 +426,6 @@ class DatasetSampleValueSelector:
         -------
         numpy.ndarray ILD value selected from the calculated subject ILD array.
 
-        Use Cases
-        ---------
-        - Derive broad-band or frequency-dependent ILD features.
-        - Cache repeated metric calculations per subject and spec.
-        - Return full-position, single-position, or single-frequency ILD values.
         """
 
         metric_cache_key = ("ild", subject_id, id(spec))
@@ -529,11 +489,6 @@ class DatasetSampleValueSelector:
         numpy.ndarray Spherical-harmonic coefficient value selected for the current
         row.
 
-        Use Cases
-        ---------
-        - Convert subject HRTFs into SH-domain features.
-        - Cache SH decomposition per subject and spec.
-        - Return full or indexed ear/frequency coefficient values.
         """
 
         sh_cache_key = ("sh", subject_id, id(spec))
@@ -614,11 +569,6 @@ class DatasetSampleValueSelector:
         -------
         object Anthropometry row, column, matrix slice, or transformed value.
 
-        Use Cases
-        ---------
-        - Attach physical measurements to HRTF samples.
-        - Select ear-specific anthropometry fields.
-        - Apply dataset-specific anthropometry value selectors.
         """
 
         state = dataset._state
@@ -742,11 +692,6 @@ class DatasetSampleValueSelector:
         -------
         object Metadata row, column, matrix slice, or transformed value.
 
-        Use Cases
-        ---------
-        - Attach subject annotations to HRTF samples.
-        - Keep metadata values separate from anthropometry values.
-        - Apply metadata transforms during sample extraction.
         """
 
         state = dataset._state

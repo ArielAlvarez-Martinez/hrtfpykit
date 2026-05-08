@@ -104,12 +104,6 @@ class SONICOM(BaseDataset):
         SONICOM Dataset object supporting indexed sample extraction and subject HRTF
         loading.
 
-        Use Cases
-        ---------
-        - Build SONICOM measured or synthetic HRTF datasets.
-        - Pair SONICOM HRTFs with metadata or mesh resources.
-        - Download selected SONICOM HRTF or mesh variants into a local root.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import SONICOM

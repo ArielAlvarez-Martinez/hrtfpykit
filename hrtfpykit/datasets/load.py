@@ -50,11 +50,6 @@ def load_hrtf(
     -------
     HRTF Loaded HRTF object after applying any dataset-level HRTF transform.
 
-    Use Cases
-    ---------
-    - Load HRTF data for direct inspection.
-    - Share HRTF cache behavior across value selectors.
-    - Apply dataset-level transforms before acoustic spec extraction.
     """
 
     state = dataset._state
@@ -145,11 +140,6 @@ def load_table(
     -------
     dict Table data mapped to dataset subject IDs, or a MAT variable mapping.
 
-    Use Cases
-    ---------
-    - Load anthropometry tables for ``AnthropometrySpec``.
-    - Load metadata tables for ``MetadataSpec``.
-    - Normalize external subject labels to dataset subject ordering.
     """
 
     state = dataset._state

@@ -45,11 +45,6 @@ class Transform:
         HRTF
             A new HRTF instance with windowed IR values and refreshed TF data.
 
-        Use Cases
-        ---------
-        - Reduce spectral leakage before FFT conversion.
-        - Prepare HRIR data for spectral analysis.
-
         Examples
         --------
         Apply a Hann window before inspecting the front direction:
@@ -90,11 +85,6 @@ class Transform:
         -------
         HRTF
             A new HRTF instance with padded IR values and refreshed TF data.
-
-        Use Cases
-        ---------
-        - Increase IR length before FFT-based workflows.
-        - Add leading or trailing samples for later processing.
 
         Examples
         --------
@@ -138,11 +128,6 @@ class Transform:
             A new HRTF instance with upsampled IR values, updated IR sample
             rate, and refreshed TF data.
 
-        Use Cases
-        ---------
-        - Match the sample rate required by another dataset or model.
-        - Increase temporal resolution before later time-domain processing.
-
         Examples
         --------
         Upsample one front-facing HRIR set to 96 kHz:
@@ -183,10 +168,6 @@ class Transform:
         HRTF
             A new HRTF instance with downsampled IR values, updated IR sample
             rate, and refreshed TF data.
-
-        Use Cases
-        ---------
-        - Match the sample rate of a lower-rate dataset or playback pipeline.
 
         Examples
         --------
@@ -236,11 +217,6 @@ class Transform:
         -------
         HRTF
             A new HRTF instance with filtered IR values and refreshed TF data.
-
-        Use Cases
-        ---------
-        - Remove undesired frequency content from HRIR data.
-        - Isolate a band before feature extraction.
 
         Examples
         --------
@@ -295,11 +271,6 @@ class Transform:
         HRTF
             A new HRTF instance with filtered IR values and refreshed TF data.
 
-        Use Cases
-        ---------
-        - Reproduce legacy IIR-based preprocessing chains.
-        - Apply low-latency recursive filtering before analysis.
-
         Examples
         --------
         Smooth one front direction with an IIR low-pass filter:
@@ -350,11 +321,6 @@ class Transform:
         -------
         HRTF
             A new HRTF instance with minimum-phase IR values and refreshed TF data.
-
-        Use Cases
-        ---------
-        - Build minimum-phase HRIR approximations for reduced-latency processing.
-        - Standardize phase behavior across datasets before analysis.
 
         Examples
         --------
@@ -410,11 +376,6 @@ class Transform:
             A new HRTF instance containing the CTF. The output keeps a
             singleton compatibility source axis.
 
-        Use Cases
-        ---------
-        - Derive the common spectral component of the current HRTF.
-        - Prepare a CTF object for later DTF decomposition or reconstruction.
-
         Examples
         --------
         Collapse a loaded HRTF into a single common transfer function:
@@ -467,13 +428,6 @@ class Transform:
             A new HRTF instance containing the DTF while preserving the
             source layout of the current HRTF.
 
-        Use Cases
-        ---------
-        - Remove the common spectral component of the current HRTF while
-          preserving its directional structure.
-        - Prepare DTF data for directivity analysis or later recombination
-          with a CTF.
-
         Examples
         --------
         Remove the common transfer function and inspect the directional component:
@@ -514,11 +468,6 @@ class Transform:
         -------
         HRTF
             A new HRTF instance with modified IR values and rebuilt TF data.
-
-        Use Cases
-        ---------
-        - Replace the current HRIR values with edited or externally generated IR data.
-        - Update the IR length while preserving the current source and ear layout.
 
         Examples
         --------
@@ -599,11 +548,6 @@ class Transform:
         HRTF
             A new HRTF instance with modified TF phase and rebuilt IR data.
 
-        Use Cases
-        ---------
-        - Apply target phase profiles while preserving measured magnitudes.
-        - Build controlled phase perturbation experiments.
-
         Examples
         --------
         Replace one transfer function with a zero-phase version:
@@ -647,12 +591,6 @@ class Transform:
         -------
         HRTF
             A new HRTF instance with modified TF values and rebuilt IR data.
-
-        Use Cases
-        ---------
-        - Replace the current HRTF values with edited or externally generated TF data.
-        - Update the TF length while preserving the current source and ear layout.
-        - Reuse TF data and frequency bins from another ``TF`` object or ``HRTF`` instance.
 
         Examples
         --------
@@ -769,11 +707,6 @@ class Transform:
         HRTF
             A new HRTF instance with modified TF magnitude and rebuilt IR data.
 
-        Use Cases
-        ---------
-        - Apply target magnitude responses while preserving phase.
-        - Evaluate perceptual effects of magnitude-only modifications.
-
         Examples
         --------
         Tilt the magnitude while preserving the original phase:
@@ -822,12 +755,6 @@ class Transform:
             A new HRTF instance with gain-adjusted TF values and rebuilt IR
             data.
 
-        Use Cases
-        ---------
-        - Apply a global attenuation or amplification in the frequency domain.
-        - Create controlled level offsets while preserving the original phase.
-        - Apply broadcastable per-ear or per-bin gains when TF shapes match.
-
         Examples
         --------
         Attenuate one selected direction by 6 dB:
@@ -869,10 +796,6 @@ class Transform:
         HRTF
             A new HRTF instance with updated FFT length and recomputed TF data.
 
-        Use Cases
-        ---------
-        - Adjust spectral resolution for analysis or interpolation pipelines.
-
         Examples
         --------
         Increase FFT resolution before inspecting the magnitude response:
@@ -910,11 +833,6 @@ class Transform:
         -------
         HRTF
             A new HRTF instance with updated ``Sources.source_coordinate_system``.
-
-        Use Cases
-        ---------
-        - Switch source representation without modifying SOFA-stored coordinates.
-        - Prepare source grids for coordinate-specific analysis workflows.
 
         Examples
         --------
@@ -956,11 +874,6 @@ class Transform:
         -------
         HRTF
             A new HRTF instance with ITD-modified IR values and refreshed TF data.
-
-        Use Cases
-        ---------
-        - Introduce controlled binaural delay for experiments.
-        - Simulate additional interaural timing offset.
 
         Examples
         --------
@@ -1078,12 +991,6 @@ class Transform:
         HRTF
             A new HRTF instance with ITD-compensated IR values and refreshed
             TF data. Compensation is applied per source position.
-
-        Use Cases
-        ---------
-        - Align binaural arrival times while avoiding additional latency.
-        - Remove measured interaural delay before comparative analysis.
-        - Standardize onset alignment before feature extraction or metric computation.
 
         Examples
         --------

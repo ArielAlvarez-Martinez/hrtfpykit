@@ -43,12 +43,6 @@ def create_horizontal_plane_curve(
         ``sorted_plane_values`` are the sorted per-azimuth values, and
         ``real_elevation`` is the resolved plane elevation.
 
-    Use Cases
-    ---------
-    - Build absolute ITD polar curves for the horizontal plane.
-    - Build absolute ILD polar curves for the horizontal plane.
-    - Reuse one plane-extraction path for different scalar metrics.
-
     Examples
     --------
     >>> import numpy as np

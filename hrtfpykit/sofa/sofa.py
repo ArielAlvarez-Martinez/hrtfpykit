@@ -44,19 +44,6 @@ def load_sofa(
     SOFA
         Loaded SOFA object backed by a netCDF4 dataset.
 
-    Use Cases
-    ---------
-    - Open an existing SOFA file for inspection or validation.
-    - Load a SOFA object before converting it into an ``HRTF`` object.
-    - Open a SOFA file in writable mode for controlled in-place editing.
-
-    Best Practices
-    --------------
-    - Keep ``check_sofa_against_conventions=True`` in normal workflows.
-    - Use ``mode="r"`` unless writable access is explicitly needed.
-    - Prefer ``load_sofa(...)`` for file creation/loading and reserve
-      ``SOFA`` methods for object manipulation after loading.
-
     Examples
     --------
     >>> from hrtfpykit import load_sofa

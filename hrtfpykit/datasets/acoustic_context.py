@@ -38,10 +38,6 @@ class DatasetAcousticContextPlan:
     DatasetAcousticContextPlan Immutable acoustic context plan consumed by
     ``DatasetBuilder``.
 
-    Use Cases
-    ---------
-    - Keep acoustic metadata explicit after HRTF inspection.
-    - Share selected axes with row generation and value selectors.
     """
     sample_rate: float | None
     positions: np.ndarray | None
@@ -91,10 +87,6 @@ class DatasetAcousticContext:
         -------
         list of int Source position indices selected for a spec.
 
-        Use Cases
-        ---------
-        - Convert plane selectors into source-position indices.
-        - Validate position selections against the HRTF source grid.
         """
         position_count = int(hrtf.Sources.get_positions().shape[0])
         if plane is None:
@@ -161,10 +153,6 @@ class DatasetAcousticContext:
         DatasetAcousticContextPlan Acoustic context used by state assignment and row
         generation.
 
-        Use Cases
-        ---------
-        - Inspect one sample HRTF to derive shared acoustic axes.
-        - Validate consistent frequency, sample, and position indexing.
         """
         state = dataset._state
         acoustic_specs = tuple(

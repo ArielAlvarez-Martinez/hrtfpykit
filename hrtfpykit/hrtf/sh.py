@@ -16,19 +16,14 @@ if TYPE_CHECKING:
 class SH:
     """Spherical-harmonic-domain representation of HRTF magnitudes.
 
-    Stores the SH coefficient matrix and the SH basis matrix used during
-    decomposition, together with metadata required for inverse reconstruction.
+    ``SH`` stores the coefficient matrix produced by ``sht`` together with the
+    spherical-harmonic basis and reconstruction metadata. Users usually create
+    this object by calling ``sht`` rather than instantiating it directly.
 
-    Attributes
-    ----------
-    C : np.ndarray
-        SH coefficient matrix.
-    Y : np.ndarray
-        SH basis matrix evaluated at the source directions.
-    sh_order : int
-        SH order used to compute `C`.
-    N : int
-        Number of source positions used during decomposition.
+    ``C`` contains the spherical-harmonic coefficients, ``Y`` contains the
+    basis matrix evaluated at the source directions, ``sh_order`` stores the
+    decomposition order, and ``N`` stores the number of source positions used
+    during decomposition.
     """
 
     C: np.ndarray
@@ -79,11 +74,6 @@ def sht(
           `(n_coeffs, 2, n_freqs)` for `ear="both"`.
         - `Y`: basis matrix of shape `(N, n_coeffs)`.
         - `sh_order` and `N` metadata.
-
-    Use Cases
-    ---------
-    - Compress HRTF magnitude data into SH coefficients.
-    - Prepare SH-domain data for interpolation or reconstruction workflows.
 
     Examples
     --------
@@ -199,11 +189,6 @@ def sht_inverse(sh: SH):
         - `(N, n_freqs)` when `sh.C` is 2D.
         - `(N, 2, n_freqs)` when `sh.C` is 3D (both ears).
 
-    Use Cases
-    ---------
-    - Recover spatial magnitude values from SH coefficients.
-    - Evaluate SH approximation quality against original magnitudes.
-
     Examples
     --------
     >>> sh = sht(hrtf, sh_order=8, ear="both")
@@ -257,12 +242,6 @@ def sht_error(
         - ``relative_error``: absolute error divided by reference L2 norm.
         - ``rms_error``: root-mean-square error.
         - ``max_absolute_error``: maximum absolute point-wise error.
-
-    Use Cases
-    ---------
-    - Quantify global SH reconstruction quality after ``sht_inverse``.
-    - Compare reconstruction quality across SH orders.
-    - Report compact error metrics for selected ears/positions/frequencies.
 
     Examples
     --------

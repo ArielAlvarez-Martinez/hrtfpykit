@@ -49,10 +49,6 @@ class DatasetResourcesValidator:
         -------
         dict Validated subject-to-path HRTF resources.
 
-        Use Cases
-        ---------
-        - Fail on corrupt HRTF files.
-        - Enforce consistent sample rates across subjects.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="hrtf"):
@@ -134,10 +130,6 @@ class DatasetResourcesValidator:
         -------
         None Emits warnings for missing mesh subjects.
 
-        Use Cases
-        ---------
-        - Report mesh resources excluded by intersection.
-        - Keep mesh validation separate from scanning.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="mesh"):
@@ -370,10 +362,6 @@ class DatasetResourcesScanner:
         -------
         tuple Resource paths or indexes plus scanner summary data.
 
-        Use Cases
-        ---------
-        - Locate anthropometry table without mutating dataset state.
-        - Produce summary data for validation and split intersection.
         """
         if config.anthropometry is None or not required:
             return None, {
@@ -424,10 +412,6 @@ class DatasetResourcesScanner:
         -------
         tuple Resource paths or indexes plus scanner summary data.
 
-        Use Cases
-        ---------
-        - Locate metadata table without mutating dataset state.
-        - Produce summary data for validation and split intersection.
         """
         if config.metadata is None and requested_path is None and not required:
             return None, {
@@ -480,10 +464,6 @@ class DatasetResourcesScanner:
         -------
         tuple Resource paths or indexes plus scanner summary data.
 
-        Use Cases
-        ---------
-        - Locate HRTF files without mutating dataset state.
-        - Produce summary data for validation and split intersection.
         """
         hrtf_paths: dict[str, Path] = {}
         if config.hrtf is None or not required:
@@ -588,10 +568,6 @@ class DatasetResourcesScanner:
         -------
         tuple Resource paths or indexes plus scanner summary data.
 
-        Use Cases
-        ---------
-        - Locate mesh files without mutating dataset state.
-        - Produce summary data for validation and split intersection.
         """
         mesh_paths: dict[str, Path] = {}
         if config.mesh is None or not required:
@@ -714,10 +690,6 @@ class DatasetResourcesScanner:
         -------
         tuple Resource paths or indexes plus scanner summary data.
 
-        Use Cases
-        ---------
-        - Locate media files without mutating dataset state.
-        - Produce summary data for validation and split intersection.
         """
         grouped_paths: dict[tuple[str, int | None, str | None], list[str]] = {}
         if not path.exists():
@@ -817,10 +789,6 @@ class DatasetResourcesScanner:
         -------
         tuple Resource paths or indexes plus scanner summary data.
 
-        Use Cases
-        ---------
-        - Locate image files without mutating dataset state.
-        - Produce summary data for validation and split intersection.
         """
         return DatasetResourcesScanner.scan_media_paths(
             path,
@@ -860,10 +828,6 @@ class DatasetResourcesScanner:
         -------
         tuple Resource paths or indexes plus scanner summary data.
 
-        Use Cases
-        ---------
-        - Locate video files without mutating dataset state.
-        - Produce summary data for validation and split intersection.
         """
         return DatasetResourcesScanner.scan_media_paths(
             path,
@@ -979,11 +943,6 @@ class DatasetResources:
         -------
         DatasetResourcesPlan Resource plan assigned into dataset state.
 
-        Use Cases
-        ---------
-        - Intersect selected specs with available resources.
-        - Load anthropometry and metadata tables.
-        - Index image and video media paths.
         """
         state = dataset._state
         if state.config is None:

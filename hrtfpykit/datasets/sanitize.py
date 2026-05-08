@@ -33,9 +33,6 @@ def sanitize_subject_id(value: str) -> str:
     -------
     str Lowercase stripped subject identifier.
 
-    Use Cases
-    ---------
-    - Compare user subject references with dataset IDs.
     """
     return str(value).strip().lower()
 
@@ -57,10 +54,6 @@ def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
     -------
     tuple of str Normalized row axes.
 
-    Use Cases
-    ---------
-    - Validate acoustic spec indexing.
-    - Enforce subject-first row axes.
     """
     allowed_axes = {"position", "ear", "frequency", "samples"}
     if isinstance(index_by, str):
@@ -107,10 +100,6 @@ def sanitize_grouped_by(grouped_by: str | Sequence[str]) -> tuple[str, ...]:
     -------
     tuple of str Normalized grouping axes.
 
-    Use Cases
-    ---------
-    - Validate table and media grouping.
-    - Support subject and subject-ear resources.
     """
     if isinstance(grouped_by, str):
         value = str(grouped_by).strip().lower()
@@ -143,9 +132,6 @@ def sanitize_ear(ear: str | None) -> str | None:
     -------
     str or None Normalized ear selector.
 
-    Use Cases
-    ---------
-    - Validate anthropometry and metadata ear selection.
     """
     if ear is None or str(ear).strip() == "":
         return None
@@ -173,9 +159,6 @@ def sanitize_accessed_by(accessed_by: str) -> str:
     -------
     str ``'row'`` or ``'column'``.
 
-    Use Cases
-    ---------
-    - Validate metadata and anthropometry table specs.
     """
     accessed_by_value = str(accessed_by).strip().lower()
     if accessed_by_value not in {"row", "column"}:
@@ -199,10 +182,6 @@ def sanitize_ears(ears: str | Sequence[str]) -> list[tuple[str, int]]:
     -------
     list of tuple Ear labels and source ear indices.
 
-    Use Cases
-    ---------
-    - Build ear-indexed rows.
-    - Validate left/right/both ear selections.
     """
     if isinstance(ears, str):
         value = str(ears).strip().lower()
@@ -250,9 +229,6 @@ def sanitize_positions(
     -------
     list of int Validated position indices.
 
-    Use Cases
-    ---------
-    - Validate HRTF, ITD, and ILD position selections.
     """
     if isinstance(positions, str):
         value = str(positions).strip().lower()
@@ -294,9 +270,6 @@ def sanitize_extensions(
     -------
     tuple of str Unique lowercase extensions beginning with ``.``.
 
-    Use Cases
-    ---------
-    - Validate media, mesh, and table extension filters.
     """
     if extensions is None:
         return tuple()
@@ -355,10 +328,6 @@ def sanitize_specs(
     -------
     tuple of specs Copied and name-validated specs.
 
-    Use Cases
-    ---------
-    - Avoid mutating caller-owned spec objects.
-    - Reject duplicate public sample names.
     """
     if specs is None:
         return tuple()

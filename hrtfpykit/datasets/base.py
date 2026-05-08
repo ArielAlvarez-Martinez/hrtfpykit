@@ -73,11 +73,6 @@ class BaseDataset:
     BaseDataset Dataset object supporting ``len(dataset)``, ``dataset[index]``,
     summary accessors, and HRTF subject loading.
 
-    Use Cases
-    ---------
-    - Implement a new dataset class with shared HRTF dataset behavior.
-    - Build spec-driven input/target samples from local dataset resources.
-    - Centralize subject splitting, resource intersection, and acoustic context.
     """
 
     def __init__(
@@ -136,12 +131,6 @@ class BaseDataset:
         -------
         HRTF Loaded HRTF object after applying any dataset-level HRTF transform.
 
-        Use Cases
-        ---------
-        - Inspect a subject HRTF outside ``dataset[index]`` sample extraction.
-        - Reuse dataset subject mapping and cache behavior.
-        - Debug dataset-level transforms on loaded HRTF objects.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -166,12 +155,6 @@ class BaseDataset:
         Returns
         -------
         str Human-readable summary of scanned resources used by the selected specs.
-
-        Use Cases
-        ---------
-        - Inspect which resource groups were found or missing.
-        - Debug local dataset paths.
-        - Log dataset construction details without enabling ``verbose``.
 
         Examples
         --------
@@ -198,12 +181,6 @@ class BaseDataset:
         str Human-readable summary of subjects, split, specs, selected variants, and
         acoustic metadata.
 
-        Use Cases
-        ---------
-        - Confirm selected specs and split size.
-        - Inspect selected HRTF or mesh resource variants.
-        - Log dataset configuration in scripts or notebooks.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -223,11 +200,6 @@ class BaseDataset:
         Returns
         -------
         Path Expanded dataset root path.
-
-        Use Cases
-        ---------
-        - Inspect where resources are loaded from.
-        - Display dataset location in scripts or diagnostics.
 
         Examples
         --------
@@ -250,11 +222,6 @@ class BaseDataset:
         -------
         str, dict, or None Selected HRTF variant.
 
-        Use Cases
-        ---------
-        - Inspect the HRTF resource variant used by the dataset.
-        - Report dataset acoustic resource selection.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -274,11 +241,6 @@ class BaseDataset:
         Returns
         -------
         str, dict, or None Selected mesh variant.
-
-        Use Cases
-        ---------
-        - Inspect scanned or synthetic mesh selection.
-        - Report dataset geometry resource selection.
 
         Examples
         --------
@@ -300,11 +262,6 @@ class BaseDataset:
         -------
         str Split name used by this dataset instance.
 
-        Use Cases
-        ---------
-        - Inspect train, validation, test, or all split selection.
-        - Report dataset construction settings.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -325,11 +282,6 @@ class BaseDataset:
         -------
         tuple of float Three split ratios used during split planning.
 
-        Use Cases
-        ---------
-        - Reproduce split construction.
-        - Report split configuration.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -349,11 +301,6 @@ class BaseDataset:
         Returns
         -------
         int Seed used for deterministic split planning.
-
-        Use Cases
-        ---------
-        - Reproduce subject split assignment.
-        - Report split configuration.
 
         Examples
         --------
@@ -376,11 +323,6 @@ class BaseDataset:
         -------
         tuple of specs Normalized input specs.
 
-        Use Cases
-        ---------
-        - Inspect sample input structure.
-        - Debug spec normalization.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -402,11 +344,6 @@ class BaseDataset:
         -------
         tuple of specs Normalized target specs.
 
-        Use Cases
-        ---------
-        - Inspect sample target structure.
-        - Debug spec normalization.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -427,11 +364,6 @@ class BaseDataset:
         Returns
         -------
         float or None Sample rate read from selected HRTF resources.
-
-        Use Cases
-        ---------
-        - Inspect acoustic context.
-        - Configure downstream DSP pipelines.
 
         Examples
         --------
@@ -455,11 +387,6 @@ class BaseDataset:
         -------
         numpy.ndarray or None Source positions from selected HRTF resources.
 
-        Use Cases
-        ---------
-        - Inspect available source grid positions.
-        - Compare selected and full acoustic context.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -479,11 +406,6 @@ class BaseDataset:
         Returns
         -------
         numpy.ndarray or None Unique azimuth angles from dataset source positions.
-
-        Use Cases
-        ---------
-        - Inspect source grid coverage.
-        - Build spatial filtering logic.
 
         Examples
         --------
@@ -506,11 +428,6 @@ class BaseDataset:
         -------
         numpy.ndarray or None Unique elevation angles from dataset source positions.
 
-        Use Cases
-        ---------
-        - Inspect source grid coverage.
-        - Build spatial filtering logic.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -531,11 +448,6 @@ class BaseDataset:
         Returns
         -------
         numpy.ndarray or None Frequency bins from selected HRTF resources.
-
-        Use Cases
-        ---------
-        - Inspect frequency-domain acoustic context.
-        - Configure frequency-indexed specs.
 
         Examples
         --------
@@ -558,11 +470,6 @@ class BaseDataset:
         -------
         numpy.ndarray or None Time-sample indices from selected HRTF resources.
 
-        Use Cases
-        ---------
-        - Inspect time-domain acoustic context.
-        - Configure sample-indexed specs.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -583,11 +490,6 @@ class BaseDataset:
         Returns
         -------
         tuple of int Selected source position indices.
-
-        Use Cases
-        ---------
-        - Inspect position-indexed row generation.
-        - Debug plane or position selection.
 
         Examples
         --------
@@ -612,11 +514,6 @@ class BaseDataset:
         -------
         numpy.ndarray or None Unique selected azimuth angles.
 
-        Use Cases
-        ---------
-        - Inspect spatial subset selection.
-        - Debug plane selection.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -639,11 +536,6 @@ class BaseDataset:
         Returns
         -------
         numpy.ndarray or None Unique selected elevation angles.
-
-        Use Cases
-        ---------
-        - Inspect spatial subset selection.
-        - Debug plane selection.
 
         Examples
         --------
@@ -669,11 +561,6 @@ class BaseDataset:
         -------
         tuple of int Frequency indices used to build indexed rows.
 
-        Use Cases
-        ---------
-        - Inspect frequency-indexed row generation.
-        - Debug frequency context encodings.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -697,11 +584,6 @@ class BaseDataset:
         Returns
         -------
         tuple of int Sample indices used to build indexed rows.
-
-        Use Cases
-        ---------
-        - Inspect sample-indexed row generation.
-        - Debug sample context encodings.
 
         Examples
         --------
@@ -727,11 +609,6 @@ class BaseDataset:
         -------
         list of str Excluded canonical subject IDs.
 
-        Use Cases
-        ---------
-        - Inspect user and config-level exclusions.
-        - Debug resource intersection.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -751,11 +628,6 @@ class BaseDataset:
         Returns
         -------
         list of str Canonical subject IDs available for the selected specs.
-
-        Use Cases
-        ---------
-        - Inspect resource availability.
-        - Debug missing-resource exclusions.
 
         Examples
         --------
@@ -778,11 +650,6 @@ class BaseDataset:
         -------
         list of str Canonical subject IDs used to build dataset rows.
 
-        Use Cases
-        ---------
-        - Inspect train, validation, or test split membership.
-        - Debug row generation.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -801,11 +668,6 @@ class BaseDataset:
         Returns
         -------
         int Number of samples addressable by integer indexing.
-
-        Use Cases
-        ---------
-        - Integrate with dataset consumers that call ``len(dataset)``.
-        - Inspect row count after split and indexing choices.
 
         Examples
         --------
@@ -831,11 +693,6 @@ class BaseDataset:
         Returns
         -------
         dict Sample dictionary with ``inputs`` and ``target`` entries.
-
-        Use Cases
-        ---------
-        - Extract model-ready samples from selected specs.
-        - Resolve row context encodings and spec values on demand.
 
         Examples
         --------

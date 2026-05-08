@@ -100,12 +100,6 @@ def compare_magnitude(
     -------
     None
 
-    Use Cases
-    ---------
-    - Compare baseline vs individualized HRTFs at key directions.
-    - Compare pipeline variants for one target ear.
-    - Inspect both ears at one position with shared subject legends.
-
     Examples
     --------
     >>> from hrtfpykit.plots.compare import compare_magnitude
@@ -477,12 +471,6 @@ def compare_amplitude(
     -------
     None
 
-    Use Cases
-    ---------
-    - Compare HRIR waveform timing and shape across subjects/pipelines.
-    - Compare preprocessing variants in samples or seconds.
-    - Inspect both ears at one position with shared subject legends.
-
     Examples
     --------
     >>> from hrtfpykit.plots.compare import compare_amplitude
@@ -762,12 +750,6 @@ def compare_absolute_itd(
     -------
     None
 
-    Use Cases
-    ---------
-    - Compare absolute ITD patterns between baseline and individualized HRTFs.
-    - Inspect absolute ITD changes across multiple processing pipelines.
-    - Summarize horizontal-plane timing-cue magnitude in one compact plot.
-
     Examples
     --------
     >>> from hrtfpykit.plots.compare import compare_absolute_itd
@@ -980,12 +962,6 @@ def compare_absolute_ild(
     Returns
     -------
     None
-
-    Use Cases
-    ---------
-    - Compare absolute ILD patterns between baseline and individualized HRTFs.
-    - Inspect absolute ILD changes across multiple processing pipelines.
-    - Summarize horizontal-plane level-cue magnitude in one compact plot.
 
     Examples
     --------
@@ -1201,12 +1177,6 @@ def compare_itd_curve(
     -------
     None
 
-    Use Cases
-    ---------
-    - Compare signed ITD directionality between baseline and individualized HRTFs.
-    - Inspect timing-cue shifts across multiple processing pipelines.
-    - Summarize horizontal-plane ITD trends in a single Cartesian curve plot.
-
     Examples
     --------
     >>> from hrtfpykit.plots.compare import compare_itd_curve
@@ -1415,12 +1385,6 @@ def compare_ild_curve(
     Returns
     -------
     None
-
-    Use Cases
-    ---------
-    - Compare signed ILD directionality between baseline and individualized HRTFs.
-    - Inspect level-cue shifts across multiple processing pipelines.
-    - Summarize horizontal-plane ILD trends in a single Cartesian curve plot.
 
     Examples
     --------
@@ -1636,12 +1600,6 @@ def compare_itd_difference(
     -------
     None
 
-    Use Cases
-    ---------
-    - Visualize where two HRTFs differ most in ITD across the source grid.
-    - Inspect directional ITD shifts between baseline and individualized HRTFs.
-    - Compare two processing pipelines using a spatial ITD error map.
-
     Examples
     --------
     >>> from hrtfpykit.plots.compare import compare_itd_difference
@@ -1828,12 +1786,6 @@ def compare_ild_difference(
     -------
     None
 
-    Use Cases
-    ---------
-    - Visualize where two HRTFs differ most in ILD across the source grid.
-    - Compare broad-band ILD changes introduced by individualization pipelines.
-    - Inspect frequency-dependent ILD differences collapsed per position.
-
     Examples
     --------
     >>> from hrtfpykit.plots.compare import compare_ild_difference
@@ -1977,13 +1929,6 @@ def compare_lsd(
     Returns
     -------
     None
-
-    Use Cases
-    ---------
-    - Inspect directional LSD distribution over the complete source grid.
-    - Compare spatial spectral mismatch between two HRTFs for one ear using
-      the default LSD frequency band.
-    - Detect high-error regions (e.g., rear or high-elevation sectors).
 
     Examples
     --------
@@ -2138,20 +2083,6 @@ def compare_lsd_plane(
     Returns
     -------
     None
-
-    Use Cases
-    ---------
-    - Inspect spectral LSD behavior in the horizontal plane at one elevation.
-    - Inspect spectral LSD behavior in the canonical median plane.
-    - Compare where frequency-dependent mismatch concentrates per directional slice.
-
-    Best Practices
-    --------------
-    - Use ``plane="horizontal"`` with ``elevation=0.0`` for first-pass analysis.
-    - Use ``plane="median"`` when front/back and up/down spectral behavior is relevant.
-    - Keep ``ear`` fixed (left or right) when comparing methods to avoid mixing channels.
-    - Use ``x_axis="log"`` when inspecting low-frequency and high-frequency
-      regions in the same heatmap.
 
     Examples
     --------

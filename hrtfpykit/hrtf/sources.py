@@ -204,12 +204,6 @@ class Sources:
         np.ndarray
             One-dimensional array of unique azimuth angles rounded to two decimals.
 
-        Use Cases
-        ---------
-        - Inspect the available azimuth sampling of a source grid.
-        - Build plane or panel selections from the source layout.
-        - Validate angular coverage before plotting or interpolation.
-
         """
         spherical = get_spherical_positions(self, angle_unit=angle_unit)
         azimuth = spherical[..., 0]
@@ -230,12 +224,6 @@ class Sources:
         -------
         np.ndarray
             One-dimensional array of unique elevation angles rounded to two decimals.
-
-        Use Cases
-        ---------
-        - Inspect the available elevation sampling of a source grid.
-        - Select horizontal slices from the source layout.
-        - Validate vertical coverage before plotting or spatial selection.
 
         """
         spherical = get_spherical_positions(self, angle_unit=angle_unit)
@@ -262,12 +250,6 @@ class Sources:
             ``(elevation_angles, real_azimuth)`` where ``elevation_angles`` is a
             one-dimensional array of unique elevations available at the matched
             azimuth, and ``real_azimuth`` is the actual azimuth selected from the grid.
-
-        Use Cases
-        ---------
-        - Inspect vertical sampling for a requested azimuth slice.
-        - Build elevation selectors for plotting or interactive tools.
-        - Query the real grid coverage before extracting directional data.
 
         """
         if isinstance(azimuth, bool):
@@ -318,12 +300,6 @@ class Sources:
             one-dimensional array of unique azimuths available at the matched
             elevation, and ``real_elevation`` is the actual elevation selected
             from the grid.
-
-        Use Cases
-        ---------
-        - Inspect horizontal sampling for a requested elevation slice.
-        - Build azimuth selectors for plotting or interactive tools.
-        - Query the real grid coverage before extracting directional data.
 
         """
         if isinstance(elevation, bool):

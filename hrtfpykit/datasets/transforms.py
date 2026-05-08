@@ -18,12 +18,6 @@ class HRTFTransform:
     loaded HRTF object, calls the corresponding HRTF transform method, and returns
     the transformed HRTF before spec values are extracted.
 
-    Use Cases
-    ---------
-    - Apply the same acoustic transform to every loaded subject HRTF.
-    - Build transformed datasets without manually editing source files.
-    - Compose dataset specs with HRTF processing workflows.
-
     Examples
     --------
     >>> from hrtfpykit.datasets import HUTUBS
@@ -62,12 +56,6 @@ class HRTFTransform:
         -------
         callable Callable that accepts an HRTF object and returns the transformed HRTF
         object.
-
-        Use Cases
-        ---------
-        - Build custom dataset-level transforms.
-        - Reuse HRTF transform methods in dataset construction.
-        - Keep transform setup declarative at dataset initialization.
 
         Examples
         --------
@@ -120,12 +108,6 @@ class HRTFTransform:
         -------
         callable Callable that accepts an HRTF object and returns the selected HRTF.
 
-        Use Cases
-        ---------
-        - Select source positions before dataset spec extraction.
-        - Build datasets from named position subsets.
-        - Apply one source selection to every subject.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -164,11 +146,6 @@ class HRTFTransform:
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
 
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -203,11 +180,6 @@ class HRTFTransform:
         -------
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
-
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
 
         Examples
         --------
@@ -245,11 +217,6 @@ class HRTFTransform:
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
 
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -280,11 +247,6 @@ class HRTFTransform:
         -------
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
-
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
 
         Examples
         --------
@@ -321,11 +283,6 @@ class HRTFTransform:
         -------
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
-
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
 
         Examples
         --------
@@ -371,11 +328,6 @@ class HRTFTransform:
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
 
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -420,11 +372,6 @@ class HRTFTransform:
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
 
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -463,11 +410,6 @@ class HRTFTransform:
         -------
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
-
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
 
         Examples
         --------
@@ -509,11 +451,6 @@ class HRTFTransform:
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
 
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -550,11 +487,6 @@ class HRTFTransform:
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
 
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
-
         Examples
         --------
         >>> import numpy as np
@@ -589,11 +521,6 @@ class HRTFTransform:
         -------
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
-
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
 
         Examples
         --------
@@ -634,11 +561,6 @@ class HRTFTransform:
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
 
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
-
         Examples
         --------
         >>> import numpy as np
@@ -675,11 +597,6 @@ class HRTFTransform:
         -------
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
-
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
 
         Examples
         --------
@@ -723,11 +640,6 @@ class HRTFTransform:
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
 
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -763,11 +675,6 @@ class HRTFTransform:
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
 
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
@@ -798,11 +705,6 @@ class HRTFTransform:
         -------
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
-
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
 
         Examples
         --------
@@ -840,11 +742,6 @@ class HRTFTransform:
         -------
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
-
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
 
         Examples
         --------
@@ -885,11 +782,6 @@ class HRTFTransform:
         -------
         callable Dataset-level transform callable accepting and returning an HRTF
         object.
-
-        Use Cases
-        ---------
-        - Configure ``dataset_hrtf_transform`` from a factory method.
-        - Apply the same HRTF processing step to every loaded subject.
 
         Examples
         --------

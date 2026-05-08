@@ -80,10 +80,6 @@ def get_spec_descriptor(spec: DatasetSpec) -> DatasetSpecDescriptor:
     -------
     DatasetSpecDescriptor Descriptor matching the spec type.
 
-    Use Cases
-    ---------
-    - Centralize spec taxonomy.
-    - Dispatch value selection and resource scanning.
     """
     for descriptor in SPEC_DESCRIPTORS:
         if isinstance(spec, descriptor.spec_type):
@@ -107,10 +103,6 @@ def get_spec_name(spec: DatasetSpec) -> str:
     -------
     str Explicit spec name or descriptor default.
 
-    Use Cases
-    ---------
-    - Build sample dictionaries.
-    - Detect duplicate spec names.
     """
     explicit_name = getattr(spec, "name", None)
     if explicit_name is not None:
@@ -156,10 +148,6 @@ def get_specs(
     tuple of specs
         Specs matching all provided filters.
 
-    Use Cases
-    ---------
-    - Find specs requiring a resource.
-    - Select indexed or acoustic specs for validation.
     """
     selected_specs: list[DatasetSpec] = []
     for spec in specs:
@@ -211,10 +199,6 @@ def has_specs(
     -------
     bool ``True`` when at least one spec matches.
 
-    Use Cases
-    ---------
-    - Decide whether to scan a resource.
-    - Decide whether to include summary entries.
     """
     return len(
         get_specs(
@@ -248,10 +232,6 @@ def get_supported_index(spec: DatasetSpec) -> tuple[set[str], str]:
     -------
     tuple Supported axis set and human-readable combinations.
 
-    Use Cases
-    ---------
-    - Validate ``index_by``.
-    - Build actionable compatibility errors.
     """
     if isinstance(spec, HRTFSpec):
         domain = str(spec.domain).strip().lower()
@@ -305,9 +285,6 @@ def get_axis_compatibility_hint(spec: DatasetSpec, axis_name: str) -> str:
     -------
     str Additional compatibility hint, or an empty string.
 
-    Use Cases
-    ---------
-    - Improve spec validation errors.
     """
     if isinstance(spec, HRTFSpec):
         domain = str(spec.domain).strip().lower()
@@ -339,9 +316,6 @@ def get_flag_compatibility_hint(spec: DatasetSpec, axis_name: str) -> str:
     -------
     str Additional compatibility hint, or an empty string.
 
-    Use Cases
-    ---------
-    - Improve one-hot and index flag validation errors.
     """
     if isinstance(spec, HRTFSpec):
         domain = str(spec.domain).strip().lower()

@@ -63,11 +63,6 @@ class DatasetSpecPlan:
     -------
     DatasetSpecPlan Immutable plan consumed by ``DatasetBuilder``.
 
-    Use Cases
-    ---------
-    - Make spec normalization output explicit.
-    - Keep one row-indexing contract across all indexed specs.
-    - Tell sample extraction which context encodings to include.
     """
 
     input_specs: tuple[
@@ -105,11 +100,6 @@ class DatasetSpecWorkflow:
 
     This utility returns the normalized spec plan consumed by ``DatasetBuilder``.
 
-    Use Cases
-    ---------
-    - Validate specs before resource scanning.
-    - Enforce one shared dataset row-axis contract.
-    - Normalize copied specs without mutating caller-owned spec objects.
     """
 
     @classmethod
@@ -139,11 +129,6 @@ class DatasetSpecWorkflow:
         -------
         DatasetSpecPlan Normalized spec plan used by dataset construction.
 
-        Use Cases
-        ---------
-        - Validate all specs before scanning resources.
-        - Compute the shared dataset ``index_by`` axes.
-        - Determine whether row context encodings are needed.
         """
 
         input_specs = sanitize_specs(inputs)
@@ -357,11 +342,6 @@ class DatasetSpecWorkflow:
         -------
         str Explicit spec name when provided, otherwise the registry default.
 
-        Use Cases
-        ---------
-        - Build ``sample['inputs']`` and ``sample['target']`` dictionaries.
-        - Validate duplicate spec names.
-        - Preserve custom keys from named specs.
         """
 
         return get_spec_name(spec)

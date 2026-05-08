@@ -33,11 +33,6 @@ class DatasetSplitPlan:
     -------
     DatasetSplitPlan Immutable split plan consumed by ``DatasetBuilder``.
 
-    Use Cases
-    ---------
-    - Keep resource availability separate from train/validation/test selection.
-    - Build dataset rows from selected split subjects.
-    - Report available and selected subject counts in summaries.
     """
 
     available_subjects: tuple[str, ...]
@@ -53,11 +48,6 @@ class DatasetSplitPlanner:
     This utility normalizes subject references, intersects resource availability,
     and produces deterministic train, validation, and test subject selections.
 
-    Use Cases
-    ---------
-    - Normalize subject references such as ``1``, ``'pp1'``, or ``'subject_1'``.
-    - Produce deterministic train/validation/test subject splits.
-    - Intersect selected specs with available resource subject sets.
     """
 
     @classmethod
@@ -84,11 +74,6 @@ class DatasetSplitPlanner:
         -------
         str Canonical subject ID.
 
-        Use Cases
-        ---------
-        - Accept integer subject references.
-        - Accept ``subject1`` or ``subject_1`` style references.
-        - Normalize subject references in loading and exclusion paths.
         """
 
         if len(subject_ids) == 0:
@@ -143,10 +128,6 @@ class DatasetSplitPlanner:
         -------
         tuple of str Unique canonical subject IDs preserving input order.
 
-        Use Cases
-        ---------
-        - Normalize config and user exclusions.
-        - Accept mixed integer and string subject references.
         """
         if values is None:
             return tuple()
@@ -171,10 +152,6 @@ class DatasetSplitPlanner:
         -------
         list of str Naturally sorted subject IDs.
 
-        Use Cases
-        ---------
-        - Keep pp1 before pp10.
-        - Build deterministic subject scopes.
         """
         def subject_sort_key(value: str) -> tuple[int, str]:
             match = re.search(r"(\d+)$", str(value))
@@ -201,9 +178,6 @@ class DatasetSplitPlanner:
         -------
         dict Mapping from subject ID to numeric identifier.
 
-        Use Cases
-        ---------
-        - Format resource path patterns requiring subject numbers.
         """
         return {
             str(subject_id): int(match.group(1))
@@ -237,10 +211,6 @@ class DatasetSplitPlanner:
         -------
         tuple Available subject IDs and subject number map.
 
-        Use Cases
-        ---------
-        - Initialize split planning from config subjects.
-        - Apply exclusions before resource intersection.
         """
         state = dataset._state
         config = state.config
@@ -287,11 +257,6 @@ class DatasetSplitPlanner:
         -------
         list of str Subject IDs selected for the requested split.
 
-        Use Cases
-        ---------
-        - Build reproducible train/validation/test datasets.
-        - Test split behavior without constructing a full dataset.
-        - Reuse split logic across dataset integrations.
         """
 
         split_key = str(split).strip().lower()
@@ -361,10 +326,6 @@ class DatasetSplitPlanner:
         -------
         DatasetSplitPlan Available and selected subjects for the dataset.
 
-        Use Cases
-        ---------
-        - Intersect resource availability across selected specs.
-        - Build subject splits after resource scanning.
         """
         state = dataset._state
         config = state.config

@@ -40,11 +40,6 @@ class BaseDownload:
     BaseDownload Downloader object used to build plans and download selected
     resources.
 
-    Use Cases
-    ---------
-    - Download official resources before constructing a dataset.
-    - Verify already-downloaded files using checksums and archive checks.
-    - Select only specific HRTF or mesh variants for download.
     """
 
     def __init__(
@@ -84,10 +79,6 @@ class BaseDownload:
         -------
         Path Resolved root path.
 
-        Use Cases
-        ---------
-        - Reject file paths used as roots.
-        - Normalize user-provided download roots.
         """
         normalized = Path(root).expanduser()
         if normalized.exists() and not normalized.is_dir():
@@ -111,10 +102,6 @@ class BaseDownload:
         -------
         str Original URL when valid.
 
-        Use Cases
-        ---------
-        - Reject non-HTTPS downloads.
-        - Ensure download URLs include a host.
         """
         parsed = urlparse(url)
         if parsed.scheme.lower() != "https":
@@ -140,10 +127,6 @@ class BaseDownload:
         -------
         str SHA-256 hex digest.
 
-        Use Cases
-        ---------
-        - Verify downloaded files.
-        - Generate checksum entries for known resources.
         """
         digest = hashlib.sha256()
         with path.open("rb") as file:
@@ -171,10 +154,6 @@ class BaseDownload:
         -------
         str Lowercase SHA-256 hex digest.
 
-        Use Cases
-        ---------
-        - Accept checksum strings from config maps.
-        - Reject malformed checksum values.
         """
         value = str(checksum).strip().lower()
         if value.startswith("sha256:"):
@@ -203,10 +182,6 @@ class BaseDownload:
         -------
         tuple of str Normalized resource names.
 
-        Use Cases
-        ---------
-        - Expand ``'all'`` into available resource groups.
-        - Reject unsupported download resources.
         """
         if self.config.download is None:
             raise ValueError(f"{self.config.name} does not define downloadable resources")
@@ -251,10 +226,6 @@ class BaseDownload:
         -------
         tuple of str Normalized selector values.
 
-        Use Cases
-        ---------
-        - Expand ``'all'`` selector values.
-        - Validate HRTF and mesh variant selectors.
         """
         if len(available) == 0:
             if requested in (None, "all"):
@@ -290,10 +261,6 @@ class BaseDownload:
         -------
         Path Resolved root directory.
 
-        Use Cases
-        ---------
-        - Ensure the download destination exists.
-        - Revalidate root before writing files.
         """
         self.root = self.sanitize_root(self.root)
         self.root.mkdir(parents=True, exist_ok=True)
@@ -316,10 +283,6 @@ class BaseDownload:
         -------
         Path Absolute destination path under the root.
 
-        Use Cases
-        ---------
-        - Prevent absolute or parent-directory escaping paths.
-        - Map resource relative paths to local files.
         """
         candidate = Path(filename)
         if candidate.is_absolute():
@@ -349,10 +312,6 @@ class BaseDownload:
         -------
         str Validated HTTPS download URL.
 
-        Use Cases
-        ---------
-        - Build file URLs from dataset download config.
-        - Keep URL validation centralized.
         """
         if self.config.download is None:
             raise ValueError(f"{self.config.name} does not define an official download base URL")
@@ -391,10 +350,6 @@ class BaseDownload:
         str
             SHA-256 checksum for the planned resource path.
 
-        Use Cases
-        ---------
-        - Resolve HRTF checksums by type, version, and sample rate.
-        - Resolve mesh checksums by type and version.
         """
         if self.config.download is None or self.config.download.checksums is None:
             raise ValueError(
@@ -481,10 +436,6 @@ class BaseDownload:
         -------
         tuple of str Subject IDs not excluded from downloads.
 
-        Use Cases
-        ---------
-        - Apply config and user exclusions to download jobs.
-        - Reuse subject filtering for HRTF and mesh resources.
         """
         excluded_subject_ids_set = set(self.excluded_subject_ids)
         return tuple(
@@ -517,10 +468,6 @@ class BaseDownload:
         str ``'downloaded'`` when fetched or ``'verified'`` when existing file passed
         validation.
 
-        Use Cases
-        ---------
-        - Safely download individual resources.
-        - Replace corrupt existing files with verified downloads.
         """
         validated_url = self.validate_download_url(url)
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -610,11 +557,6 @@ class BaseDownload:
         list of dict Planned download jobs containing resource names, selectors, URLs,
         destinations, subjects, relative paths, and checksums.
 
-        Use Cases
-        ---------
-        - Inspect what would be downloaded before writing files.
-        - Generate subject-specific HRTF or mesh download jobs.
-        - Fail before network transfer when a planned file has no checksum.
         """
 
         resources = self.sanitize_download_resources(download_resources)
@@ -915,11 +857,6 @@ class BaseDownload:
         ``False`` and a summary when all planned files already existed or no jobs were
         needed.
 
-        Use Cases
-        ---------
-        - Download resources from a dataset constructor.
-        - Verify existing official files before dataset construction.
-        - Raise one detailed error if any planned file fails.
         """
 
         self.validate_download_root()
@@ -1025,10 +962,6 @@ class BaseDownload:
         -------
         None Raises when archive integrity checks fail.
 
-        Use Cases
-        ---------
-        - Detect corrupt ZIP, TAR, and GZIP downloads.
-        - Validate archives before moving temporary files into place.
         """
         suffix = path.suffix.lower()
         lower_name = path.name.lower()

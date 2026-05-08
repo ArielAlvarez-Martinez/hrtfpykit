@@ -100,12 +100,6 @@ def get_horizontal_plane(
         indices in the selected horizontal plane and ``real_elevation`` is the
         actual elevation present in the grid.
 
-    Use Cases
-    ---------
-    - Select the canonical horizontal plane at ``0°`` elevation.
-    - Resolve the nearest available horizontal slice for plotting.
-    - Inspect source positions that belong to one elevation band.
-
     Examples
     --------
     Resolve the nearest horizontal plane and inspect its source grid:
@@ -148,12 +142,6 @@ def get_median_plane(
         indices in the selected median plane and ``real_azimuths`` contains the
         two opposite azimuths that define that plane in the grid.
 
-    Use Cases
-    ---------
-    - Select the canonical median plane defined by the front-back path.
-    - Resolve the nearest available sagittal plane from a sampled source grid.
-    - Retrieve the actual azimuth pair used for a median-plane visualization.
-
     Examples
     --------
     Resolve the nearest median plane and inspect that sagittal slice:
@@ -194,12 +182,6 @@ def get_frontal_plane(
         ``(indices, real_azimuths)`` where ``indices`` contains the source-grid
         indices in the selected frontal plane and ``real_azimuths`` contains the
         two opposite azimuths that define that plane in the grid.
-
-    Use Cases
-    ---------
-    - Select the canonical frontal plane defined by the left-right path.
-    - Resolve the nearest available coronal plane from a sampled source grid.
-    - Retrieve the actual azimuth pair used for frontal-plane analysis.
 
     Examples
     --------
