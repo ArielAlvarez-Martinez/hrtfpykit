@@ -7,3 +7,4 @@ venv/
 .pytest_cache/
 hrtf.sofa
 hrtfs/
+docs/_build/
