@@ -1,5 +1,5 @@
-hrtfpykit
-=========
+Overview
+========
 
 ``hrtfpykit`` is a Python toolkit for SOFA-backed HRTF and HRIR workflows. It
 loads acoustic SOFA files, exposes HRTFs as processing objects, visualizes HRTF
@@ -38,9 +38,9 @@ imports above for user workflows.
 
 .. toctree::
    :maxdepth: 2
-   :caption: API documentation
-   :hidden:
+   :caption: Library documentation
 
+   self
    sofa/index
    hrtf/index
    plots/index
