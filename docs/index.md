@@ -1,3 +1,0 @@
-# hrtfpykit docs
-
-
