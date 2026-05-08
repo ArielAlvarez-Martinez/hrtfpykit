@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>HRTF object &#8212; hrtfpykit documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <script src="../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="IR and TF domain views" href="domains.html" />
+    <link rel="prev" title="Loading HRTFs" href="loading.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="loading.html" title="Previous document">Loading HRTFs</a>
+        </li>
+        <li>
+          <a href="domains.html" title="Next document">IR and TF domain views</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="hrtf-object">
+<h1>HRTF object<a class="headerlink" href="#hrtf-object" title="Link to this heading">¶</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">HRTF</span></code> is the central acoustic object in <code class="docutils literal notranslate"><span class="pre">hrtfpykit</span></code>. It represents one
+SOFA-backed HRTF/HRIR file as an object with synchronized time-domain and
+frequency-domain views.</p>
+<p>Most users create <code class="docutils literal notranslate"><span class="pre">HRTF</span></code> objects with <code class="docutils literal notranslate"><span class="pre">load_hrtf</span></code> rather than constructing
+<code class="docutils literal notranslate"><span class="pre">HRTF</span></code> directly.</p>
+<section id="object-model">
+<h2>Object model<a class="headerlink" href="#object-model" title="Link to this heading">¶</a></h2>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">Sofa</span></code></dt><dd><p>Backed <code class="docutils literal notranslate"><span class="pre">SOFA</span></code> object. This keeps the acoustic object connected to the
+original SOFA structure for metadata, convention state, and saving.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">IR</span></code></dt><dd><p>Time-domain impulse-response view.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">TF</span></code></dt><dd><p>Frequency-domain transfer-function view.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">Sources</span></code></dt><dd><p>Source-grid query and coordinate conversion interface.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">transform</span></code></dt><dd><p>Non-destructive transformation API. Transform methods return new <code class="docutils literal notranslate"><span class="pre">HRTF</span></code>
+objects.</p>
+</dd>
+</dl>
+</section>
+<section id="typical-object-workflow">
+<h2>Typical object workflow<a class="headerlink" href="#typical-object-workflow" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.hrtf</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_hrtf</span>
+
+<span class="n">hrtf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;subject_001.sofa&quot;</span><span class="p">)</span>
+<span class="n">selected</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">positions</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;front&quot;</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">],</span> <span class="n">ear</span><span class="o">=</span><span class="s2">&quot;both&quot;</span><span class="p">)</span>
+<span class="n">processed</span> <span class="o">=</span> <span class="n">selected</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">apply_window</span><span class="p">(</span><span class="s2">&quot;hann&quot;</span><span class="p">)</span>
+
+<span class="n">processed</span><span class="o">.</span><span class="n">update_sofa</span><span class="p">(</span><span class="n">change_sofa_dimensions</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">processed</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;subject_001_processed.sofa&quot;</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="selection">
+<h2>Selection<a class="headerlink" href="#selection" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">select</span></code> returns a new <code class="docutils literal notranslate"><span class="pre">HRTF</span></code> object containing the selected source
+positions, plane, ear, or IR time region.</p>
+<p>Examples:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">front</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">positions</span><span class="o">=</span><span class="s2">&quot;front&quot;</span><span class="p">)</span>
+<span class="n">horizontal</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">plane</span><span class="o">=</span><span class="s2">&quot;horizontal&quot;</span><span class="p">,</span> <span class="n">plane_angle</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">left_ear</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">ear</span><span class="o">=</span><span class="s2">&quot;left&quot;</span><span class="p">)</span>
+<span class="n">cropped</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">start_seconds</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">end_seconds</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="sofa-synchronization">
+<h2>SOFA synchronization<a class="headerlink" href="#sofa-synchronization" title="Link to this heading">¶</a></h2>
+<p>Transforms and selections modify in-memory acoustic data. <code class="docutils literal notranslate"><span class="pre">update_sofa</span></code> writes
+that in-memory state into the backed SOFA object. <code class="docutils literal notranslate"><span class="pre">save</span></code> calls
+<code class="docutils literal notranslate"><span class="pre">update_sofa</span></code> before writing to disk.</p>
+<p>Use <code class="docutils literal notranslate"><span class="pre">change_sofa_dimensions=True</span></code> when selected or transformed data changes
+SOFA dimension sizes, such as selecting a subset of positions or changing FFT
+length.</p>
+</section>
+<section id="api-reference">
+<h2>API reference<a class="headerlink" href="#api-reference" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">hrtfpykit.hrtf.hrtf.</span></span><span class="sig-name descname"><span class="pre">HRTF</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Sofa</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../plots/single_hrtf.html#hrtfpykit.plots.hrtf.HRTFPlots" title="hrtfpykit.plots.hrtf.HRTFPlots"><code class="xref py py-class docutils literal notranslate"><span class="pre">HRTFPlots</span></code></a></p>
+<p>SOFA-backed HRTF container with synchronized time and frequency domains.</p>
+<p>This class is the main entry point for loading, inspecting, selecting,
+transforming, plotting, and exporting HRTF/HRIR data stored in SOFA files.
+It supports <code class="docutils literal notranslate"><span class="pre">SimpleFreeFieldHRIR</span></code> and <code class="docutils literal notranslate"><span class="pre">SimpleFreeFieldHRTF</span></code>
+conventions, and keeps both domain representations available and aligned:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">IR</span></code>: time-domain impulse responses</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">TF</span></code>: frequency-domain transfer functions</p></li>
+</ul>
+<p>The class also exposes a spatial interface through <code class="docutils literal notranslate"><span class="pre">Sources</span></code>. That
+interface resolves source-grid positions, coordinate-system metadata,
+geometric queries (for example named positions), and plane-based selection
+workflows used by both processing and visualization methods.</p>
+<p>The object exposes plotting workflows for HRTF inspection and analysis.
+This includes source-grid visualizations, spectral views, plane projections,
+and metric-oriented plots that operate directly on the current in-memory
+state (including any selection or transformation).</p>
+<section id="typical-lifecycle">
+<h3>Typical lifecycle<a class="headerlink" href="#typical-lifecycle" title="Link to this heading">¶</a></h3>
+<ol class="arabic simple">
+<li><p>Load an object with <code class="docutils literal notranslate"><span class="pre">hrtfpykit.load_hrtf</span></code>.</p></li>
+<li><p>Inspect or subset data with <code class="docutils literal notranslate"><span class="pre">Sources</span></code> and <a class="reference internal" href="#hrtfpykit.hrtf.hrtf.HRTF.select" title="hrtfpykit.hrtf.hrtf.HRTF.select"><code class="xref py py-meth docutils literal notranslate"><span class="pre">select()</span></code></a>.</p></li>
+<li><p>Apply transforms through <code class="docutils literal notranslate"><span class="pre">transform</span></code>.</p></li>
+<li><p>Visualize using plotting methods exposed by the object.</p></li>
+<li><p>Synchronize and export with <a class="reference internal" href="#hrtfpykit.hrtf.hrtf.HRTF.update_sofa" title="hrtfpykit.hrtf.hrtf.HRTF.update_sofa"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_sofa()</span></code></a> and <a class="reference internal" href="#hrtfpykit.hrtf.hrtf.HRTF.save" title="hrtfpykit.hrtf.hrtf.HRTF.save"><code class="xref py py-meth docutils literal notranslate"><span class="pre">save()</span></code></a>.</p></li>
+</ol>
+<p class="rubric">Notes</p>
+<p>The instance keeps a reference to the backed SOFA object (<cite>Sofa</cite>) and tracks
+whether in-memory data differs from that object through <code class="docutils literal notranslate"><span class="pre">_transformed</span></code>.
+Use <a class="reference internal" href="#hrtfpykit.hrtf.hrtf.HRTF.update_sofa" title="hrtfpykit.hrtf.hrtf.HRTF.update_sofa"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_sofa()</span></code></a> to synchronize in-memory data back to SOFA variables
+before persistence. This separation keeps transformation workflows explicit:
+in-memory edits can be explored, plotted, and validated first, and committed
+to SOFA only when requested.</p>
+<p>Initialize an HRTF object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param Sofa<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Backed SOFA object. When <code class="docutils literal notranslate"><span class="pre">None</span></code>, the object is created empty and
+should be populated later.</p>
+</dd>
+<dt class="field-even">type Sofa<span class="colon">:</span></dt>
+<dd class="field-even"><p>SOFA | None, default=None</p>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF.IR">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">IR</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="domains.html#hrtfpykit.hrtf.domain.IR" title="hrtfpykit.hrtf.domain.IR"><span class="pre">IR</span></a></span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF.IR" title="Link to this definition">¶</a></dt>
+<dd><p>Time-domain representation manager.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF.TF">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">TF</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="domains.html#hrtfpykit.hrtf.domain.TF" title="hrtfpykit.hrtf.domain.TF"><span class="pre">TF</span></a></span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF.TF" title="Link to this definition">¶</a></dt>
+<dd><p>Frequency-domain representation manager.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF.Sources">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Sources</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="sources.html#hrtfpykit.hrtf.sources.Sources" title="hrtfpykit.hrtf.sources.Sources"><span class="pre">Sources</span></a></span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF.Sources" title="Link to this definition">¶</a></dt>
+<dd><p>Source-grid access and selection manager.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF.transform">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">transform</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="transforms.html#hrtfpykit.hrtf.transforms.Transform" title="hrtfpykit.hrtf.transforms.Transform"><span class="pre">Transform</span></a></span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF.transform" title="Link to this definition">¶</a></dt>
+<dd><p>Transformation API for producing derived HRTFs.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF.clone">
+<span class="sig-name descname"><span class="pre">clone</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF.clone" title="Link to this definition">¶</a></dt>
+<dd><p>Create a deep clone of the current HRTF object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><em>HRTF</em> – New object with copied IR, TF, source-selection state, and metadata.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Branch a processing pipeline without mutating the original object.</em></p></li>
+<li><p><em>- Preserve current selection while testing alternative transforms.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#hrtfpykit.hrtf.hrtf.HRTF" title="hrtfpykit.hrtf.hrtf.HRTF"><em>HRTF</em></a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;hrtfs/P0001_FreeFieldComp_44kHz.sofa&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf_branch</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">hrtf_branch</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">apply_gain</span><span class="p">(</span><span class="o">-</span><span class="mf">3.0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="s2">&quot;db&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="best-practices">
+<h4>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>Clone before destructive experimentation when reproducibility matters.</p></li>
+<li><p>Treat cloned and original objects as independent processing branches.</p></li>
+</ul>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF.reset" title="Link to this definition">¶</a></dt>
+<dd><p>Reset in-memory HRTF data to the backed SOFA content.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><em>HRTF</em> – Current instance after restoring IR/TF, source-state, and metadata
+from the backed SOFA object.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Discard all in-memory transforms and return to original data.</em></p></li>
+<li><p><em>- Recover a clean baseline before running a new processing pipeline.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#hrtfpykit.hrtf.hrtf.HRTF" title="hrtfpykit.hrtf.hrtf.HRTF"><em>HRTF</em></a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;hrtfs/P0001_FreeFieldComp_44kHz.sofa&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">apply_window</span><span class="p">(</span><span class="s2">&quot;hann&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span><span class="o">.</span><span class="n">is_transformed</span><span class="p">()</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="go">HRTF(...)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span><span class="o">.</span><span class="n">is_transformed</span><span class="p">()</span>
+<span class="go">False</span>
+</pre></div>
+</div>
+<section id="id1">
+<h4>Best Practices<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">reset</span></code> instead of reloading from disk when the same backed SOFA
+object should be preserved.</p></li>
+<li><p>Run <code class="docutils literal notranslate"><span class="pre">save</span></code> before reset if transformed data must be kept.</p></li>
+</ul>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF.is_transformed">
+<span class="sig-name descname"><span class="pre">is_transformed</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF.is_transformed" title="Link to this definition">¶</a></dt>
+<dd><p>Return whether the in-memory object differs from backed SOFA data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><em>bool</em> – <code class="docutils literal notranslate"><span class="pre">True</span></code> if at least one transformation or selection modified current
+in-memory data; <code class="docutils literal notranslate"><span class="pre">False</span></code> otherwise.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Check if <a class="reference internal" href="#hrtfpykit.hrtf.hrtf.HRTF.update_sofa" title="hrtfpykit.hrtf.hrtf.HRTF.update_sofa"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_sofa()</span></code></a> is needed before saving.</p></li>
+</ul>
+</li>
+<li><p><em>- Build guard logic in processing pipelines.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;hrtfs/P0001_FreeFieldComp_44kHz.sofa&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span><span class="o">.</span><span class="n">is_transformed</span><span class="p">()</span>
+<span class="go">False</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transformed</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">apply_window</span><span class="p">(</span><span class="s2">&quot;hann&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transformed</span><span class="o">.</span><span class="n">is_transformed</span><span class="p">()</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<section id="id2">
+<h4>Best Practices<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>Use this check before expensive SOFA synchronization workflows.</p></li>
+</ul>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF.update_sofa">
+<span class="sig-name descname"><span class="pre">update_sofa</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">change_sofa_dimensions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sofa_convention</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'same'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF.update_sofa" title="Link to this definition">¶</a></dt>
+<dd><p>Synchronize in-memory IR/TF data into the backed SOFA object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>change_sofa_dimensions</strong> (<em>bool</em><em>, </em><em>default=False</em>) – If <code class="docutils literal notranslate"><span class="pre">True</span></code>, allows resizing fixed SOFA dimensions when transformed
+data shape differs from backed variables.</p></li>
+<li><p><strong>sofa_convention</strong> (<em>{'same'</em><em>, </em><em>'SimpleFreeFieldHRIR'</em><em>, </em><em>'SimpleFreeFieldHRTF'}</em><em>, </em><em>default='same'</em>) – Output SOFA convention to enforce during synchronization. <code class="docutils literal notranslate"><span class="pre">'same'</span></code>
+keeps the original backed SOFA convention.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>None</em> – This method updates <code class="docutils literal notranslate"><span class="pre">self.Sofa</span></code> in-place and does not return data.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Persist transformed HRTF/HRIR values into SOFA variables before save.</em></p></li>
+<li><p><em>- Export the current object in HRIR or HRTF SOFA convention.</em></p></li>
+<li><p><em>- Commit selected-position subsets into a resized SOFA structure.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;hrtfs/P0001_FreeFieldComp_44kHz.sofa&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transformed</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">apply_padding</span><span class="p">(</span><span class="n">padding_length</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="s2">&quot;end&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transformed</span><span class="o">.</span><span class="n">update_sofa</span><span class="p">(</span><span class="n">change_sofa_dimensions</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transformed</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;hrtfs/padded.sofa&quot;</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">selected</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">positions</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;front&quot;</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">selected</span><span class="o">.</span><span class="n">update_sofa</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">change_sofa_dimensions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">sofa_convention</span><span class="o">=</span><span class="s2">&quot;SimpleFreeFieldHRTF&quot;</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="id3">
+<h4>Best Practices<a class="headerlink" href="#id3" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>Keep <code class="docutils literal notranslate"><span class="pre">change_sofa_dimensions=False</span></code> unless a shape change is expected.</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">sofa_convention='same'</span></code> for metadata-preserving updates.</p></li>
+<li><p>Use explicit convention switching only for deliberate export workflows.</p></li>
+</ul>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">change_sofa_dimensions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sofa_convention</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'same'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF.save" title="Link to this definition">¶</a></dt>
+<dd><p>Update SOFA variables and save to disk.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em><em> | </em><em>Path</em><em> | </em><em>None</em><em>, </em><em>default=None</em>) – Output file path. If <code class="docutils literal notranslate"><span class="pre">None</span></code>, the backed SOFA path is used.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>default=False</em>) – If <code class="docutils literal notranslate"><span class="pre">True</span></code>, allows overwriting an existing file.</p></li>
+<li><p><strong>change_sofa_dimensions</strong> (<em>bool</em><em>, </em><em>default=False</em>) – Forwarded to <a class="reference internal" href="#hrtfpykit.hrtf.hrtf.HRTF.update_sofa" title="hrtfpykit.hrtf.hrtf.HRTF.update_sofa"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_sofa()</span></code></a> to control SOFA dimension resizing.</p></li>
+<li><p><strong>sofa_convention</strong> (<em>{'same'</em><em>, </em><em>'SimpleFreeFieldHRIR'</em><em>, </em><em>'SimpleFreeFieldHRTF'}</em><em>, </em><em>default='same'</em>) – Forwarded to <a class="reference internal" href="#hrtfpykit.hrtf.hrtf.HRTF.update_sofa" title="hrtfpykit.hrtf.hrtf.HRTF.update_sofa"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_sofa()</span></code></a> to select output convention.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>Path</em> – Path to the saved SOFA file.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Export transformed HRTF files.</em></p></li>
+<li><p><em>- Save selected subsets to standalone SOFA files.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Path</em></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;hrtfs/P0001_FreeFieldComp_44kHz.sofa&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">selected</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">positions</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;front&quot;</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">selected</span><span class="o">.</span><span class="n">save</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">path</span><span class="o">=</span><span class="s2">&quot;hrtfs/selected_front_left_right.sofa&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">change_sofa_dimensions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="id4">
+<h4>Best Practices<a class="headerlink" href="#id4" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>For position subsets or FFT-length changes, enable
+<code class="docutils literal notranslate"><span class="pre">change_sofa_dimensions=True</span></code>.</p></li>
+<li><p>Keep convention explicit when creating deliverables for external tools.</p></li>
+</ul>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.hrtf.HRTF.select">
+<span class="sig-name descname"><span class="pre">select</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_coordinate_system</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'spherical'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plane</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plane_angle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ear</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'both'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle_unit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'degrees'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_seconds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_seconds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.hrtf.HRTF.select" title="Link to this definition">¶</a></dt>
+<dd><p>Select a spatial subset, ear subset, and/or IR crop from the HRTF.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>positions</strong> (<em>np.ndarray</em><em> | </em><em>list</em><em>[</em><em>list</em><em>[</em><em>float</em><em>]</em><em>] </em><em>| </em><em>list</em><em>[</em><em>float</em><em>] </em><em>| </em><em>None</em><em>, </em><em>default=None</em>) – Explicit positions or named aliases to select.</p></li>
+<li><p><strong>position_coordinate_system</strong> (<em>str</em><em>, </em><em>default='spherical'</em>) – Coordinate system used by <code class="docutils literal notranslate"><span class="pre">positions</span></code>.</p></li>
+<li><p><strong>plane</strong> (<em>str</em><em> | </em><em>None</em><em>, </em><em>default=None</em>) – Plane name to filter positions. Supported values are
+<code class="docutils literal notranslate"><span class="pre">horizontal</span></code>, <code class="docutils literal notranslate"><span class="pre">median</span></code>, and <code class="docutils literal notranslate"><span class="pre">frontal</span></code>.</p></li>
+<li><p><strong>plane_angle</strong> (<em>float</em><em>, </em><em>default=0.0</em>) – Plane angle for the selected <code class="docutils literal notranslate"><span class="pre">plane</span></code>.</p></li>
+<li><p><strong>ear</strong> (<em>{'both'</em><em>, </em><em>'left'</em><em>, </em><em>'right'}</em><em>, </em><em>default='both'</em>) – Ear selection.</p></li>
+<li><p><strong>angle_unit</strong> (<em>str</em><em>, </em><em>default='degrees'</em>) – Angle unit used for spatial queries.</p></li>
+<li><p><strong>start</strong> (<em>int</em><em> | </em><em>None</em><em>, </em><em>default=None</em>) – IR crop start index (samples).</p></li>
+<li><p><strong>end</strong> (<em>int</em><em> | </em><em>None</em><em>, </em><em>default=None</em>) – IR crop end index (samples).</p></li>
+<li><p><strong>start_seconds</strong> (<em>float</em><em> | </em><em>None</em><em>, </em><em>default=None</em>) – IR crop start time (seconds). Mutually exclusive with <code class="docutils literal notranslate"><span class="pre">start</span></code>.</p></li>
+<li><p><strong>end_seconds</strong> (<em>float</em><em> | </em><em>None</em><em>, </em><em>default=None</em>) – IR crop end time (seconds). Mutually exclusive with <code class="docutils literal notranslate"><span class="pre">end</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>HRTF</em> – New HRTF object containing the selected subset.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Isolate a spatial plane for analysis and plotting.</em></p></li>
+<li><p><em>- Build single-ear datasets.</em></p></li>
+<li><p><em>- Crop impulse responses for latency-window studies.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#hrtfpykit.hrtf.hrtf.HRTF" title="hrtfpykit.hrtf.hrtf.HRTF"><em>HRTF</em></a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;hrtfs/P0001_FreeFieldComp_44kHz.sofa&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">horizontal</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">plane</span><span class="o">=</span><span class="s2">&quot;horizontal&quot;</span><span class="p">,</span> <span class="n">plane_angle</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">ear</span><span class="o">=</span><span class="s2">&quot;left&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">front_slice</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">positions</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;front&quot;</span><span class="p">],</span> <span class="n">start_seconds</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">end_seconds</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="id5">
+<h4>Best Practices<a class="headerlink" href="#id5" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>Use either index-based crop (<code class="docutils literal notranslate"><span class="pre">start/end</span></code>) or time-based crop
+(<code class="docutils literal notranslate"><span class="pre">start_seconds/end_seconds</span></code>), never both.</p></li>
+<li><p>Prefer <code class="docutils literal notranslate"><span class="pre">plane</span></code> selection for reproducible geometric subsets.</p></li>
+<li><p>Keep <code class="docutils literal notranslate"><span class="pre">ear='both'</span></code> unless unilateral analysis is required.</p></li>
+</ul>
+</section>
+</dd></dl>
+
+</section>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>Sofa</strong> (<a class="reference internal" href="../sofa/object.html#hrtfpykit.sofa.sofa.SOFA" title="hrtfpykit.sofa.sofa.SOFA"><em>SOFA</em></a><em> | </em><em>None</em>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="loading.html" title="Previous document">Loading HRTFs</a>
+        </li>
+        <li>
+          <a href="domains.html" title="Next document">IR and TF domain views</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../index.html">
+              <img class="logo" src="../_static/hrtfpykit-logo.png" alt="Logo of hrtfpykit"/>
+            </a></p>
+<h1 class="logo"><a href="../index.html">hrtfpykit</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">User documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sofa/index.html">SOFA</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">HRTF</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="loading.html">Loading HRTFs</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">HRTF object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="domains.html">IR and TF domain views</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sources.html">Sources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transforms.html">Transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="metrics.html">Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spherical_harmonics.html">Spherical harmonics</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../plots/index.html">Plots</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../datasets/index.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../testing.html">Testing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Planned guide sections</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">HRTF</a><ul>
+      <li>Previous: <a href="loading.html" title="previous chapter">Loading HRTFs</a></li>
+      <li>Next: <a href="domains.html" title="next chapter">IR and TF domain views</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;.
+      
+      |
+      <a href="../_sources/hrtf/object.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

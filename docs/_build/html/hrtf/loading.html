@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Loading HRTFs &#8212; hrtfpykit documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <script src="../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="HRTF object" href="object.html" />
+    <link rel="prev" title="HRTF" href="index.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="index.html" title="Previous document">HRTF</a>
+        </li>
+        <li>
+          <a href="object.html" title="Next document">HRTF object</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="loading-hrtfs">
+<h1>Loading HRTFs<a class="headerlink" href="#loading-hrtfs" title="Link to this heading">¶</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">load_hrtf</span></code> loads a SOFA file as an acoustic <code class="docutils literal notranslate"><span class="pre">HRTF</span></code> object.</p>
+<section id="import">
+<h2>Import<a class="headerlink" href="#import" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.hrtf</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_hrtf</span>
+</pre></div>
+</div>
+</section>
+<section id="basic-usage">
+<h2>Basic usage<a class="headerlink" href="#basic-usage" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">hrtf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;subject_001.sofa&quot;</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">hrtf</span><span class="o">.</span><span class="n">SOFAConventions</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">hrtf</span><span class="o">.</span><span class="n">IR</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">hrtf</span><span class="o">.</span><span class="n">TF</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="supported-sofa-conventions">
+<h2>Supported SOFA conventions<a class="headerlink" href="#supported-sofa-conventions" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">load_hrtf</span></code> supports:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">SimpleFreeFieldHRIR</span></code></dt><dd><p>Reads <code class="docutils literal notranslate"><span class="pre">Data.IR</span></code> and <code class="docutils literal notranslate"><span class="pre">Data.SamplingRate</span></code> and derives <code class="docutils literal notranslate"><span class="pre">TF</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">SimpleFreeFieldHRTF</span></code></dt><dd><p>Reads <code class="docutils literal notranslate"><span class="pre">Data.Real</span></code>, <code class="docutils literal notranslate"><span class="pre">Data.Imag</span></code>, and <code class="docutils literal notranslate"><span class="pre">N</span></code> and derives <code class="docutils literal notranslate"><span class="pre">IR</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="parameters">
+<h2>Parameters<a class="headerlink" href="#parameters" title="Link to this heading">¶</a></h2>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">path</span></code></dt><dd><p>SOFA file path.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">mode</span></code></dt><dd><p>NetCDF open mode passed to the SOFA loader.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">parallel</span></code></dt><dd><p>Parallel NetCDF loading flag.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">check_sofa_against_conventions</span></code></dt><dd><p>Runs SOFA convention checks during loading.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">fft_length</span></code></dt><dd><p>Optional FFT length for HRIR-to-HRTF conversion.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">mesh2hrtf_compatible</span></code> and <code class="docutils literal notranslate"><span class="pre">mesh2hrtf_n_shift</span></code></dt><dd><p>Options for Mesh2HRTF-style frequency-domain reconstruction.</p>
+</dd>
+</dl>
+</section>
+<section id="api-reference">
+<h2>API reference<a class="headerlink" href="#api-reference" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.load_hrtf">
+<span class="sig-prename descclassname"><span class="pre">hrtfpykit.hrtf.</span></span><span class="sig-name descname"><span class="pre">load_hrtf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'r'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parallel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">check_sofa_against_conventions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fft_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh2hrtf_compatible</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh2hrtf_n_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.load_hrtf" title="Link to this definition">¶</a></dt>
+<dd><p>Load a SOFA file as an <code class="xref py py-class docutils literal notranslate"><span class="pre">HRTF</span></code> object.</p>
+<p>It loads SOFA content intothe central <code class="docutils literal notranslate"><span class="pre">HRTF</span></code> abstraction and guarantees
+that both domains are available after loading:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">IR</span></code> (time domain)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">TF</span></code> (frequency domain)</p></li>
+</ul>
+<p>Supported conventions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">SimpleFreeFieldHRIR</span></code>: loaded from <code class="docutils literal notranslate"><span class="pre">Data.IR</span></code> and converted to TF.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SimpleFreeFieldHRTF</span></code>: loaded from <code class="docutils literal notranslate"><span class="pre">Data.Real</span></code>/<code class="docutils literal notranslate"><span class="pre">Data.Imag</span></code>/<code class="docutils literal notranslate"><span class="pre">N</span></code>
+and converted to IR.</p></li>
+</ul>
+<p>For <code class="docutils literal notranslate"><span class="pre">SimpleFreeFieldHRTF</span></code>, reconstruction uses positive frequency bins,
+because HRTF impulse responses are real-valued and the negative frequency
+bins are redundant. The expected format is uniformly spaced,
+non-negative, increasing bins. DC (0 Hz) should be present. If DC is
+missing and bins start at one-bin step (<code class="docutils literal notranslate"><span class="pre">Δf</span></code>), <code class="docutils literal notranslate"><span class="pre">hrtfpykit</span></code> prepends
+DC with value <code class="docutils literal notranslate"><span class="pre">1+0j</span></code> (0 dB attenuation at DC) to keep reconstruction
+consistent.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em><em> | </em><em>Path</em>) – Path to the SOFA file.</p></li>
+<li><p><strong>mode</strong> (<em>str</em><em>, </em><em>default='r'</em>) – File mode used by the SOFA API.</p></li>
+<li><p><strong>parallel</strong> (<em>bool</em><em>, </em><em>default=False</em>) – Whether to enable parallel loading in the SOFA API.</p></li>
+<li><p><strong>check_sofa_against_conventions</strong> (<em>bool</em><em>, </em><em>default=True</em>) – Whether to run convention checks when reading the SOFA file.</p></li>
+<li><p><strong>fft_length</strong> (<em>int</em><em> | </em><em>None</em><em>, </em><em>default=None</em>) – Optional FFT length used when deriving TF from HRIR content.</p></li>
+<li><p><strong>mesh2hrtf_compatible</strong> (<em>bool</em><em>, </em><em>default=False</em>) – If <code class="docutils literal notranslate"><span class="pre">True</span></code>, use Mesh2HRTF-style TF-to-IR reconstruction when loading
+<code class="docutils literal notranslate"><span class="pre">SimpleFreeFieldHRTF</span></code> files.</p></li>
+<li><p><strong>mesh2hrtf_n_shift</strong> (<em>int</em><em> | </em><em>None</em><em>, </em><em>default=30</em>) – Optional circular shift in samples applied after TF-to-IR
+reconstruction when <code class="docutils literal notranslate"><span class="pre">mesh2hrtf_compatible=True</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>HRTF</em> – Loaded HRTF object with <code class="docutils literal notranslate"><span class="pre">IR</span></code>, <code class="docutils literal notranslate"><span class="pre">TF</span></code>, <code class="docutils literal notranslate"><span class="pre">SOFAConventions</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">fft_length</span></code> populated.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Load HRIR-based SOFA files and work in both domains.</em></p></li>
+<li><p><em>- Load HRTF-based SOFA files while preserving original frequency bins.</em></p></li>
+<li><p><em>- Enable Mesh2HRTF-compatible reconstruction when required by the source</em> – convention pipeline.</p></li>
+<li><p><em>Best Practices</em></p></li>
+<li><p><em>————–</em></p></li>
+<li><ul>
+<li><p>Keep <code class="docutils literal notranslate"><span class="pre">check_sofa_against_conventions=True</span></code> in production pipelines.</p></li>
+</ul>
+</li>
+<li><ul>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">fft_length</span></code> only when a fixed transform size is explicitly needed.</p></li>
+</ul>
+</li>
+<li><p><em>- Fail fast on malformed SOFA variables instead of bypassing validation.</em></p></li>
+<li><ul>
+<li><p>Keep one-sided <code class="docutils literal notranslate"><span class="pre">N</span></code> vectors in <code class="docutils literal notranslate"><span class="pre">SimpleFreeFieldHRTF</span></code> files.</p></li>
+</ul>
+</li>
+<li><ul>
+<li><p>Include DC explicitly in exported <code class="docutils literal notranslate"><span class="pre">SimpleFreeFieldHRTF</span></code> data whenever possible.</p></li>
+</ul>
+</li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="object.html#hrtfpykit.hrtf.hrtf.HRTF" title="hrtfpykit.hrtf.hrtf.HRTF"><em>HRTF</em></a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_hrtf</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;hrtfs/P0001_FreeFieldComp_44kHz.sofa&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf</span><span class="o">.</span><span class="n">SOFAConventions</span>
+<span class="go">&#39;SimpleFreeFieldHRIR&#39;</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf_tf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;hrtfs/HRTF_TF.sofa&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf_tf</span><span class="o">.</span><span class="n">SOFAConventions</span>
+<span class="go">&#39;SimpleFreeFieldHRTF&#39;</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hrtf_m2h</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="s2">&quot;hrtfs/HRTF_ARI_44100.sofa&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">mesh2hrtf_compatible</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="index.html" title="Previous document">HRTF</a>
+        </li>
+        <li>
+          <a href="object.html" title="Next document">HRTF object</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../index.html">
+              <img class="logo" src="../_static/hrtfpykit-logo.png" alt="Logo of hrtfpykit"/>
+            </a></p>
+<h1 class="logo"><a href="../index.html">hrtfpykit</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">User documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sofa/index.html">SOFA</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">HRTF</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Loading HRTFs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="object.html">HRTF object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="domains.html">IR and TF domain views</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sources.html">Sources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transforms.html">Transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="metrics.html">Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spherical_harmonics.html">Spherical harmonics</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../plots/index.html">Plots</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../datasets/index.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../testing.html">Testing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Planned guide sections</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">HRTF</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">HRTF</a></li>
+      <li>Next: <a href="object.html" title="next chapter">HRTF object</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;.
+      
+      |
+      <a href="../_sources/hrtf/loading.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

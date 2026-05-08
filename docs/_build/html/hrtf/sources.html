@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Sources &#8212; hrtfpykit documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <script src="../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Transforms" href="transforms.html" />
+    <link rel="prev" title="IR and TF domain views" href="domains.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="domains.html" title="Previous document">IR and TF domain views</a>
+        </li>
+        <li>
+          <a href="transforms.html" title="Next document">Transforms</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="sources">
+<h1>Sources<a class="headerlink" href="#sources" title="Link to this heading">¶</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">hrtf.Sources</span></code> exposes the source grid stored in the SOFA file. It converts
+source positions between supported coordinate systems and resolves position
+queries to real source-grid indices.</p>
+<section id="supported-coordinate-systems">
+<h2>Supported coordinate systems<a class="headerlink" href="#supported-coordinate-systems" title="Link to this heading">¶</a></h2>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">spherical</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">(azimuth,</span> <span class="pre">elevation,</span> <span class="pre">radius)</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">cartesian</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">(x,</span> <span class="pre">y,</span> <span class="pre">z)</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">lateral-polar</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">(lateral,</span> <span class="pre">polar,</span> <span class="pre">radius)</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Link to this heading">¶</a></h2>
+<p>Read positions:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.hrtf</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_hrtf</span>
+
+<span class="n">hrtf</span> <span class="o">=</span> <span class="n">load_hrtf</span><span class="p">(</span><span class="s2">&quot;subject_001.sofa&quot;</span><span class="p">)</span>
+<span class="n">positions</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">Sources</span><span class="o">.</span><span class="n">get_positions</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Inspect available angles:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">azimuths</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">Sources</span><span class="o">.</span><span class="n">get_azimuth_angles</span><span class="p">()</span>
+<span class="n">elevations</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">Sources</span><span class="o">.</span><span class="n">get_elevation_angles</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Resolve a named or numeric position:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">index</span><span class="p">,</span> <span class="n">real_position</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">Sources</span><span class="o">.</span><span class="n">get_position_index</span><span class="p">(</span><span class="s2">&quot;front&quot;</span><span class="p">)</span>
+<span class="n">index</span><span class="p">,</span> <span class="n">real_position</span> <span class="o">=</span> <span class="n">hrtf</span><span class="o">.</span><span class="n">Sources</span><span class="o">.</span><span class="n">get_position_index</span><span class="p">([</span><span class="mf">90.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span>
+</pre></div>
+</div>
+</section>
+<section id="api-reference">
+<h2>API reference<a class="headerlink" href="#api-reference" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.sources.Sources">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">hrtfpykit.hrtf.sources.</span></span><span class="sig-name descname"><span class="pre">Sources</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hrtf</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.sources.Sources" title="Link to this definition">¶</a></dt>
+<dd><p>Spatial-source view and source-grid utilities.</p>
+<p class="rubric">Notes</p>
+<p>Conventions implemented by this class:</p>
+<ul class="simple">
+<li><p>Spherical (SOFA-style): <code class="docutils literal notranslate"><span class="pre">(azimuth,</span> <span class="pre">elevation,</span> <span class="pre">radius)</span></code> with azimuth in
+<code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">360)</span></code> degrees (anticlockwise in horizontal plane), elevation in
+<code class="docutils literal notranslate"><span class="pre">[-90,</span> <span class="pre">90]</span></code> degrees (positive up), and non-negative radius.</p></li>
+<li><p>Lateral-polar: <code class="docutils literal notranslate"><span class="pre">(lateral,</span> <span class="pre">polar,</span> <span class="pre">radius)</span></code>
+with lateral in <code class="docutils literal notranslate"><span class="pre">[-90,</span> <span class="pre">90]</span></code> degrees (positive left), polar normalized to
+<code class="docutils literal notranslate"><span class="pre">[-90,</span> <span class="pre">270)</span></code> degrees, and non-negative radius.</p></li>
+<li><p>Cartesian: <code class="docutils literal notranslate"><span class="pre">(x,</span> <span class="pre">y,</span> <span class="pre">z)</span></code> with <code class="docutils literal notranslate"><span class="pre">+y</span></code> as left and <code class="docutils literal notranslate"><span class="pre">+z</span></code> as up.</p></li>
+</ul>
+<p>At lateral poles (<code class="docutils literal notranslate"><span class="pre">|lateral|</span> <span class="pre">=</span> <span class="pre">90</span></code>) and at zero radius, polar is singular.
+This implementation uses a deterministic placeholder <code class="docutils literal notranslate"><span class="pre">polar</span> <span class="pre">=</span> <span class="pre">0</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>hrtf</strong> (<a class="reference internal" href="object.html#hrtfpykit.hrtf.hrtf.HRTF" title="hrtfpykit.hrtf.hrtf.HRTF"><em>HRTF</em></a><em> | </em><em>None</em>)</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.sources.Sources.get_positions">
+<span class="sig-name descname"><span class="pre">get_positions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">angle_unit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'degrees'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.sources.Sources.get_positions" title="Link to this definition">¶</a></dt>
+<dd><p>Return source positions in the currently selected coordinate system.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>angle_unit</strong> (<em>{&quot;degrees&quot;</em><em>, </em><em>&quot;radians&quot;}</em><em>, </em><em>default=&quot;degrees&quot;</em>) – Angular unit for angular coordinate systems.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Source grid with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">3)</span></code> as float values.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Source data are read from SOFA <code class="docutils literal notranslate"><span class="pre">SourcePosition</span></code> and converted to
+<code class="docutils literal notranslate"><span class="pre">self.source_coordinate_system</span></code>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.sources.Sources.get_azimuth_angles">
+<span class="sig-name descname"><span class="pre">get_azimuth_angles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">angle_unit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'degrees'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.sources.Sources.get_azimuth_angles" title="Link to this definition">¶</a></dt>
+<dd><p>Return unique source-grid azimuth angles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>angle_unit</strong> (<em>{&quot;degrees&quot;</em><em>, </em><em>&quot;radians&quot;}</em><em>, </em><em>default=&quot;degrees&quot;</em>) – Angular unit used when reading positions and returning azimuth values.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>np.ndarray</em> – One-dimensional array of unique azimuth angles rounded to two decimals.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Inspect the available azimuth sampling of a source grid.</em></p></li>
+<li><p><em>- Build plane or panel selections from the source layout.</em></p></li>
+<li><p><em>- Validate angular coverage before plotting or interpolation.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>ndarray</em></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.sources.Sources.get_elevation_angles">
+<span class="sig-name descname"><span class="pre">get_elevation_angles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">angle_unit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'degrees'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.sources.Sources.get_elevation_angles" title="Link to this definition">¶</a></dt>
+<dd><p>Return unique source-grid elevation angles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>angle_unit</strong> (<em>{&quot;degrees&quot;</em><em>, </em><em>&quot;radians&quot;}</em><em>, </em><em>default=&quot;degrees&quot;</em>) – Angular unit used when reading positions and returning elevation values.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>np.ndarray</em> – One-dimensional array of unique elevation angles rounded to two decimals.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Inspect the available elevation sampling of a source grid.</em></p></li>
+<li><p><em>- Select horizontal slices from the source layout.</em></p></li>
+<li><p><em>- Validate vertical coverage before plotting or spatial selection.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>ndarray</em></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.sources.Sources.get_elevation_angles_for_azimuth">
+<span class="sig-name descname"><span class="pre">get_elevation_angles_for_azimuth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">azimuth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle_unit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'degrees'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.sources.Sources.get_elevation_angles_for_azimuth" title="Link to this definition">¶</a></dt>
+<dd><p>Return available elevation angles for the nearest azimuth in the grid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>azimuth</strong> (<em>float</em>) – Requested azimuth angle used to query the source grid.</p></li>
+<li><p><strong>angle_unit</strong> (<em>{&quot;degrees&quot;</em><em>, </em><em>&quot;radians&quot;}</em><em>, </em><em>default=&quot;degrees&quot;</em>) – Angular unit for <code class="docutils literal notranslate"><span class="pre">azimuth</span></code> and returned elevation values.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>tuple[np.ndarray, float]</em> – <code class="docutils literal notranslate"><span class="pre">(elevation_angles,</span> <span class="pre">real_azimuth)</span></code> where <code class="docutils literal notranslate"><span class="pre">elevation_angles</span></code> is a
+one-dimensional array of unique elevations available at the matched
+azimuth, and <code class="docutils literal notranslate"><span class="pre">real_azimuth</span></code> is the actual azimuth selected from the grid.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Inspect vertical sampling for a requested azimuth slice.</em></p></li>
+<li><p><em>- Build elevation selectors for plotting or interactive tools.</em></p></li>
+<li><p><em>- Query the real grid coverage before extracting directional data.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[<em>ndarray</em>, float]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.sources.Sources.get_azimuth_angles_for_elevation">
+<span class="sig-name descname"><span class="pre">get_azimuth_angles_for_elevation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">elevation</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle_unit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'degrees'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.sources.Sources.get_azimuth_angles_for_elevation" title="Link to this definition">¶</a></dt>
+<dd><p>Return available azimuth angles for the nearest elevation in the grid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>elevation</strong> (<em>float</em>) – Requested elevation angle used to query the source grid.</p></li>
+<li><p><strong>angle_unit</strong> (<em>{&quot;degrees&quot;</em><em>, </em><em>&quot;radians&quot;}</em><em>, </em><em>default=&quot;degrees&quot;</em>) – Angular unit for <code class="docutils literal notranslate"><span class="pre">elevation</span></code> and returned azimuth values.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>tuple[np.ndarray, float]</em> – <code class="docutils literal notranslate"><span class="pre">(azimuth_angles,</span> <span class="pre">real_elevation)</span></code> where <code class="docutils literal notranslate"><span class="pre">azimuth_angles</span></code> is a
+one-dimensional array of unique azimuths available at the matched
+elevation, and <code class="docutils literal notranslate"><span class="pre">real_elevation</span></code> is the actual elevation selected
+from the grid.</p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Inspect horizontal sampling for a requested elevation slice.</em></p></li>
+<li><p><em>- Build azimuth selectors for plotting or interactive tools.</em></p></li>
+<li><p><em>- Query the real grid coverage before extracting directional data.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[<em>ndarray</em>, float]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.hrtf.sources.Sources.get_position_index">
+<span class="sig-name descname"><span class="pre">get_position_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">position</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coordinate_system</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'spherical'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle_unit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'degrees'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.hrtf.sources.Sources.get_position_index" title="Link to this definition">¶</a></dt>
+<dd><p>Return matched source index and matched real position.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>position</strong> (<em>np.ndarray</em><em> | </em><em>list</em><em>[</em><em>float</em><em>] </em><em>| </em><em>tuple</em><em>[</em><em>float</em><em>, </em><em>float</em><em>, </em><em>float</em><em>]</em>) – Query position in <code class="docutils literal notranslate"><span class="pre">coordinate_system</span></code>.</p></li>
+<li><p><strong>coordinate_system</strong> (<em>{&quot;spherical&quot;</em><em>, </em><em>&quot;cartesian&quot;</em><em>, </em><em>&quot;lateral-polar&quot;}</em><em>, </em><em>default=&quot;spherical&quot;</em>) – Coordinate system of <code class="docutils literal notranslate"><span class="pre">position</span></code> and returned <code class="docutils literal notranslate"><span class="pre">real_position</span></code>.</p></li>
+<li><p><strong>angle_unit</strong> (<em>{&quot;degrees&quot;</em><em>, </em><em>&quot;radians&quot;}</em><em>, </em><em>default=&quot;degrees&quot;</em>) – Angular unit for spherical/lateral-polar inputs and outputs.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(idx,</span> <span class="pre">real_position)</span></code> where <code class="docutils literal notranslate"><span class="pre">idx</span></code> is the selected grid index and
+<code class="docutils literal notranslate"><span class="pre">real_position</span></code> is the selected grid coordinate rounded to two decimals.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[int, np.ndarray]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="domains.html" title="Previous document">IR and TF domain views</a>
+        </li>
+        <li>
+          <a href="transforms.html" title="Next document">Transforms</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../index.html">
+              <img class="logo" src="../_static/hrtfpykit-logo.png" alt="Logo of hrtfpykit"/>
+            </a></p>
+<h1 class="logo"><a href="../index.html">hrtfpykit</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">User documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sofa/index.html">SOFA</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">HRTF</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="loading.html">Loading HRTFs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="object.html">HRTF object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="domains.html">IR and TF domain views</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Sources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transforms.html">Transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="metrics.html">Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spherical_harmonics.html">Spherical harmonics</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../plots/index.html">Plots</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../datasets/index.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../testing.html">Testing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Planned guide sections</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">HRTF</a><ul>
+      <li>Previous: <a href="domains.html" title="previous chapter">IR and TF domain views</a></li>
+      <li>Next: <a href="transforms.html" title="next chapter">Transforms</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;.
+      
+      |
+      <a href="../_sources/hrtf/sources.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

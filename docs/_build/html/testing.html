@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Testing &#8212; hrtfpykit documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Quick start" href="quickstart.html" />
+    <link rel="prev" title="SONICOM" href="datasets/sonicom.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="datasets/sonicom.html" title="Previous document">SONICOM</a>
+        </li>
+        <li>
+          <a href="quickstart.html" title="Next document">Quick start</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="testing">
+<h1>Testing<a class="headerlink" href="#testing" title="Link to this heading">¶</a></h1>
+<p>The test suite is organized around five files:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">tests/test_sofa.py</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tests/test_hrtf.py</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tests/test_plots.py</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tests/test_hutubs.py</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tests/test_sonicom.py</span></code></p></li>
+</ul>
+<p>SOFA, HRTF, and plot tests use real SOFA/HRTF files. Dataset tests use local
+HUTUBS and SONICOM roots when available and skip when required resources are
+missing.</p>
+<section id="common-commands">
+<h2>Common commands<a class="headerlink" href="#common-commands" title="Link to this heading">¶</a></h2>
+<p>Run SOFA, HRTF, and plot tests with real files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pytest<span class="w"> </span>tests/test_sofa.py<span class="w"> </span>tests/test_hrtf.py<span class="w"> </span>tests/test_plots.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--sofa-path<span class="w"> </span>/path/to/file.sofa<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--compare-sofa-paths<span class="w"> </span>/path/to/a.sofa<span class="w"> </span>/path/to/b.sofa
+</pre></div>
+</div>
+<p>Run HUTUBS tests:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pytest<span class="w"> </span>tests/test_hutubs.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--hutubs-root<span class="w"> </span>/path/to/hutubs<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--subjects<span class="w"> </span><span class="m">5</span>
+</pre></div>
+</div>
+<p>Run SONICOM tests:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pytest<span class="w"> </span>tests/test_sonicom.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--sonicom-root<span class="w"> </span>/path/to/sonicom<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--subjects<span class="w"> </span><span class="m">5</span>
+</pre></div>
+</div>
+<p>Run a collection-only check:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pytest<span class="w"> </span>tests<span class="w"> </span>--collect-only<span class="w"> </span>-q
+</pre></div>
+</div>
+</section>
+<section id="full-dataset-matrices">
+<h2>Full dataset matrices<a class="headerlink" href="#full-dataset-matrices" title="Link to this heading">¶</a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">--full</span></code> only when intentionally running the larger dataset matrix. Prefer
+combining it with <code class="docutils literal notranslate"><span class="pre">--subjects</span></code> and <code class="docutils literal notranslate"><span class="pre">-k</span></code> to keep memory use controlled.</p>
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="datasets/sonicom.html" title="Previous document">SONICOM</a>
+        </li>
+        <li>
+          <a href="quickstart.html" title="Next document">Quick start</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="index.html">
+              <img class="logo" src="_static/hrtfpykit-logo.png" alt="Logo of hrtfpykit"/>
+            </a></p>
+<h1 class="logo"><a href="index.html">hrtfpykit</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">User documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sofa/index.html">SOFA</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hrtf/index.html">HRTF</a></li>
+<li class="toctree-l1"><a class="reference internal" href="plots/index.html">Plots</a></li>
+<li class="toctree-l1"><a class="reference internal" href="datasets/index.html">Datasets</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Testing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#common-commands">Common commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#full-dataset-matrices">Full dataset matrices</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Planned guide sections</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/index.html">Tutorials</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="datasets/sonicom.html" title="previous chapter">SONICOM</a></li>
+      <li>Next: <a href="quickstart.html" title="next chapter">Quick start</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;.
+      
+      |
+      <a href="_sources/testing.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

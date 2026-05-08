@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>SOFA object &#8212; hrtfpykit documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <script src="../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Validation and security checks" href="validation.html" />
+    <link rel="prev" title="Loading SOFA files" href="loading.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="loading.html" title="Previous document">Loading SOFA files</a>
+        </li>
+        <li>
+          <a href="validation.html" title="Next document">Validation and security checks</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="sofa-object">
+<h1>SOFA object<a class="headerlink" href="#sofa-object" title="Link to this heading">¶</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">SOFA</span></code> is the structured file object used by <code class="docutils literal notranslate"><span class="pre">hrtfpykit</span></code> to represent SOFA
+files. It wraps a <code class="docutils literal notranslate"><span class="pre">netCDF4.Dataset</span></code> and exposes the SOFA structure through
+explicit object properties and editing methods.</p>
+<p>Most users create <code class="docutils literal notranslate"><span class="pre">SOFA</span></code> objects with <code class="docutils literal notranslate"><span class="pre">load_sofa</span></code>. Use <code class="docutils literal notranslate"><span class="pre">SOFA</span></code> directly
+when creating an in-memory convention-backed object with <code class="docutils literal notranslate"><span class="pre">SOFA.create_dummy</span></code>.</p>
+<section id="structured-access">
+<h2>Structured access<a class="headerlink" href="#structured-access" title="Link to this heading">¶</a></h2>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">Dimensions</span></code></dt><dd><p>Dimension wrappers with names, sizes, and unlimited-dimension status.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">GlobalAttributes</span></code></dt><dd><p>Global SOFA metadata.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">VariableAttributes</span></code></dt><dd><p>Per-variable attributes exposed by names such as <code class="docutils literal notranslate"><span class="pre">&quot;Data.IR:Units&quot;</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">Variables</span></code></dt><dd><p>SOFA variables with NumPy array values and attribute wrappers.</p>
+</dd>
+</dl>
+<p>Example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.sofa</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_sofa</span>
+
+<span class="n">sofa</span> <span class="o">=</span> <span class="n">load_sofa</span><span class="p">(</span><span class="s2">&quot;subject_001.sofa&quot;</span><span class="p">)</span>
+
+<span class="n">dimensions</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">Dimensions</span><span class="o">.</span><span class="n">get_names</span><span class="p">()</span>
+<span class="n">convention</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">GlobalAttributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;SOFAConventions&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+<span class="n">ir</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">Variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Data.IR&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+</pre></div>
+</div>
+</section>
+<section id="editing-model">
+<h2>Editing model<a class="headerlink" href="#editing-model" title="Link to this heading">¶</a></h2>
+<p>The editing API is explicit. There are separate methods for dimensions, global
+attributes, variable attributes, and variables. Each method validates that the
+requested target exists or does not exist as appropriate.</p>
+<p>Example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="n">clone</span><span class="o">.</span><span class="n">create_global_attribute</span><span class="p">(</span><span class="s2">&quot;ProcessingNote&quot;</span><span class="p">,</span> <span class="s2">&quot;checked with hrtfpykit&quot;</span><span class="p">)</span>
+<span class="n">clone</span><span class="o">.</span><span class="n">modify_global_attribute</span><span class="p">(</span><span class="s2">&quot;ProcessingNote&quot;</span><span class="p">,</span> <span class="s2">&quot;validated&quot;</span><span class="p">)</span>
+<span class="n">clone</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;subject_001_validated.sofa&quot;</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="creating-sofa-data">
+<h2>Creating SOFA data<a class="headerlink" href="#creating-sofa-data" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">SOFA.create_dummy</span></code> creates an in-memory SOFA object backed by a registered
+SOFA convention specification.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.sofa.sofa</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+
+<span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span>
+    <span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span>
+    <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">,</span>
+    <span class="n">dim_sizes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;M&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;R&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;N&quot;</span><span class="p">:</span> <span class="mi">256</span><span class="p">,</span> <span class="s2">&quot;C&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="saving-and-cloning">
+<h2>Saving and cloning<a class="headerlink" href="#saving-and-cloning" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">clone</span></code> creates an independent in-memory copy. <code class="docutils literal notranslate"><span class="pre">copy_with</span></code> creates a cloned
+object while applying dimension, variable, and global-attribute overrides.
+<code class="docutils literal notranslate"><span class="pre">save</span></code> writes the current object to disk.</p>
+</section>
+<section id="api-reference">
+<h2>API reference<a class="headerlink" href="#api-reference" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">hrtfpykit.sofa.sofa.</span></span><span class="sig-name descname"><span class="pre">SOFA</span></span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>High-level SOFA file handler backed by netCDF4.</p>
+<p>This class wraps a netCDF4 SOFA dataset and provides CRUD helpers for
+dimensions, attributes, and variables, along with utilities for loading,
+copying, saving, and summarizing SOFA files.</p>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>No hidden I/O is performed. Files are only read/written when you call
+<code class="docutils literal notranslate"><span class="pre">load()</span></code>, <code class="docutils literal notranslate"><span class="pre">save()</span></code>, or other explicit methods.</p></li>
+<li><p>The underlying dataset is a netCDF4 Dataset, so standard netCDF4
+rules and constraints apply.</p></li>
+</ul>
+<p class="rubric">Examples</p>
+<p>Create a dummy dataset, add custom metadata, and inspect it:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span><span class="o">.</span><span class="n">create_global_attribute</span><span class="p">(</span><span class="s2">&quot;DemoNote&quot;</span><span class="p">,</span> <span class="s2">&quot;Synthetic example&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="s2">&quot;DemoNote&quot;</span> <span class="ow">in</span> <span class="n">sofa</span><span class="o">.</span><span class="n">GlobalAttributes</span><span class="o">.</span><span class="n">get_names</span><span class="p">()</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<dl class="py property">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.Dimensions">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Dimensions</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">_Dimensions</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.Dimensions" title="Link to this definition">¶</a></dt>
+<dd><p>Return the dimension access wrapper.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Wrapper for dimension access, or None if no dataset is loaded.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Optional[_Dimensions]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.GlobalAttributes">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">GlobalAttributes</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">_GlobalAttributes</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.GlobalAttributes" title="Link to this definition">¶</a></dt>
+<dd><p>Return the global attribute access wrapper.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Wrapper for global attributes, or None if no dataset is loaded.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Optional[_GlobalAttributes]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.Variables">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Variables</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">_Variables</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.Variables" title="Link to this definition">¶</a></dt>
+<dd><p>Return the variable access wrapper.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Wrapper for variables, or None if no dataset is loaded.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Optional[_Variables]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.VariableAttributes">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">VariableAttributes</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">_VariableAttributes</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.VariableAttributes" title="Link to this definition">¶</a></dt>
+<dd><p>Return the variable attribute access wrapper.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Wrapper for variable attributes, or None if no dataset is loaded.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Optional[_VariableAttributes]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.create_dimension">
+<span class="sig-name descname"><span class="pre">create_dimension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.create_dimension" title="Link to this definition">¶</a></dt>
+<dd><p>Create a new SOFA dimension.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Dimension name.</p></li>
+<li><p><strong>value</strong> (<em>int</em>) – Dimension size.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded or if the dimension already exists.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Create a working clone before adding a custom dimension:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">create_dimension</span><span class="p">(</span><span class="s2">&quot;X&quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">Dimensions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;X&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+<span class="go">3</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.rename_dimension">
+<span class="sig-name descname"><span class="pre">rename_dimension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">old_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.rename_dimension" title="Link to this definition">¶</a></dt>
+<dd><p>Rename an existing SOFA dimension.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>old_name</strong> (<em>str</em>) – Existing dimension name.</p></li>
+<li><p><strong>new_name</strong> (<em>str</em>) – New dimension name.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded or if <code class="docutils literal notranslate"><span class="pre">old_name</span></code> does not exist.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Rename the measurement dimension in a working clone:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">rename_dimension</span><span class="p">(</span><span class="s2">&quot;M&quot;</span><span class="p">,</span> <span class="s2">&quot;Measurements&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="s2">&quot;Measurements&quot;</span> <span class="ow">in</span> <span class="n">sofa_clone</span><span class="o">.</span><span class="n">Dimensions</span><span class="o">.</span><span class="n">get_names</span><span class="p">()</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.create_global_attribute">
+<span class="sig-name descname"><span class="pre">create_global_attribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.create_global_attribute" title="Link to this definition">¶</a></dt>
+<dd><p>Create a global SOFA attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Attribute name.</p></li>
+<li><p><strong>value</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – Attribute value. Empty string is used when None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded or if the global attribute already
+    exists.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Add a descriptive global attribute to a working clone:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">create_global_attribute</span><span class="p">(</span><span class="s2">&quot;DemoNote&quot;</span><span class="p">,</span> <span class="s2">&quot;Measured in booth A&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">GlobalAttributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;DemoNote&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+<span class="go">&#39;Measured in booth A&#39;</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.modify_global_attribute">
+<span class="sig-name descname"><span class="pre">modify_global_attribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.modify_global_attribute" title="Link to this definition">¶</a></dt>
+<dd><p>Modify an existing global SOFA attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Attribute name.</p></li>
+<li><p><strong>value</strong> (<em>str</em>) – New attribute value.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded or if the global attribute does not
+    exist.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Update an existing global attribute in place:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">create_global_attribute</span><span class="p">(</span><span class="s2">&quot;DemoNote&quot;</span><span class="p">,</span> <span class="s2">&quot;draft&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">modify_global_attribute</span><span class="p">(</span><span class="s2">&quot;DemoNote&quot;</span><span class="p">,</span> <span class="s2">&quot;validated&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">GlobalAttributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;DemoNote&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+<span class="go">&#39;validated&#39;</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.delete_global_attribute">
+<span class="sig-name descname"><span class="pre">delete_global_attribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.delete_global_attribute" title="Link to this definition">¶</a></dt>
+<dd><p>Delete a global SOFA attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>name</strong> (<em>str</em>) – Attribute name to remove.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded or if the global attribute does not
+    exist.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Remove a temporary global attribute from a working clone:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">create_global_attribute</span><span class="p">(</span><span class="s2">&quot;DemoNote&quot;</span><span class="p">,</span> <span class="s2">&quot;temporary&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">delete_global_attribute</span><span class="p">(</span><span class="s2">&quot;DemoNote&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="s2">&quot;DemoNote&quot;</span> <span class="ow">in</span> <span class="n">sofa_clone</span><span class="o">.</span><span class="n">GlobalAttributes</span><span class="o">.</span><span class="n">get_names</span><span class="p">()</span>
+<span class="go">False</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.create_variable_attribute">
+<span class="sig-name descname"><span class="pre">create_variable_attribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.create_variable_attribute" title="Link to this definition">¶</a></dt>
+<dd><p>Create a variable attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Attribute name in the form <code class="docutils literal notranslate"><span class="pre">&quot;Variable:Attribute&quot;</span></code>.</p></li>
+<li><p><strong>value</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – Attribute value. Empty string is used when None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded, <code class="docutils literal notranslate"><span class="pre">name</span></code> is malformed, the target
+    variable does not exist, or the variable attribute already
+    exists.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Tag one variable with custom metadata:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">create_variable_attribute</span><span class="p">(</span><span class="s2">&quot;Data.IR:DemoTag&quot;</span><span class="p">,</span> <span class="s2">&quot;raw&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">VariableAttributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Data.IR:DemoTag&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+<span class="go">&#39;raw&#39;</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.modify_variable_attribute">
+<span class="sig-name descname"><span class="pre">modify_variable_attribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.modify_variable_attribute" title="Link to this definition">¶</a></dt>
+<dd><p>Modify an existing variable attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Attribute name in the form <code class="docutils literal notranslate"><span class="pre">&quot;Variable:Attribute&quot;</span></code>.</p></li>
+<li><p><strong>value</strong> (<em>str</em>) – New attribute value.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded, <code class="docutils literal notranslate"><span class="pre">name</span></code> is malformed, the target
+    variable does not exist, or the variable attribute does not
+    exist.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Update one custom variable attribute:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">create_variable_attribute</span><span class="p">(</span><span class="s2">&quot;Data.IR:DemoTag&quot;</span><span class="p">,</span> <span class="s2">&quot;raw&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">modify_variable_attribute</span><span class="p">(</span><span class="s2">&quot;Data.IR:DemoTag&quot;</span><span class="p">,</span> <span class="s2">&quot;windowed&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">VariableAttributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Data.IR:DemoTag&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+<span class="go">&#39;windowed&#39;</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.delete_variable_attribute">
+<span class="sig-name descname"><span class="pre">delete_variable_attribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.delete_variable_attribute" title="Link to this definition">¶</a></dt>
+<dd><p>Delete a variable attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>name</strong> (<em>str</em>) – Attribute name in the form <code class="docutils literal notranslate"><span class="pre">&quot;Variable:Attribute&quot;</span></code>.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded, <code class="docutils literal notranslate"><span class="pre">name</span></code> is malformed, the target
+    variable does not exist, or the variable attribute does not
+    exist.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Remove one custom variable attribute:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">create_variable_attribute</span><span class="p">(</span><span class="s2">&quot;Data.IR:DemoTag&quot;</span><span class="p">,</span> <span class="s2">&quot;raw&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">delete_variable_attribute</span><span class="p">(</span><span class="s2">&quot;Data.IR:DemoTag&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="s2">&quot;Data.IR:DemoTag&quot;</span> <span class="ow">in</span> <span class="n">sofa_clone</span><span class="o">.</span><span class="n">VariableAttributes</span><span class="o">.</span><span class="n">get_names</span><span class="p">()</span>
+<span class="go">False</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.create_variable">
+<span class="sig-name descname"><span class="pre">create_variable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dimensions</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attributes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.create_variable" title="Link to this definition">¶</a></dt>
+<dd><p>Create a SOFA variable and optionally its attributes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Variable name.</p></li>
+<li><p><strong>data</strong> (<em>Union</em><em>[</em><em>np.ndarray</em><em>, </em><em>list</em><em>]</em>) – Variable data.</p></li>
+<li><p><strong>dimensions</strong> (<em>Union</em><em>[</em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>...</em><em>]</em><em>, </em><em>list</em><em>[</em><em>str</em><em>]</em><em>]</em>) – Dimension names in order, matching the data shape.</p></li>
+<li><p><strong>dtype</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>str</em><em>, </em><em>np.dtype</em><em>]</em><em>]</em><em>, </em><em>optional</em>) – Data type for the variable. Defaults to the array dtype.</p></li>
+<li><p><strong>attributes</strong> (<em>Optional</em><em>[</em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em><em>]</em><em>, </em><em>optional</em>) – Optional attributes to set on the variable.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded, the variable already exists, one or more
+    dimensions are missing, or <code class="docutils literal notranslate"><span class="pre">data</span></code> cannot be broadcast to the
+    requested shape.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The function warns when dimension sizes do not coincide with the
+dataset dimensions and raises an error if the data cannot be
+broadcast to the target shape.
+Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Add a new custom variable to a working clone:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">netCDF4_dataset</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="s2">&quot;M&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">size</span><span class="p">,))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">create_variable</span><span class="p">(</span><span class="s2">&quot;Custom&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;M&quot;</span><span class="p">,),</span> <span class="n">attributes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;Units&quot;</span><span class="p">:</span> <span class="s2">&quot;unitless&quot;</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">Variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Custom&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span>
+<span class="go">(1,)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.modify_variable">
+<span class="sig-name descname"><span class="pre">modify_variable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.modify_variable" title="Link to this definition">¶</a></dt>
+<dd><p>Overwrite data for an existing SOFA variable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Variable name.</p></li>
+<li><p><strong>data</strong> (<em>Union</em><em>[</em><em>np.ndarray</em><em>, </em><em>list</em><em>]</em>) – New variable data.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded, the variable does not exist, or <code class="docutils literal notranslate"><span class="pre">data</span></code>
+    cannot be broadcast to the variable shape.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The function warns when dimension sizes do not coincide with the
+dataset dimensions and raises an error if the data cannot be
+broadcast to the target shape.
+Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Overwrite an existing variable with new data:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">new_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">Variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Data.IR&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">modify_variable</span><span class="p">(</span><span class="s2">&quot;Data.IR&quot;</span><span class="p">,</span> <span class="n">new_data</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">Variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Data.IR&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span>
+<span class="go">(1, 2, 1)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.delete_variable">
+<span class="sig-name descname"><span class="pre">delete_variable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.delete_variable" title="Link to this definition">¶</a></dt>
+<dd><p>Delete a SOFA variable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>name</strong> (<em>str</em>) – Variable name to remove.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no dataset is loaded or if the variable does not exist.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Editing a SOFA file requires writable access. The recommended
+workflow is to load the original dataset, create an in-memory
+clone with <code class="docutils literal notranslate"><span class="pre">clone()</span></code>, apply edits to the clone, and save when
+you are ready. Direct in-place editing with <code class="docutils literal notranslate"><span class="pre">mode=&quot;r+&quot;</span></code> is
+still available for expert users.</p>
+<p class="rubric">Examples</p>
+<p>Create and then remove a temporary variable:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">netCDF4_dataset</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="s2">&quot;M&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">size</span><span class="p">,))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">create_variable</span><span class="p">(</span><span class="s2">&quot;Custom&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;M&quot;</span><span class="p">,),</span> <span class="n">attributes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;Units&quot;</span><span class="p">:</span> <span class="s2">&quot;unitless&quot;</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">delete_variable</span><span class="p">(</span><span class="s2">&quot;Custom&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="s2">&quot;Custom&quot;</span> <span class="ow">in</span> <span class="n">sofa_clone</span><span class="o">.</span><span class="n">Variables</span><span class="o">.</span><span class="n">get_names</span><span class="p">()</span>
+<span class="go">False</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.create_dummy">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create_dummy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sofa_conventions</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim_sizes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_global_attributes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">override_default_global_attributes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.create_dummy" title="Link to this definition">¶</a></dt>
+<dd><p>Create an in-memory dummy SOFA dataset following a convention.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sofa_conventions</strong> (<em>str</em>) – SOFA convention name.</p></li>
+<li><p><strong>version</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – Convention version. If None, the latest available is used.</p></li>
+<li><p><strong>dim_sizes</strong> (<em>Optional</em><em>[</em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>int</em><em>]</em><em>]</em><em>, </em><em>optional</em>) – Dimension size overrides.</p></li>
+<li><p><strong>custom_global_attributes</strong> (<em>Optional</em><em>[</em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>str</em><em>]</em><em>]</em><em>, </em><em>optional</em>) – Additional global attributes to set.</p></li>
+<li><p><strong>override_default_global_attributes</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, custom attributes override defaults even if set.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>In-memory SOFA instance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#hrtfpykit.sofa.sofa.SOFA" title="hrtfpykit.sofa.sofa.SOFA">SOFA</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the convention name or version is unsupported, or if
+    <code class="docutils literal notranslate"><span class="pre">dim_sizes</span></code> tries to override the reserved unlimited <code class="docutils literal notranslate"><span class="pre">S</span></code>
+    dimension.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The dummy dataset always includes an unlimited <code class="docutils literal notranslate"><span class="pre">S</span></code> dimension with
+initial size 0. Passing <code class="docutils literal notranslate"><span class="pre">S</span></code> in <code class="docutils literal notranslate"><span class="pre">dim_sizes</span></code> raises an error because
+<code class="docutils literal notranslate"><span class="pre">S</span></code> is reserved by the SOFA conventions. To create other unlimited
+dimensions, set their size to 0 in <code class="docutils literal notranslate"><span class="pre">dim_sizes</span></code>.</p>
+<p class="rubric">Examples</p>
+<p>Create a minimal in-memory HRIR dataset:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span><span class="o">.</span><span class="n">Variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Data.IR&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span>
+<span class="go">(1, 2, 1)</span>
+</pre></div>
+</div>
+<p>Override fixed dimensions for a larger synthetic dataset:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">dim_sizes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;R&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;C&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;M&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;N&quot;</span><span class="p">:</span> <span class="mi">256</span><span class="p">},</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span><span class="o">.</span><span class="n">Variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Data.IR&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span>
+<span class="go">(100, 2, 256)</span>
+</pre></div>
+</div>
+<p>Create an additional unlimited dimension:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">dim_sizes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;R&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;C&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;K&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">},</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Passing <code class="docutils literal notranslate"><span class="pre">S</span></code> raises an error (<code class="docutils literal notranslate"><span class="pre">S</span></code> is always unlimited and starts at 0):</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">dim_sizes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;S&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">})</span>
+<span class="gt">Traceback (most recent call last):</span>
+<span class="c">...</span>
+<span class="gr">ValueError</span>: <span class="n">dim_sizes must not include &#39;S&#39; (reserved unlimited dimension).</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.save" title="Link to this definition">¶</a></dt>
+<dd><p>Save the SOFA dataset to disk.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>str</em><em>, </em><em>pathlib.Path</em><em>]</em><em>]</em><em>, </em><em>optional</em>) – Target path. If None, saves to the original path.</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, allows overwriting an existing file.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Path to the saved SOFA file.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pathlib.Path</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>ValueError</strong> – If no dataset is loaded or if <code class="docutils literal notranslate"><span class="pre">path</span></code> is omitted and the SOFA
+    object has no original path.</p></li>
+<li><p><strong>FileExistsError</strong> – If the destination already exists and <code class="docutils literal notranslate"><span class="pre">overwrite</span></code> is <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Calling <code class="docutils literal notranslate"><span class="pre">save()</span></code> without a path synchronizes the dataset back to the
+original file recorded in <code class="docutils literal notranslate"><span class="pre">self.path</span></code>.</p>
+<p>Cloned SOFA objects and objects returned by <code class="docutils literal notranslate"><span class="pre">copy_with()</span></code> are
+independent in-memory datasets. If one of those objects should replace
+an existing SOFA file on disk, save it to that filename with
+<code class="docutils literal notranslate"><span class="pre">overwrite=True</span></code>. In that case the method writes a temporary copy
+first and then replaces the destination file.</p>
+<p class="rubric">Examples</p>
+<p>Save an in-memory SOFA object to disk:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;my_sofa.sofa&quot;</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Overwrite an existing SOFA file with an updated clone:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_sofa</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">load_sofa</span><span class="p">(</span><span class="s2">&quot;my_sofa.sofa&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">create_global_attribute</span><span class="p">(</span><span class="s2">&quot;ProcessingNote&quot;</span><span class="p">,</span> <span class="s2">&quot;windowed copy&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">sofa_clone</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;my_sofa.sofa&quot;</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.clone">
+<span class="sig-name descname"><span class="pre">clone</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.clone" title="Link to this definition">¶</a></dt>
+<dd><p>Create an in-memory writable clone of the current SOFA object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A new SOFA instance backed by a diskless dataset.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#hrtfpykit.sofa.sofa.SOFA" title="hrtfpykit.sofa.sofa.SOFA">SOFA</a></p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If no dataset is loaded.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The clone is an in-memory writable copy of the current dataset.
+Each call creates a new independent diskless NetCDF dataset, so
+cloning the same SOFA object multiple times is supported. Because the
+clone is independent from the original NetCDF handle, you can later
+save it to a new filename or replace an existing file with
+<code class="docutils literal notranslate"><span class="pre">save(...,</span> <span class="pre">overwrite=True)</span></code>.</p>
+<p class="rubric">Examples</p>
+<p>Clone a dataset before editing it:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_clone</span><span class="o">.</span><span class="n">Variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Data.IR&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">sofa</span><span class="o">.</span><span class="n">Variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Data.IR&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.copy_with">
+<span class="sig-name descname"><span class="pre">copy_with</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dim_sizes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">global_attributes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_attributes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variables</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.copy_with" title="Link to this definition">¶</a></dt>
+<dd><p>Create a modified in-memory copy of the current SOFA object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dim_sizes</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>int</em><em>] </em><em>| </em><em>None</em>) – Dimension size overrides. Only fixed dimensions may be overridden.</p></li>
+<li><p><strong>global_attributes</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>] </em><em>| </em><em>None</em>) – Global attributes to add or replace.</p></li>
+<li><p><strong>variable_attributes</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em><em>] </em><em>| </em><em>None</em>) – Per-variable attributes to add or replace.</p></li>
+<li><p><strong>variables</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>numpy.ndarray</em><em>] </em><em>| </em><em>None</em>) – Variable data overrides. Only existing variable names are supported.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new SOFA instance backed by a diskless dataset.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#hrtfpykit.sofa.sofa.SOFA" title="hrtfpykit.sofa.sofa.SOFA">SOFA</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the dataset is not loaded, an override refers to a missing
+    dimension or variable, or a provided array cannot be broadcast
+    to the target variable shape.</p>
+</dd>
+</dl>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<ul class="simple">
+<li><p>If you override a dimension size, you must also provide replacement
+arrays for variables that depend on that dimension (e.g., <code class="docutils literal notranslate"><span class="pre">Data.IR</span></code>),
+otherwise shape checks will fail.</p></li>
+<li><p>Only existing variables can be overridden; use a separate creation
+workflow if you need to add brand-new variables.</p></li>
+</ul>
+</div>
+<p class="rubric">Examples</p>
+<p>Resize the <code class="docutils literal notranslate"><span class="pre">N</span></code> dimension and replace <code class="docutils literal notranslate"><span class="pre">Data.IR</span></code> accordingly:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">dim_sizes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;M&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;R&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;N&quot;</span><span class="p">:</span> <span class="mi">128</span><span class="p">},</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">new_ir</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">200</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_mod</span> <span class="o">=</span> <span class="n">sofa</span><span class="o">.</span><span class="n">copy_with</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">dim_sizes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;N&quot;</span><span class="p">:</span> <span class="mi">200</span><span class="p">},</span>
+<span class="gp">... </span>    <span class="n">variables</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;Data.IR&quot;</span><span class="p">:</span> <span class="n">new_ir</span><span class="p">},</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa_mod</span><span class="o">.</span><span class="n">Variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Data.IR&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span>
+<span class="go">(4, 2, 200)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.sofa.sofa.SOFA.summary">
+<span class="sig-name descname"><span class="pre">summary</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.sofa.sofa.SOFA.summary" title="Link to this definition">¶</a></dt>
+<dd><p>Return a formatted summary of GLOBALS Attributes, Variables and Variables Attributes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Multi-line summary string.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If no dataset is loaded.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Generate a text summary before saving or validating the dataset:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOFA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sofa</span> <span class="o">=</span> <span class="n">SOFA</span><span class="o">.</span><span class="n">create_dummy</span><span class="p">(</span><span class="s2">&quot;SimpleFreeFieldHRIR&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="s2">&quot;GLOBAL ATTRIBUTES&quot;</span> <span class="ow">in</span> <span class="n">sofa</span><span class="o">.</span><span class="n">summary</span><span class="p">()</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="loading.html" title="Previous document">Loading SOFA files</a>
+        </li>
+        <li>
+          <a href="validation.html" title="Next document">Validation and security checks</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../index.html">
+              <img class="logo" src="../_static/hrtfpykit-logo.png" alt="Logo of hrtfpykit"/>
+            </a></p>
+<h1 class="logo"><a href="../index.html">hrtfpykit</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">User documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">SOFA</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="loading.html">Loading SOFA files</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">SOFA object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="validation.html">Validation and security checks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="conventions.html">Convention specifications</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../hrtf/index.html">HRTF</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../plots/index.html">Plots</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../datasets/index.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../testing.html">Testing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Planned guide sections</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">SOFA</a><ul>
+      <li>Previous: <a href="loading.html" title="previous chapter">Loading SOFA files</a></li>
+      <li>Next: <a href="validation.html" title="next chapter">Validation and security checks</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;.
+      
+      |
+      <a href="../_sources/sofa/object.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

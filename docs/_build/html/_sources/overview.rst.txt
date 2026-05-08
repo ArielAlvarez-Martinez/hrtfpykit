@@ -1,0 +1,67 @@
+Architecture overview
+=====================
+
+``hrtfpykit`` provides three main working layers.
+
+SOFA layer
+----------
+
+The SOFA layer loads and edits SOFA files as structured objects. It is the
+lowest public layer and works with dimensions, global attributes, variable
+attributes, variables, convention checks, and file saving.
+
+Canonical imports::
+
+   from hrtfpykit.sofa import load_sofa
+   from hrtfpykit.sofa.sofa import SOFA
+
+HRTF layer
+----------
+
+The HRTF layer loads SOFA files as acoustic HRTF/HRIR objects. A loaded HRTF
+keeps both time-domain impulse responses and frequency-domain transfer
+functions available through one object.
+
+Canonical imports::
+
+   from hrtfpykit.hrtf import load_hrtf
+   from hrtfpykit.hrtf.hrtf import HRTF
+
+Dataset layer
+-------------
+
+The dataset layer builds indexed dataset objects from local or downloadable
+HRTF datasets. Specs define which resources become sample inputs and targets.
+
+Canonical imports::
+
+   from hrtfpykit.datasets import HUTUBS, SONICOM
+   from hrtfpykit.datasets import HRTFSpec, MetadataSpec, MeshSpec
+
+Plot layer
+----------
+
+Plotting is documented separately from HRTF processing. Single-HRTF plots are
+available as methods on loaded ``HRTF`` objects. Compare plots are public
+functions under ``hrtfpykit.plots``.
+
+Canonical imports::
+
+   from hrtfpykit.hrtf import load_hrtf
+   from hrtfpykit.plots import compare_magnitude
+
+Import surface
+--------------
+
+The root package currently exposes only package metadata. Use subpackage
+imports for user workflows:
+
+.. code-block:: python
+
+   import hrtfpykit
+
+   hrtfpykit.__version__
+
+Do not rely on ``from hrtfpykit import load_hrtf`` or
+``from hrtfpykit import load_sofa``. Use ``hrtfpykit.hrtf`` and
+``hrtfpykit.sofa`` instead.

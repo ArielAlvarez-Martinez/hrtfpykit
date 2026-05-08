@@ -573,12 +573,14 @@ def lsd(
         Second HRTF used in the comparison.
     ear : {"left", "right", "both"}, default="both"
         Ear configuration used during the comparison.
+
         - ``"left"`` evaluates only the left-ear TF values.
         - ``"right"`` evaluates only the right-ear TF values.
         - ``"both"`` evaluates both ear channels and averages the resulting
           LSD values across ears.
     plane : {"all", "horizontal", "median"}, default="all"
         Spatial subset of source positions:
+
         - ``"all"`` uses the full source grid.
         - ``"horizontal"`` uses the nearest available horizontal plane at
           ``elevation``.
@@ -594,10 +596,11 @@ def lsd(
     frequencies : float | list[float] | tuple[float, ...] | np.ndarray | None, default=None
         Optional frequency selector in Hz. Accepts multiple frequency bins. Each target is mapped 
         to the nearest available TF bin. ``None`` selects bins in the 20 Hz to 20 kHz band. If you
-        wanna calculate the lsd for all "avilable" frquency bins pass : 
-        frequencies=hrtf.TF.frequency_bins
+        want to calculate LSD for all available frequency bins, pass
+        ``frequencies=hrtf.TF.frequency_bins``.
     reduction : {"none", "locations", "frequencies", "global"}, default="none"
         Aggregation mode applied after dB difference computation:
+
         - ``"none"``:
           returns absolute dB differences per selected position and frequency.
         - ``"locations"``:
@@ -616,6 +619,7 @@ def lsd(
     np.ndarray | float
         LSD values in dB. Shape depends on ``reduction`` and on whether a
         single frequency was selected:
+
         - ``reduction="none"``:
           ``(positions, frequencies)`` or ``(positions,)`` for one frequency.
         - ``reduction="locations"``:

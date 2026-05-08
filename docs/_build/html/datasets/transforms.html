@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Dataset HRTF transforms &#8212; hrtfpykit documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <script src="../_static/documentation_options.js?v=d45e8c67"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="HUTUBS" href="hutubs.html" />
+    <link rel="prev" title="Dataset specs" href="specs.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="specs.html" title="Previous document">Dataset specs</a>
+        </li>
+        <li>
+          <a href="hutubs.html" title="Next document">HUTUBS</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="dataset-hrtf-transforms">
+<h1>Dataset HRTF transforms<a class="headerlink" href="#dataset-hrtf-transforms" title="Link to this heading">¶</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">HRTFTransform</span></code> creates reusable callables for dataset-level or spec-level HRTF
+processing. The transform is applied to loaded HRTF objects before sample values
+are extracted.</p>
+<p>This is useful when every sample should be built from a consistent transformed
+version of the source HRTF, for example a selected spatial subset, a windowed IR,
+a DTF representation, or a modified FFT length.</p>
+<section id="how-transform-composition-works">
+<h2>How transform composition works<a class="headerlink" href="#how-transform-composition-works" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">HRTFTransform.build</span></code> composes transform callables in order. Each transform
+receives the output of the previous transform and returns the next object in the
+chain.</p>
+<p>Example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span><span class="p">,</span> <span class="n">HRTFSpec</span><span class="p">,</span> <span class="n">HRTFTransform</span>
+
+<span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">build</span><span class="p">(</span>
+    <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">positions</span><span class="o">=</span><span class="s2">&quot;front&quot;</span><span class="p">),</span>
+    <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">apply_window</span><span class="p">(</span><span class="s2">&quot;hann&quot;</span><span class="p">),</span>
+    <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">modify_fft_length</span><span class="p">(</span><span class="mi">512</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="common-transform-families">
+<h2>Common transform families<a class="headerlink" href="#common-transform-families" title="Link to this heading">¶</a></h2>
+<dl class="simple">
+<dt>Selection</dt><dd><p><code class="docutils literal notranslate"><span class="pre">select</span></code> restricts positions, planes, ears, or IR crop ranges.</p>
+</dd>
+<dt>Time-domain transforms</dt><dd><p><code class="docutils literal notranslate"><span class="pre">apply_window</span></code>, <code class="docutils literal notranslate"><span class="pre">apply_padding</span></code>, <code class="docutils literal notranslate"><span class="pre">upsampling</span></code>, <code class="docutils literal notranslate"><span class="pre">downsampling</span></code>,
+<code class="docutils literal notranslate"><span class="pre">apply_fir_filter</span></code>, <code class="docutils literal notranslate"><span class="pre">apply_iir_filter</span></code>, and <code class="docutils literal notranslate"><span class="pre">minimum_phase</span></code>.</p>
+</dd>
+<dt>Frequency-domain transforms</dt><dd><p><code class="docutils literal notranslate"><span class="pre">to_ctf</span></code>, <code class="docutils literal notranslate"><span class="pre">to_dtf</span></code>, <code class="docutils literal notranslate"><span class="pre">modify_tf</span></code>, <code class="docutils literal notranslate"><span class="pre">modify_magnitude</span></code>, <code class="docutils literal notranslate"><span class="pre">modify_phase</span></code>,
+<code class="docutils literal notranslate"><span class="pre">apply_gain</span></code>, and <code class="docutils literal notranslate"><span class="pre">modify_fft_length</span></code>.</p>
+</dd>
+<dt>ITD transforms</dt><dd><p><code class="docutils literal notranslate"><span class="pre">add_itd</span></code> and <code class="docutils literal notranslate"><span class="pre">delete_itd</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="api-reference">
+<h2>API reference<a class="headerlink" href="#api-reference" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">hrtfpykit.datasets.</span></span><span class="sig-name descname"><span class="pre">HRTFTransform</span></span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform" title="Link to this definition">¶</a></dt>
+<dd><p>Factory for dataset-level HRTF transform callables.</p>
+<p><code class="docutils literal notranslate"><span class="pre">HRTFTransform</span></code> creates small callables that can be passed as
+<code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> to dataset constructors. The callable receives a
+loaded HRTF object, calls the corresponding HRTF transform method, and returns
+the transformed HRTF before spec values are extracted.</p>
+<section id="use-cases">
+<h3>Use Cases<a class="headerlink" href="#use-cases" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Apply the same acoustic transform to every loaded subject HRTF.</p></li>
+<li><p>Build transformed datasets without manually editing source files.</p></li>
+<li><p>Compose dataset specs with HRTF processing workflows.</p></li>
+</ul>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">HRTFTransform</span><span class="o">.</span><span class="n">apply_padding</span><span class="p">(</span><span class="mi">16</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.build">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method_name</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.build" title="Link to this definition">¶</a></dt>
+<dd><p>Create a dataset-level transform from an HRTF transform method name.</p>
+<p>This is the generic factory used by the named convenience methods below. It
+delays method lookup until a real HRTF object is loaded, then forwards the
+stored arguments to <code class="docutils literal notranslate"><span class="pre">hrtf.transform.&lt;method_name&gt;</span></code> so the same transform can
+be reused across subjects.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>method_name</strong> (<em>str</em>) – Name of the method available under <code class="docutils literal notranslate"><span class="pre">hrtf.transform</span></code>.</p></li>
+<li><p><strong>*args</strong> (<em>object</em>) – Positional arguments forwarded to the transform method.</p></li>
+<li><p><strong>**kwargs</strong> (<em>object</em>) – Keyword arguments forwarded to the transform method.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Callable that accepts an HRTF object and returns the transformed HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Build custom dataset-level transforms.</em></p></li>
+<li><p><em>- Reuse HRTF transform methods in dataset construction.</em></p></li>
+<li><p><em>- Keep transform setup declarative at dataset initialization.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">build</span><span class="p">(</span><span class="s2">&quot;apply_padding&quot;</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="s2">&quot;end&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.select">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">select</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.select" title="Link to this definition">¶</a></dt>
+<dd><p>Create a dataset-level source selection transform.</p>
+<p>Selection is special because it calls <code class="docutils literal notranslate"><span class="pre">hrtf.select</span></code> directly rather than a
+method under <code class="docutils literal notranslate"><span class="pre">hrtf.transform</span></code>. The returned callable lets datasets reduce
+source positions before specs extract values, while preserving the same
+transform interface as other factories.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong> (<em>object</em>) – Positional arguments forwarded to <code class="docutils literal notranslate"><span class="pre">hrtf.select</span></code>.</p></li>
+<li><p><strong>**kwargs</strong> (<em>object</em>) – Keyword arguments forwarded to <code class="docutils literal notranslate"><span class="pre">hrtf.select</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Callable that accepts an HRTF object and returns the selected HRTF.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><p><em>- Select source positions before dataset spec extraction.</em></p></li>
+<li><p><em>- Build datasets from named position subsets.</em></p></li>
+<li><p><em>- Apply one source selection to every subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">HRTFTransform</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">positions</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]),</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.apply_window">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">apply_window</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">window_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.apply_window" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that applies a named window to HRTF IR data.</p>
+<p>The factory stores the window name and returns a callable suitable for
+<code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code>. Each loaded subject HRTF receives the same window
+operation before spec values are selected.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>window_name</strong> (<em>str</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">apply_window</span><span class="p">(</span><span class="s2">&quot;hann&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.apply_padding">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">apply_padding</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">padding_length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">location</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'end'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.apply_padding" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that pads HRTF IR data.</p>
+<p>The factory stores padding length, location, and fill value, then forwards
+them to the HRTF transform API for every loaded subject. It applies IR length
+adjustment before extraction.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>padding_length</strong> (<em>int</em>)</p></li>
+<li><p><strong>location</strong> (<em>str</em>)</p></li>
+<li><p><strong>value</strong> (<em>float</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">apply_padding</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="s2">&quot;end&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.upsampling">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">upsampling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_sample_rate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.upsampling" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that upsamples HRTF data.</p>
+<p>The returned callable forwards the requested sample rate to the HRTF transform
+layer. Using it at dataset construction keeps all subject HRTFs in the same
+transformed sampling context.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>new_sample_rate</strong> (<em>float</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">upsampling</span><span class="p">(</span><span class="mf">96000.0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.downsampling">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">downsampling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_sample_rate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.downsampling" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that downsamples HRTF data.</p>
+<p>The returned callable forwards the requested sample rate to the HRTF transform
+layer. This supports model inputs that use a lower acoustic sample rate than the
+source dataset files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>new_sample_rate</strong> (<em>float</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">downsampling</span><span class="p">(</span><span class="mf">44100.0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.apply_fir_filter">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">apply_fir_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_taps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">101</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.apply_fir_filter" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that applies an FIR filter.</p>
+<p>The factory captures filter type, cutoff, tap count, and optional window, then
+applies that FIR filter to every loaded subject HRTF. It keeps filtering
+configuration close to dataset construction.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>filter</strong> (<em>str</em>)</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em><em> | </em><em>tuple</em><em>[</em><em>float</em><em>, </em><em>float</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>num_taps</strong> (<em>int</em>)</p></li>
+<li><p><strong>window</strong> (<em>str</em><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">apply_fir_filter</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="s2">&quot;lowpass&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">cutoff</span><span class="o">=</span><span class="mf">8000.0</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">num_taps</span><span class="o">=</span><span class="mi">101</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.apply_iir_filter">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">apply_iir_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.apply_iir_filter" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that applies an IIR filter.</p>
+<p>The factory captures filter type, cutoff, and order, then applies that IIR
+filter to every loaded subject HRTF. It applies dataset-level preprocessing.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>filter</strong> (<em>str</em>)</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em><em> | </em><em>tuple</em><em>[</em><em>float</em><em>, </em><em>float</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>order</strong> (<em>int</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">apply_iir_filter</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="s2">&quot;highpass&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">cutoff</span><span class="o">=</span><span class="mf">200.0</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.minimum_phase">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">minimum_phase</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'homomorphic'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fft_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">epsilon</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-12</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.minimum_phase" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that converts HRTF data to minimum phase.</p>
+<p>The factory stores minimum-phase method parameters and applies the conversion
+to every loaded subject HRTF. It lets datasets expose transformed acoustics
+without modifying original SOFA files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>method</strong> (<em>str</em>)</p></li>
+<li><p><strong>fft_length</strong> (<em>int</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>epsilon</strong> (<em>float</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">minimum_phase</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s2">&quot;homomorphic&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.to_ctf">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">to_ctf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">magnitude_average</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'log'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attenuation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.to_ctf" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that converts HRTF data to common transfer function form.</p>
+<p>The factory stores CTF averaging options and applies them across subjects before
+specs consume common-transfer-function-normalized HRTFs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>weights</strong> (<em>bool</em>)</p></li>
+<li><p><strong>magnitude_average</strong> (<em>str</em>)</p></li>
+<li><p><strong>attenuation</strong> (<em>float</em><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">to_ctf</span><span class="p">(</span><span class="n">weights</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">magnitude_average</span><span class="o">=</span><span class="s2">&quot;log&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.to_dtf">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">to_dtf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">magnitude_average</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'log'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attenuation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.to_dtf" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that converts HRTF data to directional transfer function
+form.</p>
+<p>The factory stores DTF averaging options and applies them across subjects before
+specs consume directional-transfer-function-normalized HRTFs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>weights</strong> (<em>bool</em>)</p></li>
+<li><p><strong>magnitude_average</strong> (<em>str</em>)</p></li>
+<li><p><strong>attenuation</strong> (<em>float</em><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">to_dtf</span><span class="p">(</span><span class="n">weights</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">magnitude_average</span><span class="o">=</span><span class="s2">&quot;log&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.modify_ir">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">modify_ir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_ir</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.modify_ir" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that replaces IR data.</p>
+<p>The factory stores replacement IR-like data and forwards it to the HRTF
+transform layer. It supports controlled experiments where dataset
+resources provide metadata/context but acoustic arrays are replaced.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>new_ir</strong> (<em>np.ndarray</em><em> | </em><a class="reference internal" href="../hrtf/domains.html#hrtfpykit.hrtf.domain.IR" title="hrtfpykit.hrtf.domain.IR"><em>IR</em></a><em> | </em><a class="reference internal" href="../hrtf/object.html#hrtfpykit.hrtf.hrtf.HRTF" title="hrtfpykit.hrtf.hrtf.HRTF"><em>HRTF</em></a>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Callable[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">modify_ir</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">440</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">256</span><span class="p">)))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.modify_phase">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">modify_phase</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_phase</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'degrees'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.modify_phase" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that replaces phase data.</p>
+<p>The factory stores replacement phase data and unit metadata, then forwards
+both to the HRTF transform layer. It keeps phase modification reusable across
+every loaded subject.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>new_phase</strong> (<em>ndarray</em>)</p></li>
+<li><p><strong>unit</strong> (<em>str</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">modify_phase</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">440</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">129</span><span class="p">)),</span>
+<span class="gp">... </span>    <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;radians&quot;</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.modify_tf">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">modify_tf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_tf</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.modify_tf" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that replaces TF data.</p>
+<p>The factory stores replacement transfer-function data and forwards it to the
+HRTF transform layer. It supports experiments that operate directly on
+frequency-domain representations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>new_tf</strong> (<em>np.ndarray</em><em> | </em><a class="reference internal" href="../hrtf/domains.html#hrtfpykit.hrtf.domain.TF" title="hrtfpykit.hrtf.domain.TF"><em>TF</em></a><em> | </em><a class="reference internal" href="../hrtf/object.html#hrtfpykit.hrtf.hrtf.HRTF" title="hrtfpykit.hrtf.hrtf.HRTF"><em>HRTF</em></a>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Callable[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">modify_tf</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">440</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">129</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">complex</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.modify_magnitude">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">modify_magnitude</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_magnitude</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'linear'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.modify_magnitude" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that replaces magnitude data.</p>
+<p>The factory stores replacement magnitude data and scale information, then
+forwards both to the HRTF transform layer. It allows magnitude-domain
+preprocessing to be expressed as a dataset transform.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>new_magnitude</strong> (<em>ndarray</em>)</p></li>
+<li><p><strong>scale</strong> (<em>str</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">modify_magnitude</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">440</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">129</span><span class="p">)),</span>
+<span class="gp">... </span>    <span class="n">scale</span><span class="o">=</span><span class="s2">&quot;linear&quot;</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.apply_gain">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">apply_gain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gain</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'db'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.apply_gain" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that applies gain to HRTF data.</p>
+<p>The factory stores gain and scale arguments and applies them uniformly to
+every loaded subject. It normalizes or perturbs amplitudes
+during dataset construction.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>gain</strong> (<em>float</em><em> | </em><em>ndarray</em>)</p></li>
+<li><p><strong>scale</strong> (<em>str</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">apply_gain</span><span class="p">(</span><span class="mf">3.0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="s2">&quot;db&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.modify_fft_length">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">modify_fft_length</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_fft_length</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.modify_fft_length" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that changes FFT length.</p>
+<p>The factory stores a target FFT length and forwards it to the HRTF transform
+layer. Use it when frequency-domain specs need a shared bin count
+across loaded resources.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>new_fft_length</strong> (<em>int</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">modify_fft_length</span><span class="p">(</span><span class="mi">512</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.modify_source_coordinate_system">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">modify_source_coordinate_system</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coordinate_system</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.modify_source_coordinate_system" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that changes source coordinate system metadata.</p>
+<p>The factory stores the target coordinate system and applies the conversion or
+metadata update through the HRTF transform API. It keeps coordinate handling
+explicit at dataset construction time.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>coordinate_system</strong> (<em>str</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">modify_source_coordinate_system</span><span class="p">(</span><span class="s2">&quot;spherical&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.add_itd">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">add_itd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">itd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'samples'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.add_itd" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that adds interaural time difference.</p>
+<p>The factory stores ITD amount and unit, then applies the shift to every loaded
+subject HRTF. It supports controlled binaural timing perturbations in dataset
+workflows.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>itd</strong> (<em>float</em>)</p></li>
+<li><p><strong>unit</strong> (<em>str</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">add_itd</span><span class="p">(</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;samples&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hrtfpykit.datasets.HRTFTransform.delete_itd">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">delete_itd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'threshold'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">thresh_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">upper_cut_freq</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hrtfpykit.datasets.HRTFTransform.delete_itd" title="Link to this definition">¶</a></dt>
+<dd><p>Create a transform that removes interaural time difference.</p>
+<p>The factory stores ITD estimation parameters and removes timing differences
+through the HRTF transform API. Use it for datasets that should expose
+ITD-normalized acoustics.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>method.</strong> (<em>**kwargs Arguments forwarded to the matching HRTF transform</em>)</p></li>
+<li><p><strong>method</strong> (<em>str</em>)</p></li>
+<li><p><strong>thresh_level</strong> (<em>float</em>)</p></li>
+<li><p><strong>upper_cut_freq</strong> (<em>float</em>)</p></li>
+<li><p><strong>filter_order</strong> (<em>int</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>callable Dataset-level transform callable accepting and returning an HRTF</em></p></li>
+<li><p><em>object.</em></p></li>
+<li><p><em>Use Cases</em></p></li>
+<li><p><em>———</em></p></li>
+<li><ul>
+<li><p>Configure <code class="docutils literal notranslate"><span class="pre">dataset_hrtf_transform</span></code> from a factory method.</p></li>
+</ul>
+</li>
+<li><p><em>- Apply the same HRTF processing step to every loaded subject.</em></p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Callable</em>[[object], object]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUTUBS</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFSpec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">hrtfpykit.datasets.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">HRTFTransform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transform</span> <span class="o">=</span> <span class="n">HRTFTransform</span><span class="o">.</span><span class="n">delete_itd</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s2">&quot;threshold&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">HUTUBS</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">root</span><span class="o">=</span><span class="s2">&quot;datasets/hutubs&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">inputs</span><span class="o">=</span><span class="n">HRTFSpec</span><span class="p">(),</span>
+<span class="gp">... </span>    <span class="n">dataset_hrtf_transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="specs.html" title="Previous document">Dataset specs</a>
+        </li>
+        <li>
+          <a href="hutubs.html" title="Next document">HUTUBS</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../index.html">
+              <img class="logo" src="../_static/hrtfpykit-logo.png" alt="Logo of hrtfpykit"/>
+            </a></p>
+<h1 class="logo"><a href="../index.html">hrtfpykit</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">User documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sofa/index.html">SOFA</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hrtf/index.html">HRTF</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../plots/index.html">Plots</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Datasets</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="specs.html">Dataset specs</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Dataset HRTF transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hutubs.html">HUTUBS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sonicom.html">SONICOM</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../testing.html">Testing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Planned guide sections</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Datasets</a><ul>
+      <li>Previous: <a href="specs.html" title="previous chapter">Dataset specs</a></li>
+      <li>Next: <a href="hutubs.html" title="next chapter">HUTUBS</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;.
+      
+      |
+      <a href="../_sources/datasets/transforms.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

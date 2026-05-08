@@ -74,6 +74,7 @@ def sht(
     -------
     SH
         SH container with:
+
         - `C`: coefficient matrix of shape `(n_coeffs, n_freqs)` or
           `(n_coeffs, 2, n_freqs)` for `ear="both"`.
         - `Y`: basis matrix of shape `(N, n_coeffs)`.

@@ -267,6 +267,7 @@ def check_sofa_security(
     """Run security checks for SOFA/HDF5 handling.
 
     Checks include:
+
     - HDF5 runtime version against a minimum safety baseline. The default
       baseline (``HDF5_MIN_SAFE_VERSION``) is set to the first release that
       addressed a large batch of HDF5 parsing CVEs. For details, consult the
@@ -274,6 +275,7 @@ def check_sofa_security(
     - detection of external links/domains and suspicious file extensions
 
     Modes:
+
     - STANDARD: parse SOFA attributes using netCDF4 (opens the SOFA file)
     - PARANOID: scan raw SOFA file bytes only (no parsing). Requires a path.
 
