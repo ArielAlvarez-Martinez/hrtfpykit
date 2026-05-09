@@ -33,8 +33,11 @@ def load_hrtf(
 ) -> "HRTF":
     """Load a SOFA file as an :class:`HRTF` object.
 
-    It loads SOFA content intothe central ``HRTF`` abstraction and guarantees 
-    that both domains are available after loading:
+    This function is the public loader for SOFA-backed HRTF workflows in
+    ``hrtfpykit``. It reads the file through the package SOFA API, verifies
+    that the declared SOFA convention is an HRTF convention, and populates the
+    central ``HRTF`` abstraction with synchronized time- and frequency-domain
+    data:
 
     - ``IR`` (time domain)
     - ``TF`` (frequency domain)
@@ -80,7 +83,7 @@ def load_hrtf(
 
     Examples
     --------
-    >>> from hrtfpykit import load_hrtf
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf.SOFAConventions
     'SimpleFreeFieldHRIR'
@@ -224,7 +227,7 @@ class HRTF(HRTFPlots):
 
     Typical lifecycle
     -----------------
-    1. Load an object with ``hrtfpykit.load_hrtf``.
+    1. Load an object with ``hrtfpykit.hrtf.load_hrtf``.
     2. Inspect or subset data with ``Sources`` and :meth:`select`.
     3. Apply transforms through ``transform``.
     4. Visualize using plotting methods exposed by the object.
@@ -244,13 +247,19 @@ class HRTF(HRTFPlots):
         self,
         Sofa: SOFA | None = None,
     ) -> None:
-        """Initialize an HRTF object.
+        """Initialize the HRTF abstraction.
+
+        The constructor stores the optional SOFA backing object and prepares
+        empty time-domain, frequency-domain, source, receiver, and transform
+        managers through lazy properties. Most users create populated instances
+        with :func:`hrtfpykit.hrtf.load_hrtf` rather than constructing an empty
+        object directly.
 
         Parameters
         ----------
         Sofa : SOFA | None, default=None
-            Backed SOFA object. When ``None``, the object is created empty and
-            should be populated later.
+            SOFA object that backs the HRTF instance. When ``None``, the object
+            is created empty and should be populated later.
         """
         self.Sofa: SOFA | None = Sofa
         self.SOFAConventions: str | None = None
@@ -259,22 +268,42 @@ class HRTF(HRTFPlots):
 
     @cached_property
     def IR(self) -> "IR":
-        """Time-domain representation manager."""
+        """Return the time-domain HRIR representation manager.
+
+        The manager stores ``IR.values`` and ``IR.sample_rate`` for the parent
+        HRTF object and exposes time-domain inspection helpers such as sample
+        length, duration, and ITD calculation.
+        """
         return IR(self)
 
     @cached_property
     def TF(self) -> "TF":
-        """Frequency-domain representation manager."""
+        """Return the frequency-domain HRTF representation manager.
+
+        The manager stores complex ``TF.values`` and ``TF.frequency_bins`` for
+        the parent object and exposes derived magnitude, phase, real, and
+        imaginary views used by transforms, metrics, and plots.
+        """
         return TF(self)
 
     @cached_property
     def Sources(self) -> "Sources":
-        """Source-grid access and selection manager."""
+        """Return the spatial source-grid manager.
+
+        ``Sources`` reads SOFA ``SourcePosition`` data, converts between the
+        supported coordinate systems, resolves named positions, and tracks
+        selected source indices after spatial subsetting.
+        """
         return Sources(self)
 
     @cached_property
     def transform(self) -> "Transform":
-        """Transformation API for producing derived HRTFs."""
+        """Return the immutable transformation interface for this HRTF.
+
+        Methods on this object clone the current HRTF, apply one processing
+        operation, synchronize the affected IR or TF representation, and return
+        the derived HRTF without mutating the original instance.
+        """
         return Transform(self)
 
     def clone(self) -> "HRTF":

@@ -61,7 +61,8 @@ class DatasetSpecPlan:
 
     Returns
     -------
-    DatasetSpecPlan Immutable plan consumed by ``DatasetBuilder``.
+    DatasetSpecPlan
+        Immutable plan consumed by ``DatasetBuilder``.
 
     """
 
@@ -127,7 +128,8 @@ class DatasetSpecWorkflow:
 
         Returns
         -------
-        DatasetSpecPlan Normalized spec plan used by dataset construction.
+        DatasetSpecPlan
+            Normalized spec plan used by dataset construction.
 
         """
 
@@ -340,7 +342,8 @@ class DatasetSpecWorkflow:
 
         Returns
         -------
-        str Explicit spec name when provided, otherwise the registry default.
+        str
+            Explicit spec name when provided, otherwise the registry default.
 
         """
 

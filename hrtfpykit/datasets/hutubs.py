@@ -20,6 +20,27 @@ from .specs import (
 
 
 class HUTUBS(BaseDataset):
+    """Dataset wrapper for HUTUBS HRTF and auxiliary resources.
+
+    ``HUTUBS`` is the concrete ``BaseDataset`` implementation for the HUTUBS
+    dataset. It maps HUTUBS subject identifiers to local resource paths,
+    supports measured and simulated HRTF variants, handles optional
+    anthropometry, mesh, image, and video resources, and exposes samples through
+    the shared ``dataset[index]`` interface.
+
+    Samples are defined entirely by ``inputs`` and ``target`` specs. During
+    construction the dataset scans the requested resource families, intersects
+    available subjects, applies exclusions and split selection, and builds row
+    contexts for subject-, position-, ear-, frequency-, or sample-indexed data.
+    At access time, the selected subject HRTF is loaded through ``hrtfpykit`` and
+    the requested spec values are extracted into ``sample['inputs']`` and
+    ``sample['target']``.
+
+    The optional download step is explicit and independent from dataset
+    construction. ``download_resources`` chooses what to download, while
+    ``dataset_hrtf_variant`` chooses what already-local HRTF resources are used
+    to build samples.
+    """
 
     def __init__(
         self,
@@ -42,8 +63,8 @@ class HUTUBS(BaseDataset):
         ``HUTUBS`` turns the HUTUBS resource layout into the shared ``BaseDataset``
         API. The constructor optionally downloads official resources, validates the
         selected measured/simulated HRTF type, builds the dataset state from
-        input/target specs, and installs HUTUBS-specific anthropometry field selection
-        for left/right measurements.
+        input/target specs, and applies HUTUBS-specific anthropometry field
+        selection for left/right measurements.
 
         ``HUTUBS`` is a concrete ``BaseDataset`` implementation for the HUTUBS
         dataset. It provides HUTUBS-specific subject IDs, HRTF variants, anthropometry
@@ -93,7 +114,8 @@ class HUTUBS(BaseDataset):
 
         Returns
         -------
-        HUTUBS Dataset object supporting indexed sample extraction and subject HRTF
+        HUTUBS
+            Dataset object supporting indexed sample extraction and subject HRTF
         loading.
 
         Examples
@@ -175,7 +197,8 @@ class HUTUBS(BaseDataset):
 
         Returns
         -------
-        object Filtered value containing the requested ear-specific fields and shared
+        object
+            Filtered value containing the requested ear-specific fields and shared
         fields.
 
         """

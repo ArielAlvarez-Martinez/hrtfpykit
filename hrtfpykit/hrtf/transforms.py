@@ -26,7 +26,14 @@ if TYPE_CHECKING:
 
 
 class Transform:
-    """HRTF transform operations."""
+    """Transformation interface attached to an :class:`HRTF` object.
+
+    ``Transform`` exposes immutable HRTF-processing operations such as windowing,
+    resampling, filtering, directivity conversion, phase replacement, and gain
+    modification. Each method clones the parent HRTF object, applies one
+    operation to the clone, resynchronizes the affected time- or frequency-domain
+    representation when needed, and returns the transformed HRTF object.
+    """
 
     def __init__(self, hrtf: "HRTF") -> None:
         self._hrtf = hrtf
@@ -49,8 +56,8 @@ class Transform:
         --------
         Apply a Hann window before inspecting the front direction:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> windowed = hrtf.transform.apply_window("hann")
         >>> windowed.plot_amplitude(positions="front", show=False)
         """
@@ -90,8 +97,8 @@ class Transform:
         --------
         Pad one front-facing HRIR before plotting it:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> padded = hrtf.transform.apply_padding(32, location="end")
         >>> padded.plot_amplitude(positions="front", x_axis="samples", show=False)
         """
@@ -114,7 +121,7 @@ class Transform:
         self,
         new_sample_rate: float,
     ) -> "HRTF":
-        """Upsample IR values and resync TF.
+        """Upsample impulse-response values and resynchronize TF data.
 
         Parameters
         ----------
@@ -132,8 +139,8 @@ class Transform:
         --------
         Upsample one front-facing HRIR set to 96 kHz:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> upsampled = hrtf.transform.upsampling(96000.0)
         >>> upsampled.IR.sample_rate
         96000.0
@@ -173,8 +180,8 @@ class Transform:
         --------
         Downsample one front-facing HRIR set to 24 kHz:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> downsampled = hrtf.transform.downsampling(24000.0)
         >>> downsampled.IR.sample_rate
         24000.0
@@ -222,8 +229,8 @@ class Transform:
         --------
         Low-pass one front direction with an FIR design:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> lowpassed = hrtf.transform.apply_fir_filter(
         ...     "lowpass",
         ...     cutoff=3000.0,
@@ -275,8 +282,8 @@ class Transform:
         --------
         Smooth one front direction with an IIR low-pass filter:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> smoothed = hrtf.transform.apply_iir_filter(
         ...     "lowpass",
         ...     cutoff=3000.0,
@@ -326,8 +333,8 @@ class Transform:
         --------
         Convert one direction into a minimum-phase version:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> minimum_phase_hrtf = hrtf.transform.minimum_phase()
         >>> minimum_phase_hrtf.plot_amplitude(positions="front", show=False)
         """
@@ -380,8 +387,8 @@ class Transform:
         --------
         Collapse a loaded HRTF into a single common transfer function:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> ctf = hrtf.transform.to_ctf(weights=True, magnitude_average="linear")
         >>> ctf.plot_magnitude(
         ...     positions=ctf.Sources.get_positions(angle_unit="degrees")[0, :2],
@@ -432,8 +439,8 @@ class Transform:
         --------
         Remove the common transfer function and inspect the directional component:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> dtf = hrtf.transform.to_dtf(weights=True, attenuation=20.0)
         >>> dtf.plot_magnitude(
         ...     positions=["front", "left"],
@@ -454,7 +461,7 @@ class Transform:
         self,
         new_ir: np.ndarray | IR | "HRTF",
     ) -> "HRTF":
-        """Replace IR values and rebuild TF.
+        """Replace time-domain IR values and rebuild TF data.
 
         Parameters
         ----------
@@ -474,8 +481,8 @@ class Transform:
         Replace one direction with a gated HRIR:
 
         >>> import numpy as np
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> edited_ir = np.array(hrtf.IR.values, copy=True)
         >>> edited_ir[..., -32:] = 0.0
         >>> gated = hrtf.transform.modify_ir(edited_ir)
@@ -553,8 +560,8 @@ class Transform:
         Replace one transfer function with a zero-phase version:
 
         >>> import numpy as np
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> zero_phase = np.zeros_like(hrtf.TF.phase)
         >>> phase_aligned = hrtf.transform.modify_phase(zero_phase, unit="degrees")
         >>> phase_aligned.plot_amplitude(positions="front", show=False)
@@ -577,7 +584,7 @@ class Transform:
         self,
         new_tf: np.ndarray | TF | "HRTF",
     ) -> "HRTF":
-        """Replace TF values and rebuild IR.
+        """Replace frequency-domain TF values and rebuild IR data.
 
         Parameters
         ----------
@@ -597,8 +604,8 @@ class Transform:
         Soften the highest bins before replacing one transfer function:
 
         >>> import numpy as np
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> edited_tf = np.array(hrtf.TF.values, copy=True)
         >>> edited_tf[..., -24:] *= 0.5
         >>> softened = hrtf.transform.modify_tf(edited_tf)
@@ -711,8 +718,8 @@ class Transform:
         --------
         Tilt the magnitude while preserving the original phase:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> tilted_magnitude = hrtf.TF.magnitude * 0.9
         >>> softened = hrtf.transform.modify_magnitude(tilted_magnitude, scale="linear")
         >>> softened.plot_magnitude(positions="front", show=False)
@@ -759,8 +766,8 @@ class Transform:
         --------
         Attenuate one selected direction by 6 dB:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> quieter = hrtf.transform.apply_gain(-6.0, scale="db")
         >>> quieter.plot_magnitude(positions="front", show=False)
 
@@ -800,8 +807,8 @@ class Transform:
         --------
         Increase FFT resolution before inspecting the magnitude response:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> dense_tf = hrtf.transform.modify_fft_length(1024)
         >>> dense_tf.TF.values.shape[-1]
         513
@@ -838,8 +845,8 @@ class Transform:
         --------
         Switch the source grid to cartesian coordinates before plotting it:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> cartesian = hrtf.transform.modify_source_coordinate_system("cartesian")
         >>> cartesian.plot_source_grid(show=False)
         """
@@ -879,8 +886,8 @@ class Transform:
         --------
         Add a fixed ITD to one front-facing direction:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
         >>> delayed = hrtf.transform.add_itd(4, unit="samples")
         >>> delayed.plot_amplitude(positions="front", show=False)
         """
@@ -996,8 +1003,8 @@ class Transform:
         --------
         Remove measured ITD before plotting the horizontal trend:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> aligned = hrtf.transform.delete_itd(method="threshold")
         >>> aligned.plot_itd_curve(show=False)
         """

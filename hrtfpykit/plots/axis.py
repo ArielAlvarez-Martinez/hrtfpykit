@@ -388,7 +388,7 @@ class FrequencyLinearAxis(Axis):
 
 
 class MagnitudeAxis(Axis):
-    """Magnitude-axis label formatter."""
+    """Axis formatter for linear and decibel HRTF magnitude plots."""
 
     @staticmethod
     def apply(
@@ -403,7 +403,7 @@ class MagnitudeAxis(Axis):
 
 
 class AmplitudeAxis(Axis):
-    """Amplitude-axis label formatter."""
+    """Axis formatter for time-domain impulse-response amplitude plots."""
 
     @staticmethod
     def apply(
@@ -421,7 +421,7 @@ class AmplitudeAxis(Axis):
 
 
 class TimeAxis(Axis):
-    """Time-axis label formatter."""
+    """Axis formatter for time values displayed in seconds or derived units."""
 
     @staticmethod
     def apply(
@@ -434,7 +434,7 @@ class TimeAxis(Axis):
 
 
 class SampleAxis(Axis):
-    """Sample-index axis label formatter."""
+    """Axis formatter for discrete impulse-response sample indices."""
 
     @staticmethod
     def apply(
@@ -770,7 +770,7 @@ class RadialAxisPolarProjection(Axis):
 
 
 class ElevationAnglesAxis(DirectionAxis):
-    """Elevation-axis formatter."""
+    """Axis formatter for elevation-angle coordinates in spatial plots."""
 
     elevation_tick_step: float = 10.0
 

@@ -46,7 +46,7 @@ def load_sofa(
 
     Examples
     --------
-    >>> from hrtfpykit import load_sofa
+    >>> from hrtfpykit.sofa import load_sofa
     >>> sofa = load_sofa("my_sofa.sofa")
     >>> sofa.GlobalAttributes.get("SOFAConventions").value
     'SimpleFreeFieldHRIR'
@@ -67,26 +67,18 @@ def load_sofa(
 class SOFA:
     """High-level SOFA file handler backed by netCDF4.
 
-    This class wraps a netCDF4 SOFA dataset and provides CRUD helpers for
-    dimensions, attributes, and variables, along with utilities for loading,
-    copying, saving, and summarizing SOFA files.
+    ``SOFA`` is the library abstraction around an open netCDF4 object that
+    follows a SOFA convention. It provides controlled access to dimensions,
+    attributes, and variables, plus explicit loading, cloning, saving, and
+    summary operations for SOFA files.
 
     Notes
     -----
     - No hidden I/O is performed. Files are only read/written when you call
       ``load()``, ``save()``, or other explicit methods.
-    - The underlying dataset is a netCDF4 Dataset, so standard netCDF4
-      rules and constraints apply.
+    - The underlying storage object is a netCDF4 ``Dataset``, so standard
+      netCDF4 rules and constraints apply.
 
-    Examples
-    --------
-    Create a dummy dataset, add custom metadata, and inspect it:
-
-    >>> from hrtfpykit import SOFA
-    >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-    >>> sofa.create_global_attribute("DemoNote", "Synthetic example")
-    >>> "DemoNote" in sofa.GlobalAttributes.get_names()
-    True
     """
 
     def __init__(self):
@@ -172,8 +164,8 @@ class SOFA:
         --------
         Create a working clone before adding a custom dimension:
 
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.create_dimension("X", 3)
         >>> sofa_clone.Dimensions.get("X").value
@@ -212,8 +204,8 @@ class SOFA:
         --------
         Rename the measurement dimension in a working clone:
 
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.rename_dimension("M", "Measurements")
         >>> "Measurements" in sofa_clone.Dimensions.get_names()
@@ -254,8 +246,8 @@ class SOFA:
         --------
         Add a descriptive global attribute to a working clone:
 
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.create_global_attribute("DemoNote", "Measured in booth A")
         >>> sofa_clone.GlobalAttributes.get("DemoNote").value
@@ -294,10 +286,10 @@ class SOFA:
 
         Examples
         --------
-        Update an existing global attribute in place:
+        Update an existing global attribute in a working clone:
 
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.create_global_attribute("DemoNote", "draft")
         >>> sofa_clone.modify_global_attribute("DemoNote", "validated")
@@ -336,8 +328,8 @@ class SOFA:
         --------
         Remove a temporary global attribute from a working clone:
 
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.create_global_attribute("DemoNote", "temporary")
         >>> sofa_clone.delete_global_attribute("DemoNote")
@@ -379,8 +371,8 @@ class SOFA:
         --------
         Tag one variable with custom metadata:
 
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.create_variable_attribute("Data.IR:DemoTag", "raw")
         >>> sofa_clone.VariableAttributes.get("Data.IR:DemoTag").value
@@ -428,8 +420,8 @@ class SOFA:
         --------
         Update one custom variable attribute:
 
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.create_variable_attribute("Data.IR:DemoTag", "raw")
         >>> sofa_clone.modify_variable_attribute("Data.IR:DemoTag", "windowed")
@@ -475,8 +467,8 @@ class SOFA:
         --------
         Remove one custom variable attribute:
 
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.create_variable_attribute("Data.IR:DemoTag", "raw")
         >>> sofa_clone.delete_variable_attribute("Data.IR:DemoTag")
@@ -541,8 +533,8 @@ class SOFA:
         Add a new custom variable to a working clone:
 
         >>> import numpy as np
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> data = np.zeros((sofa_clone.netCDF4_dataset.dimensions["M"].size,))
         >>> sofa_clone.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
@@ -617,8 +609,8 @@ class SOFA:
         Overwrite an existing variable with new data:
 
         >>> import numpy as np
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> new_data = np.zeros_like(sofa_clone.Variables.get("Data.IR").value)
         >>> sofa_clone.modify_variable("Data.IR", new_data)
@@ -671,8 +663,8 @@ class SOFA:
         Create and then remove a temporary variable:
 
         >>> import numpy as np
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> data = np.zeros((sofa_clone.netCDF4_dataset.dimensions["M"].size,))
         >>> sofa_clone.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
@@ -695,7 +687,11 @@ class SOFA:
         custom_global_attributes: Optional[Dict[str, str]] = None,
         override_default_global_attributes: bool = False,
     ) -> "SOFA":
-        """Create an in-memory dummy SOFA dataset following a convention.
+        """Create an in-memory SOFA object following a convention.
+
+        The returned object is backed by a diskless netCDF4 ``Dataset`` and is
+        useful for synthetic examples, tests, and workflows that construct SOFA
+        content before saving it to disk.
 
         Parameters
         ----------
@@ -713,7 +709,7 @@ class SOFA:
         Returns
         -------
         SOFA
-            In-memory SOFA instance.
+            In-memory SOFA object backed by a diskless netCDF4 dataset.
 
         Raises
         ------
@@ -724,42 +720,11 @@ class SOFA:
 
         Notes
         -----
-        The dummy dataset always includes an unlimited ``S`` dimension with
+        The dummy SOFA object always includes an unlimited ``S`` dimension with
         initial size 0. Passing ``S`` in ``dim_sizes`` raises an error because
         ``S`` is reserved by the SOFA conventions. To create other unlimited
         dimensions, set their size to 0 in ``dim_sizes``.
 
-        Examples
-        --------
-        Create a minimal in-memory HRIR dataset:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> sofa.Variables.get("Data.IR").value.shape
-        (1, 2, 1)
-
-        Override fixed dimensions for a larger synthetic dataset:
-
-        >>> sofa = SOFA.create_dummy(
-        ...     "SimpleFreeFieldHRIR",
-        ...     dim_sizes={"R": 2, "C": 3, "M": 100, "N": 256},
-        ... )
-        >>> sofa.Variables.get("Data.IR").value.shape
-        (100, 2, 256)
-
-        Create an additional unlimited dimension:
-
-        >>> sofa = SOFA.create_dummy(
-        ...     "SimpleFreeFieldHRIR",
-        ...     dim_sizes={"R": 2, "C": 3, "K": 0},
-        ... )
-
-        Passing ``S`` raises an error (``S`` is always unlimited and starts at 0):
-
-        >>> SOFA.create_dummy("SimpleFreeFieldHRIR", dim_sizes={"S": 10})
-        Traceback (most recent call last):
-        ...
-        ValueError: dim_sizes must not include 'S' (reserved unlimited dimension).
         """
         print("Creating in-memory dummy SOFA dataset")
         print(f"SOFA conventions: {sofa_conventions}")
@@ -911,7 +876,11 @@ class SOFA:
         return sofa_object
 
     def save(self, path: Optional[Union[str, pathlib.Path]] = None, overwrite: bool = False) -> pathlib.Path:
-        """Save the SOFA dataset to disk.
+        """Save the SOFA object to disk.
+
+        The method writes the currently loaded netCDF4-backed SOFA content to a
+        file. When ``path`` is omitted, the object is synchronized back to its
+        original file path.
 
         Parameters
         ----------
@@ -935,8 +904,8 @@ class SOFA:
 
         Notes
         -----
-        Calling ``save()`` without a path synchronizes the dataset back to the
-        original file recorded in ``self.path``.
+        Calling ``save()`` without a path synchronizes the loaded SOFA content
+        back to the original file recorded in ``self.path``.
 
         Cloned SOFA objects and objects returned by ``copy_with()`` are
         independent in-memory datasets. If one of those objects should replace
@@ -946,15 +915,9 @@ class SOFA:
 
         Examples
         --------
-        Save an in-memory SOFA object to disk:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> _ = sofa.save("my_sofa.sofa", overwrite=True)
-
         Overwrite an existing SOFA file with an updated clone:
 
-        >>> from hrtfpykit import load_sofa
+        >>> from hrtfpykit.sofa import load_sofa
         >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.create_global_attribute("ProcessingNote", "windowed copy")
@@ -1028,10 +991,10 @@ class SOFA:
 
         Examples
         --------
-        Clone a dataset before editing it:
+        Clone a SOFA object before editing it:
 
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> sofa_clone = sofa.clone()
         >>> sofa_clone.Variables.get("Data.IR").value.shape == sofa.Variables.get("Data.IR").value.shape
         True
@@ -1113,19 +1076,15 @@ class SOFA:
         Resize the ``N`` dimension and replace ``Data.IR`` accordingly:
 
         >>> import numpy as np
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy(
-        ...     "SimpleFreeFieldHRIR",
-        ...     version="1.2",
-        ...     dim_sizes={"M": 4, "R": 2, "N": 128},
-        ... )
-        >>> new_ir = np.zeros((4, 2, 200))
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
+        >>> new_ir = np.zeros((sofa.Variables.get("Data.IR").value.shape[0], 2, 200))
         >>> sofa_mod = sofa.copy_with(
         ...     dim_sizes={"N": 200},
         ...     variables={"Data.IR": new_ir},
         ... )
-        >>> sofa_mod.Variables.get("Data.IR").value.shape
-        (4, 2, 200)
+        >>> sofa_mod.Variables.get("Data.IR").value.shape[-1]
+        200
 
         """
         if self.netCDF4_dataset is None:
@@ -1218,10 +1177,10 @@ class SOFA:
 
         Examples
         --------
-        Generate a text summary before saving or validating the dataset:
+        Generate a text summary before saving or validating the SOFA file:
 
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("my_sofa.sofa")
         >>> "GLOBAL ATTRIBUTES" in sofa.summary()
         True
         """

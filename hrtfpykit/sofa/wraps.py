@@ -91,7 +91,8 @@ class VariablesWrap:
 
         Returns
         -------
-        dict of str to AttributesWrap
+        dict
+            of str to AttributesWrap
             Attribute wrappers keyed by ``Variable:Attribute``.
         """
         attributes: Dict[str, AttributesWrap] = {}

@@ -104,8 +104,8 @@ def get_horizontal_plane(
     --------
     Resolve the nearest horizontal plane and inspect its source grid:
 
-    >>> from hrtfpykit import HRTF
-    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+    >>> from hrtfpykit.hrtf import load_hrtf
+    >>> hrtf = load_hrtf("my_hrtf.sofa")
     >>> indices, real_elevation = get_horizontal_plane(hrtf, elevation=0.0)
     >>> horizontal = hrtf.select(plane="horizontal", plane_angle=real_elevation)
     >>> horizontal.plot_source_grid(show=False)
@@ -146,8 +146,8 @@ def get_median_plane(
     --------
     Resolve the nearest median plane and inspect that sagittal slice:
 
-    >>> from hrtfpykit import HRTF
-    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+    >>> from hrtfpykit.hrtf import load_hrtf
+    >>> hrtf = load_hrtf("my_hrtf.sofa")
     >>> indices, real_azimuths = get_median_plane(hrtf, azimuth=0.0)
     >>> median = hrtf.select(plane="median", plane_angle=real_azimuths[0])
     >>> median.plot_source_grid(show=False)
@@ -187,8 +187,8 @@ def get_frontal_plane(
     --------
     Resolve the nearest frontal plane and inspect that coronal slice:
 
-    >>> from hrtfpykit import HRTF
-    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+    >>> from hrtfpykit.hrtf import load_hrtf
+    >>> hrtf = load_hrtf("my_hrtf.sofa")
     >>> indices, real_azimuths = get_frontal_plane(hrtf, azimuth=90.0)
     >>> frontal = hrtf.select(plane="frontal", plane_angle=real_azimuths[0])
     >>> frontal.plot_source_grid(show=False)

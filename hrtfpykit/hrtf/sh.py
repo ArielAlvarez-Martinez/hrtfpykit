@@ -32,12 +32,16 @@ class SH:
     N: int
 
     def get_coefficients(self) -> np.ndarray:
-        """Return the SH coefficient matrix.
+        """Return the spherical-harmonic coefficient matrix.
+
+        ``C`` is the compact representation produced by ``sht``. Its first
+        axis indexes spherical-harmonic coefficients; the remaining axes follow
+        the selected ear layout and frequency bins used during decomposition.
 
         Returns
         -------
         np.ndarray
-            SH coefficient matrix `C`.
+            Spherical-harmonic coefficient matrix stored in ``C``.
         """
         return self.C
 

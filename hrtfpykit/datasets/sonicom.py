@@ -18,6 +18,24 @@ from .specs import (
 )
 
 class SONICOM(BaseDataset):
+    """Dataset wrapper for SONICOM HRTF, mesh, and metadata resources.
+
+    ``SONICOM`` is the concrete ``BaseDataset`` implementation for the SONICOM
+    dataset. It resolves measured and synthetic HRTF variants, scanned or
+    synthetic mesh variants, subject metadata, subject exclusions, and split
+    selection before exposing samples through the shared ``dataset[index]`` API.
+
+    Samples are driven by ``inputs`` and ``target`` specs. Acoustic specs load a
+    subject HRTF with ``hrtfpykit`` and extract time-domain, frequency-domain,
+    ITD, ILD, or spherical-harmonic values. Resource specs can add mesh and
+    metadata values to the same sample. Subjects missing any required resource
+    family are removed before row construction.
+
+    Download configuration and dataset construction configuration are separate.
+    ``download_*`` arguments select files to fetch from the official SONICOM
+    distribution, while ``dataset_hrtf_variant`` and ``dataset_mesh_variant``
+    select the local files used for sample extraction.
+    """
 
     def __init__(
         self,
@@ -101,7 +119,8 @@ class SONICOM(BaseDataset):
 
         Returns
         -------
-        SONICOM Dataset object supporting indexed sample extraction and subject HRTF
+        SONICOM
+            Dataset object supporting indexed sample extraction and subject HRTF
         loading.
 
         Examples

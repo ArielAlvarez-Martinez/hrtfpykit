@@ -30,13 +30,16 @@ if TYPE_CHECKING:
 
 
 class BaseDataset:
-    """Base implementation for spec-driven HRTF dataset construction.
+    """Base implementation for spec-driven dataset construction.
 
     ``BaseDataset`` owns the common dataset behavior used by concrete dataset
     classes such as ``HUTUBS`` and ``SONICOM``. It builds an explicit dataset
     state from a dataset configuration, selected specs, resource scans, subject
-    exclusions, split settings, and acoustic context. Users usually instantiate a
-    concrete dataset class, while new dataset integrations can subclass
+    exclusions, split settings, and acoustic context. The constructed object is
+    a dataset abstraction that can expose HRTF objects, meshes, tabular metadata,
+    images, videos, and derived acoustic values through a consistent indexed
+    sample interface. Users usually instantiate a concrete dataset class, while
+    new dataset integrations can subclass
     ``BaseDataset`` and provide a dataset-specific config and defaults.
 
     Parameters
@@ -70,8 +73,9 @@ class BaseDataset:
 
     Returns
     -------
-    BaseDataset Dataset object supporting ``len(dataset)``, ``dataset[index]``,
-    summary accessors, and HRTF subject loading.
+    BaseDataset
+        Dataset object supporting ``len(dataset)``, ``dataset[index]``,
+        summary accessors, and subject-level HRTF loading.
 
     """
 
@@ -127,9 +131,10 @@ class BaseDataset:
             Dataset subject reference. Integer values are mapped to the configured
             subject order.
 
-        Returns
-        -------
-        HRTF Loaded HRTF object after applying any dataset-level HRTF transform.
+    Returns
+    -------
+    HRTF
+        Loaded HRTF object after applying any dataset-level HRTF transform.
 
         Examples
         --------
@@ -148,13 +153,15 @@ class BaseDataset:
         partial media resources, and subject removals caused by resource
         intersection.
 
-        Parameters
-        ----------
-        None This method uses the dataset state created during construction.
+    Parameters
+    ----------
+    None
+        This method uses the dataset state created during construction.
 
-        Returns
-        -------
-        str Human-readable summary of scanned resources used by the selected specs.
+    Returns
+    -------
+    str
+        Human-readable summary of scanned resources used by the selected specs.
 
         Examples
         --------
@@ -172,14 +179,16 @@ class BaseDataset:
         counts, selected specs, selected resource variants, and acoustic context when
         available.
 
-        Parameters
-        ----------
-        None This method uses the dataset state created during construction.
+    Parameters
+    ----------
+    None
+        This method uses the dataset state created during construction.
 
-        Returns
-        -------
-        str Human-readable summary of subjects, split, specs, selected variants, and
-        acoustic metadata.
+    Returns
+    -------
+    str
+        Human-readable summary of subjects, split, specs, selected variants,
+        and acoustic metadata.
 
         Examples
         --------
@@ -197,9 +206,10 @@ class BaseDataset:
         This property exposes the resolved root used by all resource scanners after
         path expansion.
 
-        Returns
-        -------
-        Path Expanded dataset root path.
+    Returns
+    -------
+    Path
+        Expanded dataset root path.
 
         Examples
         --------
@@ -218,9 +228,10 @@ class BaseDataset:
         multiple selector axes return a dictionary containing fields such as
         ``type``, ``sample_rate``, and ``version``.
 
-        Returns
-        -------
-        str, dict, or None Selected HRTF variant.
+    Returns
+    -------
+    str, dict, or None
+        Selected HRTF variant.
 
         Examples
         --------
@@ -238,9 +249,10 @@ class BaseDataset:
         with one selector axis return a string. Datasets with multiple selector axes
         return a dictionary containing fields such as ``type`` and ``version``.
 
-        Returns
-        -------
-        str, dict, or None Selected mesh variant.
+    Returns
+    -------
+    str, dict, or None
+        Selected mesh variant.
 
         Examples
         --------
@@ -258,9 +270,10 @@ class BaseDataset:
         instance. It is stored separately from resource availability so code
         can distinguish usable subjects from selected train/validation/test subjects.
 
-        Returns
-        -------
-        str Split name used by this dataset instance.
+    Returns
+    -------
+    str
+        Split name used by this dataset instance.
 
         Examples
         --------
@@ -278,9 +291,10 @@ class BaseDataset:
         Exposing them makes split behavior reproducible and visible in constructed
         dataset instances.
 
-        Returns
-        -------
-        tuple of float Three split ratios used during split planning.
+    Returns
+    -------
+    tuple of float
+        Three split ratios used during split planning.
 
         Examples
         --------
@@ -298,9 +312,10 @@ class BaseDataset:
         partitioning. This property exists so a dataset instance fully reports how its
         selected subjects were chosen.
 
-        Returns
-        -------
-        int Seed used for deterministic split planning.
+    Returns
+    -------
+    int
+        Seed used for deterministic split planning.
 
         Examples
         --------
@@ -319,9 +334,10 @@ class BaseDataset:
         objects. The tuple shows exactly what keys and resources feed
         ``sample["inputs"]``.
 
-        Returns
-        -------
-        tuple of specs Normalized input specs.
+    Returns
+    -------
+    tuple of specs
+        Normalized input specs.
 
         Examples
         --------
@@ -340,9 +356,10 @@ class BaseDataset:
         what values are produced under ``sample["target"]`` during indexed sample
         extraction.
 
-        Returns
-        -------
-        tuple of specs Normalized target specs.
+    Returns
+    -------
+    tuple of specs
+        Normalized target specs.
 
         Examples
         --------
@@ -361,9 +378,10 @@ class BaseDataset:
         represents the full dataset acoustic context and is not changed by per-spec
         extraction choices.
 
-        Returns
-        -------
-        float or None Sample rate read from selected HRTF resources.
+    Returns
+    -------
+    float or None
+        Sample rate read from selected HRTF resources.
 
         Examples
         --------
@@ -383,9 +401,10 @@ class BaseDataset:
         separately through ``selected_position_indices`` and selected angle
         properties.
 
-        Returns
-        -------
-        numpy.ndarray or None Source positions from selected HRTF resources.
+    Returns
+    -------
+    numpy.ndarray or None
+        Source positions from selected HRTF resources.
 
         Examples
         --------
@@ -403,9 +422,10 @@ class BaseDataset:
         The angles are derived from the full dataset source grid. They report spatial
         coverage independently from the subset selected by indexed specs.
 
-        Returns
-        -------
-        numpy.ndarray or None Unique azimuth angles from dataset source positions.
+    Returns
+    -------
+    numpy.ndarray or None
+        Unique azimuth angles from dataset source positions.
 
         Examples
         --------
@@ -424,9 +444,10 @@ class BaseDataset:
         show spatial coverage and distinguish full resource context
         from selected row context.
 
-        Returns
-        -------
-        numpy.ndarray or None Unique elevation angles from dataset source positions.
+    Returns
+    -------
+    numpy.ndarray or None
+        Unique elevation angles from dataset source positions.
 
         Examples
         --------
@@ -445,9 +466,10 @@ class BaseDataset:
         available. They are used by frequency-indexed specs and remain part of the
         dataset-level acoustic context.
 
-        Returns
-        -------
-        numpy.ndarray or None Frequency bins from selected HRTF resources.
+    Returns
+    -------
+    numpy.ndarray or None
+        Frequency bins from selected HRTF resources.
 
         Examples
         --------
@@ -466,9 +488,10 @@ class BaseDataset:
         They support sample-indexed specs while keeping the original acoustic context
         inspectable.
 
-        Returns
-        -------
-        numpy.ndarray or None Time-sample indices from selected HRTF resources.
+    Returns
+    -------
+    numpy.ndarray or None
+        Time-sample indices from selected HRTF resources.
 
         Examples
         --------
@@ -487,9 +510,10 @@ class BaseDataset:
         position or plane selection. It is separate from ``positions`` so selected
         context does not hide the full dataset source grid.
 
-        Returns
-        -------
-        tuple of int Selected source position indices.
+    Returns
+    -------
+    tuple of int
+        Selected source position indices.
 
         Examples
         --------
@@ -510,9 +534,10 @@ class BaseDataset:
         The values summarize the selected position subset used for row generation.
         They are ``None`` when no spec selected a position-indexed subset.
 
-        Returns
-        -------
-        numpy.ndarray or None Unique selected azimuth angles.
+    Returns
+    -------
+    numpy.ndarray or None
+        Unique selected azimuth angles.
 
         Examples
         --------
@@ -533,9 +558,10 @@ class BaseDataset:
         The values summarize the selected position subset used for row generation.
         They help debug plane selectors and position-indexed datasets.
 
-        Returns
-        -------
-        numpy.ndarray or None Unique selected elevation angles.
+    Returns
+    -------
+    numpy.ndarray or None
+        Unique selected elevation angles.
 
         Examples
         --------
@@ -557,9 +583,10 @@ class BaseDataset:
         ``index_by`` axes. They record how many frequency-indexed rows each
         selected subject contributes.
 
-        Returns
-        -------
-        tuple of int Frequency indices used to build indexed rows.
+    Returns
+    -------
+    tuple of int
+        Frequency indices used to build indexed rows.
 
         Examples
         --------
@@ -581,9 +608,10 @@ class BaseDataset:
         axes. They record how many sample-indexed rows each selected subject
         contributes.
 
-        Returns
-        -------
-        tuple of int Sample indices used to build indexed rows.
+    Returns
+    -------
+    tuple of int
+        Sample indices used to build indexed rows.
 
         Examples
         --------
@@ -605,9 +633,10 @@ class BaseDataset:
         subject-reference normalization. It shows why expected
         subjects do not appear in resource scans or splits.
 
-        Returns
-        -------
-        list of str Excluded canonical subject IDs.
+    Returns
+    -------
+    list of str
+        Excluded canonical subject IDs.
 
         Examples
         --------
@@ -625,9 +654,10 @@ class BaseDataset:
         selected specs after exclusions. This is resource availability, not
         necessarily the final train/validation/test split subset.
 
-        Returns
-        -------
-        list of str Canonical subject IDs available for the selected specs.
+    Returns
+    -------
+    list of str
+        Canonical subject IDs available for the selected specs.
 
         Examples
         --------
@@ -646,9 +676,10 @@ class BaseDataset:
         ``available_subjects``; for train/validation/test it is a deterministic
         subset.
 
-        Returns
-        -------
-        list of str Canonical subject IDs used to build dataset rows.
+    Returns
+    -------
+    list of str
+        Canonical subject IDs used to build dataset rows.
 
         Examples
         --------
@@ -665,9 +696,10 @@ class BaseDataset:
         position, ear, frequency, or samples. This method exposes the final sample
         count consumed by training loops and indexed access.
 
-        Returns
-        -------
-        int Number of samples addressable by integer indexing.
+    Returns
+    -------
+    int
+        Number of samples addressable by integer indexing.
 
         Examples
         --------
@@ -690,9 +722,10 @@ class BaseDataset:
         index : int
             Dataset row index.
 
-        Returns
-        -------
-        dict Sample dictionary with ``inputs`` and ``target`` entries.
+    Returns
+    -------
+    dict
+        Sample dictionary with ``inputs`` and ``target`` entries.
 
         Examples
         --------

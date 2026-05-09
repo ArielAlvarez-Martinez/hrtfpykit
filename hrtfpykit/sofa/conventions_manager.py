@@ -5,7 +5,13 @@ from typing import Any, Mapping
 from .conventions import CONVENTIONS
 
 class ConventionsManager:
-    """CRUD and import/export for SOFA convention specifications."""
+    """Registry manager for SOFA convention specifications.
+
+    The manager reads and updates the in-package convention registry used by
+    SOFA validation, dummy-object creation, and convention inspection tools.
+    Specifications are stored as dictionaries keyed by SOFA convention name and
+    version.
+    """
 
     Spec = dict[str, dict[str, Any]]
 
@@ -46,7 +52,10 @@ class ConventionsManager:
     def inspect_sofa_specification(
         name: str, version: str
     ) -> "ConventionsManager.Spec":
-        """Return a convention specification.
+        """Return one registered SOFA convention specification.
+
+        The returned mapping contains the variable, attribute, dimension, type,
+        default, and read-only metadata used by the SOFA validation layer.
 
         Parameters
         ----------

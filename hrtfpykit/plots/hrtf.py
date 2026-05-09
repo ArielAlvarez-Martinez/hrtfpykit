@@ -52,6 +52,26 @@ if TYPE_CHECKING:
 
 
 class HRTFPlots:
+    """``HRTFPlots`` supplies the visualization methods inherited by
+    :class:`hrtfpykit.hrtf.hrtf.HRTF`. The methods operate on the current
+    in-memory ``IR``, ``TF``, and ``Sources`` state of the object, so plots
+    reflect any prior source selection, domain conversion, or transformation.
+
+    The class covers the main inspection workflows used in HRTF analysis:
+    time-domain HRIR waveforms, frequency-domain magnitude responses,
+    spectrum heatmaps over spatial planes, interaural cue plots, and source
+    grid geometry. Position arguments are resolved through the library source
+    manager, which means named positions, spherical coordinate queries, and
+    plane selections follow the same rules as processing methods.
+
+    Notes
+    -----
+    These methods are designed to be called from an ``HRTF`` instance rather
+    than instantiated directly. Each method validates the required domain data
+    before plotting and returns ``None`` after optionally showing the
+    Matplotlib figure.
+    """
+
     def plot_magnitude(
         hrtf: "HRTF",
         positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
@@ -108,8 +128,8 @@ class HRTFPlots:
         --------
         Load a measured HRTF and compare two practical listening directions:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_magnitude(
         ...     positions=["front", "left"],
         ...     ear="both",
@@ -321,8 +341,8 @@ class HRTFPlots:
         --------
         Load an HRIR set and compare the front and right directions in samples:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_amplitude(
         ...     positions=["front", "right"],
         ...     x_axis="samples",
@@ -504,8 +524,8 @@ class HRTFPlots:
         --------
         Load one direction and inspect its HRIR and HRTF together:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.select(positions="front").plot_amplitude_and_magnitude(show=False)
 
         Plot a windowed version of the same direction with both ears and a log-frequency axis:
@@ -795,8 +815,8 @@ class HRTFPlots:
         --------
         Load a measured HRTF and inspect the horizontal-plane spectrum for the left ear:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_spectrum_plane(
         ...     plane="horizontal",
         ...     ear="left",
@@ -1074,8 +1094,8 @@ class HRTFPlots:
         --------
         Load a measured HRTF and inspect how the front spectrum changes with elevation:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_elevation_spectrum(
         ...     azimuth="front",
         ...     ear="both",
@@ -1302,8 +1322,8 @@ class HRTFPlots:
         --------
         Load a measured HRTF and inspect its horizontal-plane ITD trend:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_itd_curve(show=False)
 
         Remove ITD from the dataset and compare the compensated curve:
@@ -1433,8 +1453,8 @@ class HRTFPlots:
         --------
         Load a measured HRTF and visualize absolute ITD around the horizontal plane:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_absolute_itd(show=False)
 
         After ITD compensation, inspect the same polar summary again:
@@ -1566,8 +1586,8 @@ class HRTFPlots:
         --------
         Load a measured HRTF and inspect frequency-dependent ILD on the horizontal plane:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_ild_plane(
         ...     plane="horizontal",
         ...     freq_max=8000.0,
@@ -1768,8 +1788,8 @@ class HRTFPlots:
         --------
         Load a measured HRTF and inspect broad-band ILD across the horizontal plane:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_ild_curve(show=False)
 
         Focus on another measured elevation when you want an off-horizontal slice:
@@ -1899,8 +1919,8 @@ class HRTFPlots:
         --------
         Load a measured HRTF and summarize absolute ILD in a polar view:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_absolute_ild(show=False)
 
         Inspect a different elevation when you want a polar view away from the canonical plane:
@@ -2012,8 +2032,8 @@ class HRTFPlots:
         --------
         Load a measured HRTF and inspect the full source grid:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_source_grid(show=False)
 
         Plot only the selected horizontal plane to verify a spatial subset:
@@ -2127,8 +2147,8 @@ class HRTFPlots:
         --------
         Load a measured HRTF and highlight the median plane in the full grid:
 
-        >>> from hrtfpykit import HRTF
-        >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("my_hrtf.sofa")
         >>> hrtf.plot_plane_grid(plane="median", show=False)
 
         Compare the three canonical planes in one 3D view:

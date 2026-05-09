@@ -138,7 +138,8 @@ def load_table(
 
     Returns
     -------
-    dict Table data mapped to dataset subject IDs, or a MAT variable mapping.
+    dict
+        Table data mapped to dataset subject IDs, or a MAT variable mapping.
 
     """
 

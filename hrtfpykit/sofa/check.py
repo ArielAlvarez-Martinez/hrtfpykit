@@ -42,7 +42,7 @@ def check_sofa_against_conventions(
     convention_name: Optional[str] = None,
     version: Optional[str] = None,
 ) -> dict[str, str]:
-    """Validate a SOFA file against its SOFA convention specification.
+    """Validate a SOFA file or open netCDF4 object against a SOFA convention.
 
     The check emits warnings for:
     - missing mandatory attributes/variables
@@ -53,7 +53,7 @@ def check_sofa_against_conventions(
     Parameters
     ----------
     target : Union[str, netCDF4.Dataset]
-        Path to a SOFA file or an open netCDF4 SOFA dataset.
+        Path to a SOFA file or an open netCDF4 object containing SOFA data.
     convention_name : Optional[str], optional
         Convention name to validate against. If None, uses the file's
         ``SOFAConventions`` attribute.
@@ -264,7 +264,7 @@ def check_sofa_security(
     print_report: bool = True,
     paranoid_mode: bool = False,
 ) -> dict[str, Any]:
-    """Run security checks for SOFA/HDF5 handling.
+    """Run security checks for SOFA/HDF5 file handling.
 
     Checks include:
 
@@ -282,7 +282,8 @@ def check_sofa_security(
     Parameters
     ----------
     target : Optional[Union[str, pathlib.Path, netCDF4.Dataset]], optional
-        SOFA file path or open SOFA dataset. In paranoid mode, this must be a path.
+        SOFA file path or open netCDF4 object. In paranoid mode, this must be
+        a path because raw bytes are inspected without parsing the file.
     hdf5_version : Optional[str], optional
         HDF5 version to validate against. If None, attempts to detect the
         linked HDF5 version from netCDF4.

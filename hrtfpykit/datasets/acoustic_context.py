@@ -35,7 +35,8 @@ class DatasetAcousticContextPlan:
 
     Returns
     -------
-    DatasetAcousticContextPlan Immutable acoustic context plan consumed by
+    DatasetAcousticContextPlan
+        Immutable acoustic context plan consumed by
     ``DatasetBuilder``.
 
     """
@@ -85,7 +86,8 @@ class DatasetAcousticContext:
 
         Returns
         -------
-        list of int Source position indices selected for a spec.
+        list of int
+            Source position indices selected for a spec.
 
         """
         position_count = int(hrtf.Sources.get_positions().shape[0])
@@ -150,7 +152,8 @@ class DatasetAcousticContext:
 
         Returns
         -------
-        DatasetAcousticContextPlan Acoustic context used by state assignment and row
+        DatasetAcousticContextPlan
+            Acoustic context used by state assignment and row
         generation.
 
         """

@@ -791,7 +791,11 @@ def padding(
     location: str = "end",
     value: float | complex = 0,
 ) -> np.ndarray:
-    """Pad IR values along the last axis.
+    """Pad impulse-response values along the sample axis.
+
+    The function accepts either a raw NumPy array or an ``IR`` domain object
+    and appends or prepends constant samples on the last axis. The spatial and
+    ear axes are preserved exactly; only the time-sample length changes.
 
     Parameters
     ----------
@@ -864,7 +868,12 @@ def fir_filter(
     num_taps: int = 101,
     window: str | None = None,
 ) -> np.ndarray:
-    """Apply an FIR filter to IR data.
+    """Apply a finite impulse response filter to time-domain IR data.
+
+    The filter is designed from the requested family, cutoff, and sample rate,
+    then applied along the last axis of the IR array. The function supports raw
+    NumPy arrays and ``IR`` domain objects so it can be used both inside the
+    HRTF abstraction and in lower-level DSP workflows.
 
     Parameters
     ----------
@@ -1590,9 +1599,9 @@ def tf_from_ir(
     --------
     Window one measured HRIR, rebuild its TF, and inspect the synchronized FFT length:
 
-    >>> from hrtfpykit import HRTF
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.hrtf.dsp import tf_from_ir
-    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa").select(positions="front")
+    >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
     >>> edited = hrtf.clone()
     >>> cutoff = edited.IR.values.shape[-1] // 2
     >>> edited.IR.values[..., cutoff:] = 0.0
@@ -1720,7 +1729,7 @@ def ir_from_tf(
     --------
     Edit one measured TF, rebuild the HRIR, and keep the linked metadata synchronized:
 
-    >>> from hrtfpykit import load_hrtf
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.hrtf.dsp import ir_from_tf
     >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
     >>> edited = hrtf.clone()

@@ -8,10 +8,15 @@ from .wraps import DimensionsWrap, VariablesWrap, AttributesWrap
 class _Data(ABC):
     """Base wrapper for SOFA netCDF4 collections.
 
+    The wrapper stores the open netCDF4 object used by a :class:`SOFA`
+    instance and defines the common collection protocol implemented by
+    dimensions, variables, and attributes.
+
     Parameters
     ----------
     dataset : netCDF4.Dataset
-        Open SOFA dataset. Must not be None.
+        Open netCDF4 object containing SOFA dimensions, variables, and
+        attributes. Must not be ``None``.
     """
 
     def __init__(self, dataset : netCDF4.Dataset = None):
@@ -89,14 +94,7 @@ class _Dimensions(_Data):
         ValueError
             If ``name`` is not present in the dataset dimensions.
 
-        Examples
-        --------
-        Inspect one wrapped dimension:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> sofa.Dimensions.get("M").value
-        """
+"""
         if name not in self._netCDF4_dataset.dimensions:
             raise ValueError(f"Dimension not found: {name}")
         return DimensionsWrap(name, self._netCDF4_dataset.dimensions)
@@ -104,14 +102,7 @@ class _Dimensions(_Data):
     def get_all(self) -> Dict[str, DimensionsWrap]:
         """Return all dimensions as wrapped objects.
 
-        Examples
-        --------
-        List every available dimension name:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> list(sofa.Dimensions.get_all().keys())
-        """
+"""
         return {
             k: DimensionsWrap(k, self._netCDF4_dataset.dimensions)
             for k in self._netCDF4_dataset.dimensions.keys()
@@ -120,14 +111,7 @@ class _Dimensions(_Data):
     def summary(self) -> str:
         """Return a formatted summary of dimensions and sizes.
 
-        Examples
-        --------
-        Print the dimension summary for one SOFA object:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> print(sofa.Dimensions.summary())
-        """
+"""
         lines = []
         for name in sorted(self._netCDF4_dataset.dimensions.keys()):
             dim = self._netCDF4_dataset.dimensions[name]
@@ -189,14 +173,7 @@ class _AttributesBase(_Data):
             If ``name`` does not resolve to an available attribute in the
             wrapped collection.
 
-        Examples
-        --------
-        Inspect one wrapped global attribute:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> sofa.GlobalAttributes.get("SOFAConventions").value
-        """
+"""
         value = self._get_value(name)
         if value is None:
             label = self._attribute_type
@@ -210,14 +187,7 @@ class _AttributesBase(_Data):
     def get_all(self) -> Dict[str, AttributesWrap]:
         """Return all attributes as wrapped objects.
 
-        Examples
-        --------
-        List every available global attribute:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> list(sofa.GlobalAttributes.get_all().keys())
-        """
+"""
         return {
             name: AttributesWrap(name, value, self._attribute_type)
             for name, value in self._iter_items()
@@ -257,14 +227,7 @@ class _GlobalAttributes(_AttributesBase):
     def summary(self) -> str:
         """Return a formatted summary of global attributes.
 
-        Examples
-        --------
-        Print the global attribute summary:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> print(sofa.GlobalAttributes.summary())
-        """
+"""
         items = list(self._iter_items())
         if not items:
             return ""
@@ -305,14 +268,7 @@ class _VariableAttributes(_AttributesBase):
     def summary(self) -> str:
         """Return a formatted summary of variable attributes.
 
-        Examples
-        --------
-        Print the variable-attribute summary:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> print(sofa.VariableAttributes.summary())
-        """
+"""
         items = list(self._iter_items())
         if not items:
             return ""
@@ -356,14 +312,7 @@ class _Variables(_Data):
         ValueError
             If ``name`` is not present in the dataset variables.
 
-        Examples
-        --------
-        Inspect one wrapped variable:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> sofa.Variables.get("Data.IR").value.shape
-        """
+"""
         if name not in self._netCDF4_dataset.variables:
             raise ValueError(f"Variable not found: {name}")
         return VariablesWrap(name, self._netCDF4_dataset.variables[name])
@@ -371,14 +320,7 @@ class _Variables(_Data):
     def get_all(self) -> Dict[str, VariablesWrap]:
         """Return all variables as wrapped objects.
 
-        Examples
-        --------
-        List every available variable:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> list(sofa.Variables.get_all().keys())
-        """
+"""
         return {
             k: VariablesWrap(k, v) for k, v in self._netCDF4_dataset.variables.items()
         }
@@ -386,14 +328,7 @@ class _Variables(_Data):
     def summary(self) -> str:
         """Return a formatted summary of variables and their attributes.
 
-        Examples
-        --------
-        Print the variable summary for one SOFA object:
-
-        >>> from hrtfpykit import SOFA
-        >>> sofa = SOFA.create_dummy("SimpleFreeFieldHRIR", version="1.2")
-        >>> print(sofa.Variables.summary())
-        """
+"""
         lines = []
         for name, var in self._netCDF4_dataset.variables.items():
             dims = []

@@ -78,8 +78,8 @@ def ctf_from_hrtf(
     Derive a common transfer function and inspect its binaural magnitude:
 
     >>> from hrtfpykit.hrtf.directivity import ctf_from_hrtf
-    >>> from hrtfpykit import HRTF
-    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+    >>> from hrtfpykit.hrtf import load_hrtf
+    >>> hrtf = load_hrtf("my_hrtf.sofa")
     >>> ctf = ctf_from_hrtf(
     ...     hrtf,
     ...     weights=True,
@@ -303,8 +303,8 @@ def dtf_from_hrtf(
     Remove the common transfer component and compare two canonical directions:
 
     >>> from hrtfpykit.hrtf.directivity import dtf_from_hrtf
-    >>> from hrtfpykit import HRTF
-    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+    >>> from hrtfpykit.hrtf import load_hrtf
+    >>> hrtf = load_hrtf("my_hrtf.sofa")
     >>> dtf = dtf_from_hrtf(
     ...     hrtf,
     ...     weights=True,
@@ -457,8 +457,8 @@ def hrtf_from_dtf_and_ctf(
     ...     dtf_from_hrtf,
     ...     hrtf_from_dtf_and_ctf,
     ... )
-    >>> from hrtfpykit import HRTF
-    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+    >>> from hrtfpykit.hrtf import load_hrtf
+    >>> hrtf = load_hrtf("my_hrtf.sofa")
     >>> dtf = dtf_from_hrtf(hrtf)
     >>> ctf = ctf_from_hrtf(hrtf)
     >>> hrtf_reconstructed = hrtf_from_dtf_and_ctf(dtf, ctf)

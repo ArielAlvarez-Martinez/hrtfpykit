@@ -64,7 +64,8 @@ class DatasetSampleValueSelector:
 
         Returns
         -------
-        object Concrete sample value for the given spec and row.
+        object
+            Concrete sample value for the given spec and row.
 
         """
 
@@ -101,7 +102,8 @@ class DatasetSampleValueSelector:
 
         Returns
         -------
-        object Mesh path string or transformed mesh value.
+        object
+            Mesh path string or transformed mesh value.
 
         """
 
@@ -137,7 +139,8 @@ class DatasetSampleValueSelector:
 
         Returns
         -------
-        object Image path, list of image paths, transformed image values, or a
+        object
+            Image path, list of image paths, transformed image values, or a
         concatenated array when ``spec.concatenate=True``.
 
         """
@@ -190,7 +193,8 @@ class DatasetSampleValueSelector:
 
         Returns
         -------
-        object Video path, list of video paths, or transformed video values.
+        object
+            Video path, list of video paths, or transformed video values.
 
         """
 
@@ -241,7 +245,8 @@ class DatasetSampleValueSelector:
 
         Returns
         -------
-        numpy.ndarray HRTF or HRIR value selected from the loaded subject HRTF.
+        numpy.ndarray
+            HRTF or HRIR value selected from the loaded subject HRTF.
 
         """
 
@@ -366,7 +371,8 @@ class DatasetSampleValueSelector:
 
         Returns
         -------
-        numpy.ndarray ITD value selected from the calculated subject ITD array.
+        numpy.ndarray
+            ITD value selected from the calculated subject ITD array.
 
         """
 
@@ -424,7 +430,8 @@ class DatasetSampleValueSelector:
 
         Returns
         -------
-        numpy.ndarray ILD value selected from the calculated subject ILD array.
+        numpy.ndarray
+            ILD value selected from the calculated subject ILD array.
 
         """
 
@@ -486,7 +493,8 @@ class DatasetSampleValueSelector:
 
         Returns
         -------
-        numpy.ndarray Spherical-harmonic coefficient value selected for the current
+        numpy.ndarray
+            Spherical-harmonic coefficient value selected for the current
         row.
 
         """
@@ -567,7 +575,8 @@ class DatasetSampleValueSelector:
 
         Returns
         -------
-        object Anthropometry row, column, matrix slice, or transformed value.
+        object
+            Anthropometry row, column, matrix slice, or transformed value.
 
         """
 
@@ -690,7 +699,8 @@ class DatasetSampleValueSelector:
 
         Returns
         -------
-        object Metadata row, column, matrix slice, or transformed value.
+        object
+            Metadata row, column, matrix slice, or transformed value.
 
         """
 

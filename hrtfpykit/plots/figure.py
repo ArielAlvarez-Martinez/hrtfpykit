@@ -9,7 +9,13 @@ from .types import Heatmap, ThreeDimension, TwoDimension
 
 
 class Figure:
-    """Figure wrapper that centralizes layout creation and plot primitives."""
+    """Matplotlib figure factory used by the plotting layer.
+
+    ``Figure`` converts a library layout object into a Matplotlib figure,
+    flattened axes array, and configured plot primitive accessors. Plot methods
+    use this wrapper to keep subplot creation, default styling, and primitive
+    dispatch consistent across single-HRTF, comparison, and spatial plots.
+    """
 
     shared_x_visible: bool = True
 
@@ -78,7 +84,12 @@ class Figure:
         layout: Layout,
         projection: str | None = None,
     ) -> tuple[plt.Figure, np.ndarray]:
-        """Create Matplotlib figure and flattened axes from a layout.
+        """Create a Matplotlib figure and flattened axes from a layout.
+
+        The layout supplies grid dimensions, figure size, margins, and axis
+        sharing. The returned axes are flattened into an object array so higher
+        level plot functions can address axes by layout position instead of
+        handling Matplotlib's nested subplot shapes directly.
 
         Parameters
         ----------

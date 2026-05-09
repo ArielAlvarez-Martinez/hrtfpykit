@@ -24,25 +24,49 @@ def plot_sht_reconstruction_comparison(
     reference: float | str = 1.0,
     show: bool = True,
 ) -> None:
-    """Plot original vs reconstructed magnitude for one position and ear.
+    """Plot original and SH-reconstructed HRTF magnitudes for one direction.
+
+    This diagnostic plot compares the magnitude stored in ``hrtf.TF`` with a
+    magnitude matrix reconstructed from spherical-harmonic coefficients,
+    typically the output of :func:`hrtfpykit.hrtf.sht_inverse`. It is intended
+    for checking how well a chosen spherical-harmonic order reproduces the
+    spectrum at a specific source position and ear.
+
+    The source position is resolved against the current HRTF source grid using
+    the same spherical-position query rules as other HRTF plotting methods.
+    The frequency axis is taken from ``hrtf.TF.frequency_bins`` and displayed
+    in kHz.
 
     Parameters
     ----------
     hrtf : HRTF
-        HRTF object providing original TF magnitude and frequency bins.
+        HRTF object providing the reference complex TF data, frequency bins,
+        and source-grid metadata. ``hrtf.TF.values`` must have shape
+        ``(positions, ears, frequency_bins)`` and include left and right ears.
     reconstructed_magnitude : np.ndarray
-        Reconstructed magnitude matrix with shape ``(N, F)`` or ``(N, 2, F)``.
+        Reconstructed linear magnitude values. Use shape ``(N, F)`` for a
+        single-ear spherical-harmonic reconstruction or ``(N, 2, F)`` for a
+        two-ear reconstruction produced with ``ear="both"``. The first axis
+        must match the HRTF source-position axis and the final axis must match
+        ``hrtf.TF.frequency_bins``.
     position : np.ndarray | list | tuple | str, default="front"
-        Single spatial query resolved on the HRTF source grid.
-    ear : str, default="left"
-        Ear selection. Accepted values are ``"left"`` and ``"right"``.
-    unit : str, default="db"
-        Magnitude unit for display. Accepted values are ``"db"`` and ``"linear"``.
+        Single spatial query resolved on the HRTF source grid. Named positions
+        such as ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are
+        accepted. Numeric queries use spherical coordinates in degrees as
+        ``[azimuth, elevation]``.
+    ear : {"left", "right"}, default="left"
+        Ear channel used for the original HRTF trace and, when
+        ``reconstructed_magnitude`` has an ear axis, for the reconstructed
+        trace. For a single-ear reconstruction with shape ``(N, F)``, choose
+        the ear that was used when computing the SH coefficients.
+    unit : {"db", "linear"}, default="db"
+        Magnitude unit used on the y axis.
     reference : float | str, default=1.0
-        Reference used when ``unit="db"``. ``"max"`` uses the maximum value
-        across original and reconstructed traces.
+        Reference used when ``unit="db"``. Passing ``"max"`` normalizes both
+        traces by the maximum magnitude across the selected original and
+        reconstructed spectra.
     show : bool, default=True
-        If ``True``, call ``matplotlib.pyplot.show()``.
+        If ``True``, call ``matplotlib.pyplot.show()`` before returning.
 
     Returns
     -------
@@ -50,6 +74,13 @@ def plot_sht_reconstruction_comparison(
 
     Examples
     --------
+    Compare a two-ear SH reconstruction against the original left-ear HRTF
+    magnitude at the front direction:
+
+    >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
+    >>> from hrtfpykit.plots import plot_sht_reconstruction_comparison
+    >>> hrtf = load_hrtf("my_hrtf.sofa")
+    >>> sh = sht(hrtf, sh_order=8, ear="both")
     >>> reconstructed = sht_inverse(sh)
     >>> plot_sht_reconstruction_comparison(
     ...     hrtf=hrtf,
@@ -202,20 +233,43 @@ def plot_sht_reconstruction_error(
     ear: str = "left",
     show: bool = True,
 ) -> None:
-    """Plot reconstruction error across frequency for one position and ear.
+    """Plot SH reconstruction error across frequency for one direction.
+
+    This diagnostic plot shows the point-wise linear-magnitude error between
+    the original HRTF magnitude and a spherical-harmonic reconstruction at one
+    source position and ear. The plotted error is
+    ``original_magnitude - reconstructed_magnitude`` for the selected trace,
+    and the subplot title includes the root-mean-square error across frequency.
+
+    Use this function after :func:`hrtfpykit.hrtf.sht_inverse` to inspect where
+    a chosen spherical-harmonic order loses spectral detail for a specific
+    direction. The frequency axis is taken from ``hrtf.TF.frequency_bins`` and
+    displayed in kHz.
 
     Parameters
     ----------
     hrtf : HRTF
-        HRTF object providing original TF magnitude and frequency bins.
+        HRTF object providing the reference complex TF data, frequency bins,
+        and source-grid metadata. ``hrtf.TF.values`` must have shape
+        ``(positions, ears, frequency_bins)`` and include left and right ears.
     reconstructed_magnitude : np.ndarray
-        Reconstructed magnitude matrix with shape ``(N, F)`` or ``(N, 2, F)``.
+        Reconstructed linear magnitude values. Use shape ``(N, F)`` for a
+        single-ear spherical-harmonic reconstruction or ``(N, 2, F)`` for a
+        two-ear reconstruction produced with ``ear="both"``. The first axis
+        must match the HRTF source-position axis and the final axis must match
+        ``hrtf.TF.frequency_bins``.
     position : np.ndarray | list | tuple | str, default="front"
-        Single spatial query resolved on the HRTF source grid.
-    ear : str, default="left"
-        Ear selection. Accepted values are ``"left"`` and ``"right"``.
+        Single spatial query resolved on the HRTF source grid. Named positions
+        such as ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are
+        accepted. Numeric queries use spherical coordinates in degrees as
+        ``[azimuth, elevation]``.
+    ear : {"left", "right"}, default="left"
+        Ear channel used for the original HRTF trace and, when
+        ``reconstructed_magnitude`` has an ear axis, for the reconstructed
+        trace. For a single-ear reconstruction with shape ``(N, F)``, choose
+        the ear that was used when computing the SH coefficients.
     show : bool, default=True
-        If ``True``, call ``matplotlib.pyplot.show()``.
+        If ``True``, call ``matplotlib.pyplot.show()`` before returning.
 
     Returns
     -------
@@ -223,6 +277,12 @@ def plot_sht_reconstruction_error(
 
     Examples
     --------
+    Plot the reconstruction error for the right ear at the left direction:
+
+    >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
+    >>> from hrtfpykit.plots import plot_sht_reconstruction_error
+    >>> hrtf = load_hrtf("my_hrtf.sofa")
+    >>> sh = sht(hrtf, sh_order=8, ear="both")
     >>> reconstructed = sht_inverse(sh)
     >>> plot_sht_reconstruction_error(
     ...     hrtf=hrtf,

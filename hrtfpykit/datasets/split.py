@@ -31,7 +31,8 @@ class DatasetSplitPlan:
 
     Returns
     -------
-    DatasetSplitPlan Immutable split plan consumed by ``DatasetBuilder``.
+    DatasetSplitPlan
+        Immutable split plan consumed by ``DatasetBuilder``.
 
     """
 
@@ -72,7 +73,8 @@ class DatasetSplitPlanner:
 
         Returns
         -------
-        str Canonical subject ID.
+        str
+            Canonical subject ID.
 
         """
 
@@ -126,7 +128,8 @@ class DatasetSplitPlanner:
 
         Returns
         -------
-        tuple of str Unique canonical subject IDs preserving input order.
+        tuple of str
+            Unique canonical subject IDs preserving input order.
 
         """
         if values is None:
@@ -150,7 +153,8 @@ class DatasetSplitPlanner:
 
         Returns
         -------
-        list of str Naturally sorted subject IDs.
+        list of str
+            Naturally sorted subject IDs.
 
         """
         def subject_sort_key(value: str) -> tuple[int, str]:
@@ -176,7 +180,8 @@ class DatasetSplitPlanner:
 
         Returns
         -------
-        dict Mapping from subject ID to numeric identifier.
+        dict
+            Mapping from subject ID to numeric identifier.
 
         """
         return {
@@ -209,7 +214,8 @@ class DatasetSplitPlanner:
 
         Returns
         -------
-        tuple Available subject IDs and subject number map.
+        tuple
+            Available subject IDs and subject number map.
 
         """
         state = dataset._state
@@ -255,7 +261,8 @@ class DatasetSplitPlanner:
 
         Returns
         -------
-        list of str Subject IDs selected for the requested split.
+        list of str
+            Subject IDs selected for the requested split.
 
         """
 
@@ -324,7 +331,8 @@ class DatasetSplitPlanner:
 
         Returns
         -------
-        DatasetSplitPlan Available and selected subjects for the dataset.
+        DatasetSplitPlan
+            Available and selected subjects for the dataset.
 
         """
         state = dataset._state

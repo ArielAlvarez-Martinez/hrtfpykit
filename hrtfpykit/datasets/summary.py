@@ -19,7 +19,8 @@ def _summary_title(text: str, width: int = 54, marker: str = "=") -> str:
 
     Returns
     -------
-    str Formatted title line.
+    str
+        Formatted title line.
 
     """
     cleaned = str(text).strip()
@@ -65,7 +66,8 @@ def resources_summary(
 
     Returns
     -------
-    dict or str Resource summary dictionary when ``dataset`` is ``None``;
+    dict
+        or str Resource summary dictionary when ``dataset`` is ``None``;
     otherwise a formatted summary string.
 
     """
@@ -122,7 +124,8 @@ def dataset_summary(dataset: object) -> str:
 
     Returns
     -------
-    str Human-readable dataset summary.
+    str
+        Human-readable dataset summary.
 
     """
 
@@ -200,7 +203,8 @@ def download_summary(
 
     Returns
     -------
-    str Human-readable download summary.
+    str
+        Human-readable download summary.
 
     """
 

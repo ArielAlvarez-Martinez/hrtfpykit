@@ -54,7 +54,8 @@ class HRTFTransform:
 
         Returns
         -------
-        callable Callable that accepts an HRTF object and returns the transformed HRTF
+        callable
+            Callable that accepts an HRTF object and returns the transformed HRTF
         object.
 
         Examples
@@ -106,7 +107,8 @@ class HRTFTransform:
 
         Returns
         -------
-        callable Callable that accepts an HRTF object and returns the selected HRTF.
+        callable
+            Callable that accepts an HRTF object and returns the selected HRTF.
 
         Examples
         --------
@@ -139,12 +141,14 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        window_name : str
+            Window identifier forwarded to
+            :meth:`hrtfpykit.hrtf.transforms.Transform.apply_window`.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -174,12 +178,17 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        padding_length : int
+            Number of samples added to each impulse response.
+        location : {"start", "end"}, default="end"
+            Side of the IR sample axis where padding is applied.
+        value : float, default=0
+            Constant value used in the padded region.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -210,12 +219,14 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        new_sample_rate : float
+            Target sample rate in hertz. It is forwarded to the HRTF
+            upsampling transform for every loaded subject.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -241,12 +252,14 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        new_sample_rate : float
+            Target sample rate in hertz. It is forwarded to the HRTF
+            downsampling transform for every loaded subject.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -277,12 +290,19 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        filter : str
+            FIR filter type accepted by the HRTF transform layer.
+        cutoff : float | tuple[float, float] | None, default=None
+            Cutoff frequency or frequency pair in hertz.
+        num_taps : int, default=101
+            FIR tap count used to design the filter.
+        window : str | None, default=None
+            Optional FIR design window.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -321,12 +341,17 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        filter : str
+            IIR filter type accepted by the HRTF transform layer.
+        cutoff : float | tuple[float, float] | None, default=None
+            Cutoff frequency or frequency pair in hertz.
+        order : int, default=10
+            Butterworth filter order.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -365,12 +390,17 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        method : str, default="homomorphic"
+            Minimum-phase reconstruction method passed to the HRTF transform.
+        fft_length : int | None, default=None
+            Optional FFT length used during minimum-phase reconstruction.
+        epsilon : float, default=1e-12
+            Positive numerical floor used by the reconstruction routine.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -404,12 +434,18 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        weights : bool, default=False
+            Whether source-position weights are used when estimating the common
+            transfer function.
+        magnitude_average : {"log", "linear"}, default="log"
+            Magnitude averaging rule used by the CTF transform.
+        attenuation : float | None, default=None
+            Optional attenuation in decibels applied by the CTF transform.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -444,12 +480,18 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        weights : bool, default=False
+            Whether source-position weights are used when estimating the common
+            transfer function removed from the HRTF.
+        magnitude_average : {"log", "linear"}, default="log"
+            Magnitude averaging rule used during DTF calculation.
+        attenuation : float | None, default=None
+            Optional attenuation in decibels applied by the DTF transform.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -480,12 +522,14 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        new_ir : np.ndarray | IR | HRTF
+            Replacement time-domain data forwarded to
+            :meth:`hrtfpykit.hrtf.transforms.Transform.modify_ir`.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -515,12 +559,16 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        new_phase : np.ndarray
+            Replacement phase array with the same TF layout expected by the
+            HRTF transform layer.
+        unit : {"degrees", "radians"}, default="degrees"
+            Angular unit used by ``new_phase``.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -554,12 +602,14 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        new_tf : np.ndarray | TF | HRTF
+            Replacement complex frequency-domain data forwarded to the HRTF
+            transform layer.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -591,12 +641,16 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        new_magnitude : np.ndarray
+            Replacement magnitude array with the same TF layout expected by
+            the HRTF transform layer.
+        scale : {"linear", "db"}, default="linear"
+            Magnitude scale used by ``new_magnitude``.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -633,12 +687,15 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        gain : float | np.ndarray
+            Scalar or broadcast-compatible gain applied to each loaded HRTF.
+        scale : {"db", "linear"}, default="db"
+            Scale used to interpret ``gain``.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -668,12 +725,14 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        new_fft_length : int
+            FFT length used when recomputing the frequency-domain
+            representation.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -699,12 +758,13 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        coordinate_system : {"spherical", "cartesian", "lateral-polar"}
+            Source coordinate system requested for each loaded HRTF.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -736,12 +796,15 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        itd : float
+            Interaural time difference added to each loaded HRTF.
+        unit : {"samples", "seconds"}, default="samples"
+            Unit used by ``itd``.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------
@@ -776,12 +839,19 @@ class HRTFTransform:
 
         Parameters
         ----------
-        *args, **kwargs Arguments forwarded to the matching HRTF transform method.
+        method : {"threshold", "maxiacce"}, default="threshold"
+            ITD estimator used before delay compensation.
+        thresh_level : float, default=-10.0
+            Threshold offset in decibels used by the threshold estimator.
+        upper_cut_freq : float, default=3000.0
+            Low-pass cutoff in hertz used before ITD estimation.
+        filter_order : int, default=10
+            Butterworth low-pass filter order used before ITD estimation.
 
         Returns
         -------
-        callable Dataset-level transform callable accepting and returning an HRTF
-        object.
+        callable
+            Dataset-level transform callable accepting and returning an HRTF object.
 
         Examples
         --------

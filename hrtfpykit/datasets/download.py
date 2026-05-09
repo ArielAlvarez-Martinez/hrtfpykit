@@ -77,7 +77,8 @@ class BaseDownload:
 
         Returns
         -------
-        Path Resolved root path.
+        Path
+            Resolved root path.
 
         """
         normalized = Path(root).expanduser()
@@ -100,7 +101,8 @@ class BaseDownload:
 
         Returns
         -------
-        str Original URL when valid.
+        str
+            Original URL when valid.
 
         """
         parsed = urlparse(url)
@@ -125,7 +127,8 @@ class BaseDownload:
 
         Returns
         -------
-        str SHA-256 hex digest.
+        str
+            SHA-256 hex digest.
 
         """
         digest = hashlib.sha256()
@@ -152,7 +155,8 @@ class BaseDownload:
 
         Returns
         -------
-        str Lowercase SHA-256 hex digest.
+        str
+            Lowercase SHA-256 hex digest.
 
         """
         value = str(checksum).strip().lower()
@@ -180,7 +184,8 @@ class BaseDownload:
 
         Returns
         -------
-        tuple of str Normalized resource names.
+        tuple of str
+            Normalized resource names.
 
         """
         if self.config.download is None:
@@ -224,7 +229,8 @@ class BaseDownload:
 
         Returns
         -------
-        tuple of str Normalized selector values.
+        tuple of str
+            Normalized selector values.
 
         """
         if len(available) == 0:
@@ -259,7 +265,8 @@ class BaseDownload:
 
         Returns
         -------
-        Path Resolved root directory.
+        Path
+            Resolved root directory.
 
         """
         self.root = self.sanitize_root(self.root)
@@ -281,7 +288,8 @@ class BaseDownload:
 
         Returns
         -------
-        Path Absolute destination path under the root.
+        Path
+            Absolute destination path under the root.
 
         """
         candidate = Path(filename)
@@ -310,7 +318,8 @@ class BaseDownload:
 
         Returns
         -------
-        str Validated HTTPS download URL.
+        str
+            Validated HTTPS download URL.
 
         """
         if self.config.download is None:
@@ -434,7 +443,8 @@ class BaseDownload:
 
         Returns
         -------
-        tuple of str Subject IDs not excluded from downloads.
+        tuple of str
+            Subject IDs not excluded from downloads.
 
         """
         excluded_subject_ids_set = set(self.excluded_subject_ids)
@@ -465,7 +475,8 @@ class BaseDownload:
 
         Returns
         -------
-        str ``'downloaded'`` when fetched or ``'verified'`` when existing file passed
+        str
+            ``'downloaded'`` when fetched or ``'verified'`` when existing file passed
         validation.
 
         """
@@ -554,7 +565,8 @@ class BaseDownload:
 
         Returns
         -------
-        list of dict Planned download jobs containing resource names, selectors, URLs,
+        list of dict
+            Planned download jobs containing resource names, selectors, URLs,
         destinations, subjects, relative paths, and checksums.
 
         """
@@ -853,7 +865,8 @@ class BaseDownload:
 
         Returns
         -------
-        tuple[bool, str] ``True`` and a summary when at least one file was downloaded;
+        tuple[bool, str]
+            ``True`` and a summary when at least one file was downloaded;
         ``False`` and a summary when all planned files already existed or no jobs were
         needed.
 
@@ -937,7 +950,8 @@ class BaseDownload:
 
         Returns
         -------
-        None Raises when checksum validation fails.
+        None
+            Raises when checksum validation fails.
         """
         expected = self.sanitize_checksum(checksum)
         current = self.compute_sha256(path)
@@ -960,7 +974,8 @@ class BaseDownload:
 
         Returns
         -------
-        None Raises when archive integrity checks fail.
+        None
+            Raises when archive integrity checks fail.
 
         """
         suffix = path.suffix.lower()
@@ -999,7 +1014,8 @@ class BaseDownload:
 
         Returns
         -------
-        None Raises when the file is missing, empty, corrupt, or checksum-invalid.
+        None
+            Raises when the file is missing, empty, corrupt, or checksum-invalid.
         """
         if not path.exists():
             raise ValueError(f"Downloaded file is missing: {path}")

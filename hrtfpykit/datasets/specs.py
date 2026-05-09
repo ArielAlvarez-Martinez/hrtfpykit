@@ -5,6 +5,28 @@ import numpy as np
 
 
 class HRTFSpec:
+    """Specification for extracting HRIR or HRTF arrays from a dataset.
+
+    ``HRTFSpec`` is the acoustic sample contract used by ``HUTUBS`` and
+    ``SONICOM``. It does not load files by itself; instead, a dataset consumes
+    the spec while it builds row contexts and later extracts values from the
+    loaded subject ``HRTF`` object in ``__getitem__``.
+
+    The spec controls three independent concerns:
+
+    - the acoustic representation, selected by ``domain`` and ``signal``;
+    - the source and ear subset, selected by ``positions``, ``plane``, and
+      ``ears``;
+    - the row axes and optional context encodings, selected by ``index_by`` and
+      the ``*_index`` / ``*_one_hot`` flags.
+
+    Returned arrays keep the natural HRTF axis order from the library object:
+    source position and ear axes appear before the last signal axis, where the
+    last axis is either time samples for ``domain='time'`` or frequency bins for
+    ``domain='frequency'``. When ``index_by`` includes an axis such as
+    ``'position'``, ``'ear'``, ``'frequency'``, or ``'samples'``, the current
+    dataset row selects that axis before the value is returned.
+    """
 
     def __init__(
         self,
@@ -62,7 +84,8 @@ class HRTFSpec:
 
         Returns
         -------
-        HRTFSpec Specification object consumed by dataset construction.
+        HRTFSpec
+            Specification object consumed by dataset construction.
 
         Examples
         --------
@@ -89,6 +112,19 @@ class HRTFSpec:
         self.name = name
 
 class ITDSpec:
+    """Specification for extracting interaural time difference values.
+
+    ``ITDSpec`` asks a dataset to derive timing cues from each subject HRTF
+    instead of returning raw acoustic arrays. The dataset loads the subject
+    ``HRTF``, optionally restricts the source grid with ``positions`` or
+    ``plane``, computes ITD using the configured estimator, and returns either a
+    whole ITD vector or the value selected by the current row context.
+
+    ITD values are aligned with the selected source positions. Subject-only rows
+    return all selected positions, while ``index_by=('subject', 'position')``
+    returns one position value per row. Position index and one-hot flags expose
+    the same row context that was used for selection.
+    """
 
     def __init__(
         self,
@@ -141,7 +177,8 @@ class ITDSpec:
 
         Returns
         -------
-        ITDSpec Specification object consumed by dataset construction.
+        ITDSpec
+            Specification object consumed by dataset construction.
 
         Examples
         --------
@@ -164,6 +201,19 @@ class ITDSpec:
         self.name = name
 
 class ILDSpec:
+    """Specification for extracting interaural level difference values.
+
+    ``ILDSpec`` asks a dataset to compute binaural level cues from the loaded
+    subject ``HRTF``. In ``mode='broad-band'`` the returned value is one ILD
+    value per selected source position. In ``mode='frequency-dependent'`` the
+    value keeps a frequency axis, and frequency-indexed rows can select one bin
+    at a time.
+
+    The spec participates in the same subject intersection, split selection,
+    plane selection, row indexing, and optional value transform pipeline as
+    ``HRTFSpec``. Use it when a model or analysis needs level-cue features
+    rather than full HRIR/HRTF arrays.
+    """
 
     def __init__(
         self,
@@ -218,7 +268,8 @@ class ILDSpec:
 
         Returns
         -------
-        ILDSpec Specification object consumed by dataset construction.
+        ILDSpec
+            Specification object consumed by dataset construction.
 
         Examples
         --------
@@ -245,6 +296,19 @@ class ILDSpec:
         self.name = name
 
 class SHSpec:
+    """Specification for spherical-harmonic HRTF features.
+
+    ``SHSpec`` computes a spherical-harmonic representation from the magnitude
+    data of each loaded subject HRTF. The spec is evaluated by the dataset
+    sample pipeline, so the result can be indexed by subject, ear, or frequency
+    and can be combined with other acoustic or metadata specs in the same
+    sample.
+
+    The ``sh_order`` controls the number of spherical-harmonic coefficients.
+    Higher orders can represent finer spatial detail but require enough source
+    positions for a stable least-squares fit. The ``epsilon`` value is forwarded
+    to the SH calculation as numerical regularization.
+    """
 
     def __init__(
         self,
@@ -288,7 +352,8 @@ class SHSpec:
 
         Returns
         -------
-        SHSpec Specification object consumed by dataset construction.
+        SHSpec
+            Specification object consumed by dataset construction.
 
         Examples
         --------
@@ -312,6 +377,18 @@ class SHSpec:
         self.name = name
 
 class MeshSpec:
+    """Specification for returning subject mesh resources.
+
+    ``MeshSpec`` requests the mesh file associated with each selected subject.
+    Concrete datasets resolve the path from their configured mesh variants
+    unless ``path`` overrides the location. The returned sample value is normally
+    a path string; providing ``transform`` lets callers load, parse, or convert
+    the mesh before it is placed in the sample dictionary.
+
+    Mesh specs affect subject availability: when a dataset includes a mesh spec,
+    subjects without a matching mesh resource are removed before split rows are
+    built.
+    """
 
     def __init__(
         self,
@@ -341,7 +418,8 @@ class MeshSpec:
 
         Returns
         -------
-        MeshSpec Specification object consumed by dataset construction.
+        MeshSpec
+            Specification object consumed by dataset construction.
 
         Examples
         --------
@@ -356,6 +434,18 @@ class MeshSpec:
         self.name = name
 
 class AnthropometrySpec:
+    """Specification for subject anthropometry tables.
+
+    ``AnthropometrySpec`` requests physical measurement data aligned to dataset
+    subjects. It is used for resources such as head, torso, pinna, and ear
+    measurements. The loader can read row-oriented or column-oriented tables,
+    remove configured rows or columns, and select ear-specific fields when the
+    dataset row or spec carries an ear context.
+
+    HUTUBS provides additional handling for left/right-prefixed anthropometry
+    fields. Other datasets use the generic table resolver unless they install
+    their own selector.
+    """
 
     def __init__(
         self,
@@ -406,7 +496,8 @@ class AnthropometrySpec:
 
         Returns
         -------
-        AnthropometrySpec Specification object consumed by dataset construction.
+        AnthropometrySpec
+            Specification object consumed by dataset construction.
 
         Examples
         --------
@@ -432,6 +523,17 @@ class AnthropometrySpec:
         self.name = name
 
 class MetadataSpec:
+    """Specification for general subject metadata tables.
+
+    ``MetadataSpec`` requests non-acoustic annotations aligned to subject IDs.
+    It shares table-loading behavior with ``AnthropometrySpec`` but is tracked as
+    a separate resource family and uses the ``metadata`` sample key by default.
+    This lets a dataset expose physical measurements and general metadata in the
+    same sample without path or key collisions.
+
+    Metadata values can be returned as dictionaries, scalar fields, arrays, or
+    any transformed object depending on the table layout and ``transform``.
+    """
 
     def __init__(
         self,
@@ -482,7 +584,8 @@ class MetadataSpec:
 
         Returns
         -------
-        MetadataSpec Specification object consumed by dataset construction.
+        MetadataSpec
+            Specification object consumed by dataset construction.
 
         Examples
         --------
@@ -505,6 +608,18 @@ class MetadataSpec:
         self.name = name
 
 class ImageSpec:
+    """Specification for subject image resources.
+
+    ``ImageSpec`` requests image files associated with selected subjects. Images
+    can be grouped by subject only or by subject and ear. The dataset scans the
+    configured image root, intersects available image subjects with any other
+    requested resources, and returns paths or transformed values during sample
+    extraction.
+
+    When ``concatenate`` is true, the value selector may concatenate transformed
+    image values for grouped resources. The exact object returned depends on the
+    optional ``transform`` callable.
+    """
 
     def __init__(
         self,
@@ -544,7 +659,8 @@ class ImageSpec:
 
         Returns
         -------
-        ImageSpec Specification object consumed by dataset construction.
+        ImageSpec
+            Specification object consumed by dataset construction.
 
         Examples
         --------
@@ -569,6 +685,17 @@ class ImageSpec:
         self.name = name
 
 class VideoSpec:
+    """Specification for subject video resources.
+
+    ``VideoSpec`` mirrors ``ImageSpec`` for video files. It requests videos
+    associated with each selected subject and optionally each ear, participates
+    in dataset subject intersection, and returns paths or transformed values in
+    sample dictionaries.
+
+    Use a transform when the dataset should return decoded frames, embeddings,
+    metadata, or another application-specific representation instead of file
+    paths.
+    """
 
     def __init__(
         self,
@@ -605,7 +732,8 @@ class VideoSpec:
 
         Returns
         -------
-        VideoSpec Specification object consumed by dataset construction.
+        VideoSpec
+            Specification object consumed by dataset construction.
 
         Examples
         --------

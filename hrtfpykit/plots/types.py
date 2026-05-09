@@ -9,7 +9,12 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 class TwoDimension:
-    """2D line-plot primitive wrapper."""
+    """Matplotlib primitive wrapper for two-dimensional line plots.
+
+    The wrapper centralizes validation for line plots that must be drawn on a
+    non-3D axis and returns the Matplotlib line artists created by
+    ``Axes.plot``.
+    """
 
     @staticmethod
     def create(
@@ -152,7 +157,12 @@ class Heatmap:
 
 
 class ThreeDimension:
-    """3D scatter-plot primitive wrapper."""
+    """Matplotlib primitive wrapper for three-dimensional source plots.
+
+    The wrapper validates that the target axis uses a 3D projection and then
+    delegates point rendering to ``Axes.scatter`` with the library defaults for
+    marker size, color, edge color, and depth shading.
+    """
 
     @staticmethod
     def create(

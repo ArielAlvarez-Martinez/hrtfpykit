@@ -101,7 +101,8 @@ def get_spec_name(spec: DatasetSpec) -> str:
 
     Returns
     -------
-    str Explicit spec name or descriptor default.
+    str
+        Explicit spec name or descriptor default.
 
     """
     explicit_name = getattr(spec, "name", None)
@@ -145,7 +146,8 @@ def get_specs(
 
     Returns
     -------
-    tuple of specs
+    tuple
+        of specs
         Specs matching all provided filters.
 
     """
@@ -197,7 +199,8 @@ def has_specs(
 
     Returns
     -------
-    bool ``True`` when at least one spec matches.
+    bool
+        ``True`` when at least one spec matches.
 
     """
     return len(
@@ -230,7 +233,8 @@ def get_supported_index(spec: DatasetSpec) -> tuple[set[str], str]:
 
     Returns
     -------
-    tuple Supported axis set and human-readable combinations.
+    tuple
+        Supported axis set and human-readable combinations.
 
     """
     if isinstance(spec, HRTFSpec):
@@ -283,7 +287,8 @@ def get_axis_compatibility_hint(spec: DatasetSpec, axis_name: str) -> str:
 
     Returns
     -------
-    str Additional compatibility hint, or an empty string.
+    str
+        Additional compatibility hint, or an empty string.
 
     """
     if isinstance(spec, HRTFSpec):
@@ -314,7 +319,8 @@ def get_flag_compatibility_hint(spec: DatasetSpec, axis_name: str) -> str:
 
     Returns
     -------
-    str Additional compatibility hint, or an empty string.
+    str
+        Additional compatibility hint, or an empty string.
 
     """
     if isinstance(spec, HRTFSpec):

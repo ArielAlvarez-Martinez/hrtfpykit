@@ -47,7 +47,8 @@ class DatasetResourcesValidator:
 
         Returns
         -------
-        dict Validated subject-to-path HRTF resources.
+        dict
+            Validated subject-to-path HRTF resources.
 
         """
         state = self._dataset._state
@@ -128,7 +129,8 @@ class DatasetResourcesValidator:
 
         Returns
         -------
-        None Emits warnings for missing mesh subjects.
+        None
+            Emits warnings for missing mesh subjects.
 
         """
         state = self._dataset._state
@@ -172,7 +174,8 @@ class DatasetResourcesValidator:
 
         Returns
         -------
-        None Emits warnings for missing or uneven image resources.
+        None
+            Emits warnings for missing or uneven image resources.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="image"):
@@ -218,7 +221,8 @@ class DatasetResourcesValidator:
 
         Returns
         -------
-        None Emits warnings for missing or uneven video resources.
+        None
+            Emits warnings for missing or uneven video resources.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="video"):
@@ -261,7 +265,8 @@ class DatasetResourcesValidator:
 
         Returns
         -------
-        None Raises when required anthropometry resources are invalid.
+        None
+            Raises when required anthropometry resources are invalid.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="anthropometry"):
@@ -299,7 +304,8 @@ class DatasetResourcesValidator:
 
         Returns
         -------
-        None Raises when required metadata resources are invalid.
+        None
+            Raises when required metadata resources are invalid.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="metadata"):
@@ -360,7 +366,8 @@ class DatasetResourcesScanner:
 
         Returns
         -------
-        tuple Resource paths or indexes plus scanner summary data.
+        tuple
+            Resource paths or indexes plus scanner summary data.
 
         """
         if config.anthropometry is None or not required:
@@ -410,7 +417,8 @@ class DatasetResourcesScanner:
 
         Returns
         -------
-        tuple Resource paths or indexes plus scanner summary data.
+        tuple
+            Resource paths or indexes plus scanner summary data.
 
         """
         if config.metadata is None and requested_path is None and not required:
@@ -462,7 +470,8 @@ class DatasetResourcesScanner:
 
         Returns
         -------
-        tuple Resource paths or indexes plus scanner summary data.
+        tuple
+            Resource paths or indexes plus scanner summary data.
 
         """
         hrtf_paths: dict[str, Path] = {}
@@ -566,7 +575,8 @@ class DatasetResourcesScanner:
 
         Returns
         -------
-        tuple Resource paths or indexes plus scanner summary data.
+        tuple
+            Resource paths or indexes plus scanner summary data.
 
         """
         mesh_paths: dict[str, Path] = {}
@@ -688,7 +698,8 @@ class DatasetResourcesScanner:
 
         Returns
         -------
-        tuple Resource paths or indexes plus scanner summary data.
+        tuple
+            Resource paths or indexes plus scanner summary data.
 
         """
         grouped_paths: dict[tuple[str, int | None, str | None], list[str]] = {}
@@ -787,7 +798,8 @@ class DatasetResourcesScanner:
 
         Returns
         -------
-        tuple Resource paths or indexes plus scanner summary data.
+        tuple
+            Resource paths or indexes plus scanner summary data.
 
         """
         return DatasetResourcesScanner.scan_media_paths(
@@ -826,7 +838,8 @@ class DatasetResourcesScanner:
 
         Returns
         -------
-        tuple Resource paths or indexes plus scanner summary data.
+        tuple
+            Resource paths or indexes plus scanner summary data.
 
         """
         return DatasetResourcesScanner.scan_media_paths(
@@ -865,7 +878,8 @@ class DatasetResourcesPlan:
 
     Returns
     -------
-    DatasetResourcesPlan Immutable plan consumed by ``DatasetBuilder``.
+    DatasetResourcesPlan
+        Immutable plan consumed by ``DatasetBuilder``.
     """
     hrtf_paths: dict[str, Path]
     mesh_paths: dict[str, Path]
@@ -911,7 +925,8 @@ class DatasetResources:
 
         Returns
         -------
-        Path or None Absolute path or ``None`` when no path was provided.
+        Path
+            or None Absolute path or ``None`` when no path was provided.
         """
         if path is None:
             return None
@@ -941,7 +956,8 @@ class DatasetResources:
 
         Returns
         -------
-        DatasetResourcesPlan Resource plan assigned into dataset state.
+        DatasetResourcesPlan
+            Resource plan assigned into dataset state.
 
         """
         state = dataset._state

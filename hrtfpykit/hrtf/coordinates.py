@@ -163,7 +163,8 @@ def get_position_alias(
 
     Returns
     -------
-    str | None
+    str
+        | None
         One of ``{"front", "left", "back", "right"}`` when the position
         matches a canonical horizontal cardinal direction, otherwise ``None``.
 
@@ -261,8 +262,8 @@ def get_spherical_positions(
     --------
     Load an HRTF and normalize its source grid to spherical coordinates:
 
-    >>> from hrtfpykit import HRTF
-    >>> hrtf = HRTF.load_hrtf("my_hrtf.sofa")
+    >>> from hrtfpykit.hrtf import load_hrtf
+    >>> hrtf = load_hrtf("my_hrtf.sofa")
     >>> spherical = get_spherical_positions(hrtf.Sources)
     >>> spherical.shape[-1]
     3

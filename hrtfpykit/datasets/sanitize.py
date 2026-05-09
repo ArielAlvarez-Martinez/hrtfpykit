@@ -31,7 +31,8 @@ def sanitize_subject_id(value: str) -> str:
 
     Returns
     -------
-    str Lowercase stripped subject identifier.
+    str
+        Lowercase stripped subject identifier.
 
     """
     return str(value).strip().lower()
@@ -52,7 +53,8 @@ def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
 
     Returns
     -------
-    tuple of str Normalized row axes.
+    tuple of str
+        Normalized row axes.
 
     """
     allowed_axes = {"position", "ear", "frequency", "samples"}
@@ -98,7 +100,8 @@ def sanitize_grouped_by(grouped_by: str | Sequence[str]) -> tuple[str, ...]:
 
     Returns
     -------
-    tuple of str Normalized grouping axes.
+    tuple of str
+        Normalized grouping axes.
 
     """
     if isinstance(grouped_by, str):
@@ -130,7 +133,8 @@ def sanitize_ear(ear: str | None) -> str | None:
 
     Returns
     -------
-    str or None Normalized ear selector.
+    str
+        or None Normalized ear selector.
 
     """
     if ear is None or str(ear).strip() == "":
@@ -157,7 +161,8 @@ def sanitize_accessed_by(accessed_by: str) -> str:
 
     Returns
     -------
-    str ``'row'`` or ``'column'``.
+    str
+        ``'row'`` or ``'column'``.
 
     """
     accessed_by_value = str(accessed_by).strip().lower()
@@ -227,7 +232,8 @@ def sanitize_positions(
 
     Returns
     -------
-    list of int Validated position indices.
+    list of int
+        Validated position indices.
 
     """
     if isinstance(positions, str):
@@ -268,7 +274,8 @@ def sanitize_extensions(
 
     Returns
     -------
-    tuple of str Unique lowercase extensions beginning with ``.``.
+    tuple of str
+        Unique lowercase extensions beginning with ``.``.
 
     """
     if extensions is None:
@@ -326,7 +333,8 @@ def sanitize_specs(
 
     Returns
     -------
-    tuple of specs Copied and name-validated specs.
+    tuple
+        of specs Copied and name-validated specs.
 
     """
     if specs is None:
