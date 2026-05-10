@@ -38,9 +38,9 @@ def build_frequency_axis(
     Parameters
     ----------
     scale : str
-        Frequency scale mode. Intended values are "linear" and "log".
+        Frequency scale mode. Intended values are ``linear`` and ``log``.
         The helper applies additional positivity checks only when scale is
-        "log".
+        ``log``.
     default_ticks : tuple[float, ...]
         Default tick positions in Hz used when ticks is not provided.
     default_labels : tuple[str, ...]
@@ -179,13 +179,13 @@ def apply_frequency_axis(
     Parameters
     ----------
     scale : str
-        Frequency scale mode. Intended values are "linear" and "log".
-        "log" applies logarithmic scaling; any other value follows the
+        Frequency scale mode. Intended values are ``linear`` and ``log``.
+        ``log`` applies logarithmic scaling; any other value follows the
         linear branch.
     ax : plt.Axes
         Target Matplotlib axis.
     axis : str
-        Axis selector: "x", "y", or "z".
+        Axis selector: ``x``, ``y``, or ``z``.
     label : str | None, default=None
         Optional axis label. When None, the existing axis label is preserved.
     freq_min : float | None, default=None
@@ -206,7 +206,7 @@ def apply_frequency_axis(
     Raises
     ------
     ValueError
-        If axis is not "x", "y", or "z", if either frequency
+        If axis is not ``x``, ``y``, or ``z``, if either frequency
         bound is missing, if tick and label counts differ, or if z-axis
         formatting is requested on a Matplotlib axis without the required 3D
         axis methods.

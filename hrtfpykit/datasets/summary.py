@@ -17,7 +17,7 @@ def _summary_title(text: str, width: int = 54, marker: str = "=") -> str:
     width : int, default=54
         Desired output width. If width is zero or negative, the stripped text is
         returned without padding.
-    marker : str, default="="
+    marker : str, default=``=``
         Padding string repeated on both sides of the title.
 
     Returns
@@ -86,9 +86,9 @@ def resources_summary(
     Notes
     -----
     Dataset mode uses :func:`~hrtfpykit.datasets.specs_registry.has_specs` to decide
-    whether "hrtf", "mesh", "anthropometry", "metadata", "image", or "video" should
+    whether ``hrtf``, ``mesh``, ``anthropometry``, ``metadata``, ``image``, or ``video`` should
     appear in the formatted output. If the constructed state contains no applicable
-    resource records, the summary reports "none".
+    resource records, the summary reports ``none``.
 
     """
 
@@ -224,8 +224,8 @@ def download_summary(
     root : str or Path
         Local download root reported in the summary.
     download_jobs : list of dict
-        Planned download job records. Each job is expected to contain a "resource"
-        entry and may contain "subject_id", "hrtf_variant", and "mesh_variant"
+        Planned download job records. Each job is expected to contain a ``resource``
+        entry and may contain ``subject_id``, ``hrtf_variant``, and ``mesh_variant``
         entries.
     downloaded_count : int
         Number of files downloaded in this run.

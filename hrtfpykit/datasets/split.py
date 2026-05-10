@@ -36,10 +36,10 @@ class DatasetSplitPlan:
     selected_subjects : tuple of str
         Canonical subject IDs selected for the requested split.
     split : str
-        Requested split name, usually "all", "train", "validation", or "test".
+        Requested split name, usually ``all``, ``train``, ``validation``, or ``test``.
     split_ratio : tuple of float
         Train, validation, and test ratios used when selecting a split other than
-        "all".
+        ``all``.
     split_seed : int
         Seed used for deterministic split assignment.
 
@@ -80,7 +80,7 @@ class DatasetSplitPlanner:
         """Map one user subject reference to a canonical subject ID.
 
         The mapper accepts case-insensitive exact IDs, one-based integer
-        positions, numeric strings, "subject1", "subject_1", "subject-1", and
+        positions, numeric strings, ``subject1``, ``subject_1``, ``subject-1``, and
         strings that match after
         :func:`~hrtfpykit.datasets.sanitize.sanitize_subject_id` normalization.
         It always returns the canonical ID from the dataset configuration, so
@@ -188,7 +188,7 @@ class DatasetSplitPlanner:
 
         Dataset subject IDs often combine a dataset-specific prefix with a numeric
         suffix. This method sorts by that trailing integer when it is present, so
-        "pp2" appears before "pp10" in splits, resource summaries, and subject
+        ``pp2`` appears before ``pp10`` in splits, resource summaries, and subject
         number maps. IDs without trailing digits are ordered before numeric IDs and
         sorted case-insensitively by their full text.
 
@@ -306,8 +306,8 @@ class DatasetSplitPlanner:
     ) -> list[str]:
         """Split subject IDs into all, train, validation, or test subsets.
 
-        For "all", this method returns the input subject IDs as a list without
-        shuffling or validating ratios. For "train", "validation", and "test", it
+        For ``all``, this method returns the input subject IDs as a list without
+        shuffling or validating ratios. For ``train``, ``validation``, and ``test``, it
         shuffles the subject IDs with a deterministic NumPy generator, converts the
         three ratios into integer counts, distributes any remainder to the largest
         fractional counts, and returns only the requested subset.
@@ -316,10 +316,10 @@ class DatasetSplitPlanner:
         ----------
         subject_ids : sequence of str
             Ordered canonical subject IDs available for splitting.
-        split : {"all", "train", "validation", "test"}
+        split : {``all``, ``train``, ``validation``, ``test``}
             Split subset to return.
         split_ratio : tuple of float
-            Train, validation, and test ratios. For split values other than "all",
+            Train, validation, and test ratios. For split values other than ``all``,
             the tuple must contain three values and their sum must be close to one.
         split_seed : int
             Random seed used to shuffle subjects deterministically.
@@ -334,7 +334,7 @@ class DatasetSplitPlanner:
         ValueError
             If split is not one of the supported values, split_ratio does not contain
             three values, or the ratio values do not sum to one for a split other
-            than "all".
+            than ``all``.
 
         Notes
         -----
@@ -402,7 +402,7 @@ class DatasetSplitPlanner:
             Dataset with configuration, specs, resource paths, loaded table rows, and
             media indexes already initialized.
         split : str
-            Requested split name, usually "all", "train", "validation", or "test".
+            Requested split name, usually ``all``, ``train``, ``validation``, or ``test``.
         split_ratio : tuple of float
             Train, validation, and test ratios passed to
             :meth:`~hrtfpykit.datasets.split.DatasetSplitPlanner.split_subject_ids`.

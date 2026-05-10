@@ -47,8 +47,8 @@ class DatasetSpecDescriptor:
         Default public sample key used when the spec instance does not define an
         explicit name.
     resource_name : str
-        Resource family required by the spec, such as "hrtf", "mesh", "metadata",
-        "anthropometry", "image", or "video".
+        Resource family required by the spec, such as ``hrtf``, ``mesh``, ``metadata``,
+        ``anthropometry``, ``image``, or ``video``.
     indexed, acoustic, position_selectable, media, grouped, path_based, ear_selectable : bool
         Behavioral flags consumed by spec workflow, resource scanning, subject
         intersection, acoustic context construction, and sample value selection.

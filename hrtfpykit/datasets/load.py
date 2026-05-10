@@ -157,9 +157,9 @@ def load_table(
     access.
 
     CSV files are interpreted in one of two orientations. With
-    accessed_by="row", each data row is assigned to the corresponding subject
+    accessed_by=``row``, each data row is assigned to the corresponding subject
     in :attr:`~hrtfpykit.datasets.config.DatasetConfig.subject_ids`, and the
-    returned mapping is keyed by subject ID. With accessed_by="column", each
+    returned mapping is keyed by subject ID. With accessed_by=``column``, each
     subject column is assigned by position to the dataset subject order, and the
     returned mapping is keyed by row label. MAT files are returned as the variable
     dictionary produced by SciPy after optional row and column deletion.
@@ -178,14 +178,14 @@ def load_table(
         Zero-based row or column positions removed from the loaded table. For
         CSV data, indices are validated against the parsed orientation. For MAT
         data, indices are forwarded to NumPy deletion on compatible arrays.
-    accessed_by : {'row', 'column'}, default='row'
+    accessed_by : {``row``, ``column``}, default=``row``
         Whether CSV subjects are represented by table rows or table columns. This
         argument does not change MAT loading.
     subject_id : bool, default=True
         Whether a CSV table includes a leading identifier column in row-oriented
         mode, or a leading label column in column-oriented mode. When false, all
         CSV columns are treated as data or subject columns.
-    resource_name : str, default='Table'
+    resource_name : str, default=``Table``
         Resource label used in validation errors.
 
     Returns
@@ -200,7 +200,7 @@ def load_table(
     ------
     ValueError
         If the dataset configuration is not initialized, accessed_by is not
-        "row" or "column", a CSV file lacks headers, a requested exclusion
+        ``row`` or ``column``, a CSV file lacks headers, a requested exclusion
         index is out of range for CSV data, or the extension is unsupported.
     OSError
         If the file cannot be opened or read.

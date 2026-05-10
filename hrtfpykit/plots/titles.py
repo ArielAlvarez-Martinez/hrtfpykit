@@ -71,7 +71,7 @@ class Titles:
         built-in cardinal aliases from
         :func:`~hrtfpykit.hrtf.coordinates.get_position_alias`, the alias is
         capitalized and used as the title prefix. Otherwise the generic
-        "Position" prefix is used.
+        ``Position`` prefix is used.
 
         Parameters
         ----------
@@ -83,9 +83,9 @@ class Titles:
         Returns
         -------
         str
-            Formatted subplot title, for example "Front : [Azimuth= 0.0°,
-            Elevation= 0.0°]" or "Position : [Azimuth= 30.0°, Elevation=
-            10.0°]".
+            Formatted subplot title, for example
+            ``Front : [Azimuth= 0.0°, Elevation= 0.0°]`` or
+            ``Position : [Azimuth= 30.0°, Elevation= 10.0°]``.
 
         Raises
         ------
@@ -126,11 +126,11 @@ class Titles:
         Parameters
         ----------
         plane : str
-            Plane name. Supported values are "horizontal" and "median".
+            Plane name. Supported values are ``horizontal`` and ``median``.
             Matching is case-insensitive after surrounding whitespace is removed.
         elevation_angle : float, default=0.0
             Horizontal-plane elevation in degrees. Used only when plane is
-            "horizontal".
+            ``horizontal``.
 
         Returns
         -------
@@ -140,7 +140,7 @@ class Titles:
         Raises
         ------
         ValueError
-            If plane is not "horizontal" or "median".
+            If plane is not ``horizontal`` or ``median``.
 
         """
         plane_key = str(plane).strip().lower()

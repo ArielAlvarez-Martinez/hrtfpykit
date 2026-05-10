@@ -75,7 +75,7 @@ class SONICOM(BaseDataset):
         download : bool, default=False
             If True, downloads selected official SONICOM resources before dataset
             construction.
-        download_resources : str or sequence of str, default='hrtf'
+        download_resources : str or sequence of str, default=``hrtf``
             Official resources requested for download. This value is not inferred
             from inputs or target.
         download_hrtf_variant : dict, str, or None
@@ -90,7 +90,7 @@ class SONICOM(BaseDataset):
             Specs exposed under sample inputs.
         target : spec, sequence of specs, or None, default=None
             Specs exposed under sample targets.
-        split : {"all", "train", "validation", "test"}, default="all"
+        split : {``all``, ``train``, ``validation``, ``test``}, default=``all``
             Subject split used by this dataset instance.
         split_ratio : tuple of float, default=(0.8, 0.1, 0.1)
             Train, validation, and test split ratios.
@@ -106,20 +106,6 @@ class SONICOM(BaseDataset):
             Dataset object supporting indexed sample extraction and subject HRTF
             loading.
 
-        Examples
-        --------
-        >>> from hrtfpykit.datasets import SONICOM
-        >>> from hrtfpykit.datasets import HRTFSpec, MetadataSpec
-        >>> dataset = SONICOM(
-        ...     root="datasets/sonicom",
-        ...     inputs=[HRTFSpec(), MetadataSpec()],
-        ...     dataset_hrtf_variant={
-        ...         "type": "measured",
-        ...         "sample_rate": 44100,
-        ...         "version": "FreeFieldComp",
-        ...     },
-        ... )
-        >>> sample = dataset[0]
         """
         if download:
             downloaded, download_report = BaseDownload(

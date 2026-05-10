@@ -65,17 +65,17 @@ class HUTUBS(BaseDataset):
         ----------
         root : str or Path
             Local HUTUBS dataset root.
-        dataset_hrtf_variant : {"measured", "simulated"} or dict, default="measured"
+        dataset_hrtf_variant : {``measured``, ``simulated``} or dict, default=``measured``
             HUTUBS HRTF resource variant used for dataset construction.
         dataset_hrtf_transform : callable or None, default=None
             Optional transform applied to loaded HRTFs before spec extraction.
         download : bool, default=False
             If True, downloads selected official HUTUBS resources before dataset
             construction.
-        download_resources : str or sequence of str, default='hrtf'
+        download_resources : str or sequence of str, default=``hrtf``
             Official resources requested for download. This value is not inferred
             from inputs or target.
-        download_hrtf_variant : str or dict, default="measured"
+        download_hrtf_variant : str or dict, default=``measured``
             HRTF variant requested for download. This value is independent from
             dataset_hrtf_variant.
         exclude_subject_ids : str, int, sequence, or None, default=None
@@ -84,7 +84,7 @@ class HUTUBS(BaseDataset):
             Specs exposed under sample inputs.
         target : spec, sequence of specs, or None, default=None
             Specs exposed under sample targets.
-        split : {"all", "train", "validation", "test"}, default="all"
+        split : {``all``, ``train``, ``validation``, ``test``}, default=``all``
             Subject split used by this dataset instance.
         split_ratio : tuple of float, default=(0.8, 0.1, 0.1)
             Train, validation, and test split ratios.
@@ -100,15 +100,6 @@ class HUTUBS(BaseDataset):
             Dataset object supporting indexed sample extraction and subject HRTF
             loading.
 
-        Examples
-        --------
-        >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets import AnthropometrySpec, HRTFSpec
-        >>> dataset = HUTUBS(
-        ...     root="datasets/hutubs",
-        ...     inputs=[HRTFSpec(index_by=("subject", "position")), AnthropometrySpec()],
-        ... )
-        >>> sample = dataset[0]
         """
         if isinstance(dataset_hrtf_variant, Mapping):
             unknown_keys = set(dataset_hrtf_variant) - {"type"}

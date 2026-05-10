@@ -9,7 +9,7 @@ class _Data(ABC):
     def __init__(self, dataset : netCDF4.Dataset = None):
         """Define shared behavior for SOFA collection wrappers.
 
-        "_Data" stores the open netCDF4 storage handle used by a
+        ``_Data`` stores the open netCDF4 storage handle used by a
         :class:`~hrtfpykit.sofa.sofa.SOFA` instance and defines the collection
         interface shared by dimensions, global attributes, variable
         attributes, and variables. Concrete subclasses expose SOFA storage
@@ -25,7 +25,7 @@ class _Data(ABC):
         Raises
         ------
         ValueError
-            If "dataset" is None.
+            If ``dataset`` is None.
 
         Attributes
         ----------
@@ -76,7 +76,7 @@ class _Data(ABC):
         Raises
         ------
         ValueError
-            If "name" cannot be resolved by the concrete collection.
+            If ``name`` cannot be resolved by the concrete collection.
         """
         pass
     
@@ -119,7 +119,7 @@ class _Data(ABC):
         Raises
         ------
         ValueError
-            If "name" cannot be resolved by the concrete collection.
+            If ``name`` cannot be resolved by the concrete collection.
         """
         pass
 
@@ -150,10 +150,10 @@ class _Dimensions(_Data):
     def __init__(self, dataset : netCDF4.Dataset = None):
         """Expose SOFA dimensions from a netCDF4-backed SOFA storage handle.
 
-        "_Dimensions" backs :attr:`~hrtfpykit.sofa.sofa.SOFA.Dimensions`. It exposes
+        ``_Dimensions`` backs :attr:`~hrtfpykit.sofa.sofa.SOFA.Dimensions`. It exposes
         dimension names, sizes, wrapped dimension objects, and a compact text summary.
-        Dimension wrappers are used to inspect SOFA axes such as "M" for
-        measurements, "R" for receivers, and "N" for samples or frequency bins,
+        Dimension wrappers are used to inspect SOFA axes such as ``M`` for
+        measurements, ``R`` for receivers, and ``N`` for samples or frequency bins,
         depending on the active convention.
 
         Parameters
@@ -164,7 +164,7 @@ class _Dimensions(_Data):
         Raises
         ------
         ValueError
-            If "dataset" is None.
+            If ``dataset`` is None.
         """
         super().__init__(dataset)
 
@@ -174,7 +174,7 @@ class _Dimensions(_Data):
         Returns
         -------
         list[str]
-            Names from "dataset.dimensions" on the netCDF4 storage handle.
+            Names from ``dataset.dimensions`` on the netCDF4 storage handle.
         """
         return list(self._netCDF4_dataset.dimensions.keys())
 
@@ -207,7 +207,7 @@ class _Dimensions(_Data):
         Raises
         ------
         ValueError
-            If "name" is not present in the netCDF4 dimensions.
+            If ``name`` is not present in the netCDF4 dimensions.
         """
         if name not in self._netCDF4_dataset.dimensions:
             raise ValueError(f"Dimension not found: {name}")
@@ -257,7 +257,7 @@ class _Dimensions(_Data):
         Raises
         ------
         ValueError
-            If "name" is not present in the netCDF4 dimensions.
+            If ``name`` is not present in the netCDF4 dimensions.
         """
         return self.get(name)
 
@@ -277,7 +277,7 @@ class _Dimensions(_Data):
         Returns
         -------
         int
-            Number of entries in "dataset.dimensions" on the netCDF4 storage handle.
+            Number of entries in ``dataset.dimensions`` on the netCDF4 storage handle.
         """
         return len(self._netCDF4_dataset.dimensions)
     
@@ -286,7 +286,7 @@ class _AttributesBase(_Data):
     def __init__(self, dataset: netCDF4.Dataset = None, attribute_type: str = "Attribute") -> None:
         """Provide lookup, iteration, and wrapping for SOFA attributes.
 
-        "_AttributesBase" implements the shared lookup, iteration, and wrapping
+        ``_AttributesBase`` implements the shared lookup, iteration, and wrapping
         behavior for global attributes and variable attributes. Concrete subclasses
         provide the collection-specific iteration and lookup logic because global
         attributes live on the SOFA file while variable attributes live on
@@ -296,13 +296,13 @@ class _AttributesBase(_Data):
         ----------
         dataset : netCDF4.Dataset
             Open netCDF4 storage handle for a SOFA file.
-        attribute_type : str, default="Attribute"
+        attribute_type : str, default=``Attribute``
             Type label attached to returned attribute wrappers.
 
         Raises
         ------
         ValueError
-            If "dataset" is None.
+            If ``dataset`` is None.
         """
         super().__init__(dataset)
         self._attribute_type = attribute_type
@@ -375,18 +375,18 @@ class _AttributesBase(_Data):
         name : str
             Attribute key in the format expected by the concrete collection.
             Global attributes use the plain attribute name. Variable attributes
-            use "Variable:Attribute".
+            use ``Variable:Attribute``.
 
         Returns
         -------
         AttributesWrap
             Wrapped attribute metadata with the concrete collection's
-            "attribute_type" label.
+            ``attribute_type`` label.
 
         Raises
         ------
         ValueError
-            If "name" does not resolve to an available attribute in the
+            If ``name`` does not resolve to an available attribute in the
             wrapped collection.
         """
         value = self._get_value(name)
@@ -417,7 +417,7 @@ class _AttributesBase(_Data):
 
         Concrete subclasses override this method with formatted summaries for
         their specific attribute collection. The base implementation is kept to
-        satisfy the shared "_Data" protocol.
+        satisfy the shared ``_Data`` protocol.
 
         Returns
         -------
@@ -443,7 +443,7 @@ class _AttributesBase(_Data):
         Raises
         ------
         ValueError
-            If "key" does not resolve to an available attribute.
+            If ``key`` does not resolve to an available attribute.
         """
         return self.get(key)
 
@@ -473,10 +473,10 @@ class _GlobalAttributes(_AttributesBase):
     def __init__(self, dataset: netCDF4.Dataset = None) -> None:
         """Expose file-level SOFA metadata from a netCDF4 storage handle.
 
-        "_GlobalAttributes" backs
+        ``_GlobalAttributes`` backs
         :attr:`~hrtfpykit.sofa.sofa.SOFA.GlobalAttributes`. It exposes file-level
-        metadata such as "SOFAConventions", "SOFAConventionsVersion",
-        "DataType", application metadata, and date fields through the shared
+        metadata such as ``SOFAConventions``, ``SOFAConventionsVersion``,
+        ``DataType``, application metadata, and date fields through the shared
         attribute-wrapper API.
 
         Parameters
@@ -487,7 +487,7 @@ class _GlobalAttributes(_AttributesBase):
         Raises
         ------
         ValueError
-            If "dataset" is None.
+            If ``dataset`` is None.
         """
         super().__init__(dataset, attribute_type="GlobalAttribute")
 
@@ -498,7 +498,7 @@ class _GlobalAttributes(_AttributesBase):
         -------
         Iterator[tuple[str, Any]]
             Iterator yielding (attribute_name, value) pairs from
-            "dataset.ncattrs()".
+            ``dataset.ncattrs()``.
         """
         for name in self._netCDF4_dataset.ncattrs():
             yield name, getattr(self._netCDF4_dataset, name)
@@ -536,7 +536,7 @@ class _GlobalAttributes(_AttributesBase):
         Returns
         -------
         str
-            Multi-line summary with a header followed by "GLOBAL:name" =
+            Multi-line summary with a header followed by ``GLOBAL:name`` =
             value lines. Returns an empty string when the SOFA file has no
             global attributes.
         """
@@ -556,10 +556,10 @@ class _VariableAttributes(_AttributesBase):
     def __init__(self, dataset: netCDF4.Dataset = None) -> None:
         """Expose attributes attached to individual SOFA variables.
 
-        "_VariableAttributes" backs
+        ``_VariableAttributes`` backs
         :attr:`~hrtfpykit.sofa.sofa.SOFA.VariableAttributes`. It exposes attributes
         attached to individual variables using the hrtfpykit key format
-        "Variable:Attribute". These attributes describe units, coordinate
+        ``Variable:Attribute``. These attributes describe units, coordinate
         systems, and semantic labels required by SOFA-based HRTF workflows.
 
         Parameters
@@ -570,7 +570,7 @@ class _VariableAttributes(_AttributesBase):
         Raises
         ------
         ValueError
-            If "dataset" is None.
+            If ``dataset`` is None.
         """
         super().__init__(dataset, attribute_type="VariableAttribute")
 
@@ -580,7 +580,7 @@ class _VariableAttributes(_AttributesBase):
         Returns
         -------
         Iterator[tuple[str, Any]]
-            Iterator yielding ("Variable:Attribute", value) pairs for
+            Iterator yielding (``Variable:Attribute``, value) pairs for
             every attribute on every variable.
         """
         for var_name, var in self._netCDF4_dataset.variables.items():
@@ -593,7 +593,7 @@ class _VariableAttributes(_AttributesBase):
         Parameters
         ----------
         name : str
-            Attribute key in the form "Variable:Attribute".
+            Attribute key in the form ``Variable:Attribute``.
 
         Returns
         -------
@@ -628,7 +628,7 @@ class _VariableAttributes(_AttributesBase):
         -------
         str
             Multi-line summary with a header followed by
-            "Variable:Attribute" = value lines. Returns an empty string when
+            ``Variable:Attribute`` = value lines. Returns an empty string when
             no variable attributes are present.
         """
         items = list(self._iter_items())
@@ -646,11 +646,11 @@ class _Variables(_Data):
     def __init__(self, dataset : netCDF4.Dataset = None):
         """Expose SOFA variable data and metadata from a netCDF4 storage handle.
 
-        "_Variables" backs :attr:`~hrtfpykit.sofa.sofa.SOFA.Variables`. It exposes
+        ``_Variables`` backs :attr:`~hrtfpykit.sofa.sofa.SOFA.Variables`. It exposes
         variable names, NumPy values, wrapped variable objects, and a summary of
         variable dimensions and attributes. This collection is the primary read path
-        for SOFA arrays such as "Data.IR", "Data.Real", "Data.Imag",
-        "SourcePosition", "Data.SamplingRate", and "N".
+        for SOFA arrays such as ``Data.IR``, ``Data.Real``, ``Data.Imag``,
+        ``SourcePosition``, ``Data.SamplingRate``, and ``N``.
 
         Parameters
         ----------
@@ -660,7 +660,7 @@ class _Variables(_Data):
         Raises
         ------
         ValueError
-            If "dataset" is None.
+            If ``dataset`` is None.
         """
         super().__init__(dataset)
 
@@ -670,7 +670,7 @@ class _Variables(_Data):
         Returns
         -------
         list[str]
-            Names from "dataset.variables" on the netCDF4 storage handle.
+            Names from ``dataset.variables`` on the netCDF4 storage handle.
         """
         return list(self._netCDF4_dataset.variables.keys())
 
@@ -710,7 +710,7 @@ class _Variables(_Data):
         Raises
         ------
         ValueError
-            If "name" is not present in the netCDF4 variables.
+            If ``name`` is not present in the netCDF4 variables.
         """
         if name not in self._netCDF4_dataset.variables:
             raise ValueError(f"Variable not found: {name}")
@@ -773,7 +773,7 @@ class _Variables(_Data):
         Raises
         ------
         ValueError
-            If "key" is not present in the netCDF4 variables.
+            If ``key`` is not present in the netCDF4 variables.
         """
         return self.get(key)
 
@@ -793,6 +793,6 @@ class _Variables(_Data):
         Returns
         -------
         int
-            Number of entries in "dataset.variables" on the netCDF4 storage handle.
+            Number of entries in ``dataset.variables`` on the netCDF4 storage handle.
         """
         return len(self._netCDF4_dataset.variables)

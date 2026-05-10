@@ -11,13 +11,14 @@ if TYPE_CHECKING:
 
 
 class HRTFTransform:
-    """Factory namespace for HRTF preprocessing callables used by datasets.
+    """Factory namespace for reusable HRTF preprocessing callables.
 
-    :class:`~hrtfpykit.datasets.HRTFTransform` creates small callables
-    that can be passed to dataset constructors as "dataset_hrtf_transform". During
-    dataset loading, each callable receives the subject
-    :class:`~hrtfpykit.hrtf.hrtf.HRTF`, runs one HRTF operation, and returns the
-    transformed object before specs extract values.
+    :class:`~hrtfpykit.datasets.HRTFTransform` creates small callables that
+    receive a subject :class:`~hrtfpykit.hrtf.hrtf.HRTF`, run one HRTF
+    operation, and return the transformed object. These callables can be used
+    as dataset-level transforms through ``dataset_hrtf_transform`` or as
+    HRTF-level spec transforms, for example through
+    :class:`~hrtfpykit.datasets.HRTFSpec`.
 
     The factory methods are thin adapters over
     :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform` and
@@ -28,21 +29,13 @@ class HRTFTransform:
 
     Notes
     -----
-    The returned callables are executed by dataset HRTF loading utilities, after a
-    subject HRTF is read and before it is cached. If the callable returns an object
-    that does not behave like an HRTF, dataset loading raises an error before sample
-    extraction continues.
+    When used as ``dataset_hrtf_transform``, the returned callables are executed
+    after a subject HRTF is read and before it is cached. When used on an
+    HRTF-level spec, they are executed before that spec extracts its value. If
+    the callable returns an object that does not behave like an HRTF, dataset
+    loading or value extraction raises an error before sample extraction
+    continues.
 
-    Examples
-    --------
-    >>> from hrtfpykit.datasets import HUTUBS
-    >>> from hrtfpykit.datasets import HRTFSpec
-    >>> from hrtfpykit.datasets import HRTFTransform
-    >>> dataset = HUTUBS(
-    ...     root="datasets/hutubs",
-    ...     inputs=HRTFSpec(),
-    ...     dataset_hrtf_transform=HRTFTransform.apply_padding(16),
-    ... )
     """
 
     @staticmethod
@@ -51,7 +44,7 @@ class HRTFTransform:
         *args: object,
         **kwargs: object,
     ) -> Callable[[object], object]:
-        """Create a dataset-level callable from an HRTF transform method name.
+        """Create an HRTF-level callable from a transform method name.
 
         This is the generic factory used by the named convenience methods below. It
         stores the requested transform method name and arguments, then delays method
@@ -87,7 +80,7 @@ class HRTFTransform:
 
         Notes
         -----
-        The factory marks the returned callable with "__hrtf_transform__" so callers
+        The factory marks the returned callable with ``__hrtf_transform__`` so callers
         can distinguish HRTF transform wrappers from arbitrary user callables when
         introspection is needed.
 
@@ -124,14 +117,14 @@ class HRTFTransform:
         *args: object,
         **kwargs: object,
     ) -> Callable[[object], object]:
-        """Create a dataset-level source selection callable.
+        """Create an HRTF-level source selection callable.
 
         Selection is special because it calls
         :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select` directly rather than a method under
         :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform`. The returned callable lets a
         dataset reduce or reorder source positions before specs extract acoustic
-        values, while preserving the same "dataset_hrtf_transform" interface as the
-        other factories.
+        values. The returned callable can be used through
+        ``dataset_hrtf_transform`` or through HRTF-level spec transform hooks.
 
         Parameters
         ----------
@@ -192,7 +185,7 @@ class HRTFTransform:
         ----------
         window_name : str
             Window identifier forwarded to the HRTF transform layer, for example
-            "hann", "hamming", "blackman", or "rectangular".
+            ``hann``, ``hamming``, ``blackman``, or ``rectangular``.
 
         Returns
         -------
@@ -237,7 +230,7 @@ class HRTFTransform:
         ----------
         padding_length : int
             Number of samples added to each impulse response.
-        location : {"start", "end"}, default="end"
+        location : {``start``, ``end``}, default=``end``
             Side of the IR sample axis where padding is applied.
         value : float, default=0
             Constant value used in the padded region.
@@ -373,7 +366,7 @@ class HRTFTransform:
         ----------
         filter : str
             FIR filter type accepted by the HRTF transform layer, such as
-            "lowpass", "highpass", or "bandpass".
+            ``lowpass``, ``highpass``, or ``bandpass``.
         cutoff : float | tuple[float, float] | None, default=None
             Cutoff frequency or frequency pair in hertz.
         num_taps : int, default=101
@@ -433,7 +426,7 @@ class HRTFTransform:
         ----------
         filter : str
             IIR filter type accepted by the HRTF transform layer, such as
-            "lowpass", "highpass", or "bandpass".
+            ``lowpass``, ``highpass``, or ``bandpass``.
         cutoff : float | tuple[float, float] | None, default=None
             Cutoff frequency or frequency pair in hertz.
         order : int, default=10
@@ -488,7 +481,7 @@ class HRTFTransform:
 
         Parameters
         ----------
-        method : str, default="homomorphic"
+        method : str, default=``homomorphic``
             Minimum-phase reconstruction method passed to the HRTF transform layer.
         fft_length : int | None, default=None
             Optional FFT length used during minimum-phase reconstruction.
@@ -544,7 +537,7 @@ class HRTFTransform:
         weights : bool, default=False
             Whether source-position weights are used when estimating the common
             transfer function.
-        magnitude_average : {"log", "linear"}, default="log"
+        magnitude_average : {``log``, ``linear``}, default=``log``
             Magnitude averaging rule used by the CTF transform.
         attenuation : float | None, default=None
             Optional attenuation in decibels applied by the CTF transform.
@@ -597,7 +590,7 @@ class HRTFTransform:
         weights : bool, default=False
             Whether source-position weights are used when estimating the common
             transfer function removed from the HRTF.
-        magnitude_average : {"log", "linear"}, default="log"
+        magnitude_average : {``log``, ``linear``}, default=``log``
             Magnitude averaging rule used during DTF calculation.
         attenuation : float | None, default=None
             Optional attenuation in decibels applied by the DTF transform.
@@ -692,7 +685,7 @@ class HRTFTransform:
         new_phase : np.ndarray
             Replacement phase array with the same TF layout expected by the
             HRTF transform layer.
-        unit : {"degrees", "radians"}, default="degrees"
+        unit : {``degrees``, ``radians``}, default=``degrees``
             Angular unit used by new_phase.
 
         Returns
@@ -789,7 +782,7 @@ class HRTFTransform:
         new_magnitude : np.ndarray
             Replacement magnitude array with the same TF layout expected by
             the HRTF transform layer.
-        scale : {"linear", "db"}, default="linear"
+        scale : {``linear``, ``db``}, default=``linear``
             Magnitude scale used by new_magnitude.
 
         Returns
@@ -841,7 +834,7 @@ class HRTFTransform:
         ----------
         gain : float | np.ndarray
             Scalar or broadcast-compatible gain applied to each loaded HRTF.
-        scale : {"db", "linear"}, default="db"
+        scale : {``db``, ``linear``}, default=``db``
             Scale used to interpret gain.
 
         Returns
@@ -925,7 +918,7 @@ class HRTFTransform:
 
         Parameters
         ----------
-        coordinate_system : {"spherical", "cartesian", "lateral-polar"}
+        coordinate_system : {``spherical``, ``cartesian``, ``lateral-polar``}
             Source coordinate system requested for each loaded HRTF.
 
         Returns
@@ -974,7 +967,7 @@ class HRTFTransform:
         itd : float
             Interaural time difference added to each loaded HRTF. Positive values
             delay the left ear and negative values delay the right ear.
-        unit : {"samples", "seconds"}, default="samples"
+        unit : {``samples``, ``seconds``}, default=``samples``
             Unit used by itd.
 
         Returns
@@ -1023,7 +1016,7 @@ class HRTFTransform:
 
         Parameters
         ----------
-        method : {"threshold", "maxiacce"}, default="threshold"
+        method : {``threshold``, ``maxiacce``}, default=``threshold``
             ITD estimator used before delay compensation.
         thresh_level : float, default=-10.0
             Threshold offset in decibels used by the threshold estimator.

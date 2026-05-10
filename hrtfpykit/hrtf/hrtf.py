@@ -48,8 +48,8 @@ def load_hrtf(
 
     Supported conventions:
 
-    - SimpleFreeFieldHRIR: loaded from "Data.IR" and converted to TF.
-    - SimpleFreeFieldHRTF: loaded from "Data.Real", "Data.Imag", and "N"
+    - SimpleFreeFieldHRIR: loaded from ``Data.IR`` and converted to TF.
+    - SimpleFreeFieldHRTF: loaded from ``Data.Real``, ``Data.Imag``, and ``N``
       and converted to IR.
 
     HRIR files derive :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` and
@@ -67,7 +67,7 @@ def load_hrtf(
     ----------
     path : str | Path
         Path to the SOFA file.
-    mode : str, default='r'
+    mode : str, default=``r``
         File mode used by the SOFA API.
     parallel : bool, default=False
         Whether to enable parallel loading in the SOFA API.
@@ -250,7 +250,7 @@ class HRTF(HRTFPlots):
 
         Spatial metadata and source-grid operations are exposed through
         :class:`~hrtfpykit.hrtf.sources.Sources`. That manager resolves SOFA
-        "SourcePosition" data, named directions,
+        ``SourcePosition`` data, named directions,
         coordinate-system conversion, and plane-based queries used by both processing
         and visualization methods.
 
@@ -340,7 +340,7 @@ class HRTF(HRTFPlots):
     def Sources(self) -> "Sources":
         """Return the spatial source-grid manager.
 
-        :class:`~hrtfpykit.hrtf.sources.Sources` reads SOFA "SourcePosition" data, converts between the
+        :class:`~hrtfpykit.hrtf.sources.Sources` reads SOFA ``SourcePosition`` data, converts between the
         supported coordinate systems, resolves named positions, and tracks
         selected source indices after spatial subsetting.
         """
@@ -404,9 +404,9 @@ class HRTF(HRTFPlots):
 
         This method discards current in-memory acoustic edits and reloads the
         active domain data from :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sofa`. HRIR
-        files are restored from "Data.IR" and "Data.SamplingRate" and then
-        converted to TF. HRTF files are restored from "Data.Real",
-        "Data.Imag", and "N"
+        files are restored from ``Data.IR`` and ``Data.SamplingRate`` and then
+        converted to TF. HRTF files are restored from ``Data.Real``,
+        ``Data.Imag``, and ``N``
         and then converted to IR. Source selections are cleared when the
         :class:`~hrtfpykit.hrtf.sources.Sources` manager has already been
         initialized.
@@ -546,13 +546,13 @@ class HRTF(HRTFPlots):
         The method converts the current acoustic representation into the
         requested SOFA convention and writes the corresponding SOFA variables
         on a cloned or updated :class:`~hrtfpykit.sofa.sofa.SOFA` object. It
-        updates HRIR output through "Data.IR" and "Data.SamplingRate"; HRTF
-        output through "Data.Real", "Data.Imag", and "N". Obsolete variables from the
+        updates HRIR output through ``Data.IR`` and ``Data.SamplingRate``; HRTF
+        output through ``Data.Real``, ``Data.Imag``, and ``N``. Obsolete variables from the
         opposite convention are removed when the output convention changes.
 
         Dimension handling is conservative. If transformed data no longer fit
         existing SOFA dimensions, synchronization raises unless
-        "change_sofa_dimensions=True". When resizing is allowed, supported
+        ``change_sofa_dimensions=True``. When resizing is allowed, supported
         dependent variables on the measurement axis are subset with the current
         source selection; unsupported dependent variables still raise explicit
         errors to avoid silently corrupting SOFA structure.
@@ -567,8 +567,8 @@ class HRTF(HRTFPlots):
         change_sofa_dimensions : bool, default=False
             If True, allows resizing fixed SOFA dimensions when transformed
             data shape differs from backed variables.
-        sofa_convention : {'same', 'SimpleFreeFieldHRIR', 'SimpleFreeFieldHRTF'}, default='same'
-            Output SOFA convention to enforce during synchronization. 'same'
+        sofa_convention : {``same``, ``SimpleFreeFieldHRIR``, ``SimpleFreeFieldHRTF``}, default=``same``
+            Output SOFA convention to enforce during synchronization. ``same``
             keeps the original backed SOFA convention.
 
         Returns
@@ -950,7 +950,7 @@ class HRTF(HRTFPlots):
             If True, allows overwriting an existing file.
         change_sofa_dimensions : bool, default=False
             Forwarded to :meth:`~hrtfpykit.hrtf.hrtf.HRTF.update_sofa` to control SOFA dimension resizing.
-        sofa_convention : {'same', 'SimpleFreeFieldHRIR', 'SimpleFreeFieldHRTF'}, default='same'
+        sofa_convention : {``same``, ``SimpleFreeFieldHRIR``, ``SimpleFreeFieldHRTF``}, default=``same``
             Forwarded to :meth:`~hrtfpykit.hrtf.hrtf.HRTF.update_sofa` to select output convention.
 
         Returns
@@ -996,8 +996,8 @@ class HRTF(HRTFPlots):
         :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` when those domains are
         available.
 
-        Ear selection keeps both ears by default. Selecting "left" or
-        "right" removes the ear axis entry from available IR and TF arrays.
+        Ear selection keeps both ears by default. Selecting ``left`` or
+        ``right`` removes the ear axis entry from available IR and TF arrays.
         IR cropping is applied along the final sample axis and automatically
         recomputes the TF representation from the cropped IR. Crop boundaries
         can be provided either as sample indices or as seconds, but not both in
@@ -1007,10 +1007,10 @@ class HRTF(HRTFPlots):
         ----------
         positions : np.ndarray | list[list[float]] | list[float] | None, default=None
             Explicit positions or named aliases to select. Named positions use
-            the source manager aliases such as "front", "back",
-            "left", and "right". Numeric positions are interpreted in
+            the source manager aliases such as ``front``, ``back``,
+            ``left``, and ``right``. Numeric positions are interpreted in
             position_coordinate_system.
-        position_coordinate_system : {'spherical', 'cartesian', 'lateral-polar'}, default='spherical'
+        position_coordinate_system : {``spherical``, ``cartesian``, ``lateral-polar``}, default=``spherical``
             Coordinate system used by numeric positions queries.
         plane : str | None, default=None
             Plane name to filter positions. Supported values are
@@ -1019,9 +1019,9 @@ class HRTF(HRTFPlots):
             Plane angle used to resolve the nearest available plane. For the
             horizontal plane this is elevation; for median and frontal planes
             this is azimuth.
-        ear : {"both", "left", "right"}, default="both"
+        ear : {``both``, ``left``, ``right``}, default=``both``
             Ear selection.
-        angle_unit : {'degrees', 'radians'}, default='degrees'
+        angle_unit : {``degrees``, ``radians``}, default=``degrees``
             Angle unit used for spatial queries and plane angles.
         start : int | None, default=None
             IR crop start index (samples).

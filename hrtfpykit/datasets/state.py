@@ -77,12 +77,12 @@ class DatasetState:
         Combined input and target specs used to decide required resources and sample
         axes.
     input_names : tuple of str
-        Public sample keys produced under the "inputs" dictionary.
+        Public sample keys produced under the ``inputs`` dictionary.
     target_names : tuple of str
-        Public sample keys produced under the "target" dictionary.
+        Public sample keys produced under the ``target`` dictionary.
     index_by : tuple of str
-        Row dimensions requested by the active specs, such as "subject", "position",
-        "ear", "frequency", or "sample".
+        Row dimensions requested by the active specs, such as ``subject``, ``position``,
+        ``ear``, ``frequency``, or ``sample``.
     selected_ears : tuple of tuple[str, int]
         Ear labels and numeric ear indices selected by the active specs.
     position_one_hot, position_index : bool
@@ -139,7 +139,7 @@ class DatasetState:
     selected_subjects : tuple of str
         Canonical subjects selected by the active split.
     split : str
-        Active split name, usually "all", "train", "validation", or "test".
+        Active split name, usually ``all``, ``train``, ``validation``, or ``test``.
     split_ratio : tuple of float
         Train, validation, and test ratios used by split planning.
     split_seed : int

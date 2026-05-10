@@ -70,7 +70,7 @@ class DatasetResourcesValidator:
             :meth:`~hrtfpykit.datasets.resources.DatasetResourcesScanner.scan_hrtf_paths`.
         hrtf_summary : dict
             Scanner summary containing checked, found, missing, and
-            "missing_subject_ids" entries for HRTF resources.
+            ``missing_subject_ids`` entries for HRTF resources.
 
         Returns
         -------
@@ -165,7 +165,7 @@ class DatasetResourcesValidator:
         ----------
         mesh_summary : dict
             Resource summary for mesh resources, including
-            "missing_subject_ids" when some subjects do not have matching mesh
+            ``missing_subject_ids`` when some subjects do not have matching mesh
             files.
 
         Returns
@@ -214,7 +214,7 @@ class DatasetResourcesValidator:
         ----------
         summary : dict
             Resource summary for image resources, including
-            "missing_subject_ids".
+            ``missing_subject_ids``.
         image_path : Path or None
             Root folder used by the image scanner.
         image_counts : dict[str, int]
@@ -270,7 +270,7 @@ class DatasetResourcesValidator:
         ----------
         summary : dict
             Resource summary for video resources, including
-            "missing_subject_ids".
+            ``missing_subject_ids``.
         video_path : Path or None
             Root folder used by the video scanner.
         video_counts : dict[str, int]
@@ -466,9 +466,9 @@ class DatasetResourcesScanner:
         Returns
         -------
         tuple[Path or None, dict]
-            Selected anthropometry path and a summary containing "path",
-            "found", "subjects", "rows", and available
-            "extensions" when the configuration declares them.
+            Selected anthropometry path and a summary containing ``path``,
+            ``found``, ``subjects``, ``rows``, and available
+            ``extensions`` when the configuration declares them.
 
         """
         if config.anthropometry is None or not required:
@@ -526,9 +526,9 @@ class DatasetResourcesScanner:
         Returns
         -------
         tuple[Path or None, dict]
-            Selected metadata path and a summary containing "path",
-            "found", "subjects", "rows", and available
-            "extensions" when the configuration declares them.
+            Selected metadata path and a summary containing ``path``,
+            ``found``, ``subjects``, ``rows``, and available
+            ``extensions`` when the configuration declares them.
 
         """
         if config.metadata is None and requested_path is None and not required:
@@ -583,7 +583,7 @@ class DatasetResourcesScanner:
             Dataset root used to resolve subject HRTF paths.
         dataset_hrtf_variant : str, dict, or None
             Selected HRTF resource variant. A string selects the HRTF type; a
-            mapping can provide "type", "sample_rate", and "version"
+            mapping can provide ``type``, ``sample_rate``, and ``version``
             entries.
         excluded_subject_ids : set of str
             Canonical subject IDs removed before scanning.
@@ -707,7 +707,7 @@ class DatasetResourcesScanner:
             spec-level mesh path override.
         dataset_mesh_variant : str, dict, or None
             Selected mesh resource variant. A string selects the mesh type; a
-            mapping can provide "type" and "version" entries.
+            mapping can provide ``type`` and ``version`` entries.
         excluded_subject_ids : set of str
             Canonical subject IDs removed before scanning.
         required : bool
@@ -838,7 +838,7 @@ class DatasetResourcesScanner:
         """Scan subject-grouped media folders for image or video resources.
 
         This shared media scanner supports subject folders named by canonical ID,
-        "subjectN", or "subject_N" and can enforce subject-ear grouping. It
+        ``subjectN``, or ``subject_N`` and can enforce subject-ear grouping. It
         returns a media index keyed by subject and optional ear so value selection
         can be row-context aware. Files are discovered recursively below each
         matched subject folder and sorted with numeric filename stems in natural
@@ -856,12 +856,12 @@ class DatasetResourcesScanner:
         subject_ids : tuple of str
             Canonical subject IDs to scan.
         subject_numbers : dict[str, int]
-            Numeric subject identifiers used to recognize "subjectN" and
-            "subject_N" folder names.
+            Numeric subject identifiers used to recognize ``subjectN`` and
+            ``subject_N`` folder names.
         extensions : tuple of str
             Accepted file extensions, including the leading dot.
         grouped_by : tuple of str
-            Resource grouping. When it contains "ear", files are also scanned
+            Resource grouping. When it contains ``ear``, files are also scanned
             in ear-named subfolders.
         ears : tuple of str
             Ear labels expected when ear grouping is active.
@@ -982,7 +982,7 @@ class DatasetResourcesScanner:
         extensions : tuple of str
             Accepted image extensions.
         grouped_by : tuple of str
-            Image grouping, optionally including "ear".
+            Image grouping, optionally including ``ear``.
         ears : tuple of str
             Ear labels expected when ear grouping is active.
 
@@ -1039,7 +1039,7 @@ class DatasetResourcesScanner:
         extensions : tuple of str
             Accepted video extensions.
         grouped_by : tuple of str
-            Video grouping, optionally including "ear".
+            Video grouping, optionally including ``ear``.
         ears : tuple of str
             Ear labels expected when ear grouping is active.
 

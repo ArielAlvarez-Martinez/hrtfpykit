@@ -55,11 +55,11 @@ def check_sofa_against_conventions(
     target : Union[str, netCDF4.Dataset]
         Path to a SOFA file or an open netCDF4 object containing SOFA data.
     convention_name : Optional[str], optional
-        Convention name to validate against. If "None", uses the file's
-        "SOFAConventions" attribute.
+        Convention name to validate against. If ``None``, uses the file's
+        ``SOFAConventions`` attribute.
     version : Optional[str], optional
-        Convention version to validate against. If "None", uses the file's
-        "SOFAConventionsVersion" attribute.
+        Convention version to validate against. If ``None``, uses the file's
+        ``SOFAConventionsVersion`` attribute.
 
     Returns
     -------
@@ -69,18 +69,22 @@ def check_sofa_against_conventions(
     Raises
     ------
     ValueError
-        If "target" is a :class:`~hrtfpykit.sofa.sofa.SOFA` object without a
+        If ``target`` is a :class:`~hrtfpykit.sofa.sofa.SOFA` object without a
         loaded netCDF4 handle.
     OSError
-        If "target" is a path-like input that cannot be opened as a SOFA
+        If ``target`` is a path-like input that cannot be opened as a SOFA
         file.
 
     Examples
     --------
-    Validate a SOFA file against its declared convention:
+    Validate a SOFA file against the convention declared in its global
+    attributes and keep the resolved convention metadata for downstream checks:
 
-    >>> check_sofa_against_conventions("my_sofa.sofa")
-    {'convention': {'name': 'SimpleFreeFieldHRIR', 'version': '1.2'}}
+    >>> from hrtfpykit.sofa import check_sofa_against_conventions
+    >>> summary = check_sofa_against_conventions(
+    ...     "hrtfs/P0001_FreeFieldComp_44kHz.sofa"
+    ... )
+    >>> assert summary["convention"]["name"] == "SimpleFreeFieldHRIR"
     """
     dataset, _closer = _resolve_dataset(target)
     try:
@@ -270,30 +274,30 @@ def check_sofa_security(
     Checks include:
 
     - HDF5 runtime version against a minimum safety baseline. The default
-      baseline ("HDF5_MIN_SAFE_VERSION") is set to the first release that
+      baseline (``HDF5_MIN_SAFE_VERSION``) is set to the first release that
       addressed a large batch of HDF5 parsing CVEs. For details, consult the
       HDF Group security advisories and the NVD CVE database for HDF5 issues.
     - detection of external links/domains and suspicious file extensions
 
     Modes:
 
-    - "STANDARD": parse SOFA attributes using netCDF4 (opens the SOFA file)
-    - "PARANOID": scan raw SOFA file bytes only (no parsing). Requires a path.
+    - ``STANDARD``: parse SOFA attributes using netCDF4 (opens the SOFA file)
+    - ``PARANOID``: scan raw SOFA file bytes only (no parsing). Requires a path.
 
     Parameters
     ----------
     target : Optional[Union[str, pathlib.Path, netCDF4.Dataset]], optional
-        SOFA file path or open netCDF4 object. In "paranoid_mode", this must be
+        SOFA file path or open netCDF4 object. In ``paranoid_mode``, this must be
         a path because raw bytes are inspected without parsing the file.
     hdf5_version : Optional[str], optional
-        HDF5 version to validate against. If "None", attempts to detect the
+        HDF5 version to validate against. If ``None``, attempts to detect the
         linked HDF5 version from netCDF4.
     min_safe_hdf5 : str, optional
         Minimum acceptable HDF5 version for baseline safety checks.
     print_report : bool, optional
         Whether to print a formatted report of all checks.
     paranoid_mode : bool, optional
-        If "True", reads raw bytes from the file path only and never parses
+        If ``True``, reads raw bytes from the file path only and never parses
         the SOFA file. Raises ValueError if checks fail.
 
     Returns
@@ -304,25 +308,24 @@ def check_sofa_security(
     Raises
     ------
     ValueError
-        If "paranoid_mode" is "True" and "target" is not a file path, or if
+        If ``paranoid_mode`` is ``True`` and ``target`` is not a file path, or if
         paranoid mode checks fail.
 
     Examples
     --------
-    Standard mode (parses attributes):
+    Check a SOFA file before passing it into a loading or processing
+    workflow. The report contains one entry per security check, and the
+    "failed" list can be used as the error message when a file does not pass:
 
-    >>> report = check_sofa_security("my_sofa.sofa", print_report=False)
-    >>> report["passed"]
-    True
-
-    Paranoid mode (raw bytes only, raises on failure):
-
+    >>> from hrtfpykit.sofa import check_sofa_security
     >>> report = check_sofa_security(
-    ...     "my_sofa.sofa",
+    ...     "hrtfs/P0001_FreeFieldComp_44kHz.sofa",
     ...     print_report=False,
-    ...     paranoid_mode=True,
     ... )
-    >>> report["passed"]
+    >>> if not report["passed"]:
+    ...     raise RuntimeError(f"SOFA security checks failed: {report['failed']}")
+    >>> check_names = [check["name"] for check in report["checks"]]
+    >>> "hdf5_min_safe_version" in check_names
     True
     """
     report: dict[str, Any] = {

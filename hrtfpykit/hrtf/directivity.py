@@ -51,10 +51,10 @@ def ctf_from_hrtf(
         with each source direction. Weighted estimation is useful for
         irregular measurement grids where equal source weights would
         over-represent densely sampled regions.
-    magnitude_average : {"log", "linear"}, optional
-        Averaging rule applied to the source magnitudes. "log" averages
+    magnitude_average : {``log``, ``linear``}, optional
+        Averaging rule applied to the source magnitudes. ``log`` averages
         log magnitudes, which is equivalent to a geometric mean in linear
-        magnitude. "linear" averages linear magnitudes directly, which is
+        magnitude. ``linear`` averages linear magnitudes directly, which is
         equivalent to an arithmetic mean.
     attenuation : float | None, optional
         Optional attenuation in dB applied to the CTF magnitude before the
@@ -75,7 +75,7 @@ def ctf_from_hrtf(
         If hrtf does not expose the expected HRTF interface, TF data are
         missing, empty, non-NumPy, or have fewer than two frequency bins, TF
         frequency bins are missing, weights is not boolean,
-        magnitude_average is not "log" or "linear",
+        magnitude_average is not ``log`` or ``linear``,
         attenuation is not finite and non-negative, the TF grid contains
         negative frequency bins, or diffuse-field weights cannot be derived
         from the source grid.
@@ -278,10 +278,10 @@ def dtf_from_hrtf(
         Voronoi areas. Weighted estimation is recommended for irregular source
         grids when the DTF should represent a diffuse-field normalization
         rather than the sampling density of the measurement set.
-    magnitude_average : {"log", "linear"}, optional
+    magnitude_average : {``log``, ``linear``}, optional
         Averaging rule used to estimate the internal CTF magnitude before the
-        DTF division. "log" averages log magnitudes, which is equivalent
-        to a geometric mean in linear magnitude. "linear" averages linear
+        DTF division. ``log`` averages log magnitudes, which is equivalent
+        to a geometric mean in linear magnitude. ``linear`` averages linear
         magnitudes directly, which is equivalent to an arithmetic mean.
     attenuation : float | None, optional
         Optional attenuation in dB applied after the HRTF is divided by the

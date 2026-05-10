@@ -52,15 +52,15 @@ def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
     sample value selectors so construction and indexing interpret row axes
     consistently.
 
-    A string equal to "subject" becomes a single-axis tuple. A string such as
-    "subject-position" is split on hyphens. Sequence inputs are stripped and
+    A string equal to ``subject`` becomes a single-axis tuple. A string such as
+    ``subject-position`` is split on hyphens. Sequence inputs are stripped and
     lowercased element by element.
 
     Parameters
     ----------
     index_by : str or sequence of str
-        Requested dataset row axes. The first axis must be "subject". Optional
-        following axes are "position", "ear", "frequency", or "samples".
+        Requested dataset row axes. The first axis must be ``subject``. Optional
+        following axes are ``position``, ``ear``, ``frequency``, or ``samples``.
 
     Returns
     -------
@@ -70,9 +70,9 @@ def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
     Raises
     ------
     ValueError
-        If no axes are provided, if the first axis is not "subject", if axes are
-        duplicated, if an unsupported axis is present, or if both "frequency" and
-        "samples" are requested in the same row definition.
+        If no axes are provided, if the first axis is not ``subject``, if axes are
+        duplicated, if an unsupported axis is present, or if both ``frequency`` and
+        ``samples`` are requested in the same row definition.
 
     """
     allowed_axes = {"position", "ear", "frequency", "samples"}
@@ -117,8 +117,8 @@ def sanitize_grouped_by(grouped_by: str | Sequence[str]) -> tuple[str, ...]:
     Parameters
     ----------
     grouped_by : str or sequence of str
-        Requested grouping axes. Supported normalized values are ("subject",) and
-        ("subject", "ear").
+        Requested grouping axes. Supported normalized values are (``subject``,) and
+        (``subject``, ``ear``).
 
     Returns
     -------
@@ -162,13 +162,13 @@ def sanitize_ear(ear: str | None) -> str | None:
     Returns
     -------
     str or None
-        Normalized ear selector: None, "both", "left", or "right".
+        Normalized ear selector: None, ``both``, ``left``, or ``right``.
 
     Raises
     ------
     ValueError
-        If the selector is not None, not empty, and not one of "both", "left",
-        or "right".
+        If the selector is not None, not empty, and not one of ``both``, ``left``,
+        or ``right``.
 
     """
     if ear is None or str(ear).strip() == "":
@@ -197,12 +197,12 @@ def sanitize_accessed_by(accessed_by: str) -> str:
     Returns
     -------
     str
-        Normalized access direction, either "row" or "column".
+        Normalized access direction, either ``row`` or ``column``.
 
     Raises
     ------
     ValueError
-        If the access direction is not "row" or "column".
+        If the access direction is not ``row`` or ``column``.
 
     """
     accessed_by_value = str(accessed_by).strip().lower()
@@ -215,7 +215,7 @@ def sanitize_ears(ears: str | Sequence[str]) -> list[tuple[str, int]]:
     """Normalize HRTF ear selection into labels and source indices.
 
     HRTF-like resources use left/right source-ear indices, while user specs use
-    readable names such as "both" or "left". This helper returns both
+    readable names such as ``both`` or ``left``. This helper returns both
     representations and rejects duplicate or unsupported ear requests. The
     returned integer indices match the binaural ear axis used by loaded HRTF and
     HRIR arrays: left is index 0 and right is index 1.
@@ -223,8 +223,8 @@ def sanitize_ears(ears: str | Sequence[str]) -> list[tuple[str, int]]:
     Parameters
     ----------
     ears : str or sequence of str
-        Ear selection from HRTF-style specs. Strings can be "both", "left", or
-        "right". Sequence inputs can contain "left" and "right".
+        Ear selection from HRTF-style specs. Strings can be ``both``, ``left``, or
+        ``right``. Sequence inputs can contain ``left`` and ``right``.
 
     Returns
     -------
@@ -236,7 +236,7 @@ def sanitize_ears(ears: str | Sequence[str]) -> list[tuple[str, int]]:
     ValueError
         If the selector is unsupported, if a sequence is empty, if a sequence
         contains duplicate ears, or if a sequence contains any value other than
-        "left" or "right".
+        ``left`` or ``right``.
 
     """
     if isinstance(ears, str):
@@ -280,7 +280,7 @@ def sanitize_positions(
     Parameters
     ----------
     positions : str, sequence, or numpy.ndarray
-        Requested position selection. The string "all" selects every available
+        Requested position selection. The string ``all`` selects every available
         source position. Non-string inputs are converted to a one-dimensional
         integer array.
     position_count : int
@@ -294,7 +294,7 @@ def sanitize_positions(
     Raises
     ------
     ValueError
-        If a string other than "all" is provided, if the explicit index list is
+        If a string other than ``all`` is provided, if the explicit index list is
         empty, if duplicate indices are present, or if any index is outside the
         available position range.
 
@@ -346,7 +346,7 @@ def sanitize_extensions(
     Raises
     ------
     ValueError
-        If any extension entry is empty, is only ".", or contains path separators.
+        If any extension entry is empty, is only ``.``, or contains path separators.
 
     """
     if extensions is None:

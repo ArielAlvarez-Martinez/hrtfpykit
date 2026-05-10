@@ -24,7 +24,7 @@ def get_position_queries(
     ----------
     positions : np.ndarray | list | tuple | str
         Single query or collection of queries. Accepted forms include a named
-        query such as "front", a single numeric position with shape
+        query such as ``front``, a single numeric position with shape
         (2,) or (3,), a numeric array with shape (K, 2) or
         (K, 3), a sequence of named queries, or a mixed sequence containing
         named and numeric queries.
@@ -114,7 +114,7 @@ def get_named_positions(
     """Return canonical horizontal named positions.
 
     The returned positions are the built-in aliases used by hrtfpykit when a
-    caller requests directions such as "front" or "left". They are
+    caller requests directions such as ``front`` or ``left``. They are
     expressed as spherical angle pairs (azimuth, elevation) without an
     explicit radius. The convention matches the rest of the HRTF source-grid
     code: front is azimuth 0, left is 90, back is 180, right is
@@ -123,19 +123,19 @@ def get_named_positions(
 
     Parameters
     ----------
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit used for the returned azimuth and elevation values.
 
     Returns
     -------
     dict[str, np.ndarray]
-        Mapping from {"front", "left", "back", "right"} to spherical
+        Mapping from {``front``, ``left``, ``back``, ``right``} to spherical
         (azimuth, elevation) position arrays.
 
     Raises
     ------
     ValueError
-        If angle_unit is not "degrees" or "radians".
+        If angle_unit is not ``degrees`` or ``radians``.
 
     Notes
     -----
@@ -183,16 +183,16 @@ def get_position_alias(
         Position to evaluate. Shape must be (3,) for cartesian and
         lateral-polar inputs. Spherical inputs may use shape (2,) or
         (3,).
-    coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
+    coordinate_system : {``spherical``, ``cartesian``, ``lateral-polar``}, default=``spherical``
         Coordinate system used by position.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit for spherical and lateral-polar inputs and for the
         returned internal comparison grid.
 
     Returns
     -------
     str | None
-        One of {"front", "left", "back", "right"} when the position
+        One of {``front``, ``left``, ``back``, ``right``} when the position
         matches a canonical horizontal cardinal direction. Returns None for
         valid positions that are not on those four horizontal directions.
 
@@ -286,7 +286,7 @@ def get_spherical_positions(
         object. The object must provide
         :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` and
         :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit used for returned azimuth and elevation values and for
         angular conversions performed while normalizing the grid.
 
@@ -299,8 +299,8 @@ def get_spherical_positions(
     Raises
     ------
     ValueError
-        If the source coordinate system is not "spherical",
-        "cartesian", or "lateral-polar", or if the needed coordinate
+        If the source coordinate system is not ``spherical``,
+        ``cartesian``, or ``lateral-polar``, or if the needed coordinate
         conversion rejects the source positions or angle unit.
 
     Notes
@@ -359,9 +359,9 @@ def get_source_positions(
         object. The object must provide
         :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` and
         :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`.
-    coordinate_system : {"spherical", "cartesian", "lateral-polar"}
+    coordinate_system : {``spherical``, ``cartesian``, ``lateral-polar``}
         Coordinate system requested for the returned grid.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit used when reading and returning spherical or
         lateral-polar coordinates. Cartesian coordinates are unaffected by
         angular units.
@@ -455,7 +455,7 @@ def spherical_to_cartesian(
         Array with shape (..., 3) containing spherical
         (azimuth, elevation, radius) values. Any leading dimensions are
         preserved.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit of the input azimuth and elevation values.
 
     Returns
@@ -526,7 +526,7 @@ def cartesian_to_spherical(
     coordinates : np.ndarray
         Array with shape (..., 3) containing cartesian (x, y, z)
         values. Any leading dimensions are preserved.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit used for the returned azimuth and elevation values.
 
     Returns
@@ -539,7 +539,7 @@ def cartesian_to_spherical(
     ------
     ValueError
         If coordinates does not end with length 3 or if
-        angle_unit is not "degrees" or "radians".
+        angle_unit is not ``degrees`` or ``radians``.
 
     Notes
     -----
@@ -588,7 +588,7 @@ def cartesian_to_lateral_polar(
     coordinates : np.ndarray
         Array with shape (..., 3) containing cartesian (x, y, z)
         values. Any leading dimensions are preserved.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit used for the returned lateral and polar values.
 
     Returns
@@ -601,7 +601,7 @@ def cartesian_to_lateral_polar(
     ------
     ValueError
         If coordinates does not end with length 3 or if
-        angle_unit is not "degrees" or "radians".
+        angle_unit is not ``degrees`` or ``radians``.
 
     Notes
     -----
@@ -654,7 +654,7 @@ def lateral_polar_to_cartesian(
         Array with shape (..., 3) containing
         (lateral, polar, radius) values. Any leading dimensions are
         preserved.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit of the lateral and polar values.
 
     Returns
@@ -726,7 +726,7 @@ def spherical_to_lateral_polar(
         Array with shape (..., 3) containing spherical
         (azimuth, elevation, radius) values. Any leading dimensions are
         preserved.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit used for both the input and output angles.
 
     Returns
@@ -769,7 +769,7 @@ def lateral_polar_to_spherical(
         Array with shape (..., 3) containing lateral-polar
         (lateral, polar, radius) values. Any leading dimensions are
         preserved.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit used for both the input and output angles.
 
     Returns
@@ -818,9 +818,9 @@ def get_closest_position_index(
         cartesian grids, requires a full (3,) coordinate.
     grid_positions : np.ndarray
         Candidate source grid in coordinate_system with shape (N, 3).
-    coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="cartesian"
+    coordinate_system : {``spherical``, ``cartesian``, ``lateral-polar``}, default=``cartesian``
         Coordinate system used by both query and grid.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit for spherical and lateral-polar queries and grids.
 
     Returns

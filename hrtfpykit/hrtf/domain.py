@@ -26,7 +26,7 @@ class IR:
         sample-rate metadata used by the parent
         :class:`~hrtfpykit.hrtf.hrtf.HRTF` abstraction. It is created lazily by
         :attr:`~hrtfpykit.hrtf.hrtf.HRTF.IR` and acts as the in-memory
-        time-domain view of SOFA "Data.IR" data or data reconstructed from
+        time-domain view of SOFA ``Data.IR`` data or data reconstructed from
         SimpleFreeFieldHRTF frequency-domain files.
 
         The object does not own independent source metadata. Its leading axes
@@ -126,14 +126,14 @@ class IR:
 
         Parameters
         ----------
-        method : {"threshold", "maxiacce"}, default="threshold"
-            ITD estimator. "threshold" detects per-ear onset samples after
-            low-pass filtering, while "maxiacce" uses envelope
+        method : {``threshold``, ``maxiacce``}, default=``threshold``
+            ITD estimator. ``threshold`` detects per-ear onset samples after
+            low-pass filtering, while ``maxiacce`` uses envelope
             cross-correlation.
-        output : {"seconds", "samples"}, default="samples"
+        output : {``seconds``, ``samples``}, default=``samples``
             Unit used for the returned ITD values.
         thresh_level : float, default=-10.0
-            Threshold offset in decibels used when "method" is "threshold".
+            Threshold offset in decibels used when ``method`` is ``threshold``.
         upper_cut_freq : float, default=3000.0
             Low-pass cutoff frequency in hertz applied before estimation.
         filter_order : int, default=10
@@ -172,7 +172,7 @@ class TF:
         frequency-response array and its frequency bins for the parent
         :class:`~hrtfpykit.hrtf.hrtf.HRTF` abstraction. It is created lazily by
         :attr:`~hrtfpykit.hrtf.hrtf.HRTF.TF` and acts as the in-memory
-        frequency-domain view of SOFA "Data.Real" and "Data.Imag" data or
+        frequency-domain view of SOFA ``Data.Real`` and ``Data.Imag`` data or
         data computed from HRIR files.
 
         The object is expected to stay aligned with the sibling
@@ -324,9 +324,9 @@ class TF:
 
         Parameters
         ----------
-        reference : float | {"max"}, default=1.0
+        reference : float | {``max``}, default=1.0
             Positive reference magnitude used for 20 * log10(magnitude /
-            reference). The special value "max" normalizes to the
+            reference). The special value ``max`` normalizes to the
             maximum magnitude present in :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
 
         Returns
@@ -365,7 +365,7 @@ class TF:
     def real(self) -> np.ndarray:
         """Return the real component of the complex HRTF values.
 
-        This property exposes "Data.Real"-style values for the current
+        This property exposes ``Data.Real``-style values for the current
         frequency-domain representation without modifying the parent HRTF.
 
         Returns
@@ -384,7 +384,7 @@ class TF:
     def imag(self) -> np.ndarray:
         """Return the imaginary component of the complex HRTF values.
 
-        This property exposes "Data.Imag"-style values for the current
+        This property exposes ``Data.Imag``-style values for the current
         frequency-domain representation without modifying the parent HRTF.
 
         Returns

@@ -93,8 +93,8 @@ class DatasetSampleValueSelector:
 
         Notes
         -----
-        Subclass overrides receive "spec", "subject_id", and "row" after Python
-        binds the dataset instance as "self". Generic static methods receive the
+        Subclass overrides receive ``spec``, ``subject_id``, and ``row`` after Python
+        binds the dataset instance as ``self``. Generic static methods receive the
         dataset explicitly.
 
         """
@@ -194,7 +194,7 @@ class DatasetSampleValueSelector:
 
         Notes
         -----
-        Ear selection is ignored unless the spec grouped_by value includes "ear".
+        Ear selection is ignored unless the spec grouped_by value includes ``ear``.
         Position-indexed image keys are not selected here because the current image
         index uses subject and optional ear context.
 
@@ -316,8 +316,8 @@ class DatasetSampleValueSelector:
         -------
         np.ndarray
             HRTF or HRIR value selected from the loaded subject HRTF. Output shape
-            depends on "spec.index_by", "spec.ears", "spec.domain",
-            "spec.signal", and any selected positions stored in dataset state.
+            depends on ``spec.index_by``, ``spec.ears``, ``spec.domain``,
+            ``spec.signal``, and any selected positions stored in dataset state.
 
         Raises
         ------
@@ -335,7 +335,7 @@ class DatasetSampleValueSelector:
         -----
         Spec-level transforms are cached per subject and transform identity. Dataset-
         level transforms are applied earlier by the HRTF loading path. When domain is
-        "time", this selector reads IR values and uses the "samples" row axis. For
+        ``time``, this selector reads IR values and uses the ``samples`` row axis. For
         frequency-domain values, it reads TF values and can expose complex values,
         real part, imaginary part, magnitude, decibel magnitude, or phase.
 
@@ -466,7 +466,7 @@ class DatasetSampleValueSelector:
         np.ndarray
             ITD value selected from the calculated subject ITD array. The result may
             be a scalar-like array for position-indexed rows or a vector when
-            position is not part of "spec.index_by".
+            position is not part of ``spec.index_by``.
 
         Raises
         ------
@@ -542,7 +542,7 @@ class DatasetSampleValueSelector:
         -------
         np.ndarray
             ILD value selected from the calculated subject ILD array. The shape
-            depends on whether position or frequency appears in "spec.index_by".
+            depends on whether position or frequency appears in ``spec.index_by``.
 
         Raises
         ------
@@ -626,7 +626,7 @@ class DatasetSampleValueSelector:
         np.ndarray
             Spherical-harmonic coefficient value selected for the current row. The
             coefficient axis is always retained; ear and frequency axes depend on
-            "spec.index_by" and "spec.ears".
+            ``spec.index_by`` and ``spec.ears``.
 
         Raises
         ------
@@ -639,7 +639,7 @@ class DatasetSampleValueSelector:
 
         Notes
         -----
-        The SH decomposition receives "both" when both ears are requested; otherwise
+        The SH decomposition receives ``both`` when both ears are requested; otherwise
         it receives the selected ear name. Cached values are keyed by subject_id and
         spec object identity.
 
@@ -739,8 +739,8 @@ class DatasetSampleValueSelector:
 
         Notes
         -----
-        For mapping-style rows, spec.accessed_by set to "row" returns the subject
-        row. When accessed_by is "column", the selector either gathers the subject
+        For mapping-style rows, spec.accessed_by set to ``row`` returns the subject
+        row. When accessed_by is ``column``, the selector either gathers the subject
         column from all row dictionaries or selects a column based on the subject
         position among selected subjects.
 
@@ -884,8 +884,8 @@ class DatasetSampleValueSelector:
 
         Notes
         -----
-        For mapping-style rows, spec.accessed_by set to "row" returns the subject
-        row. When accessed_by is "column", the selector either gathers the subject
+        For mapping-style rows, spec.accessed_by set to ``row`` returns the subject
+        row. When accessed_by is ``column``, the selector either gathers the subject
         column from all row dictionaries or selects a column based on the subject
         position among selected subjects.
 

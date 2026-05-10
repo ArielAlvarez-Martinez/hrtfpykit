@@ -23,17 +23,17 @@ class DimensionsWrap:
         Parameters
         ----------
         name : str
-            Name of the dimension to wrap, such as "M", "R", "N", or
-            "E" in common SOFA files.
+            Name of the dimension to wrap, such as ``M``, ``R``, ``N``, or
+            ``E`` in common SOFA files.
         _netCDF4_dataset_dimensions : Any
             Mapping-like container of netCDF4 dimensions, typically
-            netCDF4.Dataset.dimensions. The mapping must contain "name" and
-            each entry must provide a size and an "isunlimited()" method.
+            netCDF4.Dataset.dimensions. The mapping must contain ``name`` and
+            each entry must provide a size and an ``isunlimited()`` method.
 
         Raises
         ------
         KeyError
-            If "name" is not present in "_netCDF4_dataset_dimensions".
+            If ``name`` is not present in ``_netCDF4_dataset_dimensions``.
 
         Attributes
         ----------
@@ -69,7 +69,7 @@ class AttributesWrap:
         attribute name, the raw attribute value read from netCDF4, and a small
         type label that tells callers whether the attribute came from the SOFA
         file itself or from a specific variable. Variable attributes use the
-        canonical hrtfpykit key form "Variable:Attribute".
+        canonical hrtfpykit key form ``Variable:Attribute``.
 
         Notes
         -----
@@ -81,12 +81,12 @@ class AttributesWrap:
         ----------
         name : str
             Attribute name. Global attributes use their netCDF4 attribute name
-            directly. Variable attributes use "Variable:Attribute".
+            directly. Variable attributes use ``Variable:Attribute``.
         value : Any
             Attribute value as returned by netCDF4.
         type : str
             Attribute type label used by the SOFA API, typically
-            "GlobalAttribute" or "VariableAttribute".
+            ``GlobalAttribute`` or ``VariableAttribute``.
 
         """
         self.name = name
@@ -118,8 +118,8 @@ class VariablesWrap:
         access and :attr:`~hrtfpykit.sofa.wraps.VariablesWrap.attributes` for
         the variable's SOFA metadata. This is the wrapper used for core
         HRTF/HRIR arrays such as
-        "Data.IR", "Data.Real", "Data.Imag", "SourcePosition", and
-        "Data.SamplingRate".
+        ``Data.IR``, ``Data.Real``, ``Data.Imag``, ``SourcePosition``, and
+        ``Data.SamplingRate``.
 
         Notes
         -----
@@ -136,7 +136,7 @@ class VariablesWrap:
             SOFA variable name.
         var : Any
             netCDF4 variable instance. The object must support full slicing and
-            must provide "shape" and "ncattrs()".
+            must provide ``shape`` and ``ncattrs()``.
 
         """
         self.name = name
@@ -156,7 +156,7 @@ class VariablesWrap:
         numpy.ndarray
             Variable data copied from the underlying netCDF4 variable. The
             returned shape follows the SOFA variable shape, for example
-            ("M", "R", "N") for "Data.IR" in a SimpleFreeFieldHRIR file.
+            (``M``, ``R``, ``N``) for ``Data.IR`` in a SimpleFreeFieldHRIR file.
 
         Raises
         ------
@@ -172,8 +172,8 @@ class VariablesWrap:
         """Return variable attributes as wrapped SOFA metadata.
 
         Variable attributes are exposed with fully qualified keys of the form
-        "Variable:Attribute". For example, the "Type" attribute on
-        "SourcePosition" is returned under "SourcePosition:Type". This
+        ``Variable:Attribute``. For example, the ``Type`` attribute on
+        ``SourcePosition`` is returned under ``SourcePosition:Type``. This
         matches the lookup convention used by
         :attr:`~hrtfpykit.sofa.sofa.SOFA.VariableAttributes` and by HRTF
         source-coordinate code.
@@ -182,8 +182,8 @@ class VariablesWrap:
         -------
         dict[str, AttributesWrap]
             Attribute wrappers keyed by fully qualified
-            "Variable:Attribute" names. Each wrapper uses the
-            "VariableAttribute" type label.
+            ``Variable:Attribute`` names. Each wrapper uses the
+            ``VariableAttribute`` type label.
 
         Raises
         ------

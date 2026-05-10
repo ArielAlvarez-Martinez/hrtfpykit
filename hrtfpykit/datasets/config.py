@@ -75,8 +75,8 @@ class HRTFConfig:
     ----------
     types : dict[str, ResourceTypeConfig]
         Mapping from public HRTF type names to resource path descriptions.
-        Common type names include "measured", "simulated", and
-        "synthetic".
+        Common type names include ``measured``, ``simulated``, and
+        ``synthetic``.
     subject_ids : tuple of str or None
         Optional HRTF-specific subject list. None means the dataset-level
         :attr:`~hrtfpykit.datasets.config.DatasetConfig.subject_ids` are used.
@@ -115,7 +115,7 @@ class MeshConfig:
 
     Notes
     -----
-    If a dataset defines a mesh type named "default", the resource scanner can
+    If a dataset defines a mesh type named ``default``, the resource scanner can
     use it when no explicit dataset mesh variant was provided.
 
     """
@@ -240,8 +240,8 @@ class DownloadConfig:
     base_url : str
         HTTPS base URL used to compose resource download URLs.
     available_resources : tuple of str
-        Resource group names accepted by the downloader, such as "hrtf",
-        "mesh", "metadata", or "anthropometry".
+        Resource group names accepted by the downloader, such as ``hrtf``,
+        ``mesh``, ``metadata``, or ``anthropometry``.
     checksums : dict[str, object] or None
         Optional SHA-256 checksum map used for secure verification. The nested
         shape depends on the resource family and variant axes.
@@ -331,9 +331,9 @@ class HUTUBSConfig(DatasetConfig):
     Attributes
     ----------
     name : str
-        Public dataset name, "HUTUBS".
+        Public dataset name, ``HUTUBS``.
     subject_ids : tuple of str
-        HUTUBS subject identifiers "pp1" through "pp96".
+        HUTUBS subject identifiers ``pp1`` through ``pp96``.
     hrtf : HRTFConfig
         Measured and simulated HUTUBS SOFA file templates.
     mesh : MeshConfig
@@ -395,9 +395,9 @@ class SONICOMConfig(DatasetConfig):
     Attributes
     ----------
     name : str
-        Public dataset name, "SONICOM".
+        Public dataset name, ``SONICOM``.
     subject_ids : tuple of str
-        SONICOM subject identifiers "P0001" through "P0400".
+        SONICOM subject identifiers ``P0001`` through ``P0400``.
     excluded_subject_ids : tuple of str
         Dataset-level exclusions applied before resource scanning and split
         planning.

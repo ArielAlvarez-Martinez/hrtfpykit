@@ -38,32 +38,32 @@ class HRTFSpec:
         subject :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
 
         The spec controls three independent concerns: the acoustic representation
-        selected by "domain" and "signal"; the source and ear subset selected
-        by "positions", "plane", and "ears"; and the row axes plus optional
-        context encodings selected by "index_by" and the matching index or
+        selected by ``domain`` and ``signal``; the source and ear subset selected
+        by ``positions``, ``plane``, and ``ears``; and the row axes plus optional
+        context encodings selected by ``index_by`` and the matching index or
         one-hot flags.
 
         Returned arrays keep the natural HRTF axis order from the library object.
         Source-position and ear axes appear before the final signal axis, where the
-        final axis is either time samples for the "time" domain or frequency bins
-        for the "frequency" domain. When "index_by" includes an axis such as
-        "position", "ear", "frequency", or "samples", the current
+        final axis is either time samples for the ``time`` domain or frequency bins
+        for the ``frequency`` domain. When ``index_by`` includes an axis such as
+        ``position``, ``ear``, ``frequency``, or ``samples``, the current
         dataset row selects that axis before the value is returned.
 
         Parameters
         ----------
-        domain : {"time", "frequency"}, default="time"
-            Acoustic domain to return. "time" returns HRIR-style sample data;
-            "frequency" returns HRTF-style frequency data.
-        signal : str, default='ir'
+        domain : {``time``, ``frequency``}, default=``time``
+            Acoustic domain to return. ``time`` returns HRIR-style sample data;
+            ``frequency`` returns HRTF-style frequency data.
+        signal : str, default=``ir``
             Signal component to extract from the loaded :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
-        positions : {"all"} or sequence of int, default="all"
+        positions : {``all``} or sequence of int, default=``all``
             Source-position indices to include.
         plane : str, tuple, dict, or None, default=None
             Optional horizontal, median, or frontal plane selector.
-        ears : {"both", "left", "right"} or sequence of str, default="both"
+        ears : {``both``, ``left``, ``right``} or sequence of str, default=``both``
             Ear axis selection when the spec is indexed by ear.
-        index_by : str or tuple of str, default=("subject",)
+        index_by : str or tuple of str, default=(``subject``,)
             Dataset row axes for this spec. Supported axes depend on domain.
         position_one_hot, position_index, ear_one_hot, ear_index : bool, default=False
             Whether row context encodings are exposed in the sample inputs.
@@ -126,30 +126,30 @@ class ITDSpec:
         timing cues from the HRTF files selected by the dataset instead of
         returning full HRIR/HRTF arrays. The dataset loads the subject
         :class:`~hrtfpykit.hrtf.hrtf.HRTF` object, optionally restricts the
-        source grid with "positions" or "plane", computes ITD using the
+        source grid with ``positions`` or ``plane``, computes ITD using the
         configured estimator, and returns either a whole ITD vector or the
         value selected by the current row context.
 
         ITD values are aligned with the selected source positions. Subject-only rows
-        return all selected positions, while "index_by" set to
-        ("subject", "position")
+        return all selected positions, while ``index_by`` set to
+        (``subject``, ``position``)
         returns one position value per row. Position index and one-hot flags expose
         the same row context that was used for selection. The spec is evaluated
         through the dataset sample pipeline, not as a standalone object.
 
         Parameters
         ----------
-        positions : {"all"} or sequence of int, default="all"
+        positions : {``all``} or sequence of int, default=``all``
             Source-position indices used before ITD calculation.
         plane : str, tuple, dict, or None, default=None
             Optional plane selector used instead of explicit position indices.
-        index_by : str or tuple of str, default=("subject",)
+        index_by : str or tuple of str, default=(``subject``,)
             Dataset row axes. ITD supports subject-only and position-indexed rows.
         position_one_hot, position_index : bool, default=False
             Whether position context encodings are exposed in sample inputs.
-        method : str, default="threshold"
+        method : str, default=``threshold``
             ITD estimation method forwarded to the DSP metric.
-        output : str, default="samples"
+        output : str, default=``samples``
             Output unit or representation requested from the ITD metric.
         thresh_level : float, default=-10.0
             Threshold level used by threshold-based ITD methods.
@@ -214,8 +214,8 @@ class ILDSpec:
         numerical parameters used by the ILD calculation. It becomes active only
         when passed into a dataset inputs or target argument.
 
-        In "broad-band" mode, the returned value is one ILD value per selected
-        source position. In "frequency-dependent" mode, the value keeps a
+        In ``broad-band`` mode, the returned value is one ILD value per selected
+        source position. In ``frequency-dependent`` mode, the value keeps a
         frequency axis, and frequency-indexed rows can select one bin at a time. The
         spec participates in the same subject intersection, split selection, plane
         selection, row indexing, and optional value-transform pipeline as
@@ -223,20 +223,20 @@ class ILDSpec:
 
         Parameters
         ----------
-        positions : {"all"} or sequence of int, default="all"
+        positions : {``all``} or sequence of int, default=``all``
             Source-position indices used before ILD calculation.
         plane : str, tuple, dict, or None, default=None
             Optional plane selector used instead of explicit position indices.
-        index_by : str or tuple of str, default=("subject",)
-            Dataset row axes. Frequency indexing requires mode='frequency-
-            dependent'.
+        index_by : str or tuple of str, default=(``subject``,)
+            Dataset row axes. Frequency indexing requires ``mode`` set to
+            ``frequency-dependent``.
         position_one_hot, position_index : bool, default=False
             Whether position context encodings are exposed in sample inputs.
         frequency_one_hot, frequency_index : bool, default=False
             Whether frequency context encodings are exposed in sample inputs.
-        mode : str, default="broad-band"
+        mode : str, default=``broad-band``
             ILD mode forwarded to the DSP metric.
-        output : str, default="db"
+        output : str, default=``db``
             Output scale or representation requested from the ILD metric.
         fft_length : int or None, default=None
             FFT length used for frequency-dependent ILD calculation.
@@ -299,10 +299,10 @@ class SHSpec:
         so the result can be indexed by subject, ear, or frequency and can be
         combined with other acoustic or metadata specs in the same sample.
 
-        The "sh_order" parameter controls the number of spherical-harmonic
+        The ``sh_order`` parameter controls the number of spherical-harmonic
         coefficients.
         Higher orders can represent finer spatial detail but require enough source
-        positions for a stable least-squares fit. The "epsilon" value is forwarded
+        positions for a stable least-squares fit. The ``epsilon`` value is forwarded
         to the SH calculation as numerical regularization. The spec also controls ear
         selection, frequency indexing, optional row encodings, and an optional value
         transform.
@@ -311,9 +311,9 @@ class SHSpec:
         ----------
         sh_order : int
             Spherical harmonic order used for the decomposition.
-        ears : {"both", "left", "right"} or sequence of str, default="both"
+        ears : {``both``, ``left``, ``right``} or sequence of str, default=``both``
             Ear selection when the dataset is indexed by ear.
-        index_by : str or tuple of str, default=("subject",)
+        index_by : str or tuple of str, default=(``subject``,)
             Dataset row axes. SH specs support ear and frequency indexing.
         ear_one_hot, ear_index : bool, default=False
             Whether ear context encodings are exposed in sample inputs.
@@ -367,7 +367,7 @@ class MeshSpec:
         configured mesh variants, optional local override paths, extensions,
         excluded subjects, and split selection before sample extraction.
         Concrete datasets resolve the path from their configured mesh variants
-        unless "path" overrides the location.
+        unless ``path`` overrides the location.
 
         The returned sample value is normally a mesh path unless a transform is
         provided. Mesh specs affect subject availability: when a dataset includes a
@@ -442,13 +442,13 @@ class AnthropometrySpec:
             Optional table extensions to allow.
         exclude_row, exclude_column : int, sequence of int, or None, default=None
             Row or column indices to remove while loading the table.
-        accessed_by : {'row', 'column'}, default='row'
+        accessed_by : {``row``, ``column``}, default=``row``
             Whether subjects are represented by rows or columns.
-        grouped_by : {"subject"} or ("subject", "ear"), default=("subject",)
+        grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
             Dataset grouping used to select anthropometry values.
         subject_id : bool, default=True
             Whether the table includes a leading subject identifier row or column.
-        ear : {"both", "left", "right"} or None, default=None
+        ear : {``both``, ``left``, ``right``} or None, default=None
             Optional ear selection for ear-grouped anthropometry.
         ear_one_hot, ear_index : bool, default=False
             Whether ear context encodings are exposed in sample inputs.
@@ -513,7 +513,7 @@ class MetadataSpec:
 
         Metadata values can be returned as dictionaries, scalar fields, arrays, or
         any transformed object depending on the table layout and transform. Use
-        "name" when multiple metadata-like values should be exposed under distinct
+        ``name`` when multiple metadata-like values should be exposed under distinct
         sample keys.
 
         Parameters
@@ -524,13 +524,13 @@ class MetadataSpec:
             Optional table extensions to allow.
         exclude_row, exclude_column : int, sequence of int, or None, default=None
             Row or column indices to remove while loading the table.
-        accessed_by : {'row', 'column'}, default='row'
+        accessed_by : {``row``, ``column``}, default=``row``
             Whether subjects are represented by rows or columns.
-        grouped_by : {"subject"} or ("subject", "ear"), default=("subject",)
+        grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
             Dataset grouping used to select metadata values.
         subject_id : bool, default=True
             Whether the table includes a leading subject identifier row or column.
-        ear : {"both", "left", "right"} or None, default=None
+        ear : {``both``, ``left``, ``right``} or None, default=None
             Optional ear selection for ear-grouped metadata.
         ear_one_hot, ear_index : bool, default=False
             Whether ear context encodings are exposed in sample inputs.
@@ -592,7 +592,7 @@ class ImageSpec:
         ----------
         path : str, Path, or None, default=None
             Optional root path overriding the dataset image location.
-        grouped_by : {"subject"} or ("subject", "ear"), default=("subject",)
+        grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
             Whether images are grouped only by subject or by subject and ear.
         extensions : tuple of str or None, default=None
             Optional image extensions to search.
@@ -659,7 +659,7 @@ class VideoSpec:
         ----------
         path : str, Path, or None, default=None
             Optional root path overriding the dataset video location.
-        grouped_by : {"subject"} or ("subject", "ear"), default=("subject",)
+        grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
             Whether videos are grouped only by subject or by subject and ear.
         extensions : tuple of str or None, default=None
             Optional video extensions to search.

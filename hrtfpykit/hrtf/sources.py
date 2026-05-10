@@ -26,8 +26,8 @@ class Sources:
 
         :class:`~hrtfpykit.hrtf.sources.Sources` is the source-position
         manager used by :class:`~hrtfpykit.hrtf.hrtf.HRTF`. It reads SOFA
-        "SourcePosition" values and their "SourcePosition:Type" and
-        "SourcePosition:Units" attributes from the owning
+        ``SourcePosition`` values and their ``SourcePosition:Type`` and
+        ``SourcePosition:Units`` attributes from the owning
         :class:`~hrtfpykit.hrtf.hrtf.HRTF` object, converts positions on
         demand, and resolves source-grid queries used by selection, metrics,
         spherical harmonics, and plotting utilities.
@@ -37,7 +37,7 @@ class Sources:
         Changing that value changes how
         :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` and query
         methods expose positions; it does not rewrite the stored SOFA
-        "SourcePosition" array by itself. Spatial subsets created
+        ``SourcePosition`` array by itself. Spatial subsets created
         through :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select` are also respected, so
         returned arrays and matched indices refer to the current HRTF view rather than
         necessarily to every source in the original SOFA file.
@@ -64,7 +64,7 @@ class Sources:
             :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources`. A usable manager
             requires an HRTF with a loaded
             :class:`~hrtfpykit.sofa.sofa.SOFA` object containing
-            "SourcePosition" metadata.
+            ``SourcePosition`` metadata.
 
         Attributes
         ----------
@@ -85,15 +85,15 @@ class Sources:
         """Return the current source grid in the configured coordinate system.
 
         Positions are read from the owning :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-        object's SOFA "SourcePosition" variable each time this method is
-        called. The SOFA coordinate system is taken from "SourcePosition:Type"
+        object's SOFA ``SourcePosition`` variable each time this method is
+        called. The SOFA coordinate system is taken from ``SourcePosition:Type``
         and converted to
         :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`. If the owning HRTF has been
         spatially selected, only the selected source rows are returned.
 
         Parameters
         ----------
-        angle_unit : {"degrees", "radians"}, default="degrees"
+        angle_unit : {``degrees``, ``radians``}, default=``degrees``
             Angular unit used for returned spherical or lateral-polar angles.
             Cartesian coordinates are returned in their stored distance unit.
 
@@ -114,7 +114,7 @@ class Sources:
 
         Notes
         -----
-        SOFA angular units are detected from the "SourcePosition:Units"
+        SOFA angular units are detected from the ``SourcePosition:Units``
         attribute. Angular source data stored in radians are converted through
         cartesian coordinates when degree/radian conversion is required.
         """
@@ -253,7 +253,7 @@ class Sources:
 
         Parameters
         ----------
-        angle_unit : {"degrees", "radians"}, default="degrees"
+        angle_unit : {``degrees``, ``radians``}, default=``degrees``
             Angular unit used for returned azimuth values.
 
         Returns
@@ -284,7 +284,7 @@ class Sources:
 
         Parameters
         ----------
-        angle_unit : {"degrees", "radians"}, default="degrees"
+        angle_unit : {``degrees``, ``radians``}, default=``degrees``
             Angular unit used for returned elevation values.
 
         Returns
@@ -319,7 +319,7 @@ class Sources:
         ----------
         azimuth : float
             Requested azimuth angle used to query the source grid.
-        angle_unit : {"degrees", "radians"}, default="degrees"
+        angle_unit : {``degrees``, ``radians``}, default=``degrees``
             Angular unit for azimuth, returned elevations, and
             real_azimuth.
 
@@ -382,7 +382,7 @@ class Sources:
         ----------
         elevation : float
             Requested elevation angle used to query the source grid.
-        angle_unit : {"degrees", "radians"}, default="degrees"
+        angle_unit : {``degrees``, ``radians``}, default=``degrees``
             Angular unit for elevation, returned azimuths, and
             real_elevation.
 
@@ -435,8 +435,8 @@ class Sources:
         The query is matched against the current source grid, including any
         source subset already selected on the owning :class:`~hrtfpykit.hrtf.hrtf.HRTF` object. Numeric
         positions are interpreted in coordinate_system. Named positions use
-        the canonical horizontal spherical aliases "front", "back",
-        "left", and "right" and are then returned in the requested
+        the canonical horizontal spherical aliases ``front``, ``back``,
+        ``left``, and ``right`` and are then returned in the requested
         coordinate system.
 
         Parameters
@@ -446,10 +446,10 @@ class Sources:
             angle-only (2,) or full (3,) coordinates. Cartesian queries
             must be (3,). String queries must be one of the supported named
             positions.
-        coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
+        coordinate_system : {``spherical``, ``cartesian``, ``lateral-polar``}, default=``spherical``
             Coordinate system of numeric position queries and returned
             real_position.
-        angle_unit : {"degrees", "radians"}, default="degrees"
+        angle_unit : {``degrees``, ``radians``}, default=``degrees``
             Angular unit for spherical/lateral-polar inputs and outputs.
 
         Returns

@@ -36,7 +36,7 @@ def signal_duration(
     -------
     float
         Duration in seconds, computed from the final sample axis and
-        "sample_rate".
+        ``sample_rate``.
 
     Raises
     ------
@@ -126,9 +126,9 @@ def magnitude_to_db(
     ----------
     magnitude : np.ndarray
         Non-negative magnitude values.
-    reference : float | {"max"}, default=1.0
+    reference : float | {``max``}, default=1.0
         Positive reference magnitude used in the conversion
-        20 * log10(magnitude / reference). The special value "max"
+        20 * log10(magnitude / reference). The special value ``max``
         uses the maximum magnitude present in the input array.
 
     Returns
@@ -141,7 +141,7 @@ def magnitude_to_db(
     ValueError
         If any magnitude is negative, if reference is not finite and
         positive, if reference is an unsupported string, or if
-        reference="max" is requested for data with no positive maximum.
+        reference=``max`` is requested for data with no positive maximum.
     """
     magnitude_values = np.asarray(magnitude, dtype=float)
     if np.any(magnitude_values < 0.0):
@@ -177,7 +177,7 @@ def db_to_magnitude(
         Magnitude values in decibels.
     reference : float, default=1.0
         Positive reference magnitude used in the inverse conversion.
-        "max" is not supported here.
+        ``max`` is not supported here.
 
     Returns
     -------
@@ -188,7 +188,7 @@ def db_to_magnitude(
     ------
     ValueError
         If reference is not finite and positive, or if the unsupported
-        special value reference="max" is provided.
+        special value reference=``max`` is provided.
     """
     magnitude_db_values = np.asarray(magnitude_db, dtype=float)
     if isinstance(reference, str):
@@ -219,9 +219,9 @@ def magnitude_db(
     tf : np.ndarray | TF
         Frequency-domain array or :class:`~hrtfpykit.hrtf.domain.TF` object
         with :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
-    reference : float | {"max"}, default=1.0
+    reference : float | {``max``}, default=1.0
         Positive reference magnitude used in the dB conversion. The special
-        value "max" uses the maximum magnitude present in the input TF.
+        value ``max`` uses the maximum magnitude present in the input TF.
 
     Returns
     -------
@@ -251,7 +251,7 @@ def phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
     tf : np.ndarray | TF
         Frequency-domain array or :class:`~hrtfpykit.hrtf.domain.TF` object
         with :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
-    unit : str, default="degrees"
+    unit : str, default=``degrees``
         Output unit. Degree and radian aliases are supported.
 
     Returns
@@ -302,7 +302,7 @@ def modify_phase(
         with :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
     new_phase : np.ndarray
         Phase array with exactly the same shape as the TF values.
-    unit : str, default="degrees"
+    unit : str, default=``degrees``
         Phase unit used by new_phase. Degree and radian aliases are
         supported.
 
@@ -364,7 +364,7 @@ def modify_magnitude(
         with :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
     new_magnitude : np.ndarray
         Magnitude array with exactly the same shape as the TF values.
-    scale : str, default="linear"
+    scale : str, default=``linear``
         Scale of new_magnitude. Supported values are linear and db.
 
     Returns
@@ -427,9 +427,9 @@ def tf_gain(
     gain : float | np.ndarray
         Gain applied to the TF magnitude while preserving phase. Scalar gains
         affect every source, ear, and bin equally. Array gains must be
-        broadcast-compatible with the TF shape. In scale="db", negative
+        broadcast-compatible with the TF shape. In scale=``db``, negative
         values attenuate and positive values amplify.
-    scale : {"linear", "db"}, default="db"
+    scale : {``linear``, ``db``}, default=``db``
         Scale used by gain.
 
     Returns
@@ -451,8 +451,8 @@ def tf_gain(
     existing complex TF by a real gain factor and therefore preserves the
     original phase.
 
-    In scale="db", the gain is converted with 10 ** (gain / 20). In
-    scale="linear", gain values must be non-negative. Use negative dB to
+    In scale=``db``, the gain is converted with 10 ** (gain / 20). In
+    scale=``linear``, gain values must be non-negative. Use negative dB to
     attenuate and positive dB to amplify.
     """
     if isinstance(tf, np.ndarray):
@@ -818,7 +818,7 @@ def padding(
         is interpreted as time samples.
     padding_length : int
         Number of samples added to the IR. 0 returns the original array.
-    location : {"start", "end"}, default="end"
+    location : {``start``, ``end``}, default=``end``
         Side where the padding is applied.
     value : float | complex, default=0
         Constant value used in the padded region.
@@ -895,9 +895,9 @@ def fir_filter(
         Time-domain samples or :class:`~hrtfpykit.hrtf.domain.IR` object with .values. The final axis
         is filtered independently.
     filter : str
-        Filter family. Supported aliases are "lowpass", "low-pass",
-        "lp", "highpass", "high-pass", "hp",
-        "bandpass", "band-pass", and "bp".
+        Filter family. Supported aliases are ``lowpass``, ``low-pass``,
+        ``lp``, ``highpass``, ``high-pass``, ``hp``,
+        ``bandpass``, ``band-pass``, and ``bp``.
     sample_rate : float | None, default=None
         Sample rate in hertz used to interpret cutoff and the Nyquist
         frequency.
@@ -907,9 +907,9 @@ def fir_filter(
     num_taps : int, default=101
         Positive odd FIR length.
     window : str | None, default=None
-        FIR design window. None and "rectangular" use a boxcar
-        window. Other supported values are "hann", "hamming", and
-        "blackman".
+        FIR design window. None and ``rectangular`` use a boxcar
+        window. Other supported values are ``hann``, ``hamming``, and
+        ``blackman``.
 
     Returns
     -------
@@ -1025,9 +1025,9 @@ def iir_filter(
         Time-domain samples or :class:`~hrtfpykit.hrtf.domain.IR` object with .values. The final axis
         is filtered independently.
     filter : str
-        Filter family. Supported aliases are "lowpass", "low-pass",
-        "lp", "highpass", "high-pass", "hp",
-        "bandpass", "band-pass", and "bp".
+        Filter family. Supported aliases are ``lowpass``, ``low-pass``,
+        ``lp``, ``highpass``, ``high-pass``, ``hp``,
+        ``bandpass``, ``band-pass``, and ``bp``.
     sample_rate : float | None, default=None
         Sample rate in hertz used to interpret cutoff and the Nyquist
         frequency.
@@ -1115,14 +1115,14 @@ def convolve(
     ir_1 : np.ndarray | IR
         Time-domain array or :class:`~hrtfpykit.hrtf.domain.IR` object with .values and
         .sample_rate. This is the reference input for the API, so when
-        mode="same" the output length follows ir_1.
+        mode=``same`` the output length follows ir_1.
     ir_2 : np.ndarray | IR
         Second time-domain array or :class:`~hrtfpykit.hrtf.domain.IR` object with .values and
         .sample_rate. It is convolved with ir_1 independently along
         the last axis.
-    mode : {"full", "same", "valid"}, default="full"
+    mode : {``full``, ``same``, ``valid``}, default=``full``
         Convolution output mode passed to scipy.signal.convolve.
-    method : {"auto", "direct", "fft"}, default="auto"
+    method : {``auto``, ``direct``, ``fft``}, default=``auto``
         Convolution method passed to scipy.signal.convolve.
 
     Returns
@@ -1151,7 +1151,7 @@ def convolve(
     FFT length, while this function performs linear convolution and then
     applies the requested mode.
 
-    When mode="same", SciPy returns the centered portion of the linear
+    When mode=``same``, SciPy returns the centered portion of the linear
     convolution with the length of ir_1. That crop is often convenient for
     signal processing, but it discards boundary samples and therefore should
     not be treated as an exact inverse-friendly decomposition step.
@@ -1455,8 +1455,8 @@ def minimum_phase(
     the input shape. The function accepts raw NumPy arrays and :class:`~hrtfpykit.hrtf.domain.IR` domain
     objects. Inputs must be real-valued HRIR/time-domain data.
 
-    "homomorphic" and "real_cepstrum" currently use the same
-    real-cepstrum path based on the log magnitude spectrum. "cepstrum"
+    ``homomorphic`` and ``real_cepstrum`` currently use the same
+    real-cepstrum path based on the log magnitude spectrum. ``cepstrum``
     uses a complex cepstrum with unwrapped phase before constructing the
     minimum-phase cepstrum.
 
@@ -1464,7 +1464,7 @@ def minimum_phase(
     ----------
     data : np.ndarray | IR
         Real-valued IR samples stored as a NumPy array or :class:`~hrtfpykit.hrtf.domain.IR` object.
-    method : {"homomorphic", "cepstrum", "real_cepstrum"}, default="homomorphic"
+    method : {``homomorphic``, ``cepstrum``, ``real_cepstrum``}, default=``homomorphic``
         Minimum-phase strategy. homomorphic and real_cepstrum use a
         log-magnitude real cepstrum, while cepstrum uses a complex
         cepstrum with unwrapped phase.

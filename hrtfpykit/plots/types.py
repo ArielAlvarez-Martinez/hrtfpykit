@@ -34,7 +34,7 @@ class TwoDimension:
         """Draw one or more two-dimensional line series on a non-3D axis.
 
         The method is a small validation layer around Axes.plot. It rejects axes
-        whose name is "3d" so that line plots do not silently render into the
+        whose name is ``3d`` so that line plots do not silently render into the
         wrong projection, then forwards x, y, and all keyword arguments
         directly to Matplotlib. Matplotlib handles scalar, one-dimensional, and
         multi-series inputs according to its normal plot rules.
@@ -150,7 +150,7 @@ class Heatmap:
         label : str | None, default=None
             Default colorbar label used when colorbar_label is not supplied.
         colormap : str | None, default=None
-            Supported hrtfpykit colormap name. None selects "jet" for
+            Supported hrtfpykit colormap name. None selects ``jet`` for
             backwards-compatible plotting defaults.
         colorbar : bool, default=True
             Whether to draw a colorbar.
@@ -259,14 +259,14 @@ class ThreeDimension:
         """Draw a three-dimensional scatter plot on a 3D Matplotlib axis.
 
         The method is a validation and defaults layer around Axes.scatter for 3D
-        source-grid rendering. It requires an axis whose name is "3d" and
+        source-grid rendering. It requires an axis whose name is ``3d`` and
         forwards coordinates, marker defaults, and extra keyword arguments directly to
         Matplotlib.
 
         Parameters
         ----------
         ax : Axes
-            Target Matplotlib axis with a "3d" projection.
+            Target Matplotlib axis with a ``3d`` projection.
         x : array-like
             X coordinates of the plotted points.
         y : array-like
@@ -275,9 +275,9 @@ class ThreeDimension:
             Z coordinates of the plotted points.
         s : float, default=28.0
             Marker size forwarded to Axes.scatter.
-        color : str, default="steelblue"
+        color : str, default=``steelblue``
             Marker face color.
-        edgecolors : str, default="black"
+        edgecolors : str, default=``black``
             Marker edge color.
         linewidths : float, default=0.4
             Marker edge width.

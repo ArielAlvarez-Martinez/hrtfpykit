@@ -49,7 +49,7 @@ class FigureSize:
     in Matplotlib inches, used by layouts that do not provide a custom figsize
     tuple. The plotting wrapper converts
     :class:`~hrtfpykit.plots.default.FigureSize` values to a Matplotlib
-    "figsize" tuple before calling matplotlib.pyplot.subplots.
+    ``figsize`` tuple before calling matplotlib.pyplot.subplots.
 
     Notes
     -----

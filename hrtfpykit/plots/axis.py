@@ -56,7 +56,7 @@ class Axis(ABC):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         default_label : str
             Default label used when label is not provided.
         label : str | None, default=None
@@ -69,7 +69,7 @@ class Axis(ABC):
         Raises
         ------
         ValueError
-            If axis is not "x", "y", or "z", or if z-axis
+            If axis is not ``x``, ``y``, or ``z``, or if z-axis
             labeling is requested on a non-3D Matplotlib axis.
 
         """
@@ -136,7 +136,7 @@ class DirectionAxis(Axis, ABC):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         default_label : str
             Default label text.
         values : np.ndarray | None, default=None
@@ -348,7 +348,7 @@ class FrequencyLogAxis(Axis):
 
         config must be produced by
         :meth:`~hrtfpykit.plots.axis.FrequencyLogAxis.build` or contain the same
-        keys: "freq_min", "freq_max", "ticks", "labels", and "margin_ratio".
+        keys: ``freq_min``, ``freq_max``, ``ticks``, ``labels``, and ``margin_ratio``.
         Values are interpreted in Hz and rendered in kHz on the selected
         Matplotlib axis.
 
@@ -357,7 +357,7 @@ class FrequencyLogAxis(Axis):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         label : str | None, default=None
             Optional axis label.
         config : dict[str, float | tuple[float, ...] | tuple[str, ...]] | None
@@ -486,8 +486,8 @@ class FrequencyLinearAxis(Axis):
 
         config must be produced by
         :meth:`~hrtfpykit.plots.axis.FrequencyLinearAxis.build` or contain the
-        same keys: "freq_min", "freq_max", "ticks", "labels", and
-        "margin_ratio". Values are interpreted in Hz and rendered in kHz on the
+        same keys: ``freq_min``, ``freq_max``, ``ticks``, ``labels``, and
+        ``margin_ratio``. Values are interpreted in Hz and rendered in kHz on the
         selected Matplotlib axis.
 
         Parameters
@@ -495,7 +495,7 @@ class FrequencyLinearAxis(Axis):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         label : str | None, default=None
             Optional axis label.
         config : dict[str, float | tuple[float, ...] | tuple[str, ...]] | None
@@ -532,7 +532,7 @@ class MagnitudeAxis(Axis):
     """Axis-label formatter for HRTF magnitude values.
 
     :class:`~hrtfpykit.plots.axis.MagnitudeAxis` chooses the default magnitude
-    label used by spectra and heatmaps. When "unit" is "db", the decibel label
+    label used by spectra and heatmaps. When ``unit`` is ``db``, the decibel label
     is selected; all other unit values select the linear magnitude label. Unit
     validation is performed by the calling plot functions.
     """
@@ -551,9 +551,9 @@ class MagnitudeAxis(Axis):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         unit : str
-            Magnitude unit. "db" selects Labels.magnitude_db; any other
+            Magnitude unit. ``db`` selects Labels.magnitude_db; any other
             value selects Labels.magnitude_linear.
         label : str | None, default=None
             Optional explicit label overriding the unit-derived default.
@@ -594,7 +594,7 @@ class AmplitudeAxis(Axis):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         label : str | None, default=None
             Optional explicit label overriding Labels.impulse_response.
 
@@ -637,7 +637,7 @@ class TimeAxis(Axis):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         label : str | None, default=None
             Optional explicit label overriding Labels.time.
 
@@ -675,7 +675,7 @@ class SampleAxis(Axis):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         label : str | None, default=None
             Optional explicit label overriding Labels.samples.
 
@@ -698,7 +698,7 @@ class XAxis(Axis):
 
     :class:`~hrtfpykit.plots.axis.XAxis` is used by source-grid plots after
     spherical SOFA source positions are converted to Cartesian coordinates. When
-    "center" and "half_span" are supplied, the formatter applies limits that
+    ``center`` and ``half_span`` are supplied, the formatter applies limits that
     keep the rendered 3D source cloud visually balanced with the y and z axes.
     """
 
@@ -882,7 +882,7 @@ class AzimuthAnglesAxis(DirectionAxis):
     :class:`~hrtfpykit.plots.axis.AzimuthAnglesAxis` normalizes azimuth values
     and applies the direction formatter used by horizontal-plane,
     source-position, and cue-difference plots. It supports the unsigned
-    SOFA-style "0-360" convention and the signed "-180-180" convention often
+    SOFA-style ``0-360`` convention and the signed ``-180-180`` convention often
     used for frontal-left/right views.
 
     Attributes
@@ -892,9 +892,9 @@ class AzimuthAnglesAxis(DirectionAxis):
     azimuth_range_modes : tuple[str, str]
         Supported range-mode identifiers.
     azimuth_limits_unsigned : tuple[float, float]
-        Default axis limits for "0-360" mode.
+        Default axis limits for ``0-360`` mode.
     azimuth_limits_signed : tuple[float, float]
-        Default axis limits for "-180-180" mode.
+        Default axis limits for ``-180-180`` mode.
     """
 
     direction_tick_step: float = 20.0
@@ -921,12 +921,12 @@ class AzimuthAnglesAxis(DirectionAxis):
         Parameters
         ----------
         range_mode : str | None, default=None
-            Requested azimuth convention. None resolves to "0-360".
+            Requested azimuth convention. None resolves to ``0-360``.
 
         Returns
         -------
         str
-            Validated range mode, either "0-360" or "-180-180".
+            Validated range mode, either ``0-360`` or ``-180-180``.
 
         Raises
         ------
@@ -950,8 +950,8 @@ class AzimuthAnglesAxis(DirectionAxis):
     ) -> np.ndarray:
         """Transform azimuth values to the selected range convention.
 
-        Values are interpreted in degrees. In "0-360" mode, values wrap
-        with modulo 360. In "-180-180" mode, values wrap to the signed
+        Values are interpreted in degrees. In ``0-360`` mode, values wrap
+        with modulo 360. In ``-180-180`` mode, values wrap to the signed
         interval and values numerically equal to -180 are represented as
         180 to avoid a duplicate boundary label.
 
@@ -960,7 +960,7 @@ class AzimuthAnglesAxis(DirectionAxis):
         values : np.ndarray
             Input azimuth values in degrees.
         range_mode : str | None, default=None
-            "0-360" or "-180-180".
+            ``0-360`` or ``-180-180``.
 
         Returns
         -------
@@ -1003,11 +1003,11 @@ class AzimuthAnglesAxis(DirectionAxis):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         values : np.ndarray | None, default=None
             Optional azimuth values in degrees.
         range_mode : str | None, default=None
-            Azimuth convention, either "0-360" or "-180-180".
+            Azimuth convention, either ``0-360`` or ``-180-180``.
         label : str | None, default=None
             Optional explicit label overriding Labels.azimuth.
 
@@ -1124,8 +1124,8 @@ class RadialAxisPolarProjection(Axis):
             Default radial-axis label.
         tick_step : float, default=1.0
             Radial tick spacing.
-        tick_label_style : str, default="integer"
-            Tick-label formatting mode: "integer" or "decimal_comma_4".
+        tick_label_style : str, default=``integer``
+            Tick-label formatting mode: ``integer`` or ``decimal_comma_4``.
         label_position : float, default=350.0
             Radial label angular position in degrees.
         label : str | None, default=None
@@ -1231,7 +1231,7 @@ class ElevationAnglesAxis(DirectionAxis):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         values : np.ndarray | None, default=None
             Optional elevation values in degrees used to derive axis limits.
         label : str | None, default=None
@@ -1303,7 +1303,7 @@ class PolarAnglesAxis(DirectionAxis):
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: "x", "y", or "z".
+            Axis selector: ``x``, ``y``, or ``z``.
         values : np.ndarray | None, default=None
             Optional lateral-polar values in degrees used to derive limits.
         label : str | None, default=None

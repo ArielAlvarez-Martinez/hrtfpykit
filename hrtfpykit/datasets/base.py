@@ -90,22 +90,22 @@ class BaseDataset:
             the spec workflow before resource scanning.
         target : spec, sequence of specs, or None, default=None
             Dataset specs exposed under sample targets. Multiple target specs
-            are returned as a dictionary under the "target" key.
+            are returned as a dictionary under the ``target`` key.
         dataset_hrtf_variant : str, dict, or None, default=None
             HRTF resource variant selected for local scanning and loading. Datasets
             with one HRTF selector usually accept a string; datasets with multiple
-            selectors may accept a mapping with keys such as "type",
-            "sample_rate", and "version".
+            selectors may accept a mapping with keys such as ``type``,
+            ``sample_rate``, and ``version``.
         dataset_mesh_variant : str, dict, or None, default=None
             Mesh resource variant selected for local scanning and loading. Datasets
             with multiple mesh selectors may accept a mapping with keys such as
-            "type" and "version".
-        split : {"all", "train", "validation", "test"}, default="all"
+            ``type`` and ``version``.
+        split : {``all``, ``train``, ``validation``, ``test``}, default=``all``
             Split used to choose which available subjects produce rows in this
             dataset instance.
         split_ratio : tuple of float, default=(0.8, 0.1, 0.1)
             Train, validation, and test ratios used when split is not
-            "all".
+            ``all``.
         split_seed : int, default=0
             Seed used for deterministic subject shuffling before split assignment.
         verbose : bool, default=False
@@ -240,9 +240,9 @@ class BaseDataset:
 
         This value records the HRTF variant used for local resource scanning and
         loading. Datasets with one selector axis return a string such as
-        "measured". Datasets with multiple selector axes return a dictionary
-        containing fields such as "type", "sample_rate", and
-        "version". None means no HRTF variant was selected or no HRTF
+        ``measured``. Datasets with multiple selector axes return a dictionary
+        containing fields such as ``type``, ``sample_rate``, and
+        ``version``. None means no HRTF variant was selected or no HRTF
         resource family is configured.
 
         Returns
@@ -259,7 +259,7 @@ class BaseDataset:
         This value records the mesh variant used for local resource scanning and
         loading. Datasets with one selector axis return a string. Datasets with
         multiple selector axes return a dictionary containing fields such as
-        "type" and "version". None means no mesh variant was selected
+        ``type`` and ``version``. None means no mesh variant was selected
         or no mesh resource family is configured.
 
         Returns
@@ -290,7 +290,7 @@ class BaseDataset:
         """Return train, validation, and test split ratios.
 
         These ratios are used by the split planner when split is
-        "train", "validation", or "test". They remain visible on the
+        ``train``, ``validation``, or ``test``. They remain visible on the
         dataset object so split behavior can be inspected and reproduced.
 
         Returns
@@ -321,7 +321,7 @@ class BaseDataset:
 
         The tuple contains the normalized specs that feed sample inputs.
         It reflects spec workflow decisions such as default names, shared
-        "index_by" axes, context encodings, and dataset-specific validation.
+        ``index_by`` axes, context encodings, and dataset-specific validation.
 
         Returns
         -------
@@ -335,7 +335,7 @@ class BaseDataset:
         """Return target specs used by this dataset.
 
         The tuple contains the normalized specs that feed sample targets.
-        A dataset with no target specs returns None under the "target" key
+        A dataset with no target specs returns None under the ``target`` key
         during indexed access.
 
         Returns
@@ -498,7 +498,7 @@ class BaseDataset:
     def selected_frequency_indices(self) -> tuple[int, ...]:
         """Return selected frequency-bin indices.
 
-        These indices are used when "frequency" appears in the shared
+        These indices are used when ``frequency`` appears in the shared
         dataset index_by axes. They identify the frequency bins that expand
         rows and determine how many frequency-indexed samples each selected
         subject contributes.
@@ -515,7 +515,7 @@ class BaseDataset:
     def selected_sample_indices(self) -> tuple[int, ...]:
         """Return selected time-sample indices.
 
-        These indices are used when "samples" appears in the shared dataset
+        These indices are used when ``samples`` appears in the shared dataset
         index_by axes. They identify the HRIR samples that expand rows and
         determine how many sample-indexed samples each selected subject contributes.
 
@@ -564,7 +564,7 @@ class BaseDataset:
         """Return subjects selected for the requested split.
 
         Selected subjects are the available subjects used to build rows for this
-        dataset instance. For split="all", this usually matches
+        dataset instance. For split=``all``, this usually matches
         :attr:`~hrtfpykit.datasets.base.BaseDataset.available_subjects`; for
         train, validation, or test splits it is a deterministic subset derived
         from :attr:`~hrtfpykit.datasets.base.BaseDataset.split_ratio` and
@@ -601,12 +601,12 @@ class BaseDataset:
         encodings. It is the runtime path that turns dataset state into sample
         dictionaries for training, evaluation, or direct inspection.
 
-        Returned samples always contain "inputs" and "target" keys.
-        "inputs" is None when no input specs and no context encodings were
-        requested. "target" is None when no target specs were requested.
+        Returned samples always contain ``inputs`` and ``target`` keys.
+        ``inputs`` is None when no input specs and no context encodings were
+        requested. ``target`` is None when no target specs were requested.
         When context encodings are requested by specs, keys such as
-        "position_one_hot", "position_index", "ear_one_hot",
-        "frequency_index", or "sample_index" are added to
+        ``position_one_hot``, ``position_index``, ``ear_one_hot``,
+        ``frequency_index``, or ``sample_index`` are added to
         sample inputs for rows that carry the corresponding context.
 
         Parameters
@@ -618,7 +618,7 @@ class BaseDataset:
         Returns
         -------
         dict[str, object]
-            Sample dictionary with "inputs" and "target" entries.
+            Sample dictionary with ``inputs`` and ``target`` entries.
 
         Raises
         ------

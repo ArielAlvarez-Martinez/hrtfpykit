@@ -99,27 +99,27 @@ class HRTFPlots:
 
         Position queries are resolved in spherical coordinates in degrees.
         Named positions use hrtfpykit's built-in aliases, while numeric queries
-        should use [azimuth, elevation]. When unit="db", magnitudes are
+        should use [azimuth, elevation]. When unit=``db``, magnitudes are
         converted with magnitude-to-decibel conversion using either the supplied numeric
-        reference or the maximum selected value when reference="max".
+        reference or the maximum selected value when reference=``max``.
 
         Parameters
         ----------
-        positions : str | list | tuple | np.ndarray, default=("front", "back", "left", "right")
+        positions : str | list | tuple | np.ndarray, default=(``front``, ``back``, ``left``, ``right``)
             One position or a collection of positions. Named aliases such as
-            "front", "back", "left", and "right" are accepted.
+            ``front``, ``back``, ``left``, and ``right`` are accepted.
             Numeric queries must use spherical coordinates in degrees as
             [azimuth, elevation], for example [0.0, 0.0] for the front
             direction. Up to four positions can be shown in one figure.
-        x_axis : {"linear", "log"}, default="linear"
+        x_axis : {``linear``, ``log``}, default=``linear``
             Frequency scale used on the x axis.
-        unit : {"db", "linear"}, default="db"
+        unit : {``db``, ``linear``}, default=``db``
             Magnitude representation used on the y axis.
-        ear : {"left", "right", "both"}, default="both"
-            Ear channel to display. When "both" is selected, left and right
+        ear : {``left``, ``right``, ``both``}, default=``both``
+            Ear channel to display. When ``both`` is selected, left and right
             responses are drawn together in each subplot.
-        reference : float | {"max"}, default=1.0
-            Reference used when unit="db". "max" normalizes the plotted
+        reference : float | {``max``}, default=1.0
+            Reference used when unit=``db``. ``max`` normalizes the plotted
             magnitude to the maximum selected value.
         freq_min : float | None, default=None
             Minimum frequency in Hz included in the plot.
@@ -148,7 +148,7 @@ class HRTFPlots:
         Notes
         -----
         One position uses :class:`~hrtfpykit.plots.layouts.Layout_1`, two positions use :class:`~hrtfpykit.plots.layouts.Layout_2Vertical`,
-        and three or four positions use :class:`~hrtfpykit.plots.layouts.Layout_3`. With ear="both", left
+        and three or four positions use :class:`~hrtfpykit.plots.layouts.Layout_3`. With ear=``both``, left
         and right channels are drawn together on each subplot and labelled with
         the shared ear legend.
         """
@@ -319,16 +319,16 @@ class HRTFPlots:
 
         Parameters
         ----------
-        positions : str | list | tuple | np.ndarray, default=("front", "back", "left", "right")
+        positions : str | list | tuple | np.ndarray, default=(``front``, ``back``, ``left``, ``right``)
             One position or a collection of positions. Named aliases such as
-            "front", "back", "left", and "right" are accepted.
+            ``front``, ``back``, ``left``, and ``right`` are accepted.
             Numeric queries must use spherical coordinates in degrees as
             [azimuth, elevation], for example [0.0, 0.0] for the front
             direction. Up to four positions can be shown in one figure.
-        ear : {"left", "right", "both"}, default="both"
-            Ear channel to display. When "both" is selected, left and right
+        ear : {``left``, ``right``, ``both``}, default=``both``
+            Ear channel to display. When ``both`` is selected, left and right
             ear waveforms are drawn together in each subplot.
-        x_axis : {"time", "samples"}, default="time"
+        x_axis : {``time``, ``samples``}, default=``time``
             Horizontal axis used for the waveform plot.
         show : bool, default=True
             If True, call matplotlib.pyplot.show() before returning.
@@ -352,7 +352,7 @@ class HRTFPlots:
         Notes
         -----
         One position uses :class:`~hrtfpykit.plots.layouts.Layout_1`, two positions use :class:`~hrtfpykit.plots.layouts.Layout_2Vertical`,
-        and three or four positions use :class:`~hrtfpykit.plots.layouts.Layout_3`. With ear="both", left
+        and three or four positions use :class:`~hrtfpykit.plots.layouts.Layout_3`. With ear=``both``, left
         and right HRIR channels are drawn on the same subplot and labelled with
         the shared ear legend.
         """
@@ -486,28 +486,28 @@ class HRTFPlots:
         logarithmic frequency axis.
 
         The method requires both the time-domain and frequency-domain
-        representations to be available. When magnitude="db", the magnitude
+        representations to be available. When magnitude=``db``, the magnitude
         response is converted with magnitude-to-decibel conversion using either a numeric
         reference or the selected direction's maximum magnitude when
-        reference="max".
+        reference=``max``.
 
         Parameters
         ----------
-        position : str | list | np.ndarray, default="front"
+        position : str | list | np.ndarray, default=``front``
             Position query to plot. Exactly one position is accepted. Named
-            aliases such as "front", "back", "left", and "right"
+            aliases such as ``front``, ``back``, ``left``, and ``right``
             are accepted. Numeric queries must use spherical coordinates in
             degrees as [azimuth, elevation], for example [0.0, 0.0].
-        ear : {"left", "right", "both"}, default="both"
+        ear : {``left``, ``right``, ``both``}, default=``both``
             Ear channel to display in both subplots.
-        amplitude_x_axis : {"time", "samples"}, default="time"
+        amplitude_x_axis : {``time``, ``samples``}, default=``time``
             Horizontal axis used for the amplitude subplot.
-        magnitude_x_axis : {"linear", "log"}, default="linear"
+        magnitude_x_axis : {``linear``, ``log``}, default=``linear``
             Frequency-axis scale used on the magnitude subplot.
-        magnitude : {"db", "linear"}, default="db"
+        magnitude : {``db``, ``linear``}, default=``db``
             Magnitude representation used on the bottom subplot.
-        reference : float | {"max"}, default=1.0
-            Reference used when magnitude="db" for the magnitude subplot.
+        reference : float | {``max``}, default=1.0
+            Reference used when magnitude=``db`` for the magnitude subplot.
         show : bool, default=True
             If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
@@ -765,31 +765,31 @@ class HRTFPlots:
 
         Horizontal planes are selected by the nearest available elevation to
         elevation_angle. Median-plane plots use the canonical sagittal path
-        at azimuth zero. With ear="both", the method creates one heatmap for
+        at azimuth zero. With ear=``both``, the method creates one heatmap for
         the left ear and one heatmap for the right ear using shared color
         limits.
 
         Parameters
         ----------
-        plane : {"horizontal", "median"}, default="horizontal"
-            Plane to visualize. "horizontal" uses a horizontal plane
-            selected by elevation. "median" uses the canonical median
+        plane : {``horizontal``, ``median``}, default=``horizontal``
+            Plane to visualize. ``horizontal`` uses a horizontal plane
+            selected by elevation. ``median`` uses the canonical median
             plane defined by the front-back sagittal path.
         elevation_angle : float, default=0.0
-            Target elevation used when plane="horizontal". The nearest
+            Target elevation used when plane=``horizontal``. The nearest
             available horizontal plane in the grid is selected. This parameter
             is not used for the median plane.
-        x_axis : {"linear", "log"}, default="linear"
+        x_axis : {``linear``, ``log``}, default=``linear``
             Frequency scale used on the x axis.
-        unit : {"db", "linear"}, default="db"
+        unit : {``db``, ``linear``}, default=``db``
             Magnitude representation used for the heatmap values.
-        ear : {"left", "right", "both"}, default="both"
-            Ear channel to display. When "both" is selected, a separate subplot
+        ear : {``left``, ``right``, ``both``}, default=``both``
+            Ear channel to display. When ``both`` is selected, a separate subplot
             is created for each ear.
-        reference : float | {"max"}, default="max"
-            Reference used when unit="db". "max" normalizes the plotted
+        reference : float | {``max``}, default=``max``
+            Reference used when unit=``db``. ``max`` normalizes the plotted
             plane to its maximum value.
-        colormap : str, default="jet"
+        colormap : str, default=``jet``
             Matplotlib colormap name used for the heatmap.
         freq_min : float | None, default=None
             Minimum frequency in Hz included in the plot.
@@ -818,7 +818,7 @@ class HRTFPlots:
         Notes
         -----
         Horizontal-plane azimuths are displayed in the signed -180 .. 180
-        convention. When unit="db" and reference="max", normalization
+        convention. When unit=``db`` and reference=``max``, normalization
         is computed over the plotted plane and selected ear channels before
         conversion to decibels.
         """
@@ -1054,28 +1054,28 @@ class HRTFPlots:
         titles are enabled.
 
         Numeric azimuths are interpreted in degrees. Named position aliases use
-        their spherical azimuth component, so "front", "back",
-        "left", and "right" can be used for common vertical slices.
-        With ear="both", the method creates one heatmap per ear using
+        their spherical azimuth component, so ``front``, ``back``,
+        ``left``, and ``right`` can be used for common vertical slices.
+        With ear=``both``, the method creates one heatmap per ear using
         shared color limits.
 
         Parameters
         ----------
         azimuth : float | str, default=0.0
             Azimuth used to select the elevation slice. Named aliases such as
-            "front", "back", "left", and "right" are accepted.
+            ``front``, ``back``, ``left``, and ``right`` are accepted.
             The nearest available azimuth in the source grid is used.
-        x_axis : {"linear", "log"}, default="linear"
+        x_axis : {``linear``, ``log``}, default=``linear``
             Frequency scale used on the x axis.
-        unit : {"db", "linear"}, default="db"
+        unit : {``db``, ``linear``}, default=``db``
             Magnitude representation used for the heatmap values.
-        ear : {"left", "right", "both"}, default="both"
-            Ear channel to display. When "both" is selected, a separate subplot
+        ear : {``left``, ``right``, ``both``}, default=``both``
+            Ear channel to display. When ``both`` is selected, a separate subplot
             is created for each ear.
-        reference : float | {"max"}, default="max"
-            Reference used when unit="db". "max" normalizes the plotted
+        reference : float | {``max``}, default=``max``
+            Reference used when unit=``db``. ``max`` normalizes the plotted
             slice to its maximum value.
-        colormap : str, default="jet"
+        colormap : str, default=``jet``
             Matplotlib colormap name used for the heatmap.
         freq_min : float | None, default=None
             Minimum frequency in Hz included in the plot.
@@ -1105,7 +1105,7 @@ class HRTFPlots:
         -----
         When the requested azimuth is not present exactly in the source grid,
         the nearest available azimuth is selected using circular angular
-        distance. When unit="db" and reference="max", normalization is
+        distance. When unit=``db`` and reference=``max``, normalization is
         computed over the plotted slice and selected ear channels.
         """
         if unit not in {"db", "linear"}:
@@ -1554,15 +1554,15 @@ class HRTFPlots:
 
         Parameters
         ----------
-        plane : {"horizontal", "median"}, default="horizontal"
-            Plane to visualize. "horizontal" uses a horizontal plane
-            selected by elevation. "median" uses the canonical median
+        plane : {``horizontal``, ``median``}, default=``horizontal``
+            Plane to visualize. ``horizontal`` uses a horizontal plane
+            selected by elevation. ``median`` uses the canonical median
             plane defined by the front-back sagittal path.
         elevation_angle : float, default=0.0
-            Target elevation used when plane="horizontal". The nearest
+            Target elevation used when plane=``horizontal``. The nearest
             available horizontal plane in the grid is selected. This parameter
             is not used for the median plane.
-        colormap : str, default="jet"
+        colormap : str, default=``jet``
             Matplotlib colormap name used for the heatmap.
         freq_min : float | None, default=None
             Minimum frequency in Hz included in the plot.
@@ -1580,7 +1580,7 @@ class HRTFPlots:
         Raises
         ------
         AttributeError
-            If plane is not "horizontal" or "median", or if
+            If plane is not ``horizontal`` or ``median``, or if
             elevation_angle is not finite.
         ValueError
             If IR data or sample rate is missing, elevation_angle is used
@@ -2127,9 +2127,9 @@ class HRTFPlots:
 
         Parameters
         ----------
-        plane : str | list[str] | tuple[str, ...], default="horizontal"
-            Plane or planes to highlight. Accepted values are "horizontal",
-            "median", and "frontal". A single string highlights one
+        plane : str | list[str] | tuple[str, ...], default=``horizontal``
+            Plane or planes to highlight. Accepted values are ``horizontal``,
+            ``median``, and ``frontal``. A single string highlights one
             plane, while a list or tuple highlights multiple planes in the same
             figure.
         show : bool, default=True

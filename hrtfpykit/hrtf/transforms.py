@@ -64,8 +64,8 @@ class Transform:
         Parameters
         ----------
         window_name : str
-            Window identifier passed to the DSP layer, for example "hann",
-            "hamming", "blackman", or "rectangular".
+            Window identifier passed to the DSP layer, for example ``hann``,
+            ``hamming``, ``blackman``, or ``rectangular``.
 
         Returns
         -------
@@ -103,7 +103,7 @@ class Transform:
         ----------
         padding_length : int
             Number of samples added to the IR.
-        location : {"start", "end"}, default="end"
+        location : {``start``, ``end``}, default=``end``
             Side where the padding is applied.
         value : float, default=0
             Constant value used in the padded region.
@@ -338,7 +338,7 @@ class Transform:
 
         Parameters
         ----------
-        method : str, default="homomorphic"
+        method : str, default=``homomorphic``
             Minimum-phase method key passed to the DSP layer.
         fft_length : int | None, default=None
             Optional FFT length used during cepstral reconstruction.
@@ -388,10 +388,10 @@ class Transform:
             If False, all source positions contribute equally. If True,
             diffuse-field weights are derived internally from the HRTF source
             positions using spherical Voronoi areas.
-        magnitude_average : {"log", "linear"}, optional
+        magnitude_average : {``log``, ``linear``}, optional
             Rule used to average source magnitudes before the minimum-phase
-            CTF reconstruction. "log" computes a log-magnitude average
-            (geometric mean in linear magnitude). "linear" computes a
+            CTF reconstruction. ``log`` computes a log-magnitude average
+            (geometric mean in linear magnitude). ``linear`` computes a
             direct linear-magnitude average (arithmetic mean).
         attenuation : float | None, optional
             Optional attenuation in dB applied to the CTF magnitude before the
@@ -438,10 +438,10 @@ class Transform:
             internal CTF estimate. If True, diffuse-field weights are
             derived internally from the HRTF source positions using spherical
             Voronoi areas.
-        magnitude_average : {"log", "linear"}, optional
+        magnitude_average : {``log``, ``linear``}, optional
             Rule used to estimate the internal CTF magnitude before the DTF
-            division. "log" computes a log-magnitude average
-            (geometric mean in linear magnitude). "linear" computes a
+            division. ``log`` computes a log-magnitude average
+            (geometric mean in linear magnitude). ``linear`` computes a
             direct linear-magnitude average (arithmetic mean).
         attenuation : float | None, optional
             Optional attenuation in dB applied to the DTF after the CTF
@@ -476,7 +476,7 @@ class Transform:
 
         new_ir replaces the full current IR array. The leading dimensions
         before the final sample axis must match the current spatial and ear
-        layout. When "new_ir" is an :class:`~hrtfpykit.hrtf.domain.IR` or
+        layout. When ``new_ir`` is an :class:`~hrtfpykit.hrtf.domain.IR` or
         :class:`~hrtfpykit.hrtf.hrtf.HRTF` object and provides a sample rate,
         that sample rate is copied into the returned HRTF before TF
         recomputation.
@@ -563,7 +563,7 @@ class Transform:
         ----------
         new_phase : np.ndarray
             Phase array with the same TF layout as the current HRTF.
-        unit : {"degrees", "radians"}, default="degrees"
+        unit : {``degrees``, ``radians``}, default=``degrees``
             Unit used by new_phase.
 
         Returns
@@ -725,7 +725,7 @@ class Transform:
         ----------
         new_magnitude : np.ndarray
             Magnitude array with the same TF layout as the current HRTF.
-        scale : {"linear", "db"}, default="linear"
+        scale : {``linear``, ``db``}, default=``linear``
             Magnitude scale used by new_magnitude.
 
         Returns
@@ -770,9 +770,9 @@ class Transform:
             Gain applied to the current TF magnitude while preserving phase.
             Scalar gains affect every source, ear, and bin equally. Array
             gains must be broadcast-compatible with the current TF shape. In
-            scale="db", negative values attenuate and positive values
+            scale=``db``, negative values attenuate and positive values
             amplify.
-        scale : {"linear", "db"}, default="db"
+        scale : {``linear``, ``db``}, default=``db``
             Scale used by gain.
 
         Returns
@@ -848,7 +848,7 @@ class Transform:
 
         Parameters
         ----------
-        coordinate_system : {"spherical", "cartesian", "lateral-polar"}
+        coordinate_system : {``spherical``, ``cartesian``, ``lateral-polar``}
             Target coordinate system used by :class:`~hrtfpykit.hrtf.sources.Sources` when positions are read.
 
         Returns
@@ -891,7 +891,7 @@ class Transform:
         itd : float
             ITD value to apply. Positive values delay the left ear and
             negative values delay the right ear.
-        unit : {"seconds", "samples"}, default="samples"
+        unit : {``seconds``, ``samples``}, default=``samples``
             Unit used by itd.
 
         Returns
@@ -1002,10 +1002,10 @@ class Transform:
 
         Parameters
         ----------
-        method : {"threshold", "maxiacce"}, default="threshold"
+        method : {``threshold``, ``maxiacce``}, default=``threshold``
             ITD estimator used to compute the delay per position.
         thresh_level : float, default=-10.0
-            Threshold offset in dB used when method="threshold".
+            Threshold offset in dB used when method=``threshold``.
         upper_cut_freq : float, default=3000.0
             Low-pass cutoff in Hz applied before ITD estimation.
         filter_order : int, default=10

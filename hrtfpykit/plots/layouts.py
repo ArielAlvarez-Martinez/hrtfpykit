@@ -18,7 +18,7 @@ class Layout:
     The layout object does not create Matplotlib artists directly.
     :class:`~hrtfpykit.plots.figure.Figure` reads these fields, calls
     matplotlib.pyplot.subplots, flattens the returned axes, and exposes those
-    axes by integer index or by the names in "positions". HRTF plot methods use
+    axes by integer index or by the names in ``positions``. HRTF plot methods use
     concrete subclasses to select the correct arrangement for single-position
     plots, stacked impulse-response and magnitude views, side-by-side ear plots,
     and multi-position comparison panels.
@@ -72,7 +72,7 @@ class Layout_1(Layout):
     """Single-axis layout for one-panel HRTF plots.
 
     :class:`~hrtfpykit.plots.layouts.Layout_1` defines a 1x1 subplot grid with
-    the position name "main". It is used when a plot renders all information on
+    the position name ``main``. It is used when a plot renders all information on
     one axis, including single-position magnitude curves, source-grid views,
     polar ITD or ILD curves, spherical-harmonic diagnostics, and single heatmap
     panels.
@@ -90,7 +90,7 @@ class Layout_1(Layout):
     rows, cols : int
         Single-row, single-column subplot grid.
     positions : tuple[str, ...]
-        Contains only "main".
+        Contains only ``main``.
     figure_title_offset : float
         Figure-title offset tuned for a single-panel figure.
     subplot_title_y : float
@@ -115,7 +115,7 @@ class Layout_2Vertical(Layout):
     """Stacked two-axis layout for vertically related plot panels.
 
     :class:`~hrtfpykit.plots.layouts.Layout_2Vertical` defines a 2x1 subplot
-    grid with the position names "top" and "bottom". It is used when two
+    grid with the position names ``top`` and ``bottom``. It is used when two
     related views should be aligned vertically, such as an impulse response
     above its magnitude response or two selected source positions that should
     share horizontal context.
@@ -133,7 +133,7 @@ class Layout_2Vertical(Layout):
     rows, cols : int
         Two-row, single-column subplot grid.
     positions : tuple[str, ...]
-        Contains "top" and "bottom" in flattened-axis order.
+        Contains ``top`` and ``bottom`` in flattened-axis order.
     sharex : bool
         Enabled by default for vertically aligned panels.
     sharey : bool
@@ -162,9 +162,9 @@ class Layout_2Horizontal(Layout):
     """Side-by-side two-axis layout for ear or panel comparisons.
 
     :class:`~hrtfpykit.plots.layouts.Layout_2Horizontal` defines a 1x2 subplot
-    grid with the position names "left" and "right". HRTF plotting functions
+    grid with the position names ``left`` and ``right``. HRTF plotting functions
     use it when two panels should be compared side by side, most commonly when
-    "ear" is "both" and the plot creates one subplot for the left ear and one
+    ``ear`` is ``both`` and the plot creates one subplot for the left ear and one
     subplot for the right ear.
 
     Notes
@@ -181,7 +181,7 @@ class Layout_2Horizontal(Layout):
     rows, cols : int
         Single-row, two-column subplot grid.
     positions : tuple[str, ...]
-        Contains "left" and "right" in flattened-axis order.
+        Contains ``left`` and ``right`` in flattened-axis order.
     figsize : FigureSize or tuple[float, float]
         Defaults to :class:`~hrtfpykit.plots.default.FigureSize` with width 12
         and height 6.
@@ -213,8 +213,8 @@ class Layout_3(Layout):
     """Four-axis layout for multi-position HRTF plot grids.
 
     :class:`~hrtfpykit.plots.layouts.Layout_3` defines a 2x2 subplot grid with
-    positions named "top_left", "top_right", "bottom_left", and
-    "bottom_right". Plot methods use it when up to four source positions or
+    positions named ``top_left``, ``top_right``, ``bottom_left``, and
+    ``bottom_right``. Plot methods use it when up to four source positions or
     comparison panels should be shown in one figure.
 
     The layout intentionally provides four axes even when a caller only needs
@@ -234,8 +234,8 @@ class Layout_3(Layout):
     rows, cols : int
         Two-row, two-column subplot grid.
     positions : tuple[str, ...]
-        Contains "top_left", "top_right", "bottom_left", and
-        "bottom_right" in flattened-axis order.
+        Contains ``top_left``, ``top_right``, ``bottom_left``, and
+        ``bottom_right`` in flattened-axis order.
     figsize : FigureSize or tuple[float, float]
         Defaults to :class:`~hrtfpykit.plots.default.FigureSize` with width 10
         and height 7.

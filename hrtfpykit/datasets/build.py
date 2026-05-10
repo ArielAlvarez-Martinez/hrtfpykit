@@ -82,8 +82,8 @@ class DatasetBuilder:
         indexed sample extraction.
 
         Variant normalization happens before resource scanning. HRTF mappings may
-        contain "type", "sample_rate", and "version" keys. Mesh
-        mappings may contain "type" and "version" keys. Unsupported keys
+        contain ``type``, ``sample_rate``, and ``version`` keys. Mesh
+        mappings may contain ``type`` and ``version`` keys. Unsupported keys
         or values are rejected against the dataset configuration before any file
         scan begins.
 
@@ -354,8 +354,8 @@ class DatasetBuilder:
         """Build dataset row dictionaries from selected subjects and row axes.
 
         Each row records one subject plus optional context for the axes present in
-        "index_by". The method creates the Cartesian product of selected
-        subjects and selected axis values. Axes not present in "index_by" are
+        ``index_by``. The method creates the Cartesian product of selected
+        subjects and selected axis values. Axes not present in ``index_by`` are
         represented by None values in the row dictionary, which lets value
         selectors distinguish subject-only specs from position-, ear-,
         frequency-, or sample-indexed specs without changing the row schema.
@@ -370,31 +370,31 @@ class DatasetBuilder:
         subject_ids : tuple of str
             Canonical subject identifiers included in the selected split.
         index_by : tuple of str
-            Dataset row axes. Supported non-subject axes are "position",
-            "ear", "frequency", and "samples".
+            Dataset row axes. Supported non-subject axes are ``position``,
+            ``ear``, ``frequency``, and ``samples``.
         selected_position_indices : sequence
-            Source-position indices used when "position" is included in
-            "index_by".
+            Source-position indices used when ``position`` is included in
+            ``index_by``.
         selected_ears : sequence
-            Ear labels and source-ear indices used when "ear" is included in
-            "index_by".
+            Ear labels and source-ear indices used when ``ear`` is included in
+            ``index_by``.
         selected_frequency_indices : sequence
-            Frequency-bin indices used when "frequency" is included in
-            "index_by".
+            Frequency-bin indices used when ``frequency`` is included in
+            ``index_by``.
         selected_sample_indices : sequence
-            Time-sample indices used when "samples" is included in
-            "index_by".
+            Time-sample indices used when ``samples`` is included in
+            ``index_by``.
 
         Returns
         -------
         list of dict
             Row records consumed by
             :meth:`~hrtfpykit.datasets.base.BaseDataset.__getitem__`. Each record
-            contains "subject_id", "position_index",
-            "selected_position_index", "ear", "ear_index",
-            "selected_ear_index", "frequency_index",
-            "selected_frequency_index", "sample_index", and
-            "selected_sample_index".
+            contains ``subject_id``, ``position_index``,
+            ``selected_position_index``, ``ear``, ``ear_index``,
+            ``selected_ear_index``, ``frequency_index``,
+            ``selected_frequency_index``, ``sample_index``, and
+            ``selected_sample_index``.
 
         Raises
         ------
@@ -404,7 +404,7 @@ class DatasetBuilder:
 
         Notes
         -----
-        "position_index", "frequency_index", and "sample_index" store the
+        ``position_index``, ``frequency_index``, and ``sample_index`` store the
         actual index into the acoustic axis. The corresponding selected
         fields store the ordinal index inside the selected subset and are used for
         one-hot encodings.

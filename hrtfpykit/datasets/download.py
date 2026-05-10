@@ -220,7 +220,7 @@ class BaseDownload:
         """Normalize requested official resource groups.
 
         This helper validates the resource groups requested by the user against the
-        dataset download configuration and expands the pseudo-resource "all".
+        dataset download configuration and expands the pseudo-resource ``all``.
         It keeps dataset constructors small while making unsupported download
         requests fail before URL construction or network access.
 
@@ -430,8 +430,8 @@ class BaseDownload:
         Parameters
         ----------
         resource : str
-            Resource group name, such as "hrtf", "mesh",
-            "anthropometry", or "metadata".
+            Resource group name, such as ``hrtf``, ``mesh``,
+            ``anthropometry``, or ``metadata``.
         relative_path : str
             Relative resource path used as the final key in checksum maps.
         hrtf_type, hrtf_version, hrtf_sample_rate : str, int, or None
@@ -570,7 +570,7 @@ class BaseDownload:
         Returns
         -------
         str
-            'downloaded' when fetched or 'verified' when existing file passed
+            ``downloaded`` when fetched or ``verified`` when existing file passed
         validation.
 
         Raises
@@ -647,7 +647,7 @@ class BaseDownload:
 
         This planner only uses download arguments. It does not inspect dataset specs,
         dataset construction variants, or any future
-        :class:`~hrtfpykit.datasets.base.BaseDataset` state. Passing "all" in a
+        :class:`~hrtfpykit.datasets.base.BaseDataset` state. Passing ``all`` in a
         download variant expands that download axis across the available values
         declared by the dataset config. When a resource type has no sample-rate or
         version axis, the planner still creates jobs with the corresponding selector
@@ -655,27 +655,27 @@ class BaseDownload:
 
         Parameters
         ----------
-        download_resources : str or sequence of str, default="all"
+        download_resources : str or sequence of str, default=``all``
             Resource groups to include in the plan. Supported names are declared by
             the configuration's
-            :class:`~hrtfpykit.datasets.config.DownloadConfig`; "all" expands
+            :class:`~hrtfpykit.datasets.config.DownloadConfig`; ``all`` expands
             to every declared official resource.
-        download_hrtf_variant : str, dict, or None, default="all"
+        download_hrtf_variant : str, dict, or None, default=``all``
             HRTF variant requested for download. A string selects a type. A mapping
-            can contain "type", "sample_rate", and "version" keys to
+            can contain ``type``, ``sample_rate``, and ``version`` keys to
             select one or more axes explicitly.
         download_mesh_variant : str, dict, or None, default=None
             Mesh variant requested for download. A string selects a mesh type. A
-            mapping can contain "type" and "version" keys.
+            mapping can contain ``type`` and ``version`` keys.
 
         Returns
         -------
         list of dict
-            Planned download jobs. Each job contains "resource",
-            "relative_path", "url", "destination", and
-            "checksum". Subject-specific jobs also contain "subject_id";
-            HRTF and mesh jobs additionally include "hrtf_variant" or
-            "mesh_variant".
+            Planned download jobs. Each job contains ``resource``,
+            ``relative_path``, ``url``, ``destination``, and
+            ``checksum``. Subject-specific jobs also contain ``subject_id``;
+            HRTF and mesh jobs additionally include ``hrtf_variant`` or
+            ``mesh_variant``.
 
         Raises
         ------
@@ -969,10 +969,10 @@ class BaseDownload:
 
         Parameters
         ----------
-        download_resources : str or sequence of str, default="all"
-            Resource groups to download or verify. "all" expands to every
+        download_resources : str or sequence of str, default=``all``
+            Resource groups to download or verify. ``all`` expands to every
             official resource declared by the dataset configuration.
-        download_hrtf_variant : str, dict, or None, default="all"
+        download_hrtf_variant : str, dict, or None, default=``all``
             HRTF variant requested for download. This value is passed directly to
             :meth:`~hrtfpykit.datasets.download.BaseDownload.build_download_plan`.
         download_mesh_variant : str, dict, or None, default=None

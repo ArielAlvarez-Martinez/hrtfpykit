@@ -76,8 +76,8 @@ class Ear(Legends):
         """Render an ear-channel legend for traces already drawn on an axis.
 
         The legend entries are derived from ear unless explicit labels are
-        provided. "both" requires two labels and maps to left/right channel
-        traces in plotting order; "left" and "right" each require one
+        provided. ``both`` requires two labels and maps to left/right channel
+        traces in plotting order; ``left`` and ``right`` each require one
         label. The method does not inspect artists on the axis, so callers must
         draw traces in the same order as the resolved labels.
 
@@ -85,15 +85,15 @@ class Ear(Legends):
         ----------
         ax : matplotlib.axes.Axes
             Axis that contains the ear-channel traces to label.
-        ear : {"left", "right", "both"}
-            Ear selection mode used by the plot. "both" creates labels for
+        ear : {``left``, ``right``, ``both``}
+            Ear selection mode used by the plot. ``both`` creates labels for
             the left and right channel traces.
         location : str | None, default=None
             Matplotlib legend location. When None, Ear.location is used.
         labels : tuple[str, ...] | list[str] | None, default=None
             Custom legend labels. The number of labels must match the selected
-            ear mode: two labels for "both" and one label for
-            "left" or "right".
+            ear mode: two labels for ``both`` and one label for
+            ``left`` or ``right``.
 
         Returns
         -------
@@ -102,7 +102,7 @@ class Ear(Legends):
         Raises
         ------
         ValueError
-            If ear is not one of "left", "right", or "both", or
+            If ear is not one of ``left``, ``right``, or ``both``, or
             if labels has the wrong number of entries.
 
         Notes
@@ -161,7 +161,7 @@ class Subjects(Legends):
     ) -> list[str]:
         """Create deterministic subject labels for comparison plots.
 
-        Labels are generated as "subject_1" through "subject_n" and are used
+        Labels are generated as ``subject_1`` through ``subject_n`` and are used
         when comparison helpers receive multiple
         :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects without explicit legend names.
         The function validates count before creating labels so downstream legend

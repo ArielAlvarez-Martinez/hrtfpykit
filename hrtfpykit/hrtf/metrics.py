@@ -32,9 +32,9 @@ def itd(
     returned ITD array.
 
     Before estimation, both ear signals are low-pass filtered with a
-    Butterworth IIR filter. The "threshold" method returns the first
+    Butterworth IIR filter. The ``threshold`` method returns the first
     left/right onset difference whose level exceeds the per-ear peak level
-    plus thresh_level dB. The "maxiacce" method estimates delay from
+    plus thresh_level dB. The ``maxiacce`` method estimates delay from
     the peak of the cross-correlation between Hilbert envelopes.
 
     Parameters
@@ -43,16 +43,16 @@ def itd(
         Time-domain impulse-response data or :class:`~hrtfpykit.hrtf.domain.IR` object with layout
         (..., ear, samples). The ear convention is 0=left and
         1=right.
-    method : {"threshold", "maxiacce"}, default="threshold"
-        Estimator used to resolve the left/right delay. "threshold" is an
-        onset detector, while "maxiacce" uses envelope cross-correlation.
+    method : {``threshold``, ``maxiacce``}, default=``threshold``
+        Estimator used to resolve the left/right delay. ``threshold`` is an
+        onset detector, while ``maxiacce`` uses envelope cross-correlation.
     sample_rate : float | None, default=None
         Sample rate in hertz. Required for NumPy input. When ir is an
         :class:`~hrtfpykit.hrtf.domain.IR` object and this value is omitted, :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is used.
-    output : {"seconds", "samples"}, default="samples"
+    output : {``seconds``, ``samples``}, default=``samples``
         Unit used for the returned ITD values.
     thresh_level : float, default=-10.0
-        Threshold offset in decibels used by method="threshold". The
+        Threshold offset in decibels used by method=``threshold``. The
         effective threshold is computed independently for each ear as
         peak_level + thresh_level.
     upper_cut_freq : float, default=3000.0
@@ -207,8 +207,8 @@ def ild(
     two ear channels are treated as left and right, respectively; any leading
     axes are preserved in the returned ILD array.
 
-    In "broad-band" mode, the function computes the ratio between left and
-    right RMS levels over the time axis. In "frequency-dependent" mode, it
+    In ``broad-band`` mode, the function computes the ratio between left and
+    right RMS levels over the time axis. In ``frequency-dependent`` mode, it
     first converts the IR to a one-sided transfer function with
     real FFT conversion, then computes the left/right
     magnitude ratio per frequency bin.
@@ -220,19 +220,19 @@ def ild(
         (..., ear, samples). The ear convention is 0=left and
         1=right.
     sample_rate : float | None, default=None
-        Sample rate in hertz used when mode="frequency-dependent". For
+        Sample rate in hertz used when mode=``frequency-dependent``. For
         :class:`~hrtfpykit.hrtf.domain.IR` input, :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is used when this value is omitted.
     fft_length : int | None, default=None
         FFT length used for the internal IR-to-TF conversion in
-        mode="frequency-dependent". When omitted, the IR sample length is
+        mode=``frequency-dependent``. When omitted, the IR sample length is
         used by the conversion helper.
-    mode : {"broad-band", "frequency-dependent"}, default="broad-band"
-        Level-difference mode. "broad-band" returns one value per leading
-        IR entry; "frequency-dependent" returns one value per leading IR
+    mode : {``broad-band``, ``frequency-dependent``}, default=``broad-band``
+        Level-difference mode. ``broad-band`` returns one value per leading
+        IR entry; ``frequency-dependent`` returns one value per leading IR
         entry and frequency bin.
-    output : {"db", "linear"}, default="db"
-        Output representation. "linear" returns the raw left/right level
-        ratio; "db" returns 20 * log10(left / right).
+    output : {``db``, ``linear``}, default=``db``
+        Output representation. ``linear`` returns the raw left/right level
+        ratio; ``db`` returns 20 * log10(left / right).
     epsilon : float, default=1e-12
         Positive floor added to left and right magnitudes before division to
         avoid division by zero.
@@ -240,10 +240,10 @@ def ild(
     Returns
     -------
     np.ndarray
-        ILD values in the requested representation. mode="broad-band"
+        ILD values in the requested representation. mode=``broad-band``
         returns shape ir.shape[:-2] for NumPy input, or
         IR.values.shape[:-2] for :class:`~hrtfpykit.hrtf.domain.IR` input.
-        mode="frequency-dependent" appends the one-sided frequency-bin
+        mode=``frequency-dependent`` appends the one-sided frequency-bin
         axis. In dB output, positive values mean the left-ear level is greater
         than the right-ear level; in linear output, values greater than
         1.0 have the same meaning.
@@ -350,11 +350,12 @@ def itd_difference(
 ) -> np.ndarray:
     """Compute absolute per-position ITD differences between two HRTFs.
 
-    The metric estimates interaural time difference for each HRTF with
-    :func:`~hrtfpykit.hrtf.metrics.itd`, validates that both HRTFs expose the same source positions,
-    and returns abs(itd_a - itd_b). The result is therefore an unsigned
-    magnitude of timing change for each source position in the current HRTF
-    view.
+    The metric estimates interaural time difference for each input HRTF,
+    validates that both HRTFs expose the same source positions, and returns
+    ``abs(itd_a - itd_b)``. Here, ``itd_a`` and ``itd_b`` are the per-position
+    ITD arrays estimated from ``hrtf_a`` and ``hrtf_b``. The result is an
+    unsigned timing-change magnitude for each source position in the current
+    HRTF view.
 
     Source positions are compared through :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` in degrees.
     If either input already represents a selected spatial subset, both HRTFs
@@ -364,26 +365,22 @@ def itd_difference(
     ----------
     hrtf_a : HRTF
         First :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide IR data,
-        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching hrtf_b.
+        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_b``.
     hrtf_b : HRTF
         Second :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide IR data,
-        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching hrtf_a.
-    method : {"threshold", "maxiacce"}, default="threshold"
-        ITD estimator passed to :func:`~hrtfpykit.hrtf.metrics.itd` for both HRTFs.
-    output : {"seconds", "samples"}, default="seconds"
-        Unit of returned absolute ITD differences. "samples" requires
-        equal sample rates in both HRTFs. "seconds" converts each ITD with
+        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_a``.
+    method : {``threshold``, ``maxiacce``}, default=``threshold``
+        ITD estimator used for both HRTFs.
+    output : {``seconds``, ``samples``}, default=``seconds``
+        Unit of returned absolute ITD differences. ``samples`` requires
+        equal sample rates in both HRTFs. ``seconds`` converts each ITD with
         that HRTF's own sample rate before subtraction.
     thresh_level : float, default=-10.0
-        Threshold offset in decibels passed to
-        :func:`~hrtfpykit.hrtf.metrics.itd` when
-        method="threshold".
+        Threshold offset in decibels used when ``method`` is ``threshold``.
     upper_cut_freq : float, default=3000.0
-        Low-pass cutoff frequency in hertz passed to
-        :func:`~hrtfpykit.hrtf.metrics.itd`.
+        Low-pass cutoff frequency in hertz used by filtered ITD estimation.
     filter_order : int, default=10
-        Positive Butterworth low-pass order passed to
-        :func:`~hrtfpykit.hrtf.metrics.itd`.
+        Positive Butterworth low-pass order used by filtered ITD estimation.
 
     Returns
     -------
@@ -403,8 +400,8 @@ def itd_difference(
 
     Notes
     -----
-    This function intentionally returns absolute differences. Use
-    :func:`~hrtfpykit.hrtf.metrics.itd` directly when the sign of the timing difference is required.
+    This function intentionally returns absolute differences, so the sign of
+    the timing change is not retained.
 
     Examples
     --------
@@ -478,11 +475,12 @@ def ild_difference(
 ) -> np.ndarray:
     """Compute absolute per-position ILD differences between two HRTFs.
 
-    The metric estimates interaural level difference for each HRTF with
-    :func:`~hrtfpykit.hrtf.metrics.ild`, validates that both HRTFs expose the same source positions,
-    and returns abs(ild_a - ild_b). The result is therefore an unsigned
-    magnitude of level-ratio change for each source position, and optionally
-    for each frequency bin.
+    The metric estimates interaural level difference for each input HRTF,
+    validates that both HRTFs expose the same source positions, and returns
+    ``abs(ild_a - ild_b)``. Here, ``ild_a`` and ``ild_b`` are the ILD arrays
+    estimated from ``hrtf_a`` and ``hrtf_b``. The result is an unsigned
+    level-ratio change magnitude for each source position, and optionally for
+    each frequency bin.
 
     Source positions are compared through :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` in degrees.
     If either input already represents a selected spatial subset, both HRTFs
@@ -492,22 +490,22 @@ def ild_difference(
     ----------
     hrtf_a : HRTF
         First :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide IR data,
-        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching hrtf_b.
+        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_b``.
     hrtf_b : HRTF
         Second :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide IR data,
-        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching hrtf_a.
-    mode : {"broad-band", "frequency-dependent"}, default="broad-band"
-        ILD mode passed to :func:`~hrtfpykit.hrtf.metrics.ild` for both HRTFs. Broad-band mode
-        compares RMS level ratios, while frequency-dependent mode compares
-        per-bin magnitude ratios after IR-to-TF conversion.
-    output : {"db", "linear"}, default="db"
-        Output representation passed to :func:`~hrtfpykit.hrtf.metrics.ild`. "db" compares dB
-        ILD values; "linear" compares raw left/right ratios.
+        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_a``.
+    mode : {``broad-band``, ``frequency-dependent``}, default=``broad-band``
+        ILD mode used for both HRTFs. Broad-band mode compares RMS level ratios,
+        while frequency-dependent mode compares per-bin magnitude ratios after
+        IR-to-TF conversion.
+    output : {``db``, ``linear``}, default=``db``
+        Output representation used for both HRTFs. ``db`` compares dB ILD
+        values; ``linear`` compares raw left/right ratios.
     fft_length : int | None, default=None
         FFT length used by the internal IR-to-TF conversion when
-        mode="frequency-dependent".
+        ``mode`` is ``frequency-dependent``.
     epsilon : float, default=1e-12
-        Positive floor passed to :func:`~hrtfpykit.hrtf.metrics.ild` before left/right division.
+        Positive floor used before left/right division.
 
     Returns
     -------
@@ -528,9 +526,8 @@ def ild_difference(
 
     Notes
     -----
-    This function intentionally returns absolute differences. Use
-    :func:`~hrtfpykit.hrtf.metrics.ild`
-    directly when the signed left/right ILD value for a single HRTF is needed.
+    This function intentionally returns absolute differences, so the sign of
+    the level-ratio change is not retained.
 
     Examples
     --------
@@ -624,7 +621,7 @@ def lsd(
     nearest available TF bins and duplicate bin selections are removed.
 
     The selected ear axis is averaged after the per-ear LSD calculation.
-    reduction="none" returns absolute dB differences. The other reductions
+    reduction=``none`` returns absolute dB differences. The other reductions
     use root-mean-square dB differences over the requested axes before the ear
     average.
 
@@ -636,23 +633,23 @@ def lsd(
     hrtf_b : HRTF
         Second :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide TF values,
         frequency bins, and a source grid matching hrtf_a.
-    ear : {"left", "right", "both"}, default="both"
-        Ear channel selection. "left" uses ear channel 0, "right"
-        uses ear channel 1, and "both" evaluates both channels before
+    ear : {``left``, ``right``, ``both``}, default=``both``
+        Ear channel selection. ``left`` uses ear channel 0, ``right``
+        uses ear channel 1, and ``both`` evaluates both channels before
         averaging over ears.
-    plane : {"all", "horizontal", "median"}, default="all"
-        Spatial subset used before comparison. "all" uses the current
-        full source grid, "horizontal" uses the nearest measured
-        horizontal plane at elevation, and "median" uses the canonical
+    plane : {``all``, ``horizontal``, ``median``}, default=``all``
+        Spatial subset used before comparison. ``all`` uses the current
+        full source grid, ``horizontal`` uses the nearest measured
+        horizontal plane at elevation, and ``median`` uses the canonical
         median plane at azimuth 0 degrees.
     elevation : float, default=0.0
-        Requested elevation in degrees used only when plane="horizontal".
+        Requested elevation in degrees used only when plane=``horizontal``.
         The nearest measured elevation in hrtf_a is used.
     positions : np.ndarray | list | tuple | str | None, default=None
         Optional source-position selector. Accepts one query or a collection
         of queries in the format accepted by
         :func:`~hrtfpykit.hrtf.coordinates.get_position_queries`, including
-        named positions such as "front" and numeric spherical queries with
+        named positions such as ``front`` and numeric spherical queries with
         shape (2,) or (3,). Resolved position indices are intersected
         with the selected plane.
     frequencies : float | list[float] | tuple[float, ...] | np.ndarray | None, default=None
@@ -660,11 +657,11 @@ def lsd(
         mapped to the nearest available TF bin. None selects all available
         bins from 20 Hz through 20 kHz, inclusive, which excludes DC for
         typical one-sided FFT grids.
-    reduction : {"none", "locations", "frequencies", "global"}, default="none"
-        Aggregation mode. "none" keeps selected positions and frequencies,
-        "locations" reduces over positions and returns one value per
-        selected frequency, "frequencies" reduces over frequencies and
-        returns one value per selected position, and "global" reduces over
+    reduction : {``none``, ``locations``, ``frequencies``, ``global``}, default=``none``
+        Aggregation mode. ``none`` keeps selected positions and frequencies,
+        ``locations`` reduces over positions and returns one value per
+        selected frequency, ``frequencies`` reduces over frequencies and
+        returns one value per selected position, and ``global`` reduces over
         positions and frequencies to one scalar.
     epsilon : float, default=1e-12
         Positive lower bound applied to magnitudes before conversion to dB.
@@ -673,13 +670,13 @@ def lsd(
     Returns
     -------
     np.ndarray | float
-        LSD values in dB. With reduction="none", the usual output shape is
+        LSD values in dB. With reduction=``none``, the usual output shape is
         (selected_positions, selected_frequencies); if one frequency is
         selected, the frequency axis is squeezed and the output has shape
-        (selected_positions,). With reduction="locations", the output
+        (selected_positions,). With reduction=``locations``, the output
         is indexed by selected frequency, or returned as a scalar when only
-        one frequency is selected. With reduction="frequencies", the
-        output is indexed by selected position. With reduction="global",
+        one frequency is selected. With reduction=``frequencies``, the
+        output is indexed by selected position. With reduction=``global``,
         the output is a scalar.
 
     Raises
@@ -693,15 +690,15 @@ def lsd(
         unsupported, if epsilon is not finite and positive, if selected
         planes or position filters produce no source positions, if frequency
         selectors are invalid or select no bins, or if
-        reduction="frequencies" is requested for a single selected
+        reduction=``frequencies`` is requested for a single selected
         frequency.
 
     Notes
     -----
-    Use reduction="none" for heatmaps and per-bin diagnostics,
-    reduction="frequencies" for one spatial error value per source
-    position, reduction="locations" for one spectral error curve, and
-    reduction="global" for a single comparison score.
+    Use reduction=``none`` for heatmaps and per-bin diagnostics,
+    reduction=``frequencies`` for one spatial error value per source
+    position, reduction=``locations`` for one spectral error curve, and
+    reduction=``global`` for a single comparison score.
 
     Examples
     --------

@@ -27,14 +27,14 @@ class SH:
 
     The coefficient axis follows the implementation order used by
     :func:`~hrtfpykit.hrtf.sht`: for each degree n from 0 through
-    "sh_order", it stores orders m from -n through n. The total coefficient
+    ``sh_order``, it stores orders m from -n through n. The total coefficient
     count is (sh_order + 1) ** 2.
 
     Attributes
     ----------
     C : np.ndarray
         Spherical-harmonic coefficient matrix. For one selected ear the shape
-        is (n_coefficients, n_frequencies). For ear="both" the shape is
+        is (n_coefficients, n_frequencies). For ear=``both`` the shape is
         (n_coefficients, 2, n_frequencies).
     Y : np.ndarray
         Real-valued spherical-harmonic basis matrix with shape
@@ -103,9 +103,9 @@ def sht(
     sh_order : int
         Non-negative spherical-harmonic order. The coefficient count is
         (sh_order + 1) ** 2.
-    ear : {"left", "right", "both"}, default="left"
-        Ear channel used for the decomposition. "left" and "right"
-        produce a two-dimensional coefficient matrix. "both" preserves a
+    ear : {``left``, ``right``, ``both``}, default=``left``
+        Ear channel used for the decomposition. ``left`` and ``right``
+        produce a two-dimensional coefficient matrix. ``both`` preserves a
         two-ear axis in the coefficient matrix.
     epsilon : float, default=1e-6
         Positive Tikhonov regularization factor added to the normal matrix.

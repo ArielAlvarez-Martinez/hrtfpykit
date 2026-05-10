@@ -34,7 +34,7 @@ class Figure:
             figure size, margins, axis-sharing flags, and title offsets.
         projection : str | None, default=None
             Optional Matplotlib projection passed to every subplot in the layout,
-            such as "polar" for polar cue plots or "3d" for source-grid
+            such as ``polar`` for polar cue plots or ``3d`` for source-grid
             views.
 
         Returns
@@ -194,8 +194,8 @@ class Figure:
         """Return one subplot axis by flattened index or layout position name.
 
         position can be an integer index into the flattened axes array or a
-        named position from the layout, such as "main", "top",
-        "bottom", "left", or "right". Named positions keep the plot
+        named position from the layout, such as ``main``, ``top``,
+        ``bottom``, ``left``, or ``right``. Named positions keep the plot
         code readable when a layout has semantic panels.
 
         Parameters
@@ -410,9 +410,9 @@ class Figure:
             Z coordinates passed to Axes3D.scatter.
         s : float, default=28.0
             Marker size.
-        color : str, default="steelblue"
+        color : str, default=``steelblue``
             Marker face color.
-        edgecolors : str, default="black"
+        edgecolors : str, default=``black``
             Marker edge color.
         linewidths : float, default=0.4
             Marker edge width.

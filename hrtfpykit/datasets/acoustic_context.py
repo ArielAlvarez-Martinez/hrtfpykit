@@ -27,11 +27,11 @@ class DatasetAcousticContextPlan:
     dataset properties expose both the complete source/frequency/sample axes and
     the smaller selected axes requested by specs.
 
-    Full context fields such as "positions", "frequency_bins", and
-    "sample_indices" describe the selected dataset resource as a whole. Selected
-    fields such as "selected_position_indices" and
-    "selected_frequency_indices" describe the axes that expand dataset rows when
-    "index_by" includes "position", "frequency", or "samples".
+    Full context fields such as ``positions``, ``frequency_bins``, and
+    ``sample_indices`` describe the selected dataset resource as a whole. Selected
+    fields such as ``selected_position_indices`` and
+    ``selected_frequency_indices`` describe the axes that expand dataset rows when
+    ``index_by`` includes ``position``, ``frequency``, or ``samples``.
 
     Attributes
     ----------
@@ -102,17 +102,17 @@ class DatasetAcousticContext:
         dictionary. Plane selection is exclusive with custom positions because
         the dataset needs one unambiguous position subset for each acoustic spec.
 
-        Supported plane names are "horizontal", "median", and
-        "frontal". A string selector uses the default plane angle: 0
+        Supported plane names are ``horizontal``, ``median``, and
+        ``frontal``. A string selector uses the default plane angle: 0
         degrees for horizontal and median planes, and 90 degrees for frontal
         planes. Tuple selectors use (plane, angle) or
-        (plane, angle, angle_unit). Dictionary selectors read "plane" and
-        optionally "angle" or "plane_angle" plus "angle_unit".
+        (plane, angle, angle_unit). Dictionary selectors read ``plane`` and
+        optionally ``angle`` or ``plane_angle`` plus ``angle_unit``.
 
         Parameters
         ----------
         positions : str or sequence of int
-            Explicit position selection or "all". Custom indices are valid
+            Explicit position selection or ``all``. Custom indices are valid
             only when plane is None.
         plane : str, tuple, dict, or None
             Optional plane selector used instead of explicit position indices.

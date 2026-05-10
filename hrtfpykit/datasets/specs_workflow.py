@@ -131,7 +131,7 @@ class DatasetSpecWorkflow:
         grouped resources, resolves table access settings, derives the shared ear
         axis, and decides which row context encodings must be produced.
 
-        Indexed specs must all use the same normalized "index_by" tuple. Specs that
+        Indexed specs must all use the same normalized ``index_by`` tuple. Specs that
         request a context flag, such as a position index or one-hot ear encoding,
         must include the corresponding row axis. Table and media specs grouped by
         ear require an ear-indexed dataset row, even when no acoustic spec is

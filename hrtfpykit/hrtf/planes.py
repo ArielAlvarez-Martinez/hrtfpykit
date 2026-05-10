@@ -27,14 +27,14 @@ def _get_plane_indices(
     ----------
     hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
         :class:`~hrtfpykit.hrtf.hrtf.HRTF` object whose source grid is inspected.
-    plane : {"horizontal", "median", "frontal"}
-        Plane family to resolve. "horizontal" selects a constant elevation.
-        "median" and "frontal" select the nearest requested azimuth
+    plane : {``horizontal``, ``median``, ``frontal``}
+        Plane family to resolve. ``horizontal`` selects a constant elevation.
+        ``median`` and ``frontal`` select the nearest requested azimuth
         together with the nearest opposite azimuth.
     angle : float, default=0.0
-        Requested elevation for "horizontal" or requested azimuth for
-        "median" and "frontal".
-    angle_unit : {"degrees", "radians"}, default="degrees"
+        Requested elevation for ``horizontal`` or requested azimuth for
+        ``median`` and ``frontal``.
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Unit used by angle and by returned plane angles.
 
     Returns
@@ -138,7 +138,7 @@ def get_horizontal_plane(
     elevation : float, default=0.0
         Requested horizontal-plane elevation. The nearest measured elevation in
         the grid is used when an exact match is unavailable.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit used by elevation and by the returned
         real_elevation.
 
@@ -192,7 +192,7 @@ def get_median_plane(
         Requested azimuth used to resolve the primary side of the median plane.
         The opposite side is resolved at azimuth + 180 degrees or
         azimuth + pi radians.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit used by azimuth and by returned real azimuths.
 
     Returns
@@ -244,7 +244,7 @@ def get_frontal_plane(
         Requested azimuth used to resolve the primary side of the frontal
         plane. The opposite side is resolved at azimuth + 180 degrees or
         azimuth + pi radians.
-    angle_unit : {"degrees", "radians"}, default="degrees"
+    angle_unit : {``degrees``, ``radians``}, default=``degrees``
         Angular unit used by azimuth and by returned real azimuths.
 
     Returns
