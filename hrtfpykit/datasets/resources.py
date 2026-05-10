@@ -18,12 +18,31 @@ if TYPE_CHECKING:
 
 
 class DatasetResourcesValidator:
-    """Validate scanned resources against the selected specs.
-
-    ``DatasetResourcesValidator`` checks the resource plans produced by scanners
-    before subject intersection and split planning continue.
-    """
     def __init__(self, dataset: "BaseDataset") -> None:
+        """Validate scanned resources for the dataset construction pipeline.
+
+        :class:`~hrtfpykit.datasets.resources.DatasetResourcesValidator` checks
+        resource plans produced by
+        :class:`~hrtfpykit.datasets.resources.DatasetResourcesScanner` before
+        subject intersection and split planning continue. It verifies that HRTF
+        files can be loaded consistently, that table resources satisfy metadata or
+        anthropometry specs, and that media or mesh resources report missing
+        subjects clearly enough for construction summaries.
+
+        The validator is bound to a
+        :class:`~hrtfpykit.datasets.base.BaseDataset` instance so it can read the
+        active :class:`~hrtfpykit.datasets.state.DatasetState`, selected specs,
+        resource summaries, and HRTF cache while validating resources found under
+        the dataset root. It does not scan paths itself; it validates the scanner
+        output that will later be assigned into dataset state.
+
+        Parameters
+        ----------
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
+            Dataset object whose current construction state provides specs,
+            configuration, resource summaries, HRTF paths, and cache objects used
+            during validation.
+        """
         self._dataset = dataset
 
     def validate_hrtf_resources(
@@ -33,23 +52,42 @@ class DatasetResourcesValidator:
     ) -> dict[str, Path]:
         """Validate HRTF paths and loadability before split planning.
 
-        The scanner can find files by path pattern, but construction should fail if
-        those files are corrupt or incompatible with the HRTF loader. This validator
-        loads each candidate, enforces consistent sample rate, collects failures, and
-        returns only usable subject paths.
+        The scanner can find files by path pattern, but construction should reject
+        corrupt, missing, or incompatible acoustic resources before samples are
+        indexed. This validator loads each candidate through
+        :func:`~hrtfpykit.datasets.load.load_hrtf`, reuses the dataset HRTF cache,
+        enforces a consistent sample rate across loaded subjects, records load
+        failures, and returns only paths that are still usable.
+
+        If no selected spec requires HRTF resources, the input mapping is returned
+        unchanged. When HRTF specs are active, missing subjects are warned about so
+        users can see why the later subject intersection may remove them.
 
         Parameters
         ----------
-        hrtf_paths : dict
-            Subject-to-path HRTF resources.
+        hrtf_paths : dict[str, Path]
+            Subject-to-path HRTF resources produced by
+            :meth:`~hrtfpykit.datasets.resources.DatasetResourcesScanner.scan_hrtf_paths`.
         hrtf_summary : dict
-            Scanner summary for HRTF resources.
+            Scanner summary containing checked, found, missing, and
+            "missing_subject_ids" entries for HRTF resources.
 
         Returns
         -------
-        dict
+        dict[str, Path]
             Validated subject-to-path HRTF resources.
 
+        Raises
+        ------
+        ValueError
+            If any candidate HRTF cannot be loaded or if loaded subjects do not
+            share the same sample rate.
+
+        Warns
+        -----
+        UserWarning
+            If subjects are missing a matching HRTF path or a path disappears
+            between scanning and validation.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="hrtf"):
@@ -120,18 +158,25 @@ class DatasetResourcesValidator:
 
         Mesh files participate in subject intersection like other required resources,
         but missing subjects are reported through warnings rather than hidden. This
-        validator keeps that reporting behavior separate from path scanning.
+        validator keeps that reporting behavior separate from path scanning and only
+        runs when at least one selected spec requires mesh resources.
 
         Parameters
         ----------
         mesh_summary : dict
-            Scanner summary for mesh resources.
+            Resource summary for mesh resources, including
+            "missing_subject_ids" when some subjects do not have matching mesh
+            files.
 
         Returns
         -------
         None
-            Emits warnings for missing mesh subjects.
+            Emits warnings for missing mesh subjects when mesh specs are active.
 
+        Warns
+        -----
+        UserWarning
+            If required mesh resources are missing for one or more subjects.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="mesh"):
@@ -161,21 +206,30 @@ class DatasetResourcesValidator:
 
         The scanner indexes subject or subject-ear image files, while this validator
         reports missing subjects and uneven media counts. Missing media subjects are
-        removed later during resource intersection.
+        removed later during resource intersection. Uneven image counts are allowed
+        but warned about because transforms or batching code may expect a stable
+        number of files per subject.
 
         Parameters
         ----------
         summary : dict
-            Scanner summary for image resources.
+            Resource summary for image resources, including
+            "missing_subject_ids".
         image_path : Path or None
-            Image root path.
-        image_counts : dict
-            Per-subject image counts.
+            Root folder used by the image scanner.
+        image_counts : dict[str, int]
+            Number of indexed image files per subject.
 
         Returns
         -------
         None
             Emits warnings for missing or uneven image resources.
+
+        Warns
+        -----
+        UserWarning
+            If required image resources are missing for subjects or if subjects do
+            not all expose the same number of image files.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="image"):
@@ -208,21 +262,30 @@ class DatasetResourcesValidator:
 
         The scanner indexes subject or subject-ear video files, while this validator
         reports missing subjects and uneven media counts. It mirrors image validation
-        so media resource behavior uses the same validation path.
+        so media resource behavior uses the same validation path. Uneven video
+        counts are allowed but warned about for the same reason as image counts:
+        downstream transforms may assume a fixed number of files per subject.
 
         Parameters
         ----------
         summary : dict
-            Scanner summary for video resources.
+            Resource summary for video resources, including
+            "missing_subject_ids".
         video_path : Path or None
-            Video root path.
-        video_counts : dict
-            Per-subject video counts.
+            Root folder used by the video scanner.
+        video_counts : dict[str, int]
+            Number of indexed video files per subject.
 
         Returns
         -------
         None
             Emits warnings for missing or uneven video resources.
+
+        Warns
+        -----
+        UserWarning
+            If required video resources are missing for subjects or if subjects do
+            not all expose the same number of video files.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="video"):
@@ -254,19 +317,29 @@ class DatasetResourcesValidator:
 
         Anthropometry specs require a real table path and loaded mapping data. This
         method turns missing files or invalid loaded values into explicit construction
-        errors before split intersection uses the resource.
+        errors before subject intersection uses the resource. It does not validate
+        the semantic content of individual anthropometry fields; value selection is
+        handled later by dataset sample selectors.
 
         Parameters
         ----------
         anthropometry_path : Path or None
             Selected anthropometry table path.
-        anthropometry_rows : dict
-            Loaded anthropometry rows.
+        anthropometry_rows : dict[str, object]
+            Loaded anthropometry table mapping produced by
+            :func:`~hrtfpykit.datasets.load.load_table`.
 
         Returns
         -------
         None
             Raises when required anthropometry resources are invalid.
+
+        Raises
+        ------
+        ValueError
+            If anthropometry specs are active and no table path is selected, the
+            selected path is not a file, or loaded anthropometry data is not a
+            mapping.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="anthropometry"):
@@ -293,19 +366,28 @@ class DatasetResourcesValidator:
 
         Metadata specs require a real table path and loaded mapping data. This method
         keeps metadata validation separate from anthropometry while preserving the
-        same table-resource contract.
+        same table-resource contract. When the selected path is missing, the error
+        includes the spec path, configured path, root, and download hint because
+        metadata files are often optional official downloads.
 
         Parameters
         ----------
         metadata_path : Path or None
             Selected metadata table path.
-        metadata_rows : dict
-            Loaded metadata rows.
+        metadata_rows : dict[str, object]
+            Loaded metadata table mapping produced by
+            :func:`~hrtfpykit.datasets.load.load_table`.
 
         Returns
         -------
         None
             Raises when required metadata resources are invalid.
+
+        Raises
+        ------
+        ValueError
+            If metadata specs are active and no table path is selected, the
+            selected path is not a file, or loaded metadata data is not a mapping.
         """
         state = self._dataset._state
         if not has_specs(state.specs, resource_name="metadata"):
@@ -340,10 +422,20 @@ class DatasetResourcesValidator:
 
 
 class DatasetResourcesScanner:
-    """Scan dataset roots for resources requested by specs.
+    """Scan dataset roots for resources requested by selected specs.
 
-    This utility locates HRTF, mesh, table, image, and video resources from config
-    paths, spec path overrides, and per-subject path patterns.
+    :class:`~hrtfpykit.datasets.resources.DatasetResourcesScanner` contains the
+    stateless path-discovery operations used by
+    :class:`~hrtfpykit.datasets.resources.DatasetResources`. It resolves HRTF,
+    mesh, metadata, anthropometry, image, and video resources from
+    :class:`~hrtfpykit.datasets.config.DatasetConfig` declarations, spec path
+    overrides, subject path templates, allowed extensions, and media grouping
+    settings.
+
+    Scanner methods do not mutate dataset state and generally do not load resource
+    contents. Table loading is handled by
+    :func:`~hrtfpykit.datasets.load.load_table`, while HRTF loadability is checked
+    by :class:`~hrtfpykit.datasets.resources.DatasetResourcesValidator`.
     """
 
     @staticmethod
@@ -361,13 +453,22 @@ class DatasetResourcesScanner:
 
         Parameters
         ----------
-        *args, **kwargs Scanner arguments describing config, root, subject scope,
-        extensions, grouping, and required state.
+        config : DatasetConfig or type[DatasetConfig]
+            Dataset configuration that may define an official anthropometry table.
+        root : Path
+            Dataset root used to resolve configured relative paths.
+        requested_path : Path or None
+            Explicit spec path override. When None, the configured
+            anthropometry path is used if available.
+        required : bool
+            Whether selected specs require anthropometry resources.
 
         Returns
         -------
-        tuple
-            Resource paths or indexes plus scanner summary data.
+        tuple[Path or None, dict]
+            Selected anthropometry path and a summary containing "path",
+            "found", "subjects", "rows", and available
+            "extensions" when the configuration declares them.
 
         """
         if config.anthropometry is None or not required:
@@ -412,13 +513,22 @@ class DatasetResourcesScanner:
 
         Parameters
         ----------
-        *args, **kwargs Scanner arguments describing config, root, subject scope,
-        extensions, grouping, and required state.
+        config : DatasetConfig or type[DatasetConfig]
+            Dataset configuration that may define an official metadata table.
+        root : Path
+            Dataset root used to resolve configured relative paths.
+        requested_path : Path or None
+            Explicit spec path override. When None, the configured metadata
+            path is used if available.
+        required : bool
+            Whether selected specs require metadata resources.
 
         Returns
         -------
-        tuple
-            Resource paths or indexes plus scanner summary data.
+        tuple[Path or None, dict]
+            Selected metadata path and a summary containing "path",
+            "found", "subjects", "rows", and available
+            "extensions" when the configuration declares them.
 
         """
         if config.metadata is None and requested_path is None and not required:
@@ -461,17 +571,36 @@ class DatasetResourcesScanner:
         The scanner formats the dataset HRTF path pattern with subject IDs, subject
         numbers, type, sample-rate, and version selectors. It returns the paths that
         exist plus a summary of checked, found, and missing subjects for validation
-        and error reporting.
+        and error reporting. It does not load SOFA files; loadability and sample
+        rate consistency are handled by
+        :meth:`~hrtfpykit.datasets.resources.DatasetResourcesValidator.validate_hrtf_resources`.
 
         Parameters
         ----------
-        *args, **kwargs Scanner arguments describing config, root, subject scope,
-        extensions, grouping, and required state.
+        config : DatasetConfig or type[DatasetConfig]
+            Dataset configuration containing HRTF path templates and subject IDs.
+        root : Path
+            Dataset root used to resolve subject HRTF paths.
+        dataset_hrtf_variant : str, dict, or None
+            Selected HRTF resource variant. A string selects the HRTF type; a
+            mapping can provide "type", "sample_rate", and "version"
+            entries.
+        excluded_subject_ids : set of str
+            Canonical subject IDs removed before scanning.
+        required : bool
+            Whether selected specs require HRTF resources.
 
         Returns
         -------
-        tuple
-            Resource paths or indexes plus scanner summary data.
+        tuple[dict[str, Path], dict or None]
+            Subject-to-path HRTF map and a summary dictionary. If HRTF resources
+            are not configured or not required, the path map is empty and the
+            summary is None.
+
+        Raises
+        ------
+        ValueError
+            If HRTF resources are required but no dataset HRTF variant is selected.
 
         """
         hrtf_paths: dict[str, Path] = {}
@@ -566,17 +695,39 @@ class DatasetResourcesScanner:
 
         The scanner resolves the selected mesh variant, applies extension candidates,
         formats per-subject path patterns, and records which subjects have usable
-        mesh files. It does not load mesh geometry.
+        mesh files. It does not load mesh geometry; sample selection returns paths
+        or transformed path values later.
 
         Parameters
         ----------
-        *args, **kwargs Scanner arguments describing config, root, subject scope,
-        extensions, grouping, and required state.
+        config : DatasetConfig or type[DatasetConfig]
+            Dataset configuration containing mesh path templates and subject IDs.
+        root : Path
+            Root used to resolve mesh paths. This may be the dataset root or a
+            spec-level mesh path override.
+        dataset_mesh_variant : str, dict, or None
+            Selected mesh resource variant. A string selects the mesh type; a
+            mapping can provide "type" and "version" entries.
+        excluded_subject_ids : set of str
+            Canonical subject IDs removed before scanning.
+        required : bool
+            Whether selected specs require mesh resources.
+        extensions : tuple of str or None, default=None
+            Candidate mesh extensions. If the path pattern has no suffix, each
+            extension is appended; otherwise the suffix is replaced by each
+            extension.
 
         Returns
         -------
-        tuple
-            Resource paths or indexes plus scanner summary data.
+        tuple[dict[str, Path], dict or None]
+            Subject-to-path mesh map and a summary dictionary. If mesh resources
+            are not configured or not required, the path map is empty and the
+            summary is None.
+
+        Raises
+        ------
+        ValueError
+            If mesh resources are required but no mesh type can be selected.
 
         """
         mesh_paths: dict[str, Path] = {}
@@ -687,19 +838,48 @@ class DatasetResourcesScanner:
         """Scan subject-grouped media folders for image or video resources.
 
         This shared media scanner supports subject folders named by canonical ID,
-        ``subjectN``, or ``subject_N`` and can enforce subject-ear grouping. It
-        returns a media index keyed by subject and optional ear so value selection can
-        be row-context aware.
+        "subjectN", or "subject_N" and can enforce subject-ear grouping. It
+        returns a media index keyed by subject and optional ear so value selection
+        can be row-context aware. Files are discovered recursively below each
+        matched subject folder and sorted with numeric filename stems in natural
+        order.
+
+        When ear grouping is active, the scanner records both subject-level media
+        files and ear-specific files. A subject is treated as missing if any
+        requested ear folder has no matching files, because sample rows that carry
+        ear context must be able to resolve every selected ear consistently.
 
         Parameters
         ----------
-        *args, **kwargs Scanner arguments describing config, root, subject scope,
-        extensions, grouping, and required state.
+        path : Path
+            Media root containing one folder per subject.
+        subject_ids : tuple of str
+            Canonical subject IDs to scan.
+        subject_numbers : dict[str, int]
+            Numeric subject identifiers used to recognize "subjectN" and
+            "subject_N" folder names.
+        extensions : tuple of str
+            Accepted file extensions, including the leading dot.
+        grouped_by : tuple of str
+            Resource grouping. When it contains "ear", files are also scanned
+            in ear-named subfolders.
+        ears : tuple of str
+            Ear labels expected when ear grouping is active.
+        resource_name : str
+            Resource label used in validation errors.
 
         Returns
         -------
-        tuple
-            Resource paths or indexes plus scanner summary data.
+        tuple[dict, dict, tuple]
+            Media index keyed by (subject_id, None, ear_or_none), per-subject
+            file counts, and subject IDs missing required media folders or ear
+            files.
+
+        Raises
+        ------
+        ValueError
+            If path does not exist or if multiple subject folders match the
+            same canonical subject.
 
         """
         grouped_paths: dict[tuple[str, int | None, str | None], list[str]] = {}
@@ -793,13 +973,30 @@ class DatasetResourcesScanner:
 
         Parameters
         ----------
-        *args, **kwargs Scanner arguments describing config, root, subject scope,
-        extensions, grouping, and required state.
+        path : Path
+            Image root containing one folder per subject.
+        subject_ids : tuple of str
+            Canonical subject IDs to scan.
+        subject_numbers : dict[str, int]
+            Numeric subject identifiers used for subject-folder aliases.
+        extensions : tuple of str
+            Accepted image extensions.
+        grouped_by : tuple of str
+            Image grouping, optionally including "ear".
+        ears : tuple of str
+            Ear labels expected when ear grouping is active.
 
         Returns
         -------
-        tuple
-            Resource paths or indexes plus scanner summary data.
+        tuple[dict, dict, tuple]
+            Image index, per-subject image counts, and missing subject IDs.
+
+        Raises
+        ------
+        ValueError
+            If the image root does not exist or if multiple folders match the same
+            canonical subject. These errors are raised by
+            :meth:`~hrtfpykit.datasets.resources.DatasetResourcesScanner.scan_media_paths`.
 
         """
         return DatasetResourcesScanner.scan_media_paths(
@@ -833,13 +1030,30 @@ class DatasetResourcesScanner:
 
         Parameters
         ----------
-        *args, **kwargs Scanner arguments describing config, root, subject scope,
-        extensions, grouping, and required state.
+        path : Path
+            Video root containing one folder per subject.
+        subject_ids : tuple of str
+            Canonical subject IDs to scan.
+        subject_numbers : dict[str, int]
+            Numeric subject identifiers used for subject-folder aliases.
+        extensions : tuple of str
+            Accepted video extensions.
+        grouped_by : tuple of str
+            Video grouping, optionally including "ear".
+        ears : tuple of str
+            Ear labels expected when ear grouping is active.
 
         Returns
         -------
-        tuple
-            Resource paths or indexes plus scanner summary data.
+        tuple[dict, dict, tuple]
+            Video index, per-subject video counts, and missing subject IDs.
+
+        Raises
+        ------
+        ValueError
+            If the video root does not exist or if multiple folders match the same
+            canonical subject. These errors are raised by
+            :meth:`~hrtfpykit.datasets.resources.DatasetResourcesScanner.scan_media_paths`.
 
         """
         return DatasetResourcesScanner.scan_media_paths(
@@ -855,31 +1069,42 @@ class DatasetResourcesScanner:
 
 @dataclass(frozen=True)
 class DatasetResourcesPlan:
-    """Store resource scan output for dataset state assignment.
+    """Store scanned resources before they are assigned into dataset state.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.resources.DatasetResourcesPlan` is the immutable
+    handoff object returned by
+    :meth:`~hrtfpykit.datasets.resources.DatasetResources.build`. The dataset
+    builder copies these fields into
+    :class:`~hrtfpykit.datasets.state.DatasetState` after scanning, loading table
+    resources, validating required resources, and resolving subject exclusions.
+
+    Notes
+    -----
+    The plan stores paths and already-loaded table mappings, not fully materialized
+    media, mesh, or HRTF data. HRTF files are loaded through the dataset cache when
+    subjects or samples are requested.
+
+    Attributes
     ----------
-    hrtf_paths, mesh_paths : dict
-        Subject resource maps.
+    hrtf_paths, mesh_paths : dict[str, Path]
+        Validated subject resource maps for acoustic and mesh files.
     image_path, video_path : Path or None
-        Media root paths.
+        Media root paths selected by image and video specs.
     image_index, video_index : dict
-        Media indexes keyed by subject and optional ear.
+        Media indexes keyed by subject, optional position placeholder, and optional
+        ear label.
+    image_counts, video_counts : dict[str, int]
+        Number of indexed media files per subject.
     anthropometry_path, metadata_path : Path or None
-        Table paths.
-    anthropometry_rows, metadata_rows : dict
-        Loaded table rows.
+        Selected table paths for anthropometry and metadata resources.
+    anthropometry_rows, metadata_rows : dict[str, object]
+        Loaded table mappings used by sample value selectors.
     excluded_subjects : tuple of str
-        Combined config and user exclusions.
-    subject_numbers : dict
-        Subject numeric identifiers.
-    resource_summary : dict
-        Resource summary by resource name.
-
-    Returns
-    -------
-    DatasetResourcesPlan
-        Immutable plan consumed by ``DatasetBuilder``.
+        Combined configuration-level and user-requested subject exclusions.
+    subject_numbers : dict[str, int]
+        Numeric subject identifiers derived from canonical subject IDs.
+    resource_summary : dict[str, object]
+        Resource summary entries by resource family.
     """
     hrtf_paths: dict[str, Path]
     mesh_paths: dict[str, Path]
@@ -897,12 +1122,21 @@ class DatasetResourcesPlan:
     subject_numbers: dict[str, int]
     resource_summary: dict[str, object]
 
+
 class DatasetResources:
     """Build resource plans from dataset specs and configuration.
 
-    This utility scans only the resource families required by selected specs, loads
-    table resources, indexes media resources, and returns the resource plan consumed
-    by ``DatasetBuilder``.
+    :class:`~hrtfpykit.datasets.resources.DatasetResources` coordinates resource
+    discovery for :class:`~hrtfpykit.datasets.build.DatasetBuilder`. It examines
+    the selected specs stored in
+    :class:`~hrtfpykit.datasets.state.DatasetState`, scans only the required
+    resource families, applies configuration-level and user-level subject
+    exclusions, loads table resources, indexes media resources, validates scanned
+    resources, and returns a
+    :class:`~hrtfpykit.datasets.resources.DatasetResourcesPlan`.
+
+    The class is intentionally stateless. All durable results are returned in the
+    resource plan and later copied into dataset state by the builder.
     """
 
     @staticmethod
@@ -914,7 +1148,8 @@ class DatasetResources:
 
         Specs may override configured resource locations with either absolute or
         relative paths. This helper normalizes that override once so scanner code can
-        work with concrete paths.
+        work with concrete paths. Absolute paths are expanded and returned as-is;
+        relative paths are resolved below the dataset root.
 
         Parameters
         ----------
@@ -925,8 +1160,8 @@ class DatasetResources:
 
         Returns
         -------
-        Path
-            or None Absolute path or ``None`` when no path was provided.
+        Path or None
+            Resolved path, or None when no path was provided.
         """
         if path is None:
             return None
@@ -945,20 +1180,41 @@ class DatasetResources:
         This method decides which resource families are required by the selected
         specs, applies subject exclusions, scans resource paths, loads tables, indexes
         media, validates results, and packages everything into an explicit plan. It is
-        the only place resource discovery is assigned into dataset state.
+        the resource-discovery boundary used during dataset construction.
+
+        Resource families are activated by the selected specs: acoustic specs scan
+        HRTF paths, mesh specs scan mesh files, table specs resolve and load
+        metadata or anthropometry tables, and media specs index subject-grouped
+        image or video files. Resource summaries are produced for every family so
+        dataset summaries can report both active and inactive resources.
+
+        The build step never downloads official resources. It only evaluates local
+        files that already exist below the dataset root or below paths supplied by
+        specs. Download planning and transfer are handled separately by
+        :class:`~hrtfpykit.datasets.download.BaseDownload`.
 
         Parameters
         ----------
-        dataset : BaseDataset
-            Dataset whose state contains config, root, specs, and selectors.
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
+            Dataset whose state contains configuration, root, selected specs,
+            resource variants, selected ears, subject numbers, and cache.
         exclude_subject_ids : str, int, sequence, or None
-            Additional subject exclusions.
+            Additional subject references excluded before resource scanning and
+            subject intersection. Integer values are one-based subject positions.
 
         Returns
         -------
         DatasetResourcesPlan
-            Resource plan assigned into dataset state.
+            Resource plan assigned into dataset state by
+            :class:`~hrtfpykit.datasets.build.DatasetBuilder`.
 
+        Raises
+        ------
+        ValueError
+            If dataset configuration is not initialized, selected variants are
+            incomplete, required table or media paths are missing, table loading
+            fails validation, HRTF resources cannot be loaded consistently, or
+            requested image/video specs do not provide a path.
         """
         state = dataset._state
         if state.config is None:

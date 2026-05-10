@@ -9,11 +9,19 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 class TwoDimension:
-    """Matplotlib primitive wrapper for two-dimensional line plots.
+    """Primitive renderer for two-dimensional Matplotlib line plots.
 
-    The wrapper centralizes validation for line plots that must be drawn on a
-    non-3D axis and returns the Matplotlib line artists created by
-    ``Axes.plot``.
+    :class:`~hrtfpykit.plots.types.TwoDimension` is the low-level line-plot
+    adapter used by :class:`~hrtfpykit.plots.figure.Figure`. It keeps the
+    plotting layer's 2D rendering path explicit by validating that the target
+    axis is not a 3D projection, forwarding all style arguments to
+    matplotlib.axes.Axes.plot, and returning the native Matplotlib line artists
+    without wrapping or copying them.
+
+    Use this wrapper for spectra, impulse responses, metrics, or other
+    one-dimensional traces that should be drawn on a normal Cartesian or polar
+    Matplotlib axis. Use :class:`~hrtfpykit.plots.types.ThreeDimension` for 3D
+    source-grid views.
     """
 
     @staticmethod
@@ -23,23 +31,38 @@ class TwoDimension:
         y,
         **kwargs,
     ) -> list[Line2D]:
-        """Create a 2D line plot on a non-3D axis.
+        """Draw one or more two-dimensional line series on a non-3D axis.
+
+        The method is a small validation layer around Axes.plot. It rejects axes
+        whose name is "3d" so that line plots do not silently render into the
+        wrong projection, then forwards x, y, and all keyword arguments
+        directly to Matplotlib. Matplotlib handles scalar, one-dimensional, and
+        multi-series inputs according to its normal plot rules.
 
         Parameters
         ----------
         ax : Axes
-            Target Matplotlib axis.
+            Target Matplotlib axis. The axis must not be a 3D projection.
         x : array-like
-            X-axis values.
+            X-axis values passed to Axes.plot.
         y : array-like
-            Y-axis values.
+            Y-axis values passed to Axes.plot. Shape compatibility is delegated
+            to Matplotlib.
         **kwargs
-            Additional arguments forwarded to ``Axes.plot``.
+            Line style, marker, color, label, and other keyword arguments forwarded
+            unchanged to Axes.plot.
 
         Returns
         -------
         list[Line2D]
-            Line artists returned by Matplotlib.
+            Line artists returned by Matplotlib. Multi-series inputs may produce more
+            than one artist.
+
+        Raises
+        ------
+        ValueError
+            If ax is a 3D projection axis.
+
         """
         if getattr(ax, "name", "") == "3d":
             raise ValueError("TwoDimension does not accept 3d axes")
@@ -47,7 +70,33 @@ class TwoDimension:
 
 
 class Heatmap:
-    """Heatmap primitive wrapper with optional colorbar support."""
+    """Primitive renderer for Matplotlib heatmaps and attached colorbars.
+
+    :class:`~hrtfpykit.plots.types.Heatmap` is the low-level heatmap adapter
+    used by :class:`~hrtfpykit.plots.figure.Figure`. It validates that heatmaps
+    are drawn on a non-3D axis, resolves hrtfpykit's supported colormap names,
+    renders values with matplotlib.axes.Axes.pcolormesh, and optionally appends
+    a colorbar axis using mpl_toolkits.axes_grid1.make_axes_locatable.
+
+    Notes
+    -----
+    colorbar_fraction is interpreted as a fraction of the main axis size and is
+    converted to the percentage string expected by append_axes. A figure is
+    required only when colorbar=True because the colorbar is created through
+    matplotlib.figure.Figure.colorbar.
+
+    Attributes
+    ----------
+    colormaps : dict[str, str]
+        Supported hrtfpykit colormap names and the Matplotlib colormap names they
+        resolve to.
+    colorbar_location : str
+        Default side passed to append_axes when a colorbar is enabled.
+    colorbar_fraction : float
+        Default colorbar size expressed as a fraction of the main axis size.
+    colorbar_pad : float
+        Default padding between the heatmap axis and appended colorbar axis.
+    """
 
     colormaps: dict[str, str] = {
         "viridis": "viridis",
@@ -75,41 +124,64 @@ class Heatmap:
         colorbar_label: str | None = None,
         **kwargs,
     ) -> QuadMesh:
-        """Create a heatmap and optionally attach a colorbar.
+        """Draw a pseudocolor heatmap and optionally attach a colorbar.
+
+        The method validates the axis projection, resolves a supported colormap, and
+        delegates grid rendering to Axes.pcolormesh. When colorbar is true, a
+        new colorbar axis is appended beside ax and linked to the returned
+        QuadMesh. The colorbar label is resolved from colorbar_label first and
+        falls back to label when no override is provided.
 
         Parameters
         ----------
         ax : Axes
-            Target Matplotlib axis.
+            Target Matplotlib axis. The axis must not be a 3D projection.
         x : array-like
-            X-axis coordinates.
+            X-axis coordinates forwarded to Axes.pcolormesh. One-dimensional or
+            two-dimensional coordinate inputs follow Matplotlib's pcolormesh
+            rules.
         y : array-like
-            Y-axis coordinates.
+            Y-axis coordinates forwarded to Axes.pcolormesh.
         values : array-like
-            Heatmap matrix values.
+            Heatmap matrix values forwarded as the color array.
         fig : plt.Figure | None, default=None
-            Figure used for colorbar creation when enabled.
+            Figure used for colorbar creation. Required when colorbar=True and
+            ignored when colorbar=False.
         label : str | None, default=None
-            Default colorbar label.
+            Default colorbar label used when colorbar_label is not supplied.
         colormap : str | None, default=None
-            Colormap name.
+            Supported hrtfpykit colormap name. None selects "jet" for
+            backwards-compatible plotting defaults.
         colorbar : bool, default=True
             Whether to draw a colorbar.
         colorbar_location : str | None, default=None
-            Colorbar side/location used by ``append_axes``.
+            Colorbar side/location passed to append_axes. None uses
+            :attr:`~hrtfpykit.plots.types.Heatmap.colorbar_location`.
         colorbar_fraction : float | None, default=None
-            Relative colorbar size.
+            Relative colorbar size. None uses
+            :attr:`~hrtfpykit.plots.types.Heatmap.colorbar_fraction`.
         colorbar_pad : float | None, default=None
-            Padding between axis and colorbar.
+            Padding between the main axis and colorbar axis. None uses
+            :attr:`~hrtfpykit.plots.types.Heatmap.colorbar_pad`.
         colorbar_label : str | None, default=None
-            Colorbar label override.
+            Colorbar label override. When provided, this value takes precedence over
+            label.
         **kwargs
-            Additional arguments forwarded to ``Axes.pcolormesh``.
+            Additional keyword arguments forwarded unchanged to Axes.pcolormesh.
 
         Returns
         -------
         QuadMesh
-            Heatmap artist returned by Matplotlib.
+            Heatmap artist returned by Axes.pcolormesh.
+
+        Raises
+        ------
+        ValueError
+            If ax is a 3D projection axis, if colormap is not one of the
+            supported names in
+            :attr:`~hrtfpykit.plots.types.Heatmap.colormaps`, or if fig is missing
+            while colorbar=True.
+
         """
         if getattr(ax, "name", "") == "3d":
             raise ValueError("Heatmap does not accept 3d axes")
@@ -157,11 +229,18 @@ class Heatmap:
 
 
 class ThreeDimension:
-    """Matplotlib primitive wrapper for three-dimensional source plots.
+    """Primitive renderer for three-dimensional Matplotlib scatter plots.
 
-    The wrapper validates that the target axis uses a 3D projection and then
-    delegates point rendering to ``Axes.scatter`` with the library defaults for
-    marker size, color, edge color, and depth shading.
+    :class:`~hrtfpykit.plots.types.ThreeDimension` is the low-level 3D scatter
+    adapter used by :class:`~hrtfpykit.plots.figure.Figure`. It validates that
+    the target axis uses a 3D projection and delegates point rendering to
+    Axes.scatter with hrtfpykit's default marker size, face color, edge color,
+    edge width, and depth shading.
+
+    Use this wrapper for source-position grids and other spatial point clouds. It is
+    intentionally limited to scatter-style primitives; two-dimensional traces and
+    heatmaps are handled by :class:`~hrtfpykit.plots.types.TwoDimension` and
+    :class:`~hrtfpykit.plots.types.Heatmap`.
     """
 
     @staticmethod
@@ -177,20 +256,25 @@ class ThreeDimension:
         depthshade: bool = True,
         **kwargs,
     ) -> Path3DCollection:
-        """Create a 3D scatter plot on a 3D axis.
+        """Draw a three-dimensional scatter plot on a 3D Matplotlib axis.
+
+        The method is a validation and defaults layer around Axes.scatter for 3D
+        source-grid rendering. It requires an axis whose name is "3d" and
+        forwards coordinates, marker defaults, and extra keyword arguments directly to
+        Matplotlib.
 
         Parameters
         ----------
         ax : Axes
-            Target Matplotlib axis with ``3d`` projection.
+            Target Matplotlib axis with a "3d" projection.
         x : array-like
-            X coordinates.
+            X coordinates of the plotted points.
         y : array-like
-            Y coordinates.
+            Y coordinates of the plotted points.
         z : array-like
-            Z coordinates.
+            Z coordinates of the plotted points.
         s : float, default=28.0
-            Marker size.
+            Marker size forwarded to Axes.scatter.
         color : str, default="steelblue"
             Marker face color.
         edgecolors : str, default="black"
@@ -200,12 +284,18 @@ class ThreeDimension:
         depthshade : bool, default=True
             Whether to apply depth shading.
         **kwargs
-            Additional arguments forwarded to ``Axes.scatter``.
+            Additional arguments forwarded to Axes.scatter.
 
         Returns
         -------
         Path3DCollection
             Scatter artist returned by Matplotlib.
+
+        Raises
+        ------
+        ValueError
+            If ax is not a 3D projection axis.
+
         """
         if getattr(ax, "name", "") != "3d":
             raise ValueError("ThreeDimension requires a 3d projection")

@@ -52,24 +52,29 @@ if TYPE_CHECKING:
 
 
 class HRTFPlots:
-    """``HRTFPlots`` supplies the visualization methods inherited by
-    :class:`hrtfpykit.hrtf.hrtf.HRTF`. The methods operate on the current
-    in-memory ``IR``, ``TF``, and ``Sources`` state of the object, so plots
-    reflect any prior source selection, domain conversion, or transformation.
+    """Visualization methods inherited by :class:`~hrtfpykit.hrtf.hrtf.HRTF`.
 
-    The class covers the main inspection workflows used in HRTF analysis:
-    time-domain HRIR waveforms, frequency-domain magnitude responses,
-    spectrum heatmaps over spatial planes, interaural cue plots, and source
-    grid geometry. Position arguments are resolved through the library source
-    manager, which means named positions, spherical coordinate queries, and
-    plane selections follow the same rules as processing methods.
+    :class:`~hrtfpykit.plots.hrtf.HRTFPlots` groups the plotting operations that operate on an HRTF
+    object's current :class:`~hrtfpykit.hrtf.domain.IR`, :class:`~hrtfpykit.hrtf.domain.TF`, and :class:`~hrtfpykit.hrtf.sources.Sources` state. The methods are
+    attached to the main :class:`~hrtfpykit.hrtf.hrtf.HRTF` abstraction so plots
+    reflect any previous loading, source selection, domain conversion, ITD
+    compensation, windowing, or other transformation applied to the object.
+
+    The plotting surface covers the main inspection workflows used in HRTF and
+    HRIR analysis: time-domain impulse responses, frequency-domain magnitude
+    responses, frequency-angle spectrum heatmaps, interaural cue curves,
+    absolute polar cue summaries, and 3D source-grid geometry. Position queries
+    are resolved through the same source manager used by processing methods, so
+    named directions, spherical coordinate queries, and plane selections follow
+    the library's normal spatial-resolution rules.
 
     Notes
     -----
-    These methods are designed to be called from an ``HRTF`` instance rather
-    than instantiated directly. Each method validates the required domain data
-    before plotting and returns ``None`` after optionally showing the
-    Matplotlib figure.
+    These methods are intended to be called from an :class:`~hrtfpykit.hrtf.hrtf.HRTF` instance, not from
+    a standalone :class:`~hrtfpykit.plots.hrtf.HRTFPlots` object. Every plotting method validates the
+    required domain representation before drawing, creates a Matplotlib figure
+    through the hrtfpykit plotting wrappers, optionally calls
+    matplotlib.pyplot.show(), and returns None.
     """
 
     def plot_magnitude(
@@ -84,76 +89,68 @@ class HRTFPlots:
         show: bool = True,
         titles: bool = True,
     ) -> None:
-        """Plot HRTF magnitude responses for up to four source positions.
+        """Plot HRTF magnitude responses at selected source positions.
 
-        This method draws one to four magnitude-response subplots selected from
-        the current source grid. Positions are always resolved in spherical
-        coordinates and may be provided numerically or through the supported
-        aliases such as ``"front"`` and ``"left"``.
+        The method selects one to four source directions from the current HRTF
+        source grid, extracts the corresponding transfer-function magnitudes,
+        and draws one subplot per direction. Frequency values are displayed in
+        kilohertz while freq_min and freq_max are interpreted in hertz,
+        matching the frequency bins stored by the frequency-domain object.
+
+        Position queries are resolved in spherical coordinates in degrees.
+        Named positions use hrtfpykit's built-in aliases, while numeric queries
+        should use [azimuth, elevation]. When unit="db", magnitudes are
+        converted with magnitude-to-decibel conversion using either the supplied numeric
+        reference or the maximum selected value when reference="max".
 
         Parameters
         ----------
         positions : str | list | tuple | np.ndarray, default=("front", "back", "left", "right")
             One position or a collection of positions. Named aliases such as
-            ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
+            "front", "back", "left", and "right" are accepted.
             Numeric queries must use spherical coordinates in degrees as
-            ``[azimuth, elevation]``, for example ``[0.0, 0.0]`` for the front
+            [azimuth, elevation], for example [0.0, 0.0] for the front
             direction. Up to four positions can be shown in one figure.
         x_axis : {"linear", "log"}, default="linear"
             Frequency scale used on the x axis.
         unit : {"db", "linear"}, default="db"
             Magnitude representation used on the y axis.
         ear : {"left", "right", "both"}, default="both"
-            Ear channel to display. When ``"both"`` is selected, left and right
+            Ear channel to display. When "both" is selected, left and right
             responses are drawn together in each subplot.
         reference : float | {"max"}, default=1.0
-            Reference used when ``unit="db"``. ``"max"`` normalizes the plotted
+            Reference used when unit="db". "max" normalizes the plotted
             magnitude to the maximum selected value.
         freq_min : float | None, default=None
             Minimum frequency in Hz included in the plot.
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
-            In horizontal-plane mode, azimuth is displayed with the signed
-            ``-180 .. 180`` convention.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress generated default subplot titles.
+            If False, suppress generated default subplot titles.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load a measured HRTF and compare two practical listening directions:
+        Raises
+        ------
+        AttributeError
+            If unit, x_axis, or ear is not one of the supported
+            values.
+        ValueError
+            If TF values or frequency bins are missing, no positions are
+            requested, more than four positions are requested, the selected
+            frequency range contains no bins, or the requested ear channel is
+            not available.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_magnitude(
-        ...     positions=["front", "left"],
-        ...     ear="both",
-        ...     show=False,
-        ... )
-
-        Plot two explicit spherical directions using ``[azimuth, elevation]`` queries:
-
-        >>> hrtf.plot_magnitude(
-        ...     positions=[[0.0, 0.0], [90.0, 0.0]],
-        ...     ear="left",
-        ...     show=False,
-        ... )
-
-        Window one direction before plotting its magnitude on a log-frequency axis:
-
-        >>> front = hrtf.select(positions="front")
-        >>> windowed = front.transform.apply_window("hann")
-        >>> windowed.plot_magnitude(
-        ...     positions="front",
-        ...     unit="linear",
-        ...     x_axis="log",
-        ...     show=False,
-        ... )
+        Notes
+        -----
+        One position uses :class:`~hrtfpykit.plots.layouts.Layout_1`, two positions use :class:`~hrtfpykit.plots.layouts.Layout_2Vertical`,
+        and three or four positions use :class:`~hrtfpykit.plots.layouts.Layout_3`. With ear="both", left
+        and right channels are drawn together on each subplot and labelled with
+        the shared ear legend.
         """
         if unit not in {"db", "linear"}:
             raise AttributeError(
@@ -310,61 +307,54 @@ class HRTFPlots:
     ) -> None:
         """Plot HRIR amplitude responses for up to four source positions.
 
-        This method displays time-domain HRIR waveforms for one to four source
-        positions from the current grid. Positions are resolved in spherical
-        coordinates and may be provided numerically or through the supported
-        aliases such as ``"front"`` and ``"right"``.
+        The method selects one to four source directions from the current
+        source grid and draws the corresponding time-domain impulse responses.
+        Positions are resolved in spherical coordinates in degrees and may be
+        provided through named aliases or numeric [azimuth, elevation]
+        queries.
+
+        The x-axis can show elapsed time in seconds or raw sample indices. Time
+        mode requires :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` because sample positions are converted
+        to seconds before plotting.
 
         Parameters
         ----------
         positions : str | list | tuple | np.ndarray, default=("front", "back", "left", "right")
             One position or a collection of positions. Named aliases such as
-            ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
+            "front", "back", "left", and "right" are accepted.
             Numeric queries must use spherical coordinates in degrees as
-            ``[azimuth, elevation]``, for example ``[0.0, 0.0]`` for the front
+            [azimuth, elevation], for example [0.0, 0.0] for the front
             direction. Up to four positions can be shown in one figure.
         ear : {"left", "right", "both"}, default="both"
-            Ear channel to display. When ``"both"`` is selected, left and right
+            Ear channel to display. When "both" is selected, left and right
             ear waveforms are drawn together in each subplot.
         x_axis : {"time", "samples"}, default="time"
             Horizontal axis used for the waveform plot.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress generated default subplot titles.
+            If False, suppress generated default subplot titles.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load an HRIR set and compare the front and right directions in samples:
+        Raises
+        ------
+        AttributeError
+            If ear or x_axis is not one of the supported values.
+        ValueError
+            If IR data is missing, a time axis is requested without a sample
+            rate, no positions are requested, more than four positions are
+            requested, the IR array has no samples, or the requested ear channel
+            is not available.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_amplitude(
-        ...     positions=["front", "right"],
-        ...     x_axis="samples",
-        ...     show=False,
-        ... )
-
-        Plot two explicit spherical directions in the time domain:
-
-        >>> hrtf.plot_amplitude(
-        ...     positions=[[0.0, 0.0], [270.0, 0.0]],
-        ...     ear="both",
-        ...     show=False,
-        ... )
-
-        Remove ITD from the front direction and inspect the left-ear waveform:
-
-        >>> aligned_front = hrtf.select(positions="front").transform.delete_itd()
-        >>> aligned_front.plot_amplitude(
-        ...     positions="front",
-        ...     ear="left",
-        ...     show=False,
-        ... )
+        Notes
+        -----
+        One position uses :class:`~hrtfpykit.plots.layouts.Layout_1`, two positions use :class:`~hrtfpykit.plots.layouts.Layout_2Vertical`,
+        and three or four positions use :class:`~hrtfpykit.plots.layouts.Layout_3`. With ear="both", left
+        and right HRIR channels are drawn on the same subplot and labelled with
+        the shared ear legend.
         """
         if ear not in {"left", "right", "both"}:
             raise AttributeError(
@@ -488,19 +478,26 @@ class HRTFPlots:
     ) -> None:
         """Plot amplitude and magnitude views for a single source position.
 
-        This method creates a two-subplot summary for one source direction. The
-        top subplot shows the HRIR amplitude response and the bottom subplot shows
-        the corresponding HRTF magnitude response for the same position. The
-        amplitude subplot uses ``amplitude_x_axis`` and the magnitude subplot uses
-        ``magnitude_x_axis``.
+        This method creates a two-panel summary for one source direction. The
+        top subplot shows the time-domain HRIR amplitude response and the
+        bottom subplot shows the corresponding frequency-domain HRTF magnitude
+        response for the same source. The amplitude subplot can use seconds or
+        sample indices, while the magnitude subplot can use a linear or
+        logarithmic frequency axis.
+
+        The method requires both the time-domain and frequency-domain
+        representations to be available. When magnitude="db", the magnitude
+        response is converted with magnitude-to-decibel conversion using either a numeric
+        reference or the selected direction's maximum magnitude when
+        reference="max".
 
         Parameters
         ----------
         position : str | list | np.ndarray, default="front"
             Position query to plot. Exactly one position is accepted. Named
-            aliases such as ``"front"``, ``"back"``, ``"left"``, and ``"right"``
+            aliases such as "front", "back", "left", and "right"
             are accepted. Numeric queries must use spherical coordinates in
-            degrees as ``[azimuth, elevation]``, for example ``[0.0, 0.0]``.
+            degrees as [azimuth, elevation], for example [0.0, 0.0].
         ear : {"left", "right", "both"}, default="both"
             Ear channel to display in both subplots.
         amplitude_x_axis : {"time", "samples"}, default="time"
@@ -510,43 +507,32 @@ class HRTFPlots:
         magnitude : {"db", "linear"}, default="db"
             Magnitude representation used on the bottom subplot.
         reference : float | {"max"}, default=1.0
-            Reference used when ``magnitude="db"`` for the magnitude subplot.
+            Reference used when magnitude="db" for the magnitude subplot.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title.
+            If False, suppress the generated default figure title.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load one direction and inspect its HRIR and HRTF together:
+        Raises
+        ------
+        AttributeError
+            If ear, amplitude_x_axis, magnitude_x_axis, or
+            magnitude is not one of the supported values.
+        ValueError
+            If IR or TF data is missing, a time axis is requested without a
+            sample rate, zero or multiple positions are supplied, the selected
+            frequency range contains no bins, or the requested ear channel is
+            not available in IR or TF data.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.select(positions="front").plot_amplitude_and_magnitude(show=False)
-
-        Plot a windowed version of the same direction with both ears and a log-frequency axis:
-
-        >>> front = hrtf.select(positions="front")
-        >>> windowed = front.transform.apply_window("hann")
-        >>> windowed.plot_amplitude_and_magnitude(
-        ...     ear="both",
-        ...     amplitude_x_axis="samples",
-        ...     magnitude_x_axis="log",
-        ...     magnitude="linear",
-        ...     show=False,
-        ... )
-
-        Plot one explicit spherical direction using an ``[azimuth, elevation]`` query:
-
-        >>> hrtf.plot_amplitude_and_magnitude(
-        ...     position=[90.0, 0.0],
-        ...     ear="left",
-        ...     show=False,
-        ... )
+        Notes
+        -----
+        The plot uses a vertical two-panel layout with independent x axes. This
+        makes it useful for checking whether a transformation applied to the
+        HRIR is reflected in the corresponding magnitude response.
         """
         if ear not in {"left", "right", "both"}:
             raise AttributeError(
@@ -771,19 +757,26 @@ class HRTFPlots:
     ) -> None:
         """Plot a frequency-angle spectrum heatmap for an HRTF plane.
 
-        This method plots a heatmap where frequency is shown on the horizontal
-        axis and the plane angle is shown on the vertical axis. The horizontal
-        plane may be selected at another elevation through ``elevation_angle``.
-        The median plane remains the canonical sagittal path.
+        The method selects a spatial plane from the current source grid and
+        renders HRTF magnitude as a frequency-by-angle heatmap. Frequency is
+        shown on the horizontal axis in kilohertz, while the vertical axis is
+        either azimuth for horizontal planes or lateral-polar angle for the
+        median plane.
+
+        Horizontal planes are selected by the nearest available elevation to
+        elevation_angle. Median-plane plots use the canonical sagittal path
+        at azimuth zero. With ear="both", the method creates one heatmap for
+        the left ear and one heatmap for the right ear using shared color
+        limits.
 
         Parameters
         ----------
         plane : {"horizontal", "median"}, default="horizontal"
-            Plane to visualize. ``"horizontal"`` uses a horizontal plane
-            selected by elevation. ``"median"`` uses the canonical median
+            Plane to visualize. "horizontal" uses a horizontal plane
+            selected by elevation. "median" uses the canonical median
             plane defined by the front-back sagittal path.
         elevation_angle : float, default=0.0
-            Target elevation used when ``plane="horizontal"``. The nearest
+            Target elevation used when plane="horizontal". The nearest
             available horizontal plane in the grid is selected. This parameter
             is not used for the median plane.
         x_axis : {"linear", "log"}, default="linear"
@@ -791,10 +784,10 @@ class HRTFPlots:
         unit : {"db", "linear"}, default="db"
             Magnitude representation used for the heatmap values.
         ear : {"left", "right", "both"}, default="both"
-            Ear channel to display. When ``"both"`` is selected, a separate subplot
+            Ear channel to display. When "both" is selected, a separate subplot
             is created for each ear.
         reference : float | {"max"}, default="max"
-            Reference used when ``unit="db"``. ``"max"`` normalizes the plotted
+            Reference used when unit="db". "max" normalizes the plotted
             plane to its maximum value.
         colormap : str, default="jet"
             Matplotlib colormap name used for the heatmap.
@@ -803,32 +796,31 @@ class HRTFPlots:
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress generated default subplot and figure titles.
+            If False, suppress generated default subplot and figure titles.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load a measured HRTF and inspect the horizontal-plane spectrum for the left ear:
+        Raises
+        ------
+        AttributeError
+            If plane, unit, x_axis, or ear is not one of the
+            supported values, or if elevation_angle is not finite.
+        ValueError
+            If TF data is missing, elevation_angle is used with a non-
+            horizontal plane, the selected plane has no positions, frequency
+            bins are invalid, the selected frequency range contains no bins, or
+            the requested ear channel is not available.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_spectrum_plane(
-        ...     plane="horizontal",
-        ...     ear="left",
-        ...     show=False,
-        ... )
-
-        Replot the same plane with a signed azimuth convention for interpretation:
-
-        >>> hrtf.plot_spectrum_plane(
-        ...     plane="horizontal",
-        ...     show=False,
-        ... )
+        Notes
+        -----
+        Horizontal-plane azimuths are displayed in the signed -180 .. 180
+        convention. When unit="db" and reference="max", normalization
+        is computed over the plotted plane and selected ear channels before
+        conversion to decibels.
         """
         if plane not in ("horizontal", "median"):
             raise AttributeError(
@@ -1055,25 +1047,33 @@ class HRTFPlots:
     ) -> None:
         """Plot a fixed-azimuth elevation spectrum heatmap.
 
-        This method selects the nearest azimuth slice in the current source
-        grid and displays a frequency-versus-elevation heatmap for that slice.
-        Numeric azimuths and the standard position aliases are accepted.
+        The method selects the nearest azimuth slice in the current source grid
+        and renders HRTF magnitude as a frequency-by-elevation heatmap.
+        Frequency is shown in kilohertz, elevation is shown in degrees, and
+        the selected real azimuth is reported in the generated title when
+        titles are enabled.
+
+        Numeric azimuths are interpreted in degrees. Named position aliases use
+        their spherical azimuth component, so "front", "back",
+        "left", and "right" can be used for common vertical slices.
+        With ear="both", the method creates one heatmap per ear using
+        shared color limits.
 
         Parameters
         ----------
         azimuth : float | str, default=0.0
             Azimuth used to select the elevation slice. Named aliases such as
-            ``"front"``, ``"back"``, ``"left"``, and ``"right"`` are accepted.
+            "front", "back", "left", and "right" are accepted.
             The nearest available azimuth in the source grid is used.
         x_axis : {"linear", "log"}, default="linear"
             Frequency scale used on the x axis.
         unit : {"db", "linear"}, default="db"
             Magnitude representation used for the heatmap values.
         ear : {"left", "right", "both"}, default="both"
-            Ear channel to display. When ``"both"`` is selected, a separate subplot
+            Ear channel to display. When "both" is selected, a separate subplot
             is created for each ear.
         reference : float | {"max"}, default="max"
-            Reference used when ``unit="db"``. ``"max"`` normalizes the plotted
+            Reference used when unit="db". "max" normalizes the plotted
             slice to its maximum value.
         colormap : str, default="jet"
             Matplotlib colormap name used for the heatmap.
@@ -1082,34 +1082,31 @@ class HRTFPlots:
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress generated default subplot and figure titles.
+            If False, suppress generated default subplot and figure titles.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load a measured HRTF and inspect how the front spectrum changes with elevation:
+        Raises
+        ------
+        AttributeError
+            If unit, x_axis, or ear is not one of the supported
+            values.
+        ValueError
+            If TF data is missing, azimuth is not finite or is an unknown
+            named position, the selected slice has no positions, frequency bins
+            are invalid, the selected frequency range contains no bins, or the
+            requested ear channel is not available.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_elevation_spectrum(
-        ...     azimuth="front",
-        ...     ear="both",
-        ...     show=False,
-        ... )
-
-        Inspect the left-side elevation slice for one ear on a log-frequency axis:
-
-        >>> hrtf.plot_elevation_spectrum(
-        ...     azimuth="left",
-        ...     ear="left",
-        ...     x_axis="log",
-        ...     show=False,
-        ... )
+        Notes
+        -----
+        When the requested azimuth is not present exactly in the source grid,
+        the nearest available azimuth is selected using circular angular
+        distance. When unit="db" and reference="max", normalization is
+        computed over the plotted slice and selected ear channels.
         """
         if unit not in {"db", "linear"}:
             raise AttributeError(
@@ -1296,40 +1293,37 @@ class HRTFPlots:
     ) -> None:
         """Plot signed ITD over a horizontal plane as azimuth versus time delay.
 
-        This method selects the nearest horizontal plane to the requested
-        elevation and plots signed interaural time difference values in
-        seconds against azimuth. The azimuth axis uses the signed
-        ``-180 .. 180`` convention by default, where positive azimuth values
-        correspond to the left side and negative azimuth values correspond to
-        the right side.
+        The method computes signed interaural time difference from the current
+        HRIR data, selects the nearest horizontal plane to elevation_angle,
+        and plots ITD in seconds against signed azimuth. The curve is sorted by
+        azimuth so the plot follows the horizontal plane continuously.
 
         Parameters
         ----------
         elevation_angle : float, default=0.0
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
-            configured by default to use the signed ``-180 .. 180`` range.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title.
+            If False, suppress the generated default figure title.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load a measured HRTF and inspect its horizontal-plane ITD trend:
+        Raises
+        ------
+        ValueError
+            If IR data or sample rate is missing, elevation_angle is not
+            finite, the selected horizontal plane is empty, or the computed ITD
+            values do not align with the number of source positions.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_itd_curve(show=False)
-
-        Remove ITD from the dataset and compare the compensated curve:
-
-        >>> aligned = hrtf.transform.delete_itd()
-        >>> aligned.plot_itd_curve(show=False)
+        Notes
+        -----
+        Azimuth is displayed in the signed -180 .. 180 convention, where
+        positive azimuth values correspond to the left side and negative values
+        correspond to the right side.
         """
         resolved_margins = Margins()
         azimuth_range_mode = "-180-180"
@@ -1427,40 +1421,38 @@ class HRTFPlots:
     ) -> None:
         """Plot absolute ITD over a horizontal plane in polar coordinates.
 
-        This method selects the nearest horizontal plane to the requested
-        elevation, computes absolute interaural time differences in seconds,
-        and displays the result in a polar plot. Azimuth is represented on the
-        angular axis and absolute ITD is represented on the radial axis.
+        The method computes absolute interaural time difference from the current
+        HRIR data, selects the nearest horizontal plane to elevation_angle,
+        and displays the resulting cue magnitude in a polar plot. Azimuth is
+        represented on the angular axis and absolute ITD in seconds is
+        represented on the radial axis.
 
         Parameters
         ----------
         elevation_angle : float, default=0.0
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
-            The polar azimuth axis uses 30-degree ticks and north-up
-            orientation.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title.
-            The radial label defaults to ``Labels.itd_seconds``.
+            If False, suppress the generated default figure title.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load a measured HRTF and visualize absolute ITD around the horizontal plane:
+        Raises
+        ------
+        ValueError
+            If IR data or sample rate is missing, elevation_angle is not
+            finite, or the selected horizontal plane cannot be resolved for the
+            current source grid.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_absolute_itd(show=False)
-
-        After ITD compensation, inspect the same polar summary again:
-
-        >>> aligned = hrtf.transform.delete_itd()
-        >>> aligned.plot_absolute_itd(show=False)
+        Notes
+        -----
+        The polar azimuth axis uses 30-degree ticks with a north-up orientation.
+        The radial label defaults to Labels.itd_seconds and radial ticks use
+        the decimal-comma style configured by the polar-axis helper.
         """
         resolved_margins = Margins()
         polar_tick_step = 30.0
@@ -1550,23 +1542,26 @@ class HRTFPlots:
     ) -> None:
         """Plot a frequency-dependent ILD heatmap for an HRTF plane.
 
-        This method plots a heatmap where frequency is shown on the horizontal
-        axis and the plane angle is shown on the vertical axis. The horizontal
-        plane may be selected at another elevation through ``elevation_angle``.
-        The median plane remains the canonical sagittal path.
+        The method computes frequency-dependent interaural level difference
+        from the current HRIR data and renders it as a frequency-by-angle
+        heatmap. Frequency is shown in kilohertz. The vertical axis is azimuth
+        for horizontal planes and lateral-polar angle for the median plane.
+
+        Horizontal planes are selected by the nearest available elevation to
+        elevation_angle. Median-plane plots use the canonical sagittal path
+        at azimuth zero. The ILD values are computed in decibels from the
+        current impulse responses before plotting.
 
         Parameters
         ----------
         plane : {"horizontal", "median"}, default="horizontal"
-            Plane to visualize. ``"horizontal"`` uses a horizontal plane
-            selected by elevation. ``"median"`` uses the canonical median
+            Plane to visualize. "horizontal" uses a horizontal plane
+            selected by elevation. "median" uses the canonical median
             plane defined by the front-back sagittal path.
         elevation_angle : float, default=0.0
-            Target elevation used when ``plane="horizontal"``. The nearest
+            Target elevation used when plane="horizontal". The nearest
             available horizontal plane in the grid is selected. This parameter
             is not used for the median plane.
-            In horizontal-plane mode, azimuth is displayed with the signed
-            ``-180 .. 180`` convention.
         colormap : str, default="jet"
             Matplotlib colormap name used for the heatmap.
         freq_min : float | None, default=None
@@ -1574,29 +1569,31 @@ class HRTFPlots:
         freq_max : float | None, default=None
             Maximum frequency in Hz included in the plot.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title.
+            If False, suppress the generated default figure title.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load a measured HRTF and inspect frequency-dependent ILD on the horizontal plane:
+        Raises
+        ------
+        AttributeError
+            If plane is not "horizontal" or "median", or if
+            elevation_angle is not finite.
+        ValueError
+            If IR data or sample rate is missing, elevation_angle is used
+            with a non-horizontal plane, the selected plane has no positions,
+            frequency bins are invalid, the selected frequency range contains
+            no bins, or frequency-dependent ILD values do not have the expected
+            (positions, frequencies) shape.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_ild_plane(
-        ...     plane="horizontal",
-        ...     freq_max=8000.0,
-        ...     show=False,
-        ... )
-
-        Inspect the canonical median plane when you want sagittal ILD structure:
-
-        >>> hrtf.plot_ild_plane(plane="median", show=False)
+        Notes
+        -----
+        Horizontal-plane azimuths are displayed in the signed -180 .. 180
+        convention. The frequency axis is always linear for this plot because
+        the method currently builds a :class:`~hrtfpykit.plots.axis.FrequencyLinearAxis` configuration.
         """
         if plane not in ("horizontal", "median"):
             raise AttributeError("plot_ild_plane plane accepts horizontal or median")
@@ -1762,39 +1759,38 @@ class HRTFPlots:
     ) -> None:
         """Plot signed ILD over a horizontal plane as azimuth versus level difference.
 
-        This method selects the nearest horizontal plane to the requested
-        elevation and plots signed broad-band interaural level difference
-        values in decibels against azimuth. The azimuth axis uses the signed
-        ``-180 .. 180`` convention by default, where positive azimuth values
-        correspond to the left side and negative azimuth values correspond to
-        the right side.
+        The method computes signed broad-band interaural level difference from
+        the current HRIR data, selects the nearest horizontal plane to
+        elevation_angle, and plots ILD in decibels against signed azimuth.
+        The curve is sorted by azimuth so the plot follows the horizontal plane
+        continuously.
 
         Parameters
         ----------
         elevation_angle : float, default=0.0
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
-            configured by default to use the signed ``-180 .. 180`` range.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title.
+            If False, suppress the generated default figure title.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load a measured HRTF and inspect broad-band ILD across the horizontal plane:
+        Raises
+        ------
+        ValueError
+            If IR data or sample rate is missing, elevation_angle is not
+            finite, the selected horizontal plane is empty, or the computed ILD
+            values do not align with the number of source positions.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_ild_curve(show=False)
-
-        Focus on another measured elevation when you want an off-horizontal slice:
-
-        >>> hrtf.plot_ild_curve(elevation_angle=10.0, show=False)
+        Notes
+        -----
+        Azimuth is displayed in the signed -180 .. 180 convention, where
+        positive azimuth values correspond to the left side and negative values
+        correspond to the right side.
         """
         resolved_margins = Margins()
         azimuth_range_mode = "-180-180"
@@ -1893,39 +1889,38 @@ class HRTFPlots:
     ) -> None:
         """Plot absolute ILD over a horizontal plane in polar coordinates.
 
-        This method selects the nearest horizontal plane to the requested
-        elevation, computes absolute interaural level differences in decibels,
-        and displays the result in a polar plot. Azimuth is represented on the
-        angular axis and absolute ILD is represented on the radial axis.
+        The method computes absolute broad-band interaural level difference from
+        the current HRIR data, selects the nearest horizontal plane to
+        elevation_angle, and displays the resulting cue magnitude in a polar
+        plot. Azimuth is represented on the angular axis and absolute ILD in
+        decibels is represented on the radial axis.
 
         Parameters
         ----------
         elevation_angle : float, default=0.0
             Target elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
-            The polar azimuth axis uses 30-degree ticks and north-up
-            orientation.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title.
-            The radial label defaults to ``Labels.ild_db``.
+            If False, suppress the generated default figure title.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load a measured HRTF and summarize absolute ILD in a polar view:
+        Raises
+        ------
+        ValueError
+            If IR data or sample rate is missing, elevation_angle is not
+            finite, or the selected horizontal plane cannot be resolved for the
+            current source grid.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_absolute_ild(show=False)
-
-        Inspect a different elevation when you want a polar view away from the canonical plane:
-
-        >>> hrtf.plot_absolute_ild(elevation_angle=10.0, show=False)
+        Notes
+        -----
+        The polar azimuth axis uses 30-degree ticks with a north-up orientation.
+        The radial label defaults to Labels.ild_db and radial ticks are
+        formatted as integer decibel values.
         """
         resolved_margins = Margins()
         polar_tick_step = 30.0
@@ -2012,34 +2007,36 @@ class HRTFPlots:
         """Plot the source grid as an interactive three-dimensional scatter.
 
         The method reads the current source positions from the HRTF instance,
-        converts them to Cartesian coordinates when necessary, and renders the
-        grid in a 3D Matplotlib axis. Direction arrows for front, right, and up
-        are added to make the spatial orientation easier to interpret in the
-        default camera view.
+        resolves them as Cartesian coordinates, and renders the grid in a 3D
+        Matplotlib axis. Direction markers for front, right, and up are added
+        to make the coordinate orientation clear in the default camera view.
+
+        This plot is useful after loading a SOFA file, selecting a spatial
+        subset, or transforming source coordinates because it visualizes the
+        exact source grid currently attached to the object.
 
         Parameters
         ----------
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title.
+            If False, suppress the generated default figure title.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load a measured HRTF and inspect the full source grid:
+        Raises
+        ------
+        ValueError
+            If source positions cannot be resolved as a valid Cartesian grid or
+            axis geometry cannot be computed from the current positions.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_source_grid(show=False)
-
-        Plot only the selected horizontal plane to verify a spatial subset:
-
-        >>> horizontal = hrtf.select(plane="horizontal", plane_angle=0.0)
-        >>> horizontal.plot_source_grid(show=False)
+        Notes
+        -----
+        The plot uses an equal-aspect 3D axis derived from the full Cartesian
+        source extent. Axis labels use the library's 3D coordinate labels in
+        meters.
         """
         resolved_margins = Margins()
         source_grid_scatter_size = 28.0
@@ -2123,40 +2120,39 @@ class HRTFPlots:
 
         The full source grid is displayed as a light background scatter, while
         the selected canonical plane or planes are overlaid with stronger
-        colors. The supported planes are the horizontal plane, the median plane,
-        and the frontal plane, using the canonical definitions already provided
-        by the spatial plane-selection logic in the library.
+        colors. Plane membership is resolved through the same plane-selection
+        helpers used by processing and metric plots, so the highlighted points
+        match the library's canonical horizontal, median, and frontal plane
+        definitions.
 
         Parameters
         ----------
         plane : str | list[str] | tuple[str, ...], default="horizontal"
-            Plane or planes to highlight. Accepted values are ``"horizontal"``,
-            ``"median"``, and ``"frontal"``. A single string highlights one
+            Plane or planes to highlight. Accepted values are "horizontal",
+            "median", and "frontal". A single string highlights one
             plane, while a list or tuple highlights multiple planes in the same
             figure.
         show : bool, default=True
-            If ``True``, call ``matplotlib.pyplot.show()`` before returning.
+            If True, call matplotlib.pyplot.show() before returning.
         titles : bool, default=True
-            If ``False``, suppress the generated default figure title.
+            If False, suppress the generated default figure title.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        Load a measured HRTF and highlight the median plane in the full grid:
+        Raises
+        ------
+        ValueError
+            If plane is empty, contains an unsupported plane name, source
+            positions cannot be resolved as Cartesian coordinates, or axis
+            geometry cannot be computed from the current source grid.
 
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> hrtf.plot_plane_grid(plane="median", show=False)
-
-        Compare the three canonical planes in one 3D view:
-
-        >>> hrtf.plot_plane_grid(
-        ...     plane=["horizontal", "median", "frontal"],
-        ...     show=False,
-        ... )
+        Notes
+        -----
+        Duplicate plane names are ignored after the first occurrence. A legend
+        is added to distinguish the background source grid from each highlighted
+        plane.
         """
         resolved_margins = Margins()
         source_grid_scatter_size = 18.0

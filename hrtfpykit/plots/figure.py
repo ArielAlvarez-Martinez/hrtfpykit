@@ -9,35 +9,64 @@ from .types import Heatmap, ThreeDimension, TwoDimension
 
 
 class Figure:
-    """Matplotlib figure factory used by the plotting layer.
-
-    ``Figure`` converts a library layout object into a Matplotlib figure,
-    flattened axes array, and configured plot primitive accessors. Plot methods
-    use this wrapper to keep subplot creation, default styling, and primitive
-    dispatch consistent across single-HRTF, comparison, and spatial plots.
-    """
-
     shared_x_visible: bool = True
 
     def __init__(self, layout: Layout, projection: str | None = None):
-        """Initialize a figure using a layout and optional projection.
+        """Create a Matplotlib figure from an hrtfpykit layout definition.
+
+        :class:`~hrtfpykit.plots.figure.Figure` is the plotting-layer wrapper
+        used by HRTF, HRIR, comparison, spherical-harmonic, and spatial-grid plot
+        helpers. It converts a :class:`~hrtfpykit.plots.layouts.Layout` object
+        into a Matplotlib figure, stores a flattened axes array, applies
+        hrtfpykit default rcParams, and exposes small primitive-dispatch methods
+        for line plots, heatmaps, and 3D scatter plots.
+
+        The wrapper keeps subplot construction and primitive routing consistent
+        across the plotting package. High-level plot functions choose a layout,
+        create Figure(layout), resolve axes by index or by named position,
+        draw through the wrapper methods, and then apply labels, titles, grids,
+        and legends.
 
         Parameters
         ----------
         layout : Layout
-            Layout definition containing rows, columns, margins, and positions.
+            Layout definition containing subplot rows, columns, named positions,
+            figure size, margins, axis-sharing flags, and title offsets.
         projection : str | None, default=None
-            Optional Matplotlib projection passed to subplot creation
-            (for example ``"polar"`` or ``"3d"``).
+            Optional Matplotlib projection passed to every subplot in the layout,
+            such as "polar" for polar cue plots or "3d" for source-grid
+            views.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        >>> from hrtfpykit.plots.layouts import Layout_1
-        >>> figure = Figure(Layout_1())
+        Notes
+        -----
+        The constructor calls :meth:`~hrtfpykit.plots.figure.Figure.create`,
+        which updates Matplotlib rcParams through
+        :meth:`~hrtfpykit.plots.figure.Figure.configure_rc`. The returned axes
+        are always flattened into a one-dimensional object array so plot code
+        can use a common access pattern for 1x1, stacked, side-by-side, and 2x2
+        layouts.
+
+        Attributes
+        ----------
+        layout : int
+            Layout code copied from layout.code and used by plot methods for
+            layout-aware behavior.
+        positions : tuple[str, ...]
+            Named subplot positions copied from layout.positions.
+        projection : str | None
+            Matplotlib projection used for subplot creation.
+        figure_title_y : float
+            Vertical position used by title helpers for figure-level titles.
+        fig : matplotlib.figure.Figure
+            Matplotlib figure created from the layout.
+        axes : numpy.ndarray
+            Flattened one-dimensional array of Matplotlib axes created for the
+            layout.
+
         """
         self.layout = layout.code
         self.positions = layout.positions
@@ -50,7 +79,13 @@ class Figure:
 
     @staticmethod
     def configure_rc() -> None:
-        """Apply default Matplotlib rcParams used by plot rendering.
+        """Apply hrtfpykit's default Matplotlib text rcParams.
+
+        The plotting layer calls this method before creating figures so font
+        sizes for axes, tick labels, legends, and figure titles remain
+        consistent across all generated HRTF documentation and analysis plots.
+        Values are read from :class:`~hrtfpykit.plots.default.RC` and written to
+        matplotlib.pyplot.rcParams.
 
         Parameters
         ----------
@@ -60,9 +95,12 @@ class Figure:
         -------
         None
 
-        Examples
-        --------
-        >>> Figure.configure_rc()
+        Notes
+        -----
+        configure_rc updates global Matplotlib rcParams for the active Python
+        process. It intentionally only changes text-size and title-weight
+        settings used by hrtfpykit plots.
+
         """
         rc = RC()
         plt.rcParams.update(
@@ -84,31 +122,38 @@ class Figure:
         layout: Layout,
         projection: str | None = None,
     ) -> tuple[plt.Figure, np.ndarray]:
-        """Create a Matplotlib figure and flattened axes from a layout.
+        """Create a Matplotlib figure and flattened axes from a layout object.
 
-        The layout supplies grid dimensions, figure size, margins, and axis
-        sharing. The returned axes are flattened into an object array so higher
-        level plot functions can address axes by layout position instead of
-        handling Matplotlib's nested subplot shapes directly.
+        The method resolves the figure size, applies default rcParams, creates
+        subplots using the layout's rows, columns, sharing flags, and optional
+        projection, then applies the layout margins. Matplotlib's nested axes
+        output is converted into a one-dimensional object array for consistent
+        indexing by higher-level plot functions.
+
+        Each returned axis receives internal title-position attributes used by
+        :class:`~hrtfpykit.plots.titles.Titles` when subplot titles and
+        figure-level titles are combined.
 
         Parameters
         ----------
         layout : Layout
-            Layout definition with grid size, margins, and sharing settings.
+            Layout definition with grid size, figure size, margins, axis-sharing
+            flags, and title offsets.
         projection : str | None, default=None
-            Optional subplot projection (for example ``"polar"`` or ``"3d"``).
+            Optional subplot projection passed as Matplotlib subplot_kw for
+            every axis in the layout.
 
         Returns
         -------
         tuple[plt.Figure, np.ndarray]
             Matplotlib figure and flattened object array of subplot axes.
 
-        Examples
-        --------
-        >>> from hrtfpykit.plots.layouts import Layout_1
-        >>> fig, axes = Figure.create(Layout_1())
-        >>> axes.size
-        1
+        Notes
+        -----
+        :class:`~hrtfpykit.plots.default.FigureSize` layout values are converted
+        to a (width, height) tuple before figure creation. Tuple figure sizes are
+        passed through unchanged.
+
         """
         Figure.configure_rc()
         if isinstance(layout.figsize, FigureSize):
@@ -146,7 +191,12 @@ class Figure:
         return fig, reshaped_axes
 
     def get_ax(self, position: int | str = 0) -> plt.Axes:
-        """Return one subplot axis by index or named position.
+        """Return one subplot axis by flattened index or layout position name.
+
+        position can be an integer index into the flattened axes array or a
+        named position from the layout, such as "main", "top",
+        "bottom", "left", or "right". Named positions keep the plot
+        code readable when a layout has semantic panels.
 
         Parameters
         ----------
@@ -158,11 +208,12 @@ class Figure:
         plt.Axes
             Selected subplot axis.
 
-        Examples
-        --------
-        >>> from hrtfpykit.plots.layouts import Layout_1
-        >>> figure = Figure(Layout_1())
-        >>> _ = figure.get_ax("main")
+        Raises
+        ------
+        ValueError
+            If a string position is not defined by the layout, or if an integer
+            index is outside the flattened axes array.
+
         """
         if isinstance(position, str):
             if position not in self.positions:
@@ -179,23 +230,28 @@ class Figure:
         return self.axes[axis_index]
 
     def hide_unused_axes(self, used_axes: int) -> None:
-        """Hide subplot axes beyond the number of used panels.
+        """Hide unused trailing axes in a multi-panel layout.
+
+        Some plot functions use a larger layout than the number of panels
+        requested by the caller, for example a 2x2 layout for three selected
+        source positions. This method leaves the first used_axes axes
+        visible and hides every remaining axis in the flattened axes array.
 
         Parameters
         ----------
         used_axes : int
-            Number of axes that remain visible from the beginning of
-            the flattened axes array.
+            Number of axes that remain visible from the beginning of the
+            flattened axes array. Must be non-negative.
 
         Returns
         -------
         None
 
-        Examples
-        --------
-        >>> from hrtfpykit.plots.layouts import Layout_2Vertical
-        >>> figure = Figure(Layout_2Vertical())
-        >>> figure.hide_unused_axes(1)
+        Raises
+        ------
+        ValueError
+            If used_axes is negative.
+
         """
         if used_axes < 0:
             raise ValueError("used_axes must be non-negative")
@@ -203,31 +259,36 @@ class Figure:
             ax.set_visible(False)
 
     def create_two_dimension(self, ax: plt.Axes, x, y, **kwargs):
-        """Create a 2D line plot on the provided axis.
+        """Draw one or more two-dimensional line traces on an axis.
+
+        This is the figure-level dispatcher for
+        :class:`~hrtfpykit.plots.types.TwoDimension`. It forwards x, y,
+        and Matplotlib line keyword arguments to the low-level primitive while
+        keeping high-level HRTF plot code independent of the concrete primitive
+        class.
 
         Parameters
         ----------
         ax : plt.Axes
-            Target subplot axis.
+            Target Matplotlib axis. The underlying primitive rejects 3D axes.
         x : array-like
-            X-axis values.
+            X-axis values passed to matplotlib.axes.Axes.plot.
         y : array-like
-            Y-axis values.
+            Y-axis values passed to matplotlib.axes.Axes.plot.
         **kwargs
-            Extra Matplotlib line arguments.
+            Additional line style, marker, color, label, and other keyword
+            arguments forwarded unchanged to Matplotlib.
 
         Returns
         -------
-        object
-            Matplotlib artist returned by ``TwoDimension.create``.
+        list[matplotlib.lines.Line2D]
+            Line artists returned by Matplotlib.
 
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from hrtfpykit.plots.layouts import Layout_1
-        >>> figure = Figure(Layout_1())
-        >>> ax = figure.get_ax("main")
-        >>> _ = figure.create_two_dimension(ax=ax, x=np.array([0, 1]), y=np.array([0, 1]))
+        Raises
+        ------
+        ValueError
+            If ax is a 3D projection axis.
+
         """
         return TwoDimension.create(
             ax=ax,
@@ -251,47 +312,54 @@ class Figure:
         colorbar_label: str | None = None,
         **kwargs,
     ):
-        """Create a heatmap on the provided axis.
+        """Draw a heatmap on an axis and optionally attach a colorbar.
+
+        This is the figure-level dispatcher for
+        :class:`~hrtfpykit.plots.types.Heatmap`. It forwards coordinates, values,
+        colorbar options, and Matplotlib pcolormesh keyword arguments to the
+        low-level primitive while supplying the current Matplotlib figure for
+        colorbar creation.
 
         Parameters
         ----------
         ax : plt.Axes
-            Target subplot axis.
+            Target Matplotlib axis. The underlying primitive rejects 3D axes.
         x : array-like
-            X-axis coordinates.
+            X-axis coordinates passed to matplotlib.axes.Axes.pcolormesh.
         y : array-like
-            Y-axis coordinates.
+            Y-axis coordinates passed to matplotlib.axes.Axes.pcolormesh.
         values : array-like
-            Heatmap values.
+            Heatmap matrix values passed to pcolormesh.
         label : str | None, default=None
-            Colorbar label.
+            Default colorbar label used when colorbar_label is not supplied.
         colormap : str | None, default=None
-            Colormap name.
+            Supported hrtfpykit colormap name. None uses the primitive's
+            default colormap.
         colorbar : bool, default=True
             Whether to render the heatmap colorbar.
         colorbar_location : str | None, default=None
-            Colorbar location.
+            Colorbar side/location passed to the appended colorbar axis.
         colorbar_fraction : float | None, default=None
-            Colorbar width fraction.
+            Relative colorbar size used by the heatmap primitive.
         colorbar_pad : float | None, default=None
-            Colorbar padding.
+            Padding between the main axis and the appended colorbar axis.
         colorbar_label : str | None, default=None
-            Colorbar label override.
+            Colorbar label override. When provided, it takes precedence over
+            label.
         **kwargs
-            Extra Matplotlib pcolormesh arguments.
+            Additional keyword arguments forwarded unchanged to pcolormesh.
 
         Returns
         -------
-        object
-            Matplotlib mesh artist returned by ``Heatmap.create``.
+        matplotlib.collections.QuadMesh
+            Heatmap artist returned by Matplotlib.
 
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from hrtfpykit.plots.layouts import Layout_1
-        >>> figure = Figure(Layout_1())
-        >>> ax = figure.get_ax("main")
-        >>> _ = figure.create_heatmap(ax=ax, x=np.array([0.0, 1.0]), y=np.array([0.0, 1.0]), values=np.array([[0.0, 1.0], [1.0, 0.0]]))
+        Raises
+        ------
+        ValueError
+            If ax is a 3D projection axis or the selected colormap is not
+            supported by the heatmap primitive.
+
         """
         return Heatmap.create(
             ax=ax,
@@ -322,18 +390,24 @@ class Figure:
         depthshade: bool = True,
         **kwargs,
     ):
-        """Create a 3D scatter plot on the provided axis.
+        """Draw a three-dimensional scatter plot on a 3D axis.
+
+        This is the figure-level dispatcher for
+        :class:`~hrtfpykit.plots.types.ThreeDimension`. It forwards coordinates,
+        marker styling, and additional Matplotlib scatter keyword arguments to
+        the low-level primitive used by source-grid and plane-grid plots.
 
         Parameters
         ----------
         ax : plt.Axes
-            Target 3D subplot axis.
+            Target Matplotlib axis. The underlying primitive requires a 3D
+            projection axis.
         x : array-like
-            X coordinates.
+            X coordinates passed to Axes3D.scatter.
         y : array-like
-            Y coordinates.
+            Y coordinates passed to Axes3D.scatter.
         z : array-like
-            Z coordinates.
+            Z coordinates passed to Axes3D.scatter.
         s : float, default=28.0
             Marker size.
         color : str, default="steelblue"
@@ -345,20 +419,18 @@ class Figure:
         depthshade : bool, default=True
             Whether to apply depth shading.
         **kwargs
-            Extra Matplotlib scatter arguments.
+            Additional keyword arguments forwarded unchanged to Matplotlib.
 
         Returns
         -------
-        object
-            Matplotlib artist returned by ``ThreeDimension.create``.
+        mpl_toolkits.mplot3d.art3d.Path3DCollection
+            3D scatter artist returned by Matplotlib.
 
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from hrtfpykit.plots.layouts import Layout_1
-        >>> figure = Figure(Layout_1(), projection="3d")
-        >>> ax = figure.get_ax("main")
-        >>> _ = figure.create_three_dimension(ax=ax, x=np.array([0.0]), y=np.array([0.0]), z=np.array([1.0]))
+        Raises
+        ------
+        ValueError
+            If ax is not a 3D projection axis.
+
         """
         return ThreeDimension.create(
             ax=ax,

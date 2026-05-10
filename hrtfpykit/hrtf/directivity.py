@@ -18,79 +18,81 @@ def ctf_from_hrtf(
     magnitude_average: str = "log",
     attenuation: float | None = None,
 ) -> "HRTF":
-    """Compute a common transfer function (CTF) from an HRTF object.
+    """Estimate a common transfer function from an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
 
-    The CTF is derived by collapsing the source axis of the input HRTF into a
-    single common spectral response for each ear. The resulting magnitude is
-    then converted to a minimum-phase transfer function and returned as a new
-    HRTF object for compatibility with the rest of the HRTF API. The returned
-    TF keeps the FFT grid of the input HRTF, but the returned IR is cropped or
-    zero-padded so that its length matches ``hrtf.IR.ir_length``.
+    A common transfer function (CTF) describes the source-independent spectral
+    component of an HRTF. This function estimates that component by averaging
+    the magnitude response over the source axis, reconstructing a
+    minimum-phase response from the averaged magnitude, and returning the
+    result as a new :class:`~hrtfpykit.hrtf.hrtf.HRTF` instance. The output keeps a singleton source axis
+    so it can still be used with the same plotting, transformation, and SOFA
+    synchronization workflows as ordinary :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects.
+
+    The computation is performed on :attr:`~hrtfpykit.hrtf.hrtf.HRTF.TF`. If
+    :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is available, its
+    final-axis length is treated as the reference HRIR support:
+    the reconstructed CTF impulse response is cropped or zero-padded to that
+    length and the TF is rebuilt on the original FFT grid. If no IR values are
+    available, the inverse-transform length implied by the TF grid is kept.
 
     Parameters
     ----------
-    hrtf : HRTF
-        Input HRTF object. Its TF data and source geometry are used to compute
-        the CTF.
+    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        Input :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` supplies the
+        complex transfer functions,
+        :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`
+        supplies the active frequency grid, and
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources` supplies source geometry when
+        diffuse-field weighting is requested.
     weights : bool, optional
-        If ``False``, all source positions contribute equally. If ``True``,
-        diffuse-field weights are derived internally from the HRTF source
-        positions using spherical Voronoi areas.
+        If False, all source positions contribute equally. If True,
+        source weights are derived from the spherical Voronoi area associated
+        with each source direction. Weighted estimation is useful for
+        irregular measurement grids where equal source weights would
+        over-represent densely sampled regions.
     magnitude_average : {"log", "linear"}, optional
-        Rule used to average source magnitudes before the minimum-phase
-        reconstruction. ``"log"`` computes a log-magnitude average
-        (geometric mean in linear magnitude). ``"linear"`` computes a direct
-        linear-magnitude average (arithmetic mean).
+        Averaging rule applied to the source magnitudes. "log" averages
+        log magnitudes, which is equivalent to a geometric mean in linear
+        magnitude. "linear" averages linear magnitudes directly, which is
+        equivalent to an arithmetic mean.
     attenuation : float | None, optional
         Optional attenuation in dB applied to the CTF magnitude before the
-        minimum-phase reconstruction. If ``None``, no attenuation is applied.
+        minimum-phase reconstruction. If None, the averaged magnitude is
+        used without additional attenuation.
 
     Returns
     -------
     HRTF
-        New HRTF object containing the CTF. The output keeps a singleton
-        source axis for compatibility, so a typical binaural output has
-        ``TF.values.shape == (1, 2, F)`` and
-        ``IR.values.shape == (1, 2, hrtf.IR.ir_length)``.
+        New :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the CTF. For a typical binaural input with
+        TF.values.shape == (M, 2, F), the output uses
+        TF.values.shape == (1, 2, F) and a matching singleton-source IR
+        representation.
 
-    Design Notes
-    ------------
-    - The CTF is estimated in the frequency domain, so its inverse FFT length
-      is naturally tied to ``TF.frequency_bins`` and therefore to the active
-      FFT grid.
-    - A larger FFT length increases spectral sampling density, but it does not
-      create additional physical HRIR information. It only changes how finely
-      the same spectrum is sampled.
-    - For that reason, this function does not expose the raw inverse-FFT
-      length as the final ``IR.ir_length``. Instead, it treats
-      ``hrtf.IR.ir_length`` as the time-domain reference support.
-    - In this API that reference IR is not optional. Loaded HRTF objects are
-      expected to provide a valid ``IR`` representation, and that IR length is
-      used as the design target for the returned CTF.
-    - If the inverse FFT produces a longer IR, the extra tail is cropped. If
-      it produces a shorter IR, zeros are appended at the end. The TF is then
-      resynchronized with the same ``fft_length``.
-    - This behavior is deliberate: ``TF.tf_length`` expresses FFT resolution,
-      while ``IR.ir_length`` expresses the intended HRIR support.
+    Raises
+    ------
+    ValueError
+        If hrtf does not expose the expected HRTF interface, TF data are
+        missing, empty, non-NumPy, or have fewer than two frequency bins, TF
+        frequency bins are missing, weights is not boolean,
+        magnitude_average is not "log" or "linear",
+        attenuation is not finite and non-negative, the TF grid contains
+        negative frequency bins, or diffuse-field weights cannot be derived
+        from the source grid.
 
-    Examples
-    --------
-    Derive a common transfer function and inspect its binaural magnitude:
+    Notes
+    -----
+    weights=True requires a spherical source grid with one position per TF
+    source, at least four unique directions, and strictly positive source
+    radii. The source radii are normalized to one before computing Voronoi
+    areas because the weighting represents directional coverage on the unit
+    sphere, not physical source distance.
 
-    >>> from hrtfpykit.hrtf.directivity import ctf_from_hrtf
-    >>> from hrtfpykit.hrtf import load_hrtf
-    >>> hrtf = load_hrtf("my_hrtf.sofa")
-    >>> ctf = ctf_from_hrtf(
-    ...     hrtf,
-    ...     weights=True,
-    ...     magnitude_average="linear",
-    ...     attenuation=20.0,
-    ... )
-    >>> ctf.plot_magnitude(
-    ...     positions=ctf.Sources.get_positions(angle_unit="degrees")[0, :2],
-    ...     ear="both",
-    ...     show=False,
-    ... )
+    The minimum-phase reconstruction currently assumes one-sided,
+    non-negative TF frequency bins. A larger FFT length increases spectral
+    sampling density but does not add physical HRIR support; when an input IR
+    is present, its length remains the time-domain reference for the returned
+    object.
     """
     try:
         tf = hrtf.TF
@@ -245,77 +247,69 @@ def dtf_from_hrtf(
     magnitude_average: str = "log",
     attenuation: float | None = None,
 ) -> "HRTF":
-    """Compute a directional transfer function (DTF) from an HRTF object.
+    """Estimate a directional transfer function from an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
 
-    The DTF is obtained by dividing the input HRTF by a common transfer
-    function (CTF) derived from the same HRTF. The CTF is internally computed
-    as a minimum-phase response with :func:`ctf_from_hrtf`, while the returned
-    DTF preserves the original source axis of the input HRTF. The returned TF
-    keeps the FFT grid of the input HRTF, but the returned IR is cropped or
-    zero-padded so that its length matches ``hrtf.IR.ir_length``.
+    A directional transfer function (DTF) isolates the source-dependent part
+    of an HRTF by removing an internally estimated common transfer function
+    (CTF). This function computes the CTF with
+    :func:`~hrtfpykit.hrtf.directivity.ctf_from_hrtf`, divides
+    the original complex TF values by that CTF on the active frequency grid,
+    and returns the directional result as a new :class:`~hrtfpykit.hrtf.hrtf.HRTF` instance.
+
+    The output preserves the source layout of the input object. If
+    :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is available, its
+    final-axis length is used as the reference HRIR support for the reconstructed DTF impulse responses. If no
+    IR values are available, the inverse-transform length implied by the TF
+    grid is kept.
 
     Parameters
     ----------
-    hrtf : HRTF
-        Input HRTF object. Its TF data are divided by the internally derived
-        CTF.
+    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        Input :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` supplies the
+        complex transfer functions,
+        :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`
+        supplies the active frequency grid, and
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources` supplies source geometry when
+        diffuse-field weighting is requested for the internal CTF.
     weights : bool, optional
-        If ``False``, all source positions contribute equally to the internal
-        CTF estimate. If ``True``, diffuse-field weights are derived internally
-        from the HRTF source positions using spherical Voronoi areas.
+        If False, all source positions contribute equally to the internal
+        CTF estimate. If True, source weights are derived from spherical
+        Voronoi areas. Weighted estimation is recommended for irregular source
+        grids when the DTF should represent a diffuse-field normalization
+        rather than the sampling density of the measurement set.
     magnitude_average : {"log", "linear"}, optional
-        Rule used to estimate the internal CTF magnitude before the DTF
-        division. ``"log"`` computes a log-magnitude average
-        (geometric mean in linear magnitude). ``"linear"`` computes a direct
-        linear-magnitude average (arithmetic mean).
+        Averaging rule used to estimate the internal CTF magnitude before the
+        DTF division. "log" averages log magnitudes, which is equivalent
+        to a geometric mean in linear magnitude. "linear" averages linear
+        magnitudes directly, which is equivalent to an arithmetic mean.
     attenuation : float | None, optional
-        Optional attenuation in dB applied to the DTF after the CTF division.
-        If ``None``, no attenuation is applied.
+        Optional attenuation in dB applied after the HRTF is divided by the
+        internal CTF. If None, the DTF magnitude is not attenuated.
 
     Returns
     -------
     HRTF
-        New HRTF object containing the DTF. The output preserves the source
-        layout of the input HRTF, so a typical binaural output keeps
-        ``TF.values.shape == (M, 2, F)`` and
-        ``IR.values.shape == (M, 2, hrtf.IR.ir_length)``.
+        New :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the DTF. For a typical binaural input with
+        TF.values.shape == (M, 2, F), the output keeps the same source and
+        ear layout and returns DTF values on the same frequency grid.
 
-    Design Notes
-    ------------
-    - The DTF division is carried out on the active TF grid, so the raw
-      inverse FFT would otherwise return an IR length implied only by
-      ``TF.frequency_bins``.
-    - That raw inverse-FFT length is not treated as the final DTF support,
-      because changing FFT length changes spectral resolution, not the amount
-      of meaningful time-domain HRTF information.
-    - By design, ``hrtf.IR.ir_length`` is the reference time-domain support
-      for the returned DTF.
-    - In this API that reference IR is not optional. Loaded HRTF objects are
-      expected to provide a valid ``IR`` representation, and that IR length is
-      used as the design target for the returned DTF.
-    - If the inverse FFT produces a longer IR, the extra tail is cropped. If
-      it produces a shorter IR, zeros are appended at the end. The TF is then
-      recomputed with the same ``fft_length`` so the spectral grid stays
-      unchanged.
+    Raises
+    ------
+    ValueError
+        If hrtf does not expose the expected HRTF interface, TF data are
+        missing, empty, non-NumPy, or have fewer than two frequency bins, TF
+        frequency bins are missing, attenuation is not finite and
+        non-negative, or the internal CTF computation fails because weighting,
+        averaging, source geometry, or frequency-bin requirements are not met.
 
-    Examples
-    --------
-    Remove the common transfer component and compare two canonical directions:
-
-    >>> from hrtfpykit.hrtf.directivity import dtf_from_hrtf
-    >>> from hrtfpykit.hrtf import load_hrtf
-    >>> hrtf = load_hrtf("my_hrtf.sofa")
-    >>> dtf = dtf_from_hrtf(
-    ...     hrtf,
-    ...     weights=True,
-    ...     magnitude_average="linear",
-    ...     attenuation=20.0,
-    ... )
-    >>> dtf.plot_magnitude(
-    ...     positions=["front", "left"],
-    ...     ear="both",
-    ...     show=False,
-    ... )
+    Notes
+    -----
+    The internal CTF is computed without attenuation and the optional
+    attenuation value is applied only to the final DTF. During the TF
+    division, CTF bins with vanishing magnitude are replaced by the smallest
+    positive floating-point magnitude with the same phase, preventing numerical
+    division by zero while keeping phase continuity.
     """
     try:
         tf = hrtf.TF
@@ -407,66 +401,59 @@ def hrtf_from_dtf_and_ctf(
     dtf: "HRTF",
     ctf: "HRTF",
 ) -> "HRTF":
-    """Reconstruct an HRTF from a DTF and a CTF.
+    """Reconstruct an HRTF from directional and common components.
 
-    The reconstruction is performed in the frequency domain by multiplying the
-    directional transfer function (DTF) by the common transfer function (CTF).
-    The returned object keeps the source layout of the DTF input and rebuilds
-    its IR representation from the reconstructed TF. The reconstructed TF keeps
-    the active FFT grid, but the reconstructed IR is cropped or zero-padded so
-    that its length matches ``dtf.IR.ir_length``.
+    This function combines a directional transfer function (DTF) and a common
+    transfer function (CTF) by multiplying their complex TF values on a shared
+    frequency grid. It is the inverse operation for workflows that decompose an
+    HRTF into source-dependent and source-independent components with
+    :func:`~hrtfpykit.hrtf.directivity.dtf_from_hrtf` and
+    :func:`~hrtfpykit.hrtf.directivity.ctf_from_hrtf`.
+
+    The returned object is cloned from dtf so the DTF source layout,
+    metadata, and HRTF interface remain the reference. If
+    :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is available, its
+    final-axis length is used as the reference HRIR support for
+    the reconstructed impulse responses. If no DTF IR values are available,
+    the inverse-transform length implied by the TF grid is kept.
 
     Parameters
     ----------
     dtf : HRTF
-        HRTF object containing the directional transfer function. Its source
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the directional transfer function. Its
+        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` define the directional spectral component, its
+        :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` define the output frequency grid, and its source
         layout defines the source layout of the reconstructed HRTF.
     ctf : HRTF
-        HRTF object containing the common transfer function. It is typically a
-        singleton-source compatibility object produced by
-        :func:`ctf_from_hrtf`.
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the common transfer function. It is typically
+        the singleton-source compatibility object produced by
+        :func:`~hrtfpykit.hrtf.directivity.ctf_from_hrtf`, but any CTF-like HRTF can be used when its
+        leading TF dimensions broadcast to the DTF layout without expanding
+        that layout.
 
     Returns
     -------
     HRTF
-        New HRTF object containing the reconstructed transfer function and
-        impulse response. The reconstructed source layout follows the DTF, and
-        the reconstructed IR length follows ``dtf.IR.ir_length``.
+        New :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the reconstructed transfer function and
+        impulse response. The source layout follows dtf. The TF frequency
+        grid follows :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` and must match the CTF grid.
 
-    Design Notes
-    ------------
-    - The multiplication ``DTF * CTF`` is performed on the TF grid, so the raw
-      inverse FFT is controlled by ``TF.frequency_bins`` and ``fft_length``.
-    - As in ``ctf_from_hrtf`` and ``dtf_from_hrtf``, that raw inverse-FFT
-      length is not considered authoritative for the final HRIR support.
-    - By design, the DTF is the reference object for reconstruction: it
-      defines the directional layout and also the intended ``IR.ir_length``.
-    - In this API that DTF IR is not optional. It is the explicit time-domain
-      reference used to size the reconstructed HRTF.
-    - If the inverse FFT produces a longer IR, the extra tail is cropped. If
-      it produces a shorter IR, zeros are appended at the end. The TF is then
-      recomputed with the same ``fft_length`` so the reconstruction keeps the
-      chosen spectral resolution without silently changing HRIR support.
+    Raises
+    ------
+    ValueError
+        If either input does not expose the expected HRTF interface, TF data
+        are missing, empty, non-NumPy, or have fewer than two frequency bins,
+        frequency bins are missing or do not match, TF lengths differ, or the
+        CTF leading dimensions cannot broadcast to the DTF leading dimensions
+        without expanding the DTF layout.
 
-    Examples
-    --------
-    Reconstruct an HRTF after separate CTF and DTF analysis:
-
-    >>> from hrtfpykit.hrtf.directivity import (
-    ...     ctf_from_hrtf,
-    ...     dtf_from_hrtf,
-    ...     hrtf_from_dtf_and_ctf,
-    ... )
-    >>> from hrtfpykit.hrtf import load_hrtf
-    >>> hrtf = load_hrtf("my_hrtf.sofa")
-    >>> dtf = dtf_from_hrtf(hrtf)
-    >>> ctf = ctf_from_hrtf(hrtf)
-    >>> hrtf_reconstructed = hrtf_from_dtf_and_ctf(dtf, ctf)
-    >>> hrtf_reconstructed.plot_magnitude(
-    ...     positions=["front", "left"],
-    ...     ear="both",
-    ...     show=False,
-    ... )
+    Notes
+    -----
+    The DTF is the reference object for reconstruction. Its source geometry and
+    metadata are preserved through cloning, while only TF and IR values are
+    replaced by the reconstructed data. If a reference DTF IR length is
+    available, reconstructed HRIRs are cropped or zero-padded to that support
+    and the TF is rebuilt with :attr:`~hrtfpykit.hrtf.hrtf.HRTF.fft_length`.
     """
     try:
         dtf_tf = dtf.TF

@@ -16,28 +16,45 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class DatasetAcousticContextPlan:
-    """Store acoustic context derived from the selected HRTF resources.
+    """Immutable acoustic-axis plan produced during dataset construction.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.acoustic_context.DatasetAcousticContextPlan` is
+    the data transfer object returned by
+    :meth:`~hrtfpykit.datasets.acoustic_context.DatasetAcousticContext.build`
+    and consumed by :class:`~hrtfpykit.datasets.build.DatasetBuilder`. It
+    separates the full acoustic context discovered from a representative HRTF
+    resource from the subsets that participate in row generation. This lets
+    dataset properties expose both the complete source/frequency/sample axes and
+    the smaller selected axes requested by specs.
+
+    Full context fields such as "positions", "frequency_bins", and
+    "sample_indices" describe the selected dataset resource as a whole. Selected
+    fields such as "selected_position_indices" and
+    "selected_frequency_indices" describe the axes that expand dataset rows when
+    "index_by" includes "position", "frequency", or "samples".
+
+    Attributes
     ----------
     sample_rate : float or None
-        Dataset-level sample rate.
-    positions, azimuth_angles, elevation_angles : numpy.ndarray or None
-        Full source-position context.
-    frequency_bins, sample_indices : numpy.ndarray or None
-        Frequency and time-sample context.
-    selected_position_indices, selected_frequency_indices, selected_sample_indices : tuple of int
-        Indices selected by specs for row generation.
+        Dataset-level sample rate inferred from the representative subject HRTF.
+    positions : numpy.ndarray or None
+        Full source-position grid from the representative HRTF in degrees.
+    azimuth_angles, elevation_angles : numpy.ndarray or None
+        Unique azimuth and elevation angles available in the full source grid.
+    frequency_bins : numpy.ndarray or None
+        Full frequency-bin axis from the representative HRTF, when available.
+    sample_indices : numpy.ndarray or None
+        Full time-sample index axis from the representative HRIR data.
+    selected_position_indices : tuple of int
+        Source-position indices selected by position-indexed specs.
     selected_azimuth_angles, selected_elevation_angles : numpy.ndarray or None
-        Angles corresponding to selected positions.
+        Unique azimuth and elevation angles for selected_position_indices.
+    selected_frequency_indices : tuple of int
+        Frequency-bin indices selected by frequency-indexed specs.
+    selected_sample_indices : tuple of int
+        Time-sample indices selected by sample-indexed specs.
     spec_position_indices : tuple
-        Per-spec position selections keyed by spec identity.
-
-    Returns
-    -------
-    DatasetAcousticContextPlan
-        Immutable acoustic context plan consumed by
-    ``DatasetBuilder``.
+        Per-spec position selections stored as (id(spec), indices) pairs.
 
     """
     sample_rate: float | None
@@ -55,10 +72,20 @@ class DatasetAcousticContextPlan:
 
 
 class DatasetAcousticContext:
-    """Resolve acoustic axes and selected position context for dataset specs.
+    """Resolve acoustic axes and selected row context for dataset specs.
 
-    This utility derives sample rate, positions, frequency bins, sample indices,
-    selected axes, and per-spec position mappings during dataset construction.
+    :class:`~hrtfpykit.datasets.acoustic_context.DatasetAcousticContext` is the
+    construction-time utility that inspects a representative selected-subject
+    HRTF object and turns acoustic specs into dataset axes. It derives the
+    sample rate, source positions, frequency bins, sample indices, selected row
+    axes, selected angle summaries, and per-spec position mappings used by the
+    value selectors.
+
+    The utility is intentionally separate from
+    :class:`~hrtfpykit.datasets.base.BaseDataset` and
+    :class:`~hrtfpykit.datasets.build.DatasetBuilder`. The builder orchestrates
+    dataset construction, while this class handles acoustic consistency checks
+    for HRTF, ITD, ILD, and spherical-harmonic specs.
     """
 
     @staticmethod
@@ -67,27 +94,49 @@ class DatasetAcousticContext:
         plane: str | tuple[object, ...] | dict[str, object] | None,
         hrtf: "HRTF",
     ) -> list[int]:
-        """Resolve explicit or plane-based source position indices for one acoustic spec.
+        """Resolve source-position indices for one position-selectable spec.
 
-        The resolver accepts either direct position indices or a named plane selector,
-        then converts that request into concrete source indices from the sample HRTF
-        source grid. It rejects ambiguous combinations, such as a plane selector mixed
-        with custom position indices, so all specs share a clear position-selection
-        contract.
+        The resolver accepts either explicit position indices or a plane selector
+        and converts the request into concrete source indices from the sample HRTF
+        source grid. A plane selector can be expressed as a string, a tuple, or a
+        dictionary. Plane selection is exclusive with custom positions because
+        the dataset needs one unambiguous position subset for each acoustic spec.
+
+        Supported plane names are "horizontal", "median", and
+        "frontal". A string selector uses the default plane angle: 0
+        degrees for horizontal and median planes, and 90 degrees for frontal
+        planes. Tuple selectors use (plane, angle) or
+        (plane, angle, angle_unit). Dictionary selectors read "plane" and
+        optionally "angle" or "plane_angle" plus "angle_unit".
 
         Parameters
         ----------
         positions : str or sequence of int
-            Explicit position selection or ``'all'``.
+            Explicit position selection or "all". Custom indices are valid
+            only when plane is None.
         plane : str, tuple, dict, or None
-            Optional horizontal, median, or frontal plane selector.
-        hrtf : HRTF
-            HRTF object used to inspect source positions.
+            Optional plane selector used instead of explicit position indices.
+        hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used to inspect available
+            source positions and resolve plane membership.
 
         Returns
         -------
         list of int
-            Source position indices selected for a spec.
+            Source-position indices selected for the spec.
+
+        Raises
+        ------
+        ValueError
+            If custom positions are combined with a plane selector, if a tuple
+            plane selector has an invalid shape, if the plane name is unsupported,
+            or if delegated position/plane sanitization rejects the request.
+
+        Notes
+        -----
+        Plane selection uses the same HRTF plane helpers exposed by
+        :mod:`~hrtfpykit.hrtf.planes`, so indices refer to the real nearest plane
+        in the HRTF source grid rather than to an idealized analytical grid.
 
         """
         position_count = int(hrtf.Sources.get_positions().shape[0])
@@ -139,22 +188,53 @@ class DatasetAcousticContext:
     def build(cls, dataset: "BaseDataset") -> DatasetAcousticContextPlan:
         """Build acoustic context for a constructed dataset state.
 
-        This method inspects one available subject HRTF to derive dataset-level
-        acoustic metadata and validates that all indexed acoustic specs agree on
-        shared row axes. It separates full dataset context from selected context so
-        public properties can report both the original resource grid and the spec-
-        selected subset.
+        The build step inspects one selected subject HRTF to derive dataset-level
+        acoustic metadata and to validate the row axes requested by acoustic specs.
+        It separates full resource context from selected row context so dataset
+        properties can report the original source grid, frequency bins, and sample
+        axis alongside the subsets used by indexed rows.
+
+        HRTF, ITD, and ILD specs can select positions directly or through planes.
+        When any of those specs are position-indexed, all position-indexed specs
+        must select the same position axis because
+        :class:`~hrtfpykit.datasets.base.BaseDataset` builds one shared row table.
+        Frequency-indexed specs must agree on the number of frequency bins, and
+        sample-indexed specs must agree on the number of HRIR samples for the
+        same reason.
+
+        If the dataset contains no acoustic specs, the method returns an empty
+        plan without loading an HRTF. This allows metadata-, mesh-, image-, or
+        video-only datasets to use the same construction pipeline.
 
         Parameters
         ----------
-        dataset : BaseDataset
-            Dataset with resources, specs, and selected subjects initialized.
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
+            Dataset with config, specs, resource paths, selected subjects, cache,
+            and split state already initialized by
+            :class:`~hrtfpykit.datasets.build.DatasetBuilder`.
 
         Returns
         -------
         DatasetAcousticContextPlan
-            Acoustic context used by state assignment and row
-        generation.
+            Acoustic context used by state assignment and row generation.
+
+        Raises
+        ------
+        ValueError
+            If position-indexed specs select different position axes, if
+            frequency-indexed specs disagree on frequency-bin count, if a
+            frequency-indexed HRTF or SH spec lacks frequency bins, if
+            sample-indexed specs disagree on sample count, or if delegated HRTF
+            loading and plane resolution fail.
+        IndexError
+            If acoustic specs are present but no subject was selected for the
+            dataset split.
+
+        Notes
+        -----
+        The representative subject is dataset._state.selected_subjects[0].
+        The current implementation assumes validated dataset resources share the
+        same acoustic axes across selected subjects.
 
         """
         state = dataset._state

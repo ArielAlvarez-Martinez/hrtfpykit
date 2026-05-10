@@ -10,36 +10,44 @@ if TYPE_CHECKING:
 def get_position_queries(
     positions: np.ndarray | list | tuple | str,
 ) -> list[np.ndarray | str]:
-    """Normalize one or more position queries.
+    """Normalize user-facing position queries into a predictable list.
+
+    Position queries are accepted throughout hrtfpykit by source selection,
+    plotting, metrics, and spherical-harmonic helpers. This function converts
+    those flexible inputs into a uniform list while preserving the order in
+    which the caller provided them. Named positions are returned as stripped,
+    lowercase strings. Numeric positions are converted to floating-point
+    arrays and may contain either angular coordinates only, (a, b), or a
+    full coordinate triplet, (a, b, r).
 
     Parameters
     ----------
     positions : np.ndarray | list | tuple | str
-        Position query or collection of queries. Each numeric query must have
-        shape ``(2,)`` or ``(3,)``. String queries are normalized to lowercase.
+        Single query or collection of queries. Accepted forms include a named
+        query such as "front", a single numeric position with shape
+        (2,) or (3,), a numeric array with shape (K, 2) or
+        (K, 3), a sequence of named queries, or a mixed sequence containing
+        named and numeric queries.
 
     Returns
     -------
     list[np.ndarray | str]
-        Normalized list of queries, where numeric entries are returned as
-        ``np.ndarray`` and string entries are returned as lowercase strings.
+        Normalized position queries. String entries are stripped and
+        lowercased. Numeric entries are returned as float arrays with
+        shape (2,) or (3,).
 
-    Examples
-    --------
-    Normalize one named query:
+    Raises
+    ------
+    ValueError
+        If an empty one-dimensional collection is provided, or if a numeric
+        query does not have shape (2,), (3,), (K, 2), or
+        (K, 3).
 
-    >>> get_position_queries("front")
-    ['front']
-
-    Normalize one numeric query:
-
-    >>> get_position_queries([0.0, 0.0])
-    [array([0., 0.])]
-
-    Normalize multiple numeric queries:
-
-    >>> get_position_queries([[0.0, 0.0], [90.0, 0.0]])
-    [array([0., 0.]), array([90.,  0.])]
+    Notes
+    -----
+    This function only normalizes query structure. It does not check whether a
+    named query exists in a source grid, whether a numeric position is finite,
+    or whether the position belongs to a specific coordinate system.
     """
     error_message = "positions must have shape (2,), (3,), (K, 2), or (K, 3)"
     accepted_lengths = {2, 3}
@@ -103,7 +111,15 @@ def get_position_queries(
 def get_named_positions(
     angle_unit: str = "degrees",
 ) -> dict[str, np.ndarray]:
-    """Return canonical named positions in spherical coordinates.
+    """Return canonical horizontal named positions.
+
+    The returned positions are the built-in aliases used by hrtfpykit when a
+    caller requests directions such as "front" or "left". They are
+    expressed as spherical angle pairs (azimuth, elevation) without an
+    explicit radius. The convention matches the rest of the HRTF source-grid
+    code: front is azimuth 0, left is 90, back is 180, right is
+    270, and all four aliases lie on the horizontal plane with elevation
+    0.
 
     Parameters
     ----------
@@ -113,20 +129,20 @@ def get_named_positions(
     Returns
     -------
     dict[str, np.ndarray]
-        Mapping from ``{"front", "left", "back", "right"}`` to spherical
-        ``(azimuth, elevation)`` position arrays.
+        Mapping from {"front", "left", "back", "right"} to spherical
+        (azimuth, elevation) position arrays.
 
-    Examples
-    --------
-    Look up the canonical front direction:
+    Raises
+    ------
+    ValueError
+        If angle_unit is not "degrees" or "radians".
 
-    >>> get_named_positions()["front"]
-    array([0., 0.])
-
-    Look up the left direction in radians:
-
-    >>> get_named_positions(angle_unit="radians")["left"]
-    array([1.57079633, 0.        ])
+    Notes
+    -----
+    Radius is intentionally omitted because these aliases represent directions
+    rather than physical measurement distances. Callers that need full
+    spherical coordinates can append the radius appropriate for their source
+    grid before matching.
     """
     unit = str(angle_unit).strip().lower()
     if unit not in {"degrees", "radians"}:
@@ -150,39 +166,50 @@ def get_position_alias(
     coordinate_system: str = "spherical",
     angle_unit: str = "degrees",
 ) -> str | None:
-    """Return the canonical alias of a horizontal cardinal position.
+    """Resolve a position to a built-in horizontal alias when possible.
+
+    This helper maps positions onto the canonical names returned by
+    :func:`~hrtfpykit.hrtf.coordinates.get_named_positions`. It is used by plot titles and other
+    user-facing labels to display stable names for exact cardinal directions.
+    Spherical inputs may be angle-only (2,) positions or full (3,)
+    positions; the radius component is ignored for alias matching. Cartesian
+    inputs must be full (x, y, z) triplets. Lateral-polar inputs are
+    converted through the lateral-polar conversion path, so use full
+    (lateral, polar, radius) triplets for that coordinate system.
 
     Parameters
     ----------
     position : np.ndarray | list[float] | tuple[float, ...]
-        Position to evaluate.
+        Position to evaluate. Shape must be (3,) for cartesian and
+        lateral-polar inputs. Spherical inputs may use shape (2,) or
+        (3,).
     coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
-        Coordinate system used by ``position``.
+        Coordinate system used by position.
     angle_unit : {"degrees", "radians"}, default="degrees"
-        Angular unit for spherical and lateral-polar inputs.
+        Angular unit for spherical and lateral-polar inputs and for the
+        returned internal comparison grid.
 
     Returns
     -------
-    str
-        | None
-        One of ``{"front", "left", "back", "right"}`` when the position
-        matches a canonical horizontal cardinal direction, otherwise ``None``.
+    str | None
+        One of {"front", "left", "back", "right"} when the position
+        matches a canonical horizontal cardinal direction. Returns None for
+        valid positions that are not on those four horizontal directions.
 
-    Examples
-    --------
-    Resolve the front alias from spherical coordinates:
+    Raises
+    ------
+    ValueError
+        If coordinate_system or angle_unit is unsupported, if the input
+        shape is invalid for the coordinate system, if the coordinate
+        conversion fails, or if azimuth/elevation values are not finite.
 
-    >>> get_position_alias([0.0, 0.0])
-    'front'
-
-    Resolve the left alias from spherical coordinates:
-
-    >>> get_position_alias([90.0, 0.0])
-    'left'
-
-    Return ``None`` for a non-cardinal direction:
-
-    >>> get_position_alias([0.0, 30.0])
+    Notes
+    -----
+    Matching uses a small absolute tolerance and wraps azimuth before
+    comparison, so equivalent angles such as 0 and 360 degrees resolve
+    to the same alias. Elevation must be approximately zero; elevated or
+    depressed directions are valid positions but do not receive a cardinal
+    alias.
     """
     system = str(coordinate_system).strip().lower()
     if system not in {"spherical", "cartesian", "lateral-polar"}:
@@ -243,30 +270,46 @@ def get_spherical_positions(
     sources: "Sources",
     angle_unit: str = "degrees",
 ) -> np.ndarray:
-    """Return a source grid expressed in spherical coordinates.
+    """Return an HRTF source grid expressed in spherical coordinates.
+
+    :class:`~hrtfpykit.hrtf.sources.Sources` objects may expose their grid in
+    spherical, cartesian, or lateral-polar coordinates depending on
+    :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`. This helper normalizes that view to spherical
+    (azimuth, elevation, radius) coordinates so algorithms such as
+    metrics, spherical harmonics, plane extraction, and diffuse-field
+    weighting can work from a consistent representation.
 
     Parameters
     ----------
     sources : Sources
-        Source-grid view used to read and convert positions.
+        Source-grid manager attached to an :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        object. The object must provide
+        :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` and
+        :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`.
     angle_unit : {"degrees", "radians"}, default="degrees"
-        Angular unit used for the returned azimuth and elevation values.
+        Angular unit used for returned azimuth and elevation values and for
+        angular conversions performed while normalizing the grid.
 
     Returns
     -------
     np.ndarray
-        Source positions with shape ``(N, 3)`` in spherical
-        ``(azimuth, elevation, radius)`` coordinates.
+        Source positions with shape (N, 3) in spherical
+        (azimuth, elevation, radius) coordinates.
 
-    Examples
-    --------
-    Load an HRTF and normalize its source grid to spherical coordinates:
+    Raises
+    ------
+    ValueError
+        If the source coordinate system is not "spherical",
+        "cartesian", or "lateral-polar", or if the needed coordinate
+        conversion rejects the source positions or angle unit.
 
-    >>> from hrtfpykit.hrtf import load_hrtf
-    >>> hrtf = load_hrtf("my_hrtf.sofa")
-    >>> spherical = get_spherical_positions(hrtf.Sources)
-    >>> spherical.shape[-1]
-    3
+    Notes
+    -----
+    The returned grid reflects the current
+    :class:`~hrtfpykit.hrtf.sources.Sources` view. If the owning HRTF has been
+    spatially selected,
+    :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` is responsible for
+    applying that selection before this function converts the coordinates.
     """
     positions = sources.get_positions(angle_unit=angle_unit)
     target_system = str(sources.source_coordinate_system).strip().lower()
@@ -300,6 +343,53 @@ def get_source_positions(
     coordinate_system: str,
     angle_unit: str = "degrees",
 ) -> np.ndarray:
+    """Return an HRTF source grid in a requested coordinate system.
+
+    This is the general source-grid conversion helper used by plotting,
+    comparison, and spherical-harmonic code. It reads the current positions
+    from a :class:`~hrtfpykit.hrtf.sources.Sources` manager, validates that
+    they form an (M, 3) grid, and converts them from
+    :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system` into the
+    requested target coordinate system when necessary.
+
+    Parameters
+    ----------
+    sources : Sources
+        Source-grid manager attached to an :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        object. The object must provide
+        :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` and
+        :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`.
+    coordinate_system : {"spherical", "cartesian", "lateral-polar"}
+        Coordinate system requested for the returned grid.
+    angle_unit : {"degrees", "radians"}, default="degrees"
+        Angular unit used when reading and returning spherical or
+        lateral-polar coordinates. Cartesian coordinates are unaffected by
+        angular units.
+
+    Returns
+    -------
+    np.ndarray
+        Source positions with shape (M, 3) in coordinate_system.
+        Columns are (azimuth, elevation, radius) for spherical,
+        (x, y, z) for cartesian, and (lateral, polar, radius) for
+        lateral-polar coordinates.
+
+    Raises
+    ------
+    ValueError
+        If source positions do not have shape (M, 3), if the current or
+        target coordinate system is unsupported, if angle_unit is
+        unsupported by a conversion, or if a coordinate array violates the
+        validation rules of the conversion being applied.
+
+    Notes
+    -----
+    The function delegates the initial read to
+    :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions`. That
+    means selected HRTF views and SOFA unit conversion are handled by
+    :class:`~hrtfpykit.hrtf.sources.Sources` before this function performs the
+    final coordinate-system normalization.
+    """
     source_positions = np.asarray(
         sources.get_positions(angle_unit=angle_unit),
         dtype=float,
@@ -351,38 +441,41 @@ def spherical_to_cartesian(
     coordinates: np.ndarray,
     angle_unit: str = "degrees",
 ) -> np.ndarray:
-    """Convert spherical coordinates into cartesian coordinates.
+    """Convert spherical HRTF coordinates into cartesian coordinates.
+
+    Spherical coordinates use the SOFA-style convention implemented across
+    hrtfpykit: azimuth rotates in the horizontal plane, elevation is
+    positive upward from the horizontal plane, and radius is the
+    non-negative distance from the listener. Cartesian output uses +x for
+    front, +y for left, and +z for up.
 
     Parameters
     ----------
     coordinates : np.ndarray
-        Array with shape ``(..., 3)`` containing spherical
-        ``(azimuth, elevation, radius)`` values.
+        Array with shape (..., 3) containing spherical
+        (azimuth, elevation, radius) values. Any leading dimensions are
+        preserved.
     angle_unit : {"degrees", "radians"}, default="degrees"
-        Angular unit of the azimuth and elevation values.
+        Angular unit of the input azimuth and elevation values.
 
     Returns
     -------
     np.ndarray
-        Array with shape ``(..., 3)`` containing cartesian ``(x, y, z)``
+        Array with shape (..., 3) containing cartesian (x, y, z)
         coordinates.
 
-    Examples
-    --------
-    Convert the front direction into cartesian coordinates:
+    Raises
+    ------
+    ValueError
+        If coordinates does not end with length 3, if angle_unit is
+        unsupported, if any radius is negative, or if elevation is outside
+        [-90, 90] degrees or [-pi/2, pi/2] radians.
 
-    >>> spherical_to_cartesian(np.array([[0.0, 0.0, 1.0]]))
-    array([[1., 0., 0.]])
-
-    Convert the left direction into cartesian coordinates:
-
-    >>> spherical_to_cartesian(np.array([[90.0, 0.0, 1.0]]))
-    array([[0., 1., 0.]])
-
-    Convert the zenith into cartesian coordinates:
-
-    >>> spherical_to_cartesian(np.array([[0.0, 90.0, 1.0]]))
-    array([[0., 0., 1.]])
+    Notes
+    -----
+    Azimuth is normalized modulo a full turn before conversion. This makes
+    equivalent directions such as -90 and 270 degrees produce the same
+    cartesian result.
     """
     spherical = np.asarray(coordinates, dtype=float)
     if spherical.shape[-1] != 3:
@@ -420,37 +513,40 @@ def cartesian_to_spherical(
     coordinates: np.ndarray,
     angle_unit: str = "degrees",
 ) -> np.ndarray:
-    """Convert cartesian coordinates into spherical coordinates.
+    """Convert cartesian HRTF coordinates into spherical coordinates.
+
+    Cartesian coordinates are interpreted with the hrtfpykit listener-centered
+    axes: +x points front, +y points left, and +z points up. The
+    returned spherical coordinates follow the SOFA-style
+    (azimuth, elevation, radius) convention used by :class:`~hrtfpykit.hrtf.sources.Sources` and the
+    HRTF processing helpers.
 
     Parameters
     ----------
     coordinates : np.ndarray
-        Array with shape ``(..., 3)`` containing cartesian ``(x, y, z)`` values.
+        Array with shape (..., 3) containing cartesian (x, y, z)
+        values. Any leading dimensions are preserved.
     angle_unit : {"degrees", "radians"}, default="degrees"
         Angular unit used for the returned azimuth and elevation values.
 
     Returns
     -------
     np.ndarray
-        Array with shape ``(..., 3)`` containing spherical
-        ``(azimuth, elevation, radius)`` coordinates.
+        Array with shape (..., 3) containing spherical
+        (azimuth, elevation, radius) coordinates.
 
-    Examples
-    --------
-    Convert the front cartesian point into spherical coordinates:
+    Raises
+    ------
+    ValueError
+        If coordinates does not end with length 3 or if
+        angle_unit is not "degrees" or "radians".
 
-    >>> cartesian_to_spherical(np.array([[1.0, 0.0, 0.0]]))
-    array([[0., 0., 1.]])
-
-    Convert the left cartesian point into spherical coordinates:
-
-    >>> cartesian_to_spherical(np.array([[0.0, 1.0, 0.0]]))
-    array([[90., 0., 1.]])
-
-    Convert the zenith cartesian point into spherical coordinates:
-
-    >>> cartesian_to_spherical(np.array([[0.0, 0.0, 1.0]]))
-    array([[0., 90., 1.]])
+    Notes
+    -----
+    Azimuth is normalized to [0, 360) degrees or [0, 2*pi) radians.
+    Elevation is measured from the horizontal plane. The zero vector is
+    converted deterministically to (0, 0, 0) because both arctan2 calls
+    receive zero-valued inputs.
     """
     cartesian = np.asarray(coordinates, dtype=float)
     if cartesian.shape[-1] != 3:
@@ -478,37 +574,42 @@ def cartesian_to_lateral_polar(
     coordinates: np.ndarray,
     angle_unit: str = "degrees",
 ) -> np.ndarray:
-    """Convert cartesian coordinates into lateral-polar coordinates.
+    """Convert cartesian HRTF coordinates into lateral-polar coordinates.
+
+    Lateral-polar coordinates represent each source as
+    (lateral, polar, radius). lateral is positive toward the left ear,
+    polar rotates in the median plane from the front direction, and
+    radius is the non-negative distance from the listener. Cartesian input
+    uses the same listener-centered axes as the rest of hrtfpykit:
+    +x front, +y left, and +z up.
 
     Parameters
     ----------
     coordinates : np.ndarray
-        Array with shape ``(..., 3)`` containing cartesian ``(x, y, z)`` values.
+        Array with shape (..., 3) containing cartesian (x, y, z)
+        values. Any leading dimensions are preserved.
     angle_unit : {"degrees", "radians"}, default="degrees"
         Angular unit used for the returned lateral and polar values.
 
     Returns
     -------
     np.ndarray
-        Array with shape ``(..., 3)`` containing lateral-polar
-        ``(lateral, polar, radius)`` coordinates.
+        Array with shape (..., 3) containing lateral-polar
+        (lateral, polar, radius) coordinates.
 
-    Examples
-    --------
-    Convert the front cartesian point into lateral-polar coordinates:
+    Raises
+    ------
+    ValueError
+        If coordinates does not end with length 3 or if
+        angle_unit is not "degrees" or "radians".
 
-    >>> cartesian_to_lateral_polar(np.array([[1.0, 0.0, 0.0]]))
-    array([[0., 0., 1.]])
-
-    Convert the zenith cartesian point into lateral-polar coordinates:
-
-    >>> cartesian_to_lateral_polar(np.array([[0.0, 0.0, 1.0]]))
-    array([[0., 90., 1.]])
-
-    Convert the left cartesian point into lateral-polar coordinates:
-
-    >>> cartesian_to_lateral_polar(np.array([[0.0, 1.0, 0.0]]))
-    array([[90., 0., 1.]])
+    Notes
+    -----
+    The returned lateral angle lies in [-90, 90] degrees or
+    [-pi/2, pi/2] radians. Polar is normalized to [-90, 270) degrees or
+    [-pi/2, 3*pi/2) radians. At zero radius and at the lateral poles,
+    polar is singular; this implementation returns polar = 0 for those
+    positions so downstream code receives deterministic coordinates.
     """
     cartesian = np.asarray(coordinates, dtype=float)
     if cartesian.shape[-1] != 3:
@@ -540,38 +641,41 @@ def lateral_polar_to_cartesian(
     coordinates: np.ndarray,
     angle_unit: str = "degrees",
 ) -> np.ndarray:
-    """Convert lateral-polar coordinates into cartesian coordinates.
+    """Convert lateral-polar HRTF coordinates into cartesian coordinates.
+
+    Lateral-polar input is interpreted as (lateral, polar, radius) where
+    lateral is positive left, polar rotates in the median plane from
+    the front direction, and radius is the distance from the listener. The
+    cartesian output uses +x for front, +y for left, and +z for up.
 
     Parameters
     ----------
     coordinates : np.ndarray
-        Array with shape ``(..., 3)`` containing
-        ``(lateral, polar, radius)`` values.
+        Array with shape (..., 3) containing
+        (lateral, polar, radius) values. Any leading dimensions are
+        preserved.
     angle_unit : {"degrees", "radians"}, default="degrees"
         Angular unit of the lateral and polar values.
 
     Returns
     -------
     np.ndarray
-        Array with shape ``(..., 3)`` containing cartesian ``(x, y, z)``
+        Array with shape (..., 3) containing cartesian (x, y, z)
         coordinates.
 
-    Examples
-    --------
-    Convert the front lateral-polar point into cartesian coordinates:
+    Raises
+    ------
+    ValueError
+        If coordinates does not end with length 3, if angle_unit is
+        unsupported, if any radius is negative, or if lateral angle is outside
+        [-90, 90] degrees or [-pi/2, pi/2] radians.
 
-    >>> lateral_polar_to_cartesian(np.array([[0.0, 0.0, 1.0]]))
-    array([[1., 0., 0.]])
-
-    Convert the zenith lateral-polar point into cartesian coordinates:
-
-    >>> lateral_polar_to_cartesian(np.array([[0.0, 90.0, 1.0]]))
-    array([[0., 0., 1.]])
-
-    Convert the left lateral-polar point into cartesian coordinates:
-
-    >>> lateral_polar_to_cartesian(np.array([[90.0, 0.0, 1.0]]))
-    array([[0., 1., 0.]])
+    Notes
+    -----
+    Polar is normalized to [-90, 270) degrees or [-pi/2, 3*pi/2)
+    radians before conversion. This preserves equivalent polar directions
+    while keeping the lateral-polar convention consistent with
+    :func:`~hrtfpykit.hrtf.coordinates.cartesian_to_lateral_polar`.
     """
     lateral_polar = np.asarray(coordinates, dtype=float)
     if lateral_polar.shape[-1] != 3:
@@ -609,33 +713,40 @@ def spherical_to_lateral_polar(
     coordinates: np.ndarray,
     angle_unit: str = "degrees",
 ) -> np.ndarray:
-    """Convert spherical coordinates into lateral-polar coordinates.
+    """Convert spherical HRTF coordinates into lateral-polar coordinates.
+
+    This convenience conversion uses cartesian coordinates as the intermediate
+    representation. The input follows the SOFA-style spherical convention
+    (azimuth, elevation, radius) and the output follows the hrtfpykit
+    lateral-polar convention (lateral, polar, radius).
 
     Parameters
     ----------
     coordinates : np.ndarray
-        Array with shape ``(..., 3)`` containing spherical
-        ``(azimuth, elevation, radius)`` values.
+        Array with shape (..., 3) containing spherical
+        (azimuth, elevation, radius) values. Any leading dimensions are
+        preserved.
     angle_unit : {"degrees", "radians"}, default="degrees"
         Angular unit used for both the input and output angles.
 
     Returns
     -------
     np.ndarray
-        Array with shape ``(..., 3)`` containing lateral-polar
-        ``(lateral, polar, radius)`` coordinates.
+        Array with shape (..., 3) containing lateral-polar
+        (lateral, polar, radius) coordinates.
 
-    Examples
-    --------
-    Convert the front spherical direction into lateral-polar coordinates:
+    Raises
+    ------
+    ValueError
+        If the spherical input fails validation in
+        :func:`~hrtfpykit.hrtf.coordinates.spherical_to_cartesian`, or if the
+        intermediate cartesian data cannot be converted by
+        :func:`~hrtfpykit.hrtf.coordinates.cartesian_to_lateral_polar`.
 
-    >>> spherical_to_lateral_polar(np.array([[0.0, 0.0, 1.0]]))
-    array([[0., 0., 1.]])
-
-    Convert the left spherical direction into lateral-polar coordinates:
-
-    >>> spherical_to_lateral_polar(np.array([[90.0, 0.0, 1.0]]))
-    array([[90., 0., 1.]])
+    Notes
+    -----
+    The same angle unit is used for input and output. Azimuth and polar are
+    normalized by the underlying conversion functions.
     """
     cartesian = spherical_to_cartesian(coordinates, angle_unit=angle_unit)
     return cartesian_to_lateral_polar(cartesian, angle_unit=angle_unit)
@@ -645,33 +756,40 @@ def lateral_polar_to_spherical(
     coordinates: np.ndarray,
     angle_unit: str = "degrees",
 ) -> np.ndarray:
-    """Convert lateral-polar coordinates into spherical coordinates.
+    """Convert lateral-polar HRTF coordinates into spherical coordinates.
+
+    This convenience conversion uses cartesian coordinates as the intermediate
+    representation. The input follows the hrtfpykit lateral-polar convention
+    (lateral, polar, radius) and the output follows the SOFA-style
+    spherical convention (azimuth, elevation, radius).
 
     Parameters
     ----------
     coordinates : np.ndarray
-        Array with shape ``(..., 3)`` containing lateral-polar
-        ``(lateral, polar, radius)`` values.
+        Array with shape (..., 3) containing lateral-polar
+        (lateral, polar, radius) values. Any leading dimensions are
+        preserved.
     angle_unit : {"degrees", "radians"}, default="degrees"
         Angular unit used for both the input and output angles.
 
     Returns
     -------
     np.ndarray
-        Array with shape ``(..., 3)`` containing spherical
-        ``(azimuth, elevation, radius)`` coordinates.
+        Array with shape (..., 3) containing spherical
+        (azimuth, elevation, radius) coordinates.
 
-    Examples
-    --------
-    Convert the front lateral-polar direction back into spherical coordinates:
+    Raises
+    ------
+    ValueError
+        If the lateral-polar input fails validation in
+        :func:`~hrtfpykit.hrtf.coordinates.lateral_polar_to_cartesian`, or if the
+        intermediate cartesian data cannot be converted by
+        :func:`~hrtfpykit.hrtf.coordinates.cartesian_to_spherical`.
 
-    >>> lateral_polar_to_spherical(np.array([[0.0, 0.0, 1.0]]))
-    array([[0., 0., 1.]])
-
-    Convert the zenith lateral-polar direction back into spherical coordinates:
-
-    >>> lateral_polar_to_spherical(np.array([[0.0, 90.0, 1.0]]))
-    array([[0., 90., 1.]])
+    Notes
+    -----
+    The same angle unit is used for input and output. Polar and azimuth are
+    normalized by the underlying conversion functions.
     """
     cartesian = lateral_polar_to_cartesian(coordinates, angle_unit=angle_unit)
     return cartesian_to_spherical(cartesian, angle_unit=angle_unit)
@@ -683,35 +801,49 @@ def get_closest_position_index(
     coordinate_system: str = "cartesian",
     angle_unit: str = "degrees",
 ) -> int:
-    """Return the index of the exact or nearest query match in a coordinate grid.
+    """Return the index of the exact or nearest position in a source grid.
+
+    This helper resolves numeric position queries against an HRTF source grid.
+    It first returns the first exact match when one is available within a small
+    tolerance. Otherwise it returns the nearest candidate. Full 3-D queries are
+    compared in cartesian space so radius contributes to the distance. Angle
+    only spherical or lateral-polar queries are compared in angular space and
+    ignore radius.
 
     Parameters
     ----------
     query_position : np.ndarray | list[float] | tuple[float, ...]
-        Query coordinates. For spherical/lateral-polar, accepts ``(2,)`` angle-only
-        or ``(3,)`` full coordinates. For cartesian, requires ``(3,)``.
+        Query coordinates. For spherical and lateral-polar grids, accepts
+        (2,) angle-only queries or full (3,) coordinates. For
+        cartesian grids, requires a full (3,) coordinate.
     grid_positions : np.ndarray
-        Candidate grid in ``coordinate_system`` with shape ``(N, 3)``.
+        Candidate source grid in coordinate_system with shape (N, 3).
     coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="cartesian"
         Coordinate system used by both query and grid.
     angle_unit : {"degrees", "radians"}, default="degrees"
-        Angular unit for spherical/lateral-polar cases.
+        Angular unit for spherical and lateral-polar queries and grids.
 
     Returns
     -------
     int
-        Exact-match index when available; otherwise nearest-match index.
+        Index of the first exact match when available; otherwise the index of
+        the nearest candidate in grid_positions.
 
-    Examples
-    --------
-    Find the front direction inside a small spherical grid:
+    Raises
+    ------
+    ValueError
+        If coordinate_system or angle_unit is unsupported, if
+        grid_positions does not have shape (N, 3), if
+        query_position has an invalid shape for the coordinate system, if a
+        coordinate conversion rejects the query or grid values, or if no grid
+        candidate can be selected.
 
-    >>> get_closest_position_index(
-    ...     query_position=[0.0, 0.0],
-    ...     grid_positions=np.array([[0.0, 0.0, 1.0], [90.0, 0.0, 1.0]]),
-    ...     coordinate_system="spherical",
-    ... )
-    0
+    Notes
+    -----
+    For spherical angle-only queries, azimuth wraps around a full turn before
+    angular distance is measured. For lateral-polar angle-only queries, polar
+    wraps around a full turn. Full spherical and lateral-polar queries are
+    converted to cartesian coordinates before distance calculation.
     """
     system = str(coordinate_system).strip().lower()
     if system not in {"spherical", "cartesian", "lateral-polar"}:

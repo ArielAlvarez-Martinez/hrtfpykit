@@ -18,28 +18,62 @@ if TYPE_CHECKING:
 
 
 class Sources:
-    """Spatial-source view and source-grid utilities.
-
-    Notes
-    -----
-    Conventions implemented by this class:
-
-    - Spherical (SOFA-style): ``(azimuth, elevation, radius)`` with azimuth in
-      ``[0, 360)`` degrees (anticlockwise in horizontal plane), elevation in
-      ``[-90, 90]`` degrees (positive up), and non-negative radius.
-    - Lateral-polar: ``(lateral, polar, radius)``
-      with lateral in ``[-90, 90]`` degrees (positive left), polar normalized to
-      ``[-90, 270)`` degrees, and non-negative radius.
-    - Cartesian: ``(x, y, z)`` with ``+y`` as left and ``+z`` as up.
-
-    At lateral poles (``|lateral| = 90``) and at zero radius, polar is singular.
-    This implementation uses a deterministic placeholder ``polar = 0``.
-    """
-
     def __init__(
         self,
         hrtf: "HRTF | None" = None,
     ) -> None:
+        """Manage source positions, coordinate systems, and spatial selections.
+
+        :class:`~hrtfpykit.hrtf.sources.Sources` is the source-position
+        manager used by :class:`~hrtfpykit.hrtf.hrtf.HRTF`. It reads SOFA
+        "SourcePosition" values and their "SourcePosition:Type" and
+        "SourcePosition:Units" attributes from the owning
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object, converts positions on
+        demand, and resolves source-grid queries used by selection, metrics,
+        spherical harmonics, and plotting utilities.
+
+        The manager stores the target coordinate system in
+        :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`.
+        Changing that value changes how
+        :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` and query
+        methods expose positions; it does not rewrite the stored SOFA
+        "SourcePosition" array by itself. Spatial subsets created
+        through :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select` are also respected, so
+        returned arrays and matched indices refer to the current HRTF view rather than
+        necessarily to every source in the original SOFA file.
+
+        Notes
+        -----
+        Conventions implemented by this class:
+
+        - Spherical (SOFA-style): (azimuth, elevation, radius) with azimuth in
+          [0, 360) degrees (anticlockwise in horizontal plane), elevation in
+          [-90, 90] degrees (positive up), and non-negative radius.
+        - Lateral-polar: (lateral, polar, radius) with lateral in [-90, 90]
+          degrees (positive left), polar normalized to [-90, 270) degrees, and
+          non-negative radius.
+        - Cartesian: (x, y, z) with +y as left and +z as up.
+
+        At lateral poles (abs(lateral) == 90) and at zero radius, polar is singular.
+        This implementation uses a deterministic placeholder polar = 0.
+
+        Parameters
+        ----------
+        hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF` | None, default=None
+            Owning HRTF instance. Most user code obtains this object from
+            :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources`. A usable manager
+            requires an HRTF with a loaded
+            :class:`~hrtfpykit.sofa.sofa.SOFA` object containing
+            "SourcePosition" metadata.
+
+        Attributes
+        ----------
+        source_coordinate_system : str
+            Target coordinate system used by source-grid query methods.
+        _selected_indices : numpy.ndarray or None
+            Source-position indices retained by the current HRTF view after spatial
+            selection.
+        """
         self._hrtf = hrtf
         self.source_coordinate_system = self._hrtf.Sofa.VariableAttributes.get("SourcePosition:Type").value
         self._selected_indices: np.ndarray | None = None
@@ -48,22 +82,41 @@ class Sources:
         self,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
-        """Return source positions in the currently selected coordinate system.
+        """Return the current source grid in the configured coordinate system.
+
+        Positions are read from the owning :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        object's SOFA "SourcePosition" variable each time this method is
+        called. The SOFA coordinate system is taken from "SourcePosition:Type"
+        and converted to
+        :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`. If the owning HRTF has been
+        spatially selected, only the selected source rows are returned.
 
         Parameters
         ----------
         angle_unit : {"degrees", "radians"}, default="degrees"
-            Angular unit for angular coordinate systems.
+            Angular unit used for returned spherical or lateral-polar angles.
+            Cartesian coordinates are returned in their stored distance unit.
 
         Returns
         -------
         np.ndarray
-            Source grid with shape ``(N, 3)`` as float values.
+            Source-position array with shape (N, 3). The columns are
+            (azimuth, elevation, radius) for spherical,
+            (lateral, polar, radius) for lateral-polar, or (x, y, z)
+            for cartesian coordinates.
+
+        Raises
+        ------
+        ValueError
+            If angle_unit is unsupported, the source or target coordinate
+            system is unsupported, SOFA angular units cannot be interpreted,
+            or the requested conversion is not implemented.
 
         Notes
         -----
-        Source data are read from SOFA ``SourcePosition`` and converted to
-        ``self.source_coordinate_system``.
+        SOFA angular units are detected from the "SourcePosition:Units"
+        attribute. Angular source data stored in radians are converted through
+        cartesian coordinates when degree/radian conversion is required.
         """
         source_positions = self._hrtf.Sofa.Variables.get("SourcePosition").value
         source_system = self._hrtf.Sofa.VariableAttributes.get("SourcePosition:Type").value
@@ -192,17 +245,27 @@ class Sources:
         self,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
-        """Return unique source-grid azimuth angles.
+        """Return unique azimuth values available in the current source grid.
+
+        The source grid is first normalized to spherical coordinates. This
+        makes the result independent of the active source_coordinate_system
+        while still respecting any spatial subset selected on the owning HRTF.
 
         Parameters
         ----------
         angle_unit : {"degrees", "radians"}, default="degrees"
-            Angular unit used when reading positions and returning azimuth values.
+            Angular unit used for returned azimuth values.
 
         Returns
         -------
         np.ndarray
-            One-dimensional array of unique azimuth angles rounded to two decimals.
+            One-dimensional array of sorted unique azimuth angles rounded to
+            two decimals.
+
+        Raises
+        ------
+        ValueError
+            If positions cannot be read or converted to spherical coordinates.
 
         """
         spherical = get_spherical_positions(self, angle_unit=angle_unit)
@@ -213,17 +276,27 @@ class Sources:
         self,
         angle_unit: str = "degrees",
     ) -> np.ndarray:
-        """Return unique source-grid elevation angles.
+        """Return unique elevation values available in the current source grid.
+
+        The source grid is first normalized to spherical coordinates. This
+        makes the result independent of the active source_coordinate_system
+        while still respecting any spatial subset selected on the owning HRTF.
 
         Parameters
         ----------
         angle_unit : {"degrees", "radians"}, default="degrees"
-            Angular unit used when reading positions and returning elevation values.
+            Angular unit used for returned elevation values.
 
         Returns
         -------
         np.ndarray
-            One-dimensional array of unique elevation angles rounded to two decimals.
+            One-dimensional array of sorted unique elevation angles rounded to
+            two decimals.
+
+        Raises
+        ------
+        ValueError
+            If positions cannot be read or converted to spherical coordinates.
 
         """
         spherical = get_spherical_positions(self, angle_unit=angle_unit)
@@ -235,21 +308,35 @@ class Sources:
         azimuth: float,
         angle_unit: str = "degrees",
     ) -> tuple[np.ndarray, float]:
-        """Return available elevation angles for the nearest azimuth in the grid.
+        """Return elevations available at the nearest source-grid azimuth.
+
+        This method is useful for plane-based plotting and selection UIs where
+        a requested azimuth may not exist exactly in the measured source grid.
+        The azimuth match is circular, so values near 0 and 360
+        degrees, or 0 and 2*pi radians, are treated as neighbors.
 
         Parameters
         ----------
         azimuth : float
             Requested azimuth angle used to query the source grid.
         angle_unit : {"degrees", "radians"}, default="degrees"
-            Angular unit for ``azimuth`` and returned elevation values.
+            Angular unit for azimuth, returned elevations, and
+            real_azimuth.
 
         Returns
         -------
         tuple[np.ndarray, float]
-            ``(elevation_angles, real_azimuth)`` where ``elevation_angles`` is a
+            (elevation_angles, real_azimuth) where elevation_angles is a
             one-dimensional array of unique elevations available at the matched
-            azimuth, and ``real_azimuth`` is the actual azimuth selected from the grid.
+            azimuth, and real_azimuth is the actual azimuth selected from
+            the grid. Both outputs are rounded to two decimals.
+
+        Raises
+        ------
+        ValueError
+            If azimuth is boolean or non-finite, angle_unit is
+            unsupported, or positions cannot be read or converted to spherical
+            coordinates.
 
         """
         if isinstance(azimuth, bool):
@@ -284,22 +371,35 @@ class Sources:
         elevation: float,
         angle_unit: str = "degrees",
     ) -> tuple[np.ndarray, float]:
-        """Return available azimuth angles for the nearest elevation in the grid.
+        """Return azimuths available at the nearest source-grid elevation.
+
+        This method is useful for horizontal-plane workflows where the
+        requested elevation may not exist exactly in the measured source grid.
+        Elevation matching uses the nearest available numerical elevation in
+        spherical coordinates.
 
         Parameters
         ----------
         elevation : float
             Requested elevation angle used to query the source grid.
         angle_unit : {"degrees", "radians"}, default="degrees"
-            Angular unit for ``elevation`` and returned azimuth values.
+            Angular unit for elevation, returned azimuths, and
+            real_elevation.
 
         Returns
         -------
         tuple[np.ndarray, float]
-            ``(azimuth_angles, real_elevation)`` where ``azimuth_angles`` is a
+            (azimuth_angles, real_elevation) where azimuth_angles is a
             one-dimensional array of unique azimuths available at the matched
-            elevation, and ``real_elevation`` is the actual elevation selected
-            from the grid.
+            elevation, and real_elevation is the actual elevation selected
+            from the grid. Both outputs are rounded to two decimals.
+
+        Raises
+        ------
+        ValueError
+            If elevation is boolean or non-finite, angle_unit is
+            unsupported, or positions cannot be read or converted to spherical
+            coordinates.
 
         """
         if isinstance(elevation, bool):
@@ -330,22 +430,42 @@ class Sources:
         coordinate_system: str = "spherical",
         angle_unit: str = "degrees",
     ) -> tuple[int, np.ndarray]:
-        """Return matched source index and matched real position.
+        """Return the nearest source index and its resolved grid position.
+
+        The query is matched against the current source grid, including any
+        source subset already selected on the owning :class:`~hrtfpykit.hrtf.hrtf.HRTF` object. Numeric
+        positions are interpreted in coordinate_system. Named positions use
+        the canonical horizontal spherical aliases "front", "back",
+        "left", and "right" and are then returned in the requested
+        coordinate system.
 
         Parameters
         ----------
-        position : np.ndarray | list[float] | tuple[float, float, float]
-            Query position in ``coordinate_system``.
+        position : np.ndarray | list[float] | tuple[float, float, float] | str
+            Query position. Numeric spherical and lateral-polar queries may be
+            angle-only (2,) or full (3,) coordinates. Cartesian queries
+            must be (3,). String queries must be one of the supported named
+            positions.
         coordinate_system : {"spherical", "cartesian", "lateral-polar"}, default="spherical"
-            Coordinate system of ``position`` and returned ``real_position``.
+            Coordinate system of numeric position queries and returned
+            real_position.
         angle_unit : {"degrees", "radians"}, default="degrees"
             Angular unit for spherical/lateral-polar inputs and outputs.
 
         Returns
         -------
         tuple[int, np.ndarray]
-            ``(idx, real_position)`` where ``idx`` is the selected grid index and
-            ``real_position`` is the selected grid coordinate rounded to two decimals.
+            (idx, real_position) where idx is the nearest source index
+            in the current source view and real_position is the matched
+            grid coordinate rounded to two decimals in coordinate_system.
+
+        Raises
+        ------
+        ValueError
+            If the coordinate system or angle unit is unsupported, source
+            positions do not form an (N, 3) grid, a named position is
+            unknown, a query has an invalid shape, or the needed coordinate
+            conversion is unsupported.
         """
         system = str(coordinate_system).strip().lower()
         if system not in {"spherical", "cartesian", "lateral-polar"}:

@@ -15,30 +15,34 @@ def signal_duration(
 ) -> float:
     """Compute the duration of a time-domain signal.
 
+    Duration is derived from the length of the final axis. The function
+    accepts a raw NumPy array or an :class:`~hrtfpykit.hrtf.domain.IR` domain object, which makes it usable
+    for standalone signals and for HRTF/HRIR data stored inside an
+    :class:`~hrtfpykit.hrtf.domain.IR` container. Leading source or ear axes do
+    not affect the result.
+
     Parameters
     ----------
     signal : np.ndarray | IR
-        Time-domain array or ``IR`` object with ``.values``.
+        Time-domain samples or :class:`~hrtfpykit.hrtf.domain.IR` object with
+        :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`. The final axis is
+        interpreted as time samples.
     sample_rate : float | None, default=None
-        Sample rate in Hz. When ``signal`` is an ``IR`` object and this value
-        is omitted, ``IR.sample_rate`` is used.
+        Sample rate in hertz. Required for NumPy input. When signal is an
+        :class:`~hrtfpykit.hrtf.domain.IR` object and this value is omitted,
+        :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is used.
 
     Returns
     -------
     float
-        Duration in seconds.
+        Duration in seconds, computed from the final sample axis and
+        "sample_rate".
 
-    Examples
-    --------
-    Measure the duration of a mono signal:
-
-    >>> signal_duration(np.zeros(480), sample_rate=48000.0)
-    0.01
-
-    Measure the duration of a binaural signal:
-
-    >>> signal_duration(np.zeros((2, 960)), sample_rate=48000.0)
-    0.02
+    Raises
+    ------
+    ValueError
+        If signal data are missing, are not a NumPy array, have no sample
+        axis, or if no finite positive sample rate can be resolved.
     """
     if isinstance(signal, np.ndarray):
         signal_values = signal
@@ -73,23 +77,27 @@ def signal_duration(
 def magnitude(tf: np.ndarray | "TF") -> np.ndarray:
     """Return transfer-function magnitudes.
 
+    This is the basic magnitude accessor for frequency-domain HRTF data. It
+    accepts raw complex arrays and :class:`~hrtfpykit.hrtf.domain.TF` domain objects, and returns
+    numpy.abs of the resolved values without modifying the input.
+
     Parameters
     ----------
     tf : np.ndarray | TF
-        Frequency-domain array or ``TF`` object with ``.values``.
+        Frequency-domain transfer-function values or
+        :class:`~hrtfpykit.hrtf.domain.TF` object with
+        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
 
     Returns
     -------
     np.ndarray
-        Magnitude values computed as ``abs(tf)`` with the same shape as the
+        Magnitude values computed as abs(tf) with the same shape as the
         input.
 
-    Examples
-    --------
-    Compute the magnitude of a complex transfer function:
-
-    >>> magnitude(np.array([1.0 + 1.0j, 0.0 + 2.0j]))
-    array([1.41421356, 2.        ])
+    Raises
+    ------
+    ValueError
+        If TF data are missing or are not stored as a NumPy array.
     """
     if isinstance(tf, np.ndarray):
         tf_values = tf
@@ -110,13 +118,17 @@ def magnitude_to_db(
 ) -> np.ndarray:
     """Convert linear magnitude values to decibels.
 
+    The conversion uses 20 * log10(magnitude / reference). Zero magnitude
+    values are allowed and produce -inf in the output. Negative magnitudes
+    are rejected because they are not valid linear magnitudes.
+
     Parameters
     ----------
     magnitude : np.ndarray
         Non-negative magnitude values.
     reference : float | {"max"}, default=1.0
         Positive reference magnitude used in the conversion
-        ``20 * log10(magnitude / reference)``. The special value ``"max"``
+        20 * log10(magnitude / reference). The special value "max"
         uses the maximum magnitude present in the input array.
 
     Returns
@@ -124,22 +136,12 @@ def magnitude_to_db(
     np.ndarray
         Magnitude values in dB with the same shape as the input array.
 
-    Examples
-    --------
-    Convert linear magnitudes to dB with a unit reference:
-
-    >>> magnitude_to_db(np.array([1.0, 2.0]))
-    array([0.        , 6.02059991])
-
-    Use a custom numeric reference during the conversion:
-
-    >>> magnitude_to_db(np.array([1.0, 2.0]), reference=2.0)
-    array([-6.02059991,  0.        ])
-
-    Normalize against the maximum magnitude in the array:
-
-    >>> magnitude_to_db(np.array([1.0, 2.0]), reference="max")
-    array([-6.02059991,  0.        ])
+    Raises
+    ------
+    ValueError
+        If any magnitude is negative, if reference is not finite and
+        positive, if reference is an unsupported string, or if
+        reference="max" is requested for data with no positive maximum.
     """
     magnitude_values = np.asarray(magnitude, dtype=float)
     if np.any(magnitude_values < 0.0):
@@ -165,30 +167,28 @@ def db_to_magnitude(
 ) -> np.ndarray:
     """Convert decibel magnitudes back to linear values.
 
+    This is the inverse of magnitude-to-decibel conversion for numeric references. It
+    evaluates reference * 10 ** (magnitude_db / 20) and preserves the input
+    shape.
+
     Parameters
     ----------
     magnitude_db : np.ndarray
         Magnitude values in decibels.
     reference : float, default=1.0
         Positive reference magnitude used in the inverse conversion.
-        ``"max"`` is not supported here.
+        "max" is not supported here.
 
     Returns
     -------
     np.ndarray
         Linear magnitude values with the same shape as the input array.
 
-    Examples
-    --------
-    Convert dB values back to linear magnitude:
-
-    >>> db_to_magnitude(np.array([0.0, 6.02059991]))
-    array([1., 2.])
-
-    Reconstruct linear magnitude with a larger reference:
-
-    >>> db_to_magnitude(np.array([-6.02059991, 0.0]), reference=2.0)
-    array([1., 2.])
+    Raises
+    ------
+    ValueError
+        If reference is not finite and positive, or if the unsupported
+        special value reference="max" is provided.
     """
     magnitude_db_values = np.asarray(magnitude_db, dtype=float)
     if isinstance(reference, str):
@@ -208,36 +208,32 @@ def magnitude_db(
 ) -> np.ndarray:
     """Return transfer-function magnitudes directly in decibels.
 
+    This convenience wrapper computes linear magnitude calculation and
+    then converts the result with
+    magnitude-to-decibel conversion. It is intended for HRTF plotting,
+    spectral comparison, and any workflow that needs TF magnitude on a dB
+    scale.
+
     Parameters
     ----------
     tf : np.ndarray | TF
-        Frequency-domain array or ``TF`` object with ``.values``.
+        Frequency-domain array or :class:`~hrtfpykit.hrtf.domain.TF` object
+        with :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
     reference : float | {"max"}, default=1.0
         Positive reference magnitude used in the dB conversion. The special
-        value ``"max"`` uses the maximum magnitude present in the input TF.
+        value "max" uses the maximum magnitude present in the input TF.
 
     Returns
     -------
     np.ndarray
         Magnitude values in dB with the same shape as the TF input.
 
-    Examples
-    --------
-    Read transfer-function magnitude directly in dB:
-
-    >>> tf = np.array([1.0 + 0.0j, 2.0 + 0.0j])
-    >>> magnitude_db(tf)
-    array([0.        , 6.02059991])
-
-    Use a custom reference magnitude:
-
-    >>> magnitude_db(tf, reference=2.0)
-    array([-6.02059991,  0.        ])
-
-    Normalize to the maximum TF magnitude:
-
-    >>> magnitude_db(tf, reference="max")
-    array([-6.02059991,  0.        ])
+    Raises
+    ------
+    ValueError
+        If TF data cannot be resolved, if any magnitude is invalid, or if
+        reference is not accepted by
+        magnitude-to-decibel conversion.
     """
     magnitude_values = magnitude(tf)
     return magnitude_to_db(magnitude_values, reference=reference)
@@ -246,10 +242,15 @@ def magnitude_db(
 def phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
     """Return transfer-function phase values.
 
+    Phase is computed with numpy.angle from the complex TF representation.
+    The function accepts raw NumPy arrays and :class:`~hrtfpykit.hrtf.domain.TF` domain objects and returns
+    one phase value for each complex TF value.
+
     Parameters
     ----------
     tf : np.ndarray | TF
-        Frequency-domain array or ``TF`` object with ``.values``.
+        Frequency-domain array or :class:`~hrtfpykit.hrtf.domain.TF` object
+        with :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
     unit : str, default="degrees"
         Output unit. Degree and radian aliases are supported.
 
@@ -258,17 +259,11 @@ def phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
     np.ndarray
         Phase values in the requested unit with the same shape as the input TF.
 
-    Examples
-    --------
-    Read one TF phase in degrees:
-
-    >>> phase(np.array([1.0 + 1.0j]), unit="degrees")
-    array([45.])
-
-    Read the same TF phase in radians:
-
-    >>> np.round(phase(np.array([1.0 + 1.0j]), unit="radians"), 4)
-    array([0.7854])
+    Raises
+    ------
+    ValueError
+        If TF data are missing, are not stored as a NumPy array, or unit is
+        not a degree or radian alias.
     """
     if isinstance(tf, np.ndarray):
         tf_values = tf
@@ -295,14 +290,20 @@ def modify_phase(
 ) -> np.ndarray:
     """Replace TF phase values while preserving the original magnitude.
 
+    The returned TF has the magnitude of tf and the phase supplied in
+    new_phase. This is useful when building phase-normalized HRTFs,
+    applying externally computed phase estimates, or synchronizing a modified
+    phase array with an unchanged magnitude response.
+
     Parameters
     ----------
     tf : np.ndarray | TF
-        Frequency-domain array or ``TF`` object with ``.values``.
+        Frequency-domain array or :class:`~hrtfpykit.hrtf.domain.TF` object
+        with :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
     new_phase : np.ndarray
-        Phase array with the same shape as the TF values.
+        Phase array with exactly the same shape as the TF values.
     unit : str, default="degrees"
-        Phase unit used by ``new_phase``. Degree and radian aliases are
+        Phase unit used by new_phase. Degree and radian aliases are
         supported.
 
     Returns
@@ -310,13 +311,12 @@ def modify_phase(
     np.ndarray
         Complex TF values with the original magnitude and the new phase.
 
-    Examples
-    --------
-    Replace one TF with zero phase while keeping its magnitude:
-
-    >>> tf = np.array([1.0 + 1.0j])
-    >>> np.round(modify_phase(tf, np.array([0.0]), unit="degrees"), 4)
-    array([1.4142+0.j])
+    Raises
+    ------
+    ValueError
+        If TF data are missing, are not stored as a NumPy array, if
+        new_phase does not match the TF shape, or if unit is not a
+        degree or radian alias.
     """
     if isinstance(tf, np.ndarray):
         tf_values = tf
@@ -352,27 +352,32 @@ def modify_magnitude(
 ) -> np.ndarray:
     """Replace TF magnitude values while preserving the original phase.
 
+    The returned TF keeps the phase of tf and uses new_magnitude as the
+    magnitude response. Magnitudes can be supplied directly on a linear scale
+    or as dB values referenced to 1.0. This helper is used by higher-level
+    HRTF transforms that edit spectral level while preserving phase.
+
     Parameters
     ----------
     tf : np.ndarray | TF
-        Frequency-domain array or ``TF`` object with ``.values``.
+        Frequency-domain array or :class:`~hrtfpykit.hrtf.domain.TF` object
+        with :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
     new_magnitude : np.ndarray
-        Magnitude array with the same shape as the TF values.
+        Magnitude array with exactly the same shape as the TF values.
     scale : str, default="linear"
-        Scale of ``new_magnitude``. Supported values are ``linear`` and ``db``.
+        Scale of new_magnitude. Supported values are linear and db.
 
     Returns
     -------
     np.ndarray
         Complex TF values with the new magnitude and the original phase.
 
-    Examples
-    --------
-    Replace the magnitude while keeping the original phase:
-
-    >>> tf = np.array([1.0 + 1.0j])
-    >>> np.round(modify_magnitude(tf, np.array([2.0])), 4)
-    array([1.4142+1.4142j])
+    Raises
+    ------
+    ValueError
+        If TF data are missing, are not stored as a NumPy array, if
+        new_magnitude does not match the TF shape, if scale is
+        unsupported, or if resolved linear magnitudes are negative.
     """
     if isinstance(tf, np.ndarray):
         tf_values = tf
@@ -411,17 +416,21 @@ def tf_gain(
 ) -> np.ndarray:
     """Apply a scalar or broadcastable gain to TF values.
 
+    Gain is applied as a real multiplier to the complex TF array, so phase is
+    preserved exactly. The gain can be a scalar, a per-ear/per-position/per-bin
+    array, or any array that NumPy can broadcast to the TF shape.
+
     Parameters
     ----------
     tf : np.ndarray | TF
-        Frequency-domain array or ``TF`` object with ``.values``.
+        Frequency-domain array or :class:`~hrtfpykit.hrtf.domain.TF` object with .values.
     gain : float | np.ndarray
         Gain applied to the TF magnitude while preserving phase. Scalar gains
         affect every source, ear, and bin equally. Array gains must be
-        broadcast-compatible with the TF shape. In ``scale="db"``, negative
+        broadcast-compatible with the TF shape. In scale="db", negative
         values attenuate and positive values amplify.
     scale : {"linear", "db"}, default="db"
-        Scale used by ``gain``.
+        Scale used by gain.
 
     Returns
     -------
@@ -429,29 +438,22 @@ def tf_gain(
         Complex TF values after gain application, with the same shape as the
         input TF.
 
+    Raises
+    ------
+    ValueError
+        If TF data are missing, are not stored as a NumPy array, if gain is
+        empty, non-finite, negative on a linear scale, not broadcast-compatible
+        with the TF shape, or if scale is unsupported.
+
     Notes
     -----
     This function is a generic TF-domain gain utility. It multiplies the
     existing complex TF by a real gain factor and therefore preserves the
     original phase.
 
-    In ``scale="db"``, the gain is converted with ``10 ** (gain / 20)``. In
-    ``scale="linear"``, gain values must be non-negative. Use negative dB to
+    In scale="db", the gain is converted with 10 ** (gain / 20). In
+    scale="linear", gain values must be non-negative. Use negative dB to
     attenuate and positive dB to amplify.
-
-    Examples
-    --------
-    Attenuate every TF bin by 6 dB:
-
-    >>> tf = np.array([1.0 + 0.0j, 2.0 + 0.0j])
-    >>> np.round(tf_gain(tf, -6.0, scale="db"), 4)
-    array([0.5012+0.j, 1.0024+0.j])
-
-    Apply a bin-dependent linear gain:
-
-    >>> tf = np.array([1.0 + 0.0j, 1.0j])
-    >>> np.round(tf_gain(tf, np.array([1.0, 0.5]), scale="linear"), 4)
-    array([1.+0.j , 0.+0.5j])
     """
     if isinstance(tf, np.ndarray):
         tf_values = tf
@@ -491,22 +493,24 @@ def tf_gain(
 def real(tf: np.ndarray | "TF") -> np.ndarray:
     """Return the real part of transfer-function values.
 
+    This helper extracts the real component of raw TF arrays or :class:`~hrtfpykit.hrtf.domain.TF` domain
+    objects without modifying the input. It is primarily a convenience for
+    domain properties and diagnostic workflows.
+
     Parameters
     ----------
     tf : np.ndarray | TF
-        Frequency-domain array or ``TF`` object with ``.values``.
+        Frequency-domain array or :class:`~hrtfpykit.hrtf.domain.TF` object with .values.
 
     Returns
     -------
     np.ndarray
         Real component of the TF values with the same shape as the input.
 
-    Examples
-    --------
-    Extract the real component of a TF:
-
-    >>> real(np.array([1.0 + 2.0j, 3.0 - 4.0j]))
-    array([1., 3.])
+    Raises
+    ------
+    ValueError
+        If TF data are missing or are not stored as a NumPy array.
     """
     if isinstance(tf, np.ndarray):
         tf_values = tf
@@ -524,22 +528,24 @@ def real(tf: np.ndarray | "TF") -> np.ndarray:
 def imag(tf: np.ndarray | "TF") -> np.ndarray:
     """Return the imaginary part of transfer-function values.
 
+    This helper extracts the imaginary component of raw TF arrays or :class:`~hrtfpykit.hrtf.domain.TF`
+    domain objects without modifying the input. It is primarily a convenience
+    for domain properties and diagnostic workflows.
+
     Parameters
     ----------
     tf : np.ndarray | TF
-        Frequency-domain array or ``TF`` object with ``.values``.
+        Frequency-domain array or :class:`~hrtfpykit.hrtf.domain.TF` object with .values.
 
     Returns
     -------
     np.ndarray
         Imaginary component of the TF values with the same shape as the input.
 
-    Examples
-    --------
-    Extract the imaginary component of a TF:
-
-    >>> imag(np.array([1.0 + 2.0j, 3.0 - 4.0j]))
-    array([ 2., -4.])
+    Raises
+    ------
+    ValueError
+        If TF data are missing or are not stored as a NumPy array.
     """
     if isinstance(tf, np.ndarray):
         tf_values = tf
@@ -561,34 +567,39 @@ def upsampling(
 ) -> tuple[np.ndarray, float]:
     """Upsample an IR signal using polyphase resampling.
 
+    The function resamples along the final axis and preserves all leading
+    axes, including source and ear axes for HRIR data. It accepts raw NumPy
+    arrays and :class:`~hrtfpykit.hrtf.domain.IR` domain objects. For :class:`~hrtfpykit.hrtf.domain.IR` input, :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is
+    used when sample_rate is omitted.
+
     Parameters
     ----------
     ir : np.ndarray | IR
-        Time-domain array or ``IR`` object with ``.values``.
+        Time-domain samples or :class:`~hrtfpykit.hrtf.domain.IR` object with .values. The final axis
+        is interpreted as time samples.
     new_sample_rate : float
-        Target sample rate in Hz. It must be strictly greater than the current
-        sample rate.
+        Target sample rate in hertz. It must be strictly greater than the
+        current sample rate.
     sample_rate : float | None, default=None
-        Source sample rate used when ``ir`` is a NumPy array.
+        Source sample rate in hertz. Required for NumPy input. Optional for
+        :class:`~hrtfpykit.hrtf.domain.IR` input when :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is available.
 
     Returns
     -------
     tuple[np.ndarray, float]
-        Tuple ``(resampled_ir, resolved_new_sample_rate)``.
+        Tuple (resampled_ir, resolved_new_sample_rate).
 
-    Examples
-    --------
-    Upsample a short IR and inspect the returned sample rate:
+    Raises
+    ------
+    ValueError
+        If IR data are missing, empty, scalar, or not stored as a NumPy array,
+        if either sample rate is not finite and positive, or if
+        new_sample_rate is not greater than the current sample rate.
 
-    >>> ir = np.array([1.0, 0.0, 0.0, 0.0])
-    >>> resampled_ir, sr = upsampling(ir, new_sample_rate=96000.0, sample_rate=48000.0)
-    >>> sr
-    96000.0
-
-    Confirm that the resampled signal is longer:
-
-    >>> resampled_ir.shape[-1] > ir.shape[-1]
-    True
+    Notes
+    -----
+    Polyphase resampling uses a rational approximation of
+    new_sample_rate / sample_rate with denominator limited to 10000.
     """
     if isinstance(ir, np.ndarray):
         ir_values = ir
@@ -647,34 +658,39 @@ def downsampling(
 ) -> tuple[np.ndarray, float]:
     """Downsample an IR signal using polyphase resampling.
 
+    The function resamples along the final axis and preserves all leading
+    axes, including source and ear axes for HRIR data. It accepts raw NumPy
+    arrays and :class:`~hrtfpykit.hrtf.domain.IR` domain objects. For :class:`~hrtfpykit.hrtf.domain.IR` input, :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is
+    used when sample_rate is omitted.
+
     Parameters
     ----------
     ir : np.ndarray | IR
-        Time-domain array or ``IR`` object with ``.values``.
+        Time-domain samples or :class:`~hrtfpykit.hrtf.domain.IR` object with .values. The final axis
+        is interpreted as time samples.
     new_sample_rate : float
-        Target sample rate in Hz. It must be strictly lower than the current
-        sample rate.
+        Target sample rate in hertz. It must be strictly lower than the
+        current sample rate.
     sample_rate : float | None, default=None
-        Source sample rate used when ``ir`` is a NumPy array.
+        Source sample rate in hertz. Required for NumPy input. Optional for
+        :class:`~hrtfpykit.hrtf.domain.IR` input when :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is available.
 
     Returns
     -------
     tuple[np.ndarray, float]
-        Tuple ``(resampled_ir, resolved_new_sample_rate)``.
+        Tuple (resampled_ir, resolved_new_sample_rate).
 
-    Examples
-    --------
-    Downsample a short IR and inspect the returned sample rate:
+    Raises
+    ------
+    ValueError
+        If IR data are missing, empty, scalar, or not stored as a NumPy array,
+        if either sample rate is not finite and positive, or if
+        new_sample_rate is not lower than the current sample rate.
 
-    >>> ir = np.zeros(8, dtype=float)
-    >>> resampled_ir, sr = downsampling(ir, new_sample_rate=24000.0, sample_rate=48000.0)
-    >>> sr
-    24000.0
-
-    Confirm that the resampled signal is shorter:
-
-    >>> resampled_ir.shape[-1] < ir.shape[-1]
-    True
+    Notes
+    -----
+    Polyphase resampling uses a rational approximation of
+    new_sample_rate / sample_rate with denominator limited to 10000.
     """
     if isinstance(ir, np.ndarray):
         ir_values = ir
@@ -729,31 +745,29 @@ def downsampling(
 def window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
     """Apply a named time-domain window to IR samples.
 
+    Windowing is applied along the final axis and is broadcast over all leading
+    axes. This makes the function suitable for mono signals, binaural HRIRs,
+    and full (positions, ears, samples) HRTF arrays.
+
     Parameters
     ----------
     ir : np.ndarray | IR
-        Time-domain array or ``IR`` object with ``.values``.
+        Time-domain samples or :class:`~hrtfpykit.hrtf.domain.IR` object with .values. The final axis
+        is interpreted as time samples.
     window_name : str
-        Window identifier. Supported values are ``hann``, ``hamming``,
-        ``blackman``, and ``rectangular``.
+        Window identifier. Supported values are hann, hamming,
+        blackman, and rectangular.
 
     Returns
     -------
     np.ndarray
-        Windowed IR values.
+        Windowed IR values with the same shape as the input.
 
-    Examples
-    --------
-    Apply a Hann window to a flat IR:
-
-    >>> np.round(window(np.ones(4), "hann"), 4)
-    array([0.  , 0.75, 0.75, 0.  ])
-
-    Keep a flat IR unchanged with a rectangular window:
-
-    >>> window(np.ones(4), "rectangular")
-    array([1., 1., 1., 1.])
-
+    Raises
+    ------
+    ValueError
+        If IR data are missing, scalar, or not stored as a NumPy array, if the
+        final axis contains no samples, or if window_name is unsupported.
     """
     if isinstance(ir, np.ndarray):
         ir_values = ir
@@ -793,16 +807,17 @@ def padding(
 ) -> np.ndarray:
     """Pad impulse-response values along the sample axis.
 
-    The function accepts either a raw NumPy array or an ``IR`` domain object
+    The function accepts either a raw NumPy array or an :class:`~hrtfpykit.hrtf.domain.IR` domain object
     and appends or prepends constant samples on the last axis. The spatial and
     ear axes are preserved exactly; only the time-sample length changes.
 
     Parameters
     ----------
     ir : np.ndarray | IR
-        Time-domain signal container with ``.values``.
+        Time-domain samples or :class:`~hrtfpykit.hrtf.domain.IR` object with .values. The final axis
+        is interpreted as time samples.
     padding_length : int
-        Number of samples added to the IR.
+        Number of samples added to the IR. 0 returns the original array.
     location : {"start", "end"}, default="end"
         Side where the padding is applied.
     value : float | complex, default=0
@@ -811,19 +826,14 @@ def padding(
     Returns
     -------
     np.ndarray
-        Padded IR array.
+        Padded IR array with the same leading shape as the input.
 
-    Examples
-    --------
-    Append zeros at the end of a signal:
-
-    >>> padding(np.array([1.0, 2.0]), padding_length=2, location="end")
-    array([1., 2., 0., 0.])
-
-    Prepend a constant value at the start of a signal:
-
-    >>> padding(np.array([1.0, 2.0]), padding_length=2, location="start", value=-1.0)
-    array([-1., -1.,  1.,  2.])
+    Raises
+    ------
+    ValueError
+        If IR data are missing, empty, or not stored as a NumPy array, if
+        padding_length is not a non-negative integer, or if location is
+        unsupported.
     """
 
     if isinstance(ir, np.ndarray):
@@ -872,40 +882,47 @@ def fir_filter(
 
     The filter is designed from the requested family, cutoff, and sample rate,
     then applied along the last axis of the IR array. The function supports raw
-    NumPy arrays and ``IR`` domain objects so it can be used both inside the
+    NumPy arrays and :class:`~hrtfpykit.hrtf.domain.IR` domain objects so it can be used both inside the
     HRTF abstraction and in lower-level DSP workflows.
+
+    Low-pass, high-pass, and band-pass filters are designed with
+    scipy.signal.firwin and applied with centered same convolution.
+    The output therefore keeps the same shape as the input.
 
     Parameters
     ----------
     ir : np.ndarray | IR
-        Time-domain array or ``IR`` object with ``.values``.
+        Time-domain samples or :class:`~hrtfpykit.hrtf.domain.IR` object with .values. The final axis
+        is filtered independently.
     filter : str
-        Filter family. Low-pass, high-pass, and band-pass aliases are
-        supported.
+        Filter family. Supported aliases are "lowpass", "low-pass",
+        "lp", "highpass", "high-pass", "hp",
+        "bandpass", "band-pass", and "bp".
     sample_rate : float | None, default=None
-        Sample rate in Hz.
+        Sample rate in hertz used to interpret cutoff and the Nyquist
+        frequency.
     cutoff : float | tuple[float, float] | None, default=None
-        Cutoff value. Use a scalar for low-pass or high-pass filtering and a
-        tuple for band-pass filtering.
+        Cutoff frequency in hertz. Use a scalar for low-pass or high-pass
+        filtering and (low, high) for band-pass filtering.
     num_taps : int, default=101
-        Odd FIR length.
+        Positive odd FIR length.
     window : str | None, default=None
-        FIR design window. Supported values are ``hann``, ``hamming``,
-        ``blackman``, and ``rectangular``.
+        FIR design window. None and "rectangular" use a boxcar
+        window. Other supported values are "hann", "hamming", and
+        "blackman".
 
     Returns
     -------
     np.ndarray
         Filtered IR values with the same shape as the input.
 
-    Examples
-    --------
-    Design a short FIR low-pass filter and inspect the output length:
-
-    >>> ir = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    >>> filtered = fir_filter(ir, filter="lowpass", sample_rate=48000.0, cutoff=3000.0, num_taps=5)
-    >>> filtered.shape
-    (7,)
+    Raises
+    ------
+    ValueError
+        If IR data are missing, sample_rate or cutoff is omitted,
+        num_taps is not a positive odd integer, window or filter is
+        unsupported, or cutoff frequencies do not satisfy the required
+        relation to Nyquist.
     """
     if not isinstance(ir, np.ndarray):
         if hasattr(ir, "values"):
@@ -998,18 +1015,25 @@ def iir_filter(
 ) -> np.ndarray:
     """Apply an IIR Butterworth filter to IR data.
 
+    The filter is designed with scipy.signal.butter and applied with
+    scipy.signal.lfilter along the final axis. The function accepts raw
+    NumPy arrays and :class:`~hrtfpykit.hrtf.domain.IR` domain objects and keeps the input shape.
+
     Parameters
     ----------
     ir : np.ndarray | IR
-        Time-domain array or ``IR`` object with ``.values``.
+        Time-domain samples or :class:`~hrtfpykit.hrtf.domain.IR` object with .values. The final axis
+        is filtered independently.
     filter : str
-        Filter family. Low-pass, high-pass, and band-pass aliases are
-        supported.
+        Filter family. Supported aliases are "lowpass", "low-pass",
+        "lp", "highpass", "high-pass", "hp",
+        "bandpass", "band-pass", and "bp".
     sample_rate : float | None, default=None
-        Sample rate in Hz.
+        Sample rate in hertz used to interpret cutoff and the Nyquist
+        frequency.
     cutoff : float | tuple[float, float] | None, default=None
-        Cutoff value. Use a scalar for low-pass or high-pass filtering and a
-        tuple for band-pass filtering.
+        Cutoff frequency in hertz. Use a scalar for low-pass or high-pass
+        filtering and (low, high) for band-pass filtering.
     order : int, default=10
         Positive Butterworth filter order.
 
@@ -1018,14 +1042,12 @@ def iir_filter(
     np.ndarray
         Filtered IR values with the same shape as the input.
 
-    Examples
-    --------
-    Apply a Butterworth low-pass filter and inspect the output length:
-
-    >>> ir = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    >>> filtered = iir_filter(ir, filter="lowpass", sample_rate=48000.0, cutoff=3000.0, order=4)
-    >>> filtered.shape
-    (7,)
+    Raises
+    ------
+    ValueError
+        If IR data are missing, sample_rate or cutoff is omitted,
+        order is not a positive integer, filter is unsupported, or
+        cutoff frequencies do not satisfy the required relation to Nyquist.
     """
     if not isinstance(ir, np.ndarray):
         if hasattr(ir, "values"):
@@ -1083,26 +1105,39 @@ def convolve(
 ) -> np.ndarray:
     """Convolve two IR inputs along the last axis.
 
+    The function performs linear convolution independently over the final axis
+    after broadcasting the leading dimensions of both inputs. It accepts raw
+    arrays and :class:`~hrtfpykit.hrtf.domain.IR` domain objects. When both inputs are :class:`~hrtfpykit.hrtf.domain.IR` objects,
+    their sample rates must be finite, positive, and equal.
+
     Parameters
     ----------
     ir_1 : np.ndarray | IR
-        Time-domain array or ``IR`` object with ``.values`` and
-        ``.sample_rate``. This is the reference input for the API, so when
-        ``mode="same"`` the output length follows ``ir_1``.
+        Time-domain array or :class:`~hrtfpykit.hrtf.domain.IR` object with .values and
+        .sample_rate. This is the reference input for the API, so when
+        mode="same" the output length follows ir_1.
     ir_2 : np.ndarray | IR
-        Second time-domain array or ``IR`` object with ``.values`` and
-        ``.sample_rate``. It is convolved with ``ir_1`` independently along
+        Second time-domain array or :class:`~hrtfpykit.hrtf.domain.IR` object with .values and
+        .sample_rate. It is convolved with ir_1 independently along
         the last axis.
     mode : {"full", "same", "valid"}, default="full"
-        Convolution output mode passed to ``scipy.signal.convolve``.
+        Convolution output mode passed to scipy.signal.convolve.
     method : {"auto", "direct", "fft"}, default="auto"
-        Convolution method passed to ``scipy.signal.convolve``.
+        Convolution method passed to scipy.signal.convolve.
 
     Returns
     -------
     np.ndarray
-        Convolved values with the broadcast leading shape of ``ir_1`` and
-        ``ir_2`` and the output length implied by ``mode``.
+        Convolved values with the broadcast leading shape of ir_1 and
+        ir_2 and the output length implied by mode.
+
+    Raises
+    ------
+    ValueError
+        If either IR input is missing, empty, scalar, or not stored as a NumPy
+        array, if mode or method is unsupported, if both domain inputs
+        provide incompatible sample rates, or if leading shapes are not
+        broadcast-compatible.
 
     Notes
     -----
@@ -1114,24 +1149,12 @@ def convolve(
     recomposition helpers such as multiplying a DTF by a CTF on an existing
     FFT grid. Those workflows correspond to circular convolution on the chosen
     FFT length, while this function performs linear convolution and then
-    applies the requested ``mode``.
+    applies the requested mode.
 
-    When ``mode="same"``, SciPy returns the centered portion of the linear
-    convolution with the length of ``ir_1``. That crop is often convenient for
+    When mode="same", SciPy returns the centered portion of the linear
+    convolution with the length of ir_1. That crop is often convenient for
     signal processing, but it discards boundary samples and therefore should
     not be treated as an exact inverse-friendly decomposition step.
-
-    Examples
-    --------
-    Convolve two short signals:
-
-    >>> convolve(np.array([1.0, 2.0, 3.0]), np.array([1.0, -1.0]))
-    array([ 1.,  1.,  1., -3.])
-
-    Keep the first signal length with ``mode="same"``:
-
-    >>> convolve(np.array([[1.0, 0.0, 0.0]]), np.array([1.0, 0.5]), mode="same").shape
-    (1, 3)
     """
     ir_sample_rate = None
     if isinstance(ir_1, np.ndarray):
@@ -1244,22 +1267,28 @@ def deconvolve(
 ) -> np.ndarray:
     """Estimate an IR by removing another IR through regularized deconvolution.
 
+    Deconvolution is performed in the frequency domain along the final axis.
+    Leading dimensions are broadcast between ir_1 and ir_2 so the
+    function can operate on single signals, binaural responses, or full
+    position-by-ear HRIR arrays. When both inputs are :class:`~hrtfpykit.hrtf.domain.IR` objects, their
+    sample rates must be finite, positive, and equal.
+
     Parameters
     ----------
     ir_1 : np.ndarray | IR
-        Time-domain array or ``IR`` object with ``.values`` and
-        ``.sample_rate``. This is the measured or mixed IR from which
-        ``ir_2`` is removed.
+        Time-domain array or :class:`~hrtfpykit.hrtf.domain.IR` object with .values and
+        .sample_rate. This is the measured or mixed IR from which
+        ir_2 is removed.
     ir_2 : np.ndarray | IR
-        Time-domain array or ``IR`` object with ``.values`` and
-        ``.sample_rate``. This is the IR to remove from ``ir_1``.
+        Time-domain array or :class:`~hrtfpykit.hrtf.domain.IR` object with .values and
+        .sample_rate. This is the IR to remove from ir_1.
     fft_length : int | None, default=None
         FFT length used for the frequency-domain inversion. When omitted, the
-        maximum of ``ir_1`` length, ``ir_2`` length, and ``output_length`` is
+        maximum of ir_1 length, ir_2 length, and output_length is
         used.
     output_length : int | None, default=None
         Number of samples returned along the last axis. When omitted, the
-        length of ``ir_1`` is used.
+        length of ir_1 is used.
     regularization : float, default=1e-8
         Positive stabilization value added to the spectral denominator to
         avoid division by zero and reduce numerical blow-up.
@@ -1267,14 +1296,23 @@ def deconvolve(
     Returns
     -------
     np.ndarray
-        Deconvolved values with the broadcast leading shape of ``ir_1`` and
-        ``ir_2`` and the requested ``output_length``.
+        Deconvolved values with the broadcast leading shape of ir_1 and
+        ir_2 and the requested output_length.
+
+    Raises
+    ------
+    ValueError
+        If either IR input is missing, empty, scalar, or not stored as a NumPy
+        array, if both domain inputs provide incompatible sample rates, if
+        output_length or fft_length is invalid, if fft_length is
+        shorter than the input/output lengths, if regularization is not
+        finite and positive, or if leading shapes are not broadcast-compatible.
 
     Notes
     -----
     This is a generic regularized deconvolution utility under a matched
-    linear time-invariant model, that is, a situation where ``ir_1`` can be
-    approximated as the convolution of a target signal with ``ir_2``.
+    linear time-invariant model, that is, a situation where ir_1 can be
+    approximated as the convolution of a target signal with ir_2.
 
     In controlled DSP workflows this is useful for de-embedding a known
     system response or approximately undoing a synthetic convolution. In
@@ -1284,25 +1322,10 @@ def deconvolve(
     one shared IR, and in those cases the recovered signal is only an
     approximation.
 
-    The ``regularization`` term intentionally trades exact inversion for
+    The regularization term intentionally trades exact inversion for
     stability. It limits blow-up near spectral nulls, but it also means the
     output is not expected to perfectly reproduce the original target even
     when the model is close.
-
-    Examples
-    --------
-    Recover a short target after convolution with a known system:
-
-    >>> target = np.array([1.0, 2.0, 3.0])
-    >>> system = np.array([1.0, 0.5])
-    >>> measured = convolve(target, system, mode="full")
-    >>> recovered = deconvolve(
-    ...     measured,
-    ...     system,
-    ...     output_length=target.shape[-1],
-    ... )
-    >>> np.allclose(np.round(recovered, 6), target)
-    True
     """
     ir_1_sample_rate = None
     if isinstance(ir_1, np.ndarray):
@@ -1428,13 +1451,22 @@ def minimum_phase(
 ) -> np.ndarray:
     """Convert IR data into a minimum-phase IR.
 
+    The conversion is applied independently along the final axis and preserves
+    the input shape. The function accepts raw NumPy arrays and :class:`~hrtfpykit.hrtf.domain.IR` domain
+    objects. Inputs must be real-valued HRIR/time-domain data.
+
+    "homomorphic" and "real_cepstrum" currently use the same
+    real-cepstrum path based on the log magnitude spectrum. "cepstrum"
+    uses a complex cepstrum with unwrapped phase before constructing the
+    minimum-phase cepstrum.
+
     Parameters
     ----------
     data : np.ndarray | IR
-        Real-valued IR samples stored as a NumPy array or ``IR`` object.
+        Real-valued IR samples stored as a NumPy array or :class:`~hrtfpykit.hrtf.domain.IR` object.
     method : {"homomorphic", "cepstrum", "real_cepstrum"}, default="homomorphic"
-        Minimum-phase strategy. ``homomorphic`` and ``real_cepstrum`` use a
-        log-magnitude real cepstrum, while ``cepstrum`` uses a complex
+        Minimum-phase strategy. homomorphic and real_cepstrum use a
+        log-magnitude real cepstrum, while cepstrum uses a complex
         cepstrum with unwrapped phase.
     fft_length : int | None, default=None
         Optional FFT length used for cepstral operations.
@@ -1447,13 +1479,13 @@ def minimum_phase(
         Minimum-phase IR array with the same trailing length as the resolved
         IR input.
 
-    Examples
-    --------
-    Convert a short IR into a minimum-phase version and inspect its length:
-
-    >>> ir = np.array([1.0, 0.5, 0.25, 0.0])
-    >>> minimum_phase(ir).shape
-    (4,)
+    Raises
+    ------
+    ValueError
+        If IR data are missing, empty, scalar, not stored as a NumPy array, or
+        complex-valued, if method is unsupported, if epsilon is not
+        finite and positive, or if fft_length is invalid or shorter than
+        the IR length.
     """
     if isinstance(data, np.ndarray):
         ir_values = data
@@ -1567,49 +1599,43 @@ def tf_from_ir(
     axis, and returns the resulting TF values, frequency bins, and resolved
     FFT length.
 
-    When ``ir`` is an ``IR`` object, the function also acts as the main
-    synchronization bridge between ``IR`` and ``TF`` inside an ``HRTF``
-    instance. In that mode it updates the linked ``HRTF.TF`` object in place,
-    rebuilds ``TF.frequency_bins`` from the resolved sample rate and FFT
-    length, and stores the resolved ``fft_length`` on the parent ``HRTF``.
-    That is the expected recalculation step after editing ``IR.values``,
-    changing ``IR.sample_rate``, or applying time-domain transforms that must
+    When ir is an :class:`~hrtfpykit.hrtf.domain.IR` object, the function also acts as the main
+    synchronization bridge between :class:`~hrtfpykit.hrtf.domain.IR` and :class:`~hrtfpykit.hrtf.domain.TF` inside an :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+    instance. In that mode it updates the linked :attr:`~hrtfpykit.hrtf.hrtf.HRTF.TF` object in place,
+    rebuilds :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` from the resolved sample rate and FFT
+    length, and stores the resolved fft_length on the parent :class:`~hrtfpykit.hrtf.hrtf.HRTF`.
+    That is the expected recalculation step after editing :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`,
+    changing :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>`, or applying time-domain transforms that must
     stay consistent with the frequency-domain representation.
 
     Parameters
     ----------
     ir : np.ndarray | IR
-        IR array or ``IR`` object.
+        Time-domain IR samples or :class:`~hrtfpykit.hrtf.domain.IR` object. The FFT is computed along the
+        final axis.
     sample_rate : float | None, default=None
-        Sample rate in Hz for NumPy input. Optional for ``IR`` input when
-        ``IR.sample_rate`` is available.
+        Sample rate in hertz for NumPy input. Optional for :class:`~hrtfpykit.hrtf.domain.IR` input when
+        :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is available.
     fft_length : int | None, default=None
-        FFT size. When omitted, the IR length is used.
+        FFT size. When omitted, the IR length along the final axis is used.
     window_name : str | None, default=None
-        Optional time-domain window applied before the FFT.
+        Optional time-domain window applied along the final axis before the
+        FFT. Supported names are delegated to the windowing helper.
 
     Returns
     -------
     tuple[np.ndarray, np.ndarray, int] | TF
-        For NumPy input, returns ``(tf_values, frequency_bins, fft_length_used)``.
-        For ``IR`` input, returns the updated ``TF`` object linked to the same
-        ``HRTF`` instance.
+        For NumPy input, returns (tf_values, frequency_bins, fft_length_used).
+        For :class:`~hrtfpykit.hrtf.domain.IR` input, returns the updated :class:`~hrtfpykit.hrtf.domain.TF` object linked to the same
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` instance.
 
-    Examples
-    --------
-    Window one measured HRIR, rebuild its TF, and inspect the synchronized FFT length:
-
-    >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.hrtf.dsp import tf_from_ir
-    >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-    >>> edited = hrtf.clone()
-    >>> cutoff = edited.IR.values.shape[-1] // 2
-    >>> edited.IR.values[..., cutoff:] = 0.0
-    >>> tf_from_ir(edited.IR, fft_length=1024, window_name="hann")
-    >>> edited.fft_length
-    1024
-    >>> edited.TF.values.shape[-1]
-    513
+    Raises
+    ------
+    ValueError
+        If IR data are missing, empty, all zero, or not stored as a NumPy
+        array, if no finite positive sample rate can be resolved, if
+        fft_length is not a positive integer or has fewer than two points,
+        or if the optional window name is invalid.
     """
     ir_object = None
     if isinstance(ir, np.ndarray):
@@ -1683,63 +1709,59 @@ def ir_from_tf(
     the IR with inverse real FFT and returns the IR values together with the
     resolved sample rate and FFT length.
 
-    When ``tf`` is a ``TF`` object, the function also acts as the main
-    synchronization bridge from ``TF`` back to ``IR`` inside an ``HRTF``
-    instance. In that mode it updates the linked ``HRTF.IR`` object in place,
-    restores ``IR.sample_rate`` from the frequency-bin spacing, and stores the
-    resolved ``fft_length`` on the parent ``HRTF``. That is the expected
-    recalculation step after editing ``TF.values``, changing
-    ``TF.frequency_bins``, or applying magnitude or phase operations that must
+    When tf is a :class:`~hrtfpykit.hrtf.domain.TF` object, the function also acts as the main
+    synchronization bridge from :class:`~hrtfpykit.hrtf.domain.TF` back to :class:`~hrtfpykit.hrtf.domain.IR` inside an :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+    instance. In that mode it updates the linked :attr:`~hrtfpykit.hrtf.hrtf.HRTF.IR` object in place,
+    restores :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` from the frequency-bin spacing, and stores the
+    resolved fft_length on the parent :class:`~hrtfpykit.hrtf.hrtf.HRTF`. That is the expected
+    recalculation step after editing :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`, changing
+    :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`, or applying magnitude or phase operations that must
     remain consistent with the time-domain representation.
 
     Parameters
     ----------
     tf : np.ndarray | TF
-        TF array or ``TF`` object.
+        One-sided frequency-domain TF values or :class:`~hrtfpykit.hrtf.domain.TF` object. The inverse FFT
+        is computed along the final axis.
     frequency_bins : np.ndarray | None, default=None
-        Optional frequency-bin vector matching the TF length. When ``tf`` is a
-        ``TF`` object and ``frequency_bins`` is ``None``, ``tf.frequency_bins``
+        Optional frequency-bin vector matching the TF length. When tf is a
+        :class:`~hrtfpykit.hrtf.domain.TF` object and frequency_bins is None, tf.frequency_bins
         is used.
     sample_rate : float | None, default=None
         Sample rate used when one-sided frequency bins must be inferred for
         NumPy TF input.
     mesh2hrtf_compatible : bool, default=False
-        If ``True``, apply Mesh2HRTF-style reconstruction conventions:
+        If True, apply Mesh2HRTF-style reconstruction conventions:
         force Nyquist to real magnitude, conjugate the one-sided spectrum
-        before ``irfft``, and optionally circularly shift the resulting HRIR.
+        before irfft, and optionally circularly shift the resulting HRIR.
     n_shift : int | None, default=None
         Optional circular shift applied after reconstruction when
-        ``mesh2hrtf_compatible=True``.
+        mesh2hrtf_compatible=True.
 
     Returns
     -------
     tuple[np.ndarray, float, int] | IR
-        For NumPy input, returns ``(ir_values, sample_rate, fft_length_used)``.
-        For ``TF`` input, returns the updated ``IR`` object linked to the same
-        ``HRTF`` instance.
+        For NumPy input, returns (ir_values, sample_rate, fft_length_used).
+        For :class:`~hrtfpykit.hrtf.domain.TF` input, returns the updated :class:`~hrtfpykit.hrtf.domain.IR` object linked to the same
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` instance.
+
+    Raises
+    ------
+    ValueError
+        If TF data are missing, empty, all zero, too short, or not stored as a
+        NumPy array, if frequency bins are missing, empty, not one-dimensional,
+        not uniformly spaced, not increasing, negative, or incompatible with
+        the TF length, if NumPy input cannot infer frequency bins from a finite
+        positive sample rate, if the one-sided grid starts at an unsupported
+        nonzero frequency, or if n_shift is invalid when Mesh2HRTF
+        compatibility is enabled.
 
     Design Rules
     ------------
     - Only one-sided non-negative frequency bins are supported.
     - Frequency bins must be 1D, uniformly spaced, and increasing.
-    - If DC is missing and bins start at one-bin step ``Δf``, DC is inserted
-      as ``1+0j`` (0 dB attenuation at 0 Hz).
-
-    Examples
-    --------
-    Edit one measured TF, rebuild the HRIR, and keep the linked metadata synchronized:
-
-    >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.hrtf.dsp import ir_from_tf
-    >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-    >>> edited = hrtf.clone()
-    >>> cutoff_bin = edited.TF.values.shape[-1] // 2
-    >>> edited.TF.values[..., cutoff_bin:] *= 0.5
-    >>> ir_from_tf(edited.TF)
-    >>> edited.IR.sample_rate == hrtf.IR.sample_rate
-    True
-    >>> edited.fft_length == hrtf.fft_length
-    True
+    - If DC is missing and bins start at one-bin step Δf, DC is inserted
+      as 1+0j (0 dB attenuation at 0 Hz).
     """
     tf_object = None
     if isinstance(tf, np.ndarray):

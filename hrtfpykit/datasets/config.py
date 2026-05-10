@@ -5,25 +5,48 @@ from .checksums import HUTUBS_CHECKSUMS, SONICOM_CHECKSUMS
 
 @dataclass(frozen=True)
 class ResourceTypeConfig:
-    """Describe one concrete resource type inside a dataset configuration.
+    """Describe one concrete variant family for a dataset resource.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.config.ResourceTypeConfig` is the low-level
+    schema used by HRTF and mesh resource configurations. It defines the
+    relative path template for one resource type, plus optional version and
+    sample-rate axes that expand the template into concrete subject files during
+    local scanning or download planning.
+
+    Path templates are formatted by the dataset resource scanners and
+    downloader. HRTF templates can use placeholders such as subject_id,
+    subject_number, type, hrtf_type, sample_rate,
+    hrtf_sample_rate, sample_rate_label, version,
+    hrtf_version, version_label, hrtf_version_label, and
+    variant. Mesh templates can use the subject placeholders plus
+    type, mesh_type, version, mesh_version,
+    version_label, mesh_version_label, and variant.
+
+    Attributes
     ----------
     path_pattern : str
-        Relative path template used to locate or download resource files.
-    versions : tuple of str, default=()
-        Supported processing or geometry versions for this resource type.
-    version_labels : dict or None, default=None
-        Optional mapping from public version names to path-template labels.
-    sample_rates : tuple of int or str, default=()
-        Supported sample-rate variants for this resource type.
-    sample_rate_labels : dict or None, default=None
-        Optional mapping from public sample-rate values to path-template labels.
+        Relative path template used to locate local files and build official
+        download URLs.
+    versions : tuple of str
+        Supported processing, compensation, or geometry versions for this
+        resource type. An empty tuple means the type has no version selector.
+    version_labels : dict[str, str] or None
+        Optional mapping from public version names to labels used inside
+        path_pattern. When absent, the public version string is used.
+    sample_rates : tuple of int or str
+        Supported sample-rate variants. An empty tuple means the type has no
+        sample-rate selector.
+    sample_rate_labels : dict[int | str, str] or None
+        Optional mapping from public sample-rate values to labels used inside
+        path_pattern. When absent, the public sample-rate value is converted
+        to text.
 
-    Returns
-    -------
-    ResourceTypeConfig Immutable resource-type description used by scanners and
-    downloaders.
+    Notes
+    -----
+    This dataclass is frozen and performs no validation itself. Variant keys and
+    values are validated by :class:`~hrtfpykit.datasets.build.DatasetBuilder`
+    for dataset construction and by
+    :class:`~hrtfpykit.datasets.download.BaseDownload` for download planning.
 
     """
 
@@ -36,20 +59,33 @@ class ResourceTypeConfig:
 
 @dataclass(frozen=True)
 class HRTFConfig:
-    """Describe the HRTF resources available in a dataset.
+    """Describe HRTF or HRIR resources available in a dataset family.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.config.HRTFConfig` declares the resource types
+    that can satisfy acoustic specs such as
+    :class:`~hrtfpykit.datasets.HRTFSpec`,
+    :class:`~hrtfpykit.datasets.ITDSpec`,
+    :class:`~hrtfpykit.datasets.ILDSpec`, and
+    :class:`~hrtfpykit.datasets.SHSpec`. During dataset construction, the
+    selected HRTF variant is validated against the configured types and then
+    used to scan local subject files. During download planning, the same type
+    definitions are expanded into official download jobs.
+
+    Attributes
     ----------
     types : dict[str, ResourceTypeConfig]
-        Mapping from HRTF type names to resource path descriptions.
-    subject_ids : tuple of str or None, default=None
-        Optional subject list specific to HRTF resources. ``None`` uses the
-        dataset-level subjects.
+        Mapping from public HRTF type names to resource path descriptions.
+        Common type names include "measured", "simulated", and
+        "synthetic".
+    subject_ids : tuple of str or None
+        Optional HRTF-specific subject list. None means the dataset-level
+        :attr:`~hrtfpykit.datasets.config.DatasetConfig.subject_ids` are used.
 
-    Returns
-    -------
-    HRTFConfig Immutable HRTF resource description used by dataset scanning and
-    downloading.
+    Notes
+    -----
+    The configuration name uses HRTF for the dataset resource family even
+    when files store HRIR data in SOFA SimpleFreeFieldHRIR form. The higher
+    level HRTF object handles time/frequency-domain access.
 
     """
 
@@ -59,22 +95,28 @@ class HRTFConfig:
 
 @dataclass(frozen=True)
 class MeshConfig:
-    """Describe mesh resources available in a dataset.
+    """Describe subject mesh resources available in a dataset family.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.config.MeshConfig` declares mesh resource types
+    and the file extensions accepted during local scanning. Mesh specs use this
+    configuration to find the geometry file for each selected subject, while the
+    downloader uses the same path templates to build official mesh download jobs.
+
+    Attributes
     ----------
     types : dict[str, ResourceTypeConfig]
-        Mapping from mesh type names to resource path descriptions.
-    extensions : tuple of str, default=('.ply',)
-        File extensions accepted when scanning mesh resources.
-    subject_ids : tuple of str or None, default=None
-        Optional subject list specific to mesh resources. ``None`` uses the
-        dataset-level subjects.
+        Mapping from public mesh type names to resource path descriptions.
+    extensions : tuple of str
+        File extensions accepted when scanning mesh resources. Extensions should
+        include the leading dot.
+    subject_ids : tuple of str or None
+        Optional mesh-specific subject list. None means the dataset-level
+        :attr:`~hrtfpykit.datasets.config.DatasetConfig.subject_ids` are used.
 
-    Returns
-    -------
-    MeshConfig Immutable mesh resource description used by dataset scanning and
-    downloading.
+    Notes
+    -----
+    If a dataset defines a mesh type named "default", the resource scanner can
+    use it when no explicit dataset mesh variant was provided.
 
     """
 
@@ -85,22 +127,30 @@ class MeshConfig:
 
 @dataclass(frozen=True)
 class AnthropometryConfig:
-    """Describe the official anthropometry table for a dataset.
+    """Describe an official anthropometry table resource.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.config.AnthropometryConfig` tells the dataset
+    resource scanner where the default anthropometry table lives and which file
+    extensions are valid. The left and right prefixes support datasets whose
+    physical measurements contain ear-specific columns, such as HUTUBS pinna or
+    ear measurements.
+
+    Attributes
     ----------
     path : str
-        Relative path to the anthropometry table.
+        Relative path from the dataset root to the anthropometry table.
     left_prefix : str
-        Prefix used for left-ear anthropometry fields.
+        Prefix used to identify left-ear anthropometry fields.
     right_prefix : str
-        Prefix used for right-ear anthropometry fields.
-    extensions : tuple of str, default=('.csv', '.mat')
-        Supported table file extensions.
+        Prefix used to identify right-ear anthropometry fields.
+    extensions : tuple of str
+        Supported table file extensions. Extensions should include the leading
+        dot.
 
-    Returns
-    -------
-    AnthropometryConfig Immutable anthropometry resource description.
+    Notes
+    -----
+    The config only describes the default official table. Individual
+    :class:`~hrtfpykit.datasets.AnthropometrySpec` objects can still provide path or extension overrides.
 
     """
 
@@ -112,18 +162,25 @@ class AnthropometryConfig:
 
 @dataclass(frozen=True)
 class MetadataConfig:
-    """Describe the official metadata table for a dataset.
+    """Describe an official subject metadata table resource.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.config.MetadataConfig` declares the default
+    table used by :class:`~hrtfpykit.datasets.MetadataSpec`. The resource
+    scanner resolves this path relative to the dataset root, validates the
+    requested extension, and loads rows or columns into the dataset state.
+
+    Attributes
     ----------
     path : str
-        Relative path to the metadata table.
-    extensions : tuple of str, default=('.csv', '.mat')
-        Supported table file extensions.
+        Relative path from the dataset root to the metadata table.
+    extensions : tuple of str
+        Supported table file extensions. Extensions should include the leading
+        dot.
 
-    Returns
-    -------
-    MetadataConfig Immutable metadata resource description.
+    Notes
+    -----
+    The config only describes the default official table. Individual
+    :class:`~hrtfpykit.datasets.MetadataSpec` objects can provide path or extension overrides.
 
     """
 
@@ -133,16 +190,17 @@ class MetadataConfig:
 
 @dataclass(frozen=True)
 class ImageConfig:
-    """Describe image resources available in a dataset.
+    """Describe subject image resources available in a dataset family.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.config.ImageConfig` declares the extensions
+    accepted by image resource scanning. Image specs use it when indexing
+    subject-level or subject-ear image files under the dataset root.
+
+    Attributes
     ----------
-    extensions : tuple of str, default=('.png',)
-        Supported image file extensions.
-
-    Returns
-    -------
-    ImageConfig Immutable image resource description.
+    extensions : tuple of str
+        Supported image file extensions. Extensions should include the leading
+        dot.
 
     """
 
@@ -151,16 +209,17 @@ class ImageConfig:
 
 @dataclass(frozen=True)
 class VideoConfig:
-    """Describe video resources available in a dataset.
+    """Describe subject video resources available in a dataset family.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.config.VideoConfig` declares the extensions
+    accepted by video resource scanning. Video specs use it when indexing
+    subject-level or subject-ear video files under the dataset root.
+
+    Attributes
     ----------
-    extensions : tuple of str, default=('.mp4',)
-        Supported video file extensions.
-
-    Returns
-    -------
-    VideoConfig Immutable video resource description.
+    extensions : tuple of str
+        Supported video file extensions. Extensions should include the leading
+        dot.
 
     """
 
@@ -169,20 +228,29 @@ class VideoConfig:
 
 @dataclass(frozen=True)
 class DownloadConfig:
-    """Describe official downloadable resources for a dataset.
+    """Describe official downloadable resources for a dataset family.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.config.DownloadConfig` is consumed by
+    :class:`~hrtfpykit.datasets.download.BaseDownload`. It defines the HTTPS base
+    URL, the resource groups that can be downloaded, and the checksum mapping
+    used to verify every planned file.
+
+    Attributes
     ----------
     base_url : str
-        HTTPS base URL used to compose download URLs.
+        HTTPS base URL used to compose resource download URLs.
     available_resources : tuple of str
-        Resource names supported by the dataset downloader.
-    checksums : dict or None, default=None
-        Optional SHA-256 checksum map used for secure verification.
+        Resource group names accepted by the downloader, such as "hrtf",
+        "mesh", "metadata", or "anthropometry".
+    checksums : dict[str, object] or None
+        Optional SHA-256 checksum map used for secure verification. The nested
+        shape depends on the resource family and variant axes.
 
-    Returns
-    -------
-    DownloadConfig Immutable download description consumed by ``BaseDownload``.
+    Notes
+    -----
+    Download selection is independent from dataset construction selection. A
+    dataset class can download one variant while later constructing samples from
+    another local variant.
 
     """
 
@@ -193,25 +261,47 @@ class DownloadConfig:
 
 @dataclass(frozen=True)
 class DatasetConfig:
-    """Describe the resources and subjects that make up a dataset family.
+    """Describe the subjects, resources, and downloads for a dataset family.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.config.DatasetConfig` is the top-level
+    declarative schema consumed by
+    :class:`~hrtfpykit.datasets.base.BaseDataset`,
+    :class:`~hrtfpykit.datasets.resources.DatasetResources`, and
+    :class:`~hrtfpykit.datasets.download.BaseDownload`. Concrete dataset classes
+    pass a config subclass or instance into the shared dataset builder so resource
+    discovery, subject mapping, split planning, and download planning all use the
+    same source of truth.
+
+    Attributes
     ----------
     name : str
-        Public dataset name used in summaries and errors.
+        Public dataset name used in summaries, errors, and download reports.
     subject_ids : tuple of str
-        Canonical subject IDs accepted by the dataset.
-    excluded_subject_ids : tuple of str, default=()
-        Dataset-level subject exclusions applied before user exclusions.
-    hrtf, mesh, anthropometry, metadata, image, video : config or None
-        Optional resource descriptions available to specs.
-    download : DownloadConfig or None, default=None
-        Optional official download description.
+        Canonical subject identifiers accepted by the dataset.
+    excluded_subject_ids : tuple of str
+        Dataset-level subject exclusions applied before user-provided
+        exclusions.
+    hrtf : HRTFConfig or None
+        HRTF/HRIR resource configuration, when the dataset provides acoustic
+        files.
+    mesh : MeshConfig or None
+        Mesh resource configuration, when the dataset provides subject geometry.
+    anthropometry : AnthropometryConfig or None
+        Anthropometry table configuration, when available.
+    metadata : MetadataConfig or None
+        Metadata table configuration, when available.
+    image : ImageConfig or None
+        Image resource configuration, when available.
+    video : VideoConfig or None
+        Video resource configuration, when available.
+    download : DownloadConfig or None
+        Official download configuration, when supported.
 
-    Returns
-    -------
-    DatasetConfig Immutable dataset-family description consumed by
-    ``BaseDataset``.
+    Notes
+    -----
+    None resource fields mean the dataset family does not declare that
+    resource type. Specs requesting an undeclared resource are rejected by the
+    dataset construction workflow or resource scanner.
 
     """
 
@@ -229,10 +319,33 @@ class DatasetConfig:
 
 @dataclass(frozen=True)
 class HUTUBSConfig(DatasetConfig):
-    """Static configuration for the HUTUBS dataset family.
+    """Built-in configuration for the HUTUBS dataset family.
 
-    The dataclass fields declare HUTUBS subject IDs, HRTF path templates, mesh
-    resources, anthropometry resources, and official download metadata.
+    :class:`~hrtfpykit.datasets.config.HUTUBSConfig` declares the subject IDs
+    and official resource layout used by :class:`~hrtfpykit.datasets.HUTUBS`.
+    It provides measured and
+    simulated HRIR SOFA resources, a default head mesh resource, the official
+    anthropometry table, optional image and video scanning defaults, and official
+    download metadata for HRTF, mesh, and anthropometry resources.
+
+    Attributes
+    ----------
+    name : str
+        Public dataset name, "HUTUBS".
+    subject_ids : tuple of str
+        HUTUBS subject identifiers "pp1" through "pp96".
+    hrtf : HRTFConfig
+        Measured and simulated HUTUBS SOFA file templates.
+    mesh : MeshConfig
+        Default HUTUBS 3D head mesh template.
+    anthropometry : AnthropometryConfig
+        Official HUTUBS anthropometry table and left/right field prefixes.
+    image, video : ImageConfig, VideoConfig
+        Default media extension declarations for optional local media resources.
+    download : DownloadConfig
+        Official HUTUBS download base URL, downloadable resource groups, and
+        checksum map.
+
     """
 
     name: str = "HUTUBS"
@@ -270,10 +383,35 @@ class HUTUBSConfig(DatasetConfig):
 
 @dataclass(frozen=True)
 class SONICOMConfig(DatasetConfig):
-    """Static configuration for the SONICOM dataset family.
+    """Built-in configuration for the SONICOM dataset family.
 
-    The dataclass fields declare SONICOM subject IDs, HRTF variants, mesh variants,
-    metadata resources, dataset-level exclusions, and official download metadata.
+    :class:`~hrtfpykit.datasets.config.SONICOMConfig` declares the subject IDs
+    and official resource layout used by :class:`~hrtfpykit.datasets.SONICOM`.
+    It provides measured and
+    synthetic HRTF resource variants, scanned and synthetic mesh variants, the
+    official metadata table, dataset-level subject exclusions, and download
+    metadata for metadata, HRTF, and mesh resources.
+
+    Attributes
+    ----------
+    name : str
+        Public dataset name, "SONICOM".
+    subject_ids : tuple of str
+        SONICOM subject identifiers "P0001" through "P0400".
+    excluded_subject_ids : tuple of str
+        Dataset-level exclusions applied before resource scanning and split
+        planning.
+    hrtf : HRTFConfig
+        Measured and synthetic SONICOM HRTF templates with sample-rate and
+        version selectors.
+    mesh : MeshConfig
+        Scanned and synthetic SONICOM mesh templates with version selectors.
+    metadata : MetadataConfig
+        Official SONICOM metadata table configuration.
+    download : DownloadConfig
+        Official SONICOM download base URL, downloadable resource groups, and
+        checksum map.
+
     """
 
     name: str = "SONICOM"

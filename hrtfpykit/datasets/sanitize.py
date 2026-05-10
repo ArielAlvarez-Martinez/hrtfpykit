@@ -21,13 +21,15 @@ def sanitize_subject_id(value: str) -> str:
 
     Subject references can arrive with whitespace or different casing, while
     dataset configs keep canonical IDs. This helper provides the normalized
-    form used by subject mapping without replacing the canonical value returned to
-    callers.
+    form used by :class:`~hrtfpykit.datasets.split.DatasetSplitPlanner` when it
+    compares user aliases with configured subject identifiers. The function does
+    not validate that the subject exists and does not replace the canonical value
+    returned to callers.
 
     Parameters
     ----------
     value : str
-        Subject identifier to normalize.
+        Subject identifier or subject-like value to normalize.
 
     Returns
     -------
@@ -39,22 +41,38 @@ def sanitize_subject_id(value: str) -> str:
 
 
 def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
-    """Normalize and validate dataset row axes.
+    """Normalize and validate dataset row-axis declarations.
 
     Indexed specs must agree on a subject-first row structure, and only supported
-    axes can appear after ``subject``. This helper converts string shorthand into
+    axes can appear after subject. This helper converts string shorthand into
     tuples and rejects duplicate, incompatible, or ambiguous axes early in spec
-    planning.
+    planning. It is used by
+    :class:`~hrtfpykit.datasets.specs_workflow.DatasetSpecWorkflow`,
+    :class:`~hrtfpykit.datasets.acoustic_context.DatasetAcousticContext`, and
+    sample value selectors so construction and indexing interpret row axes
+    consistently.
+
+    A string equal to "subject" becomes a single-axis tuple. A string such as
+    "subject-position" is split on hyphens. Sequence inputs are stripped and
+    lowercased element by element.
 
     Parameters
     ----------
     index_by : str or sequence of str
-        Requested dataset row axes.
+        Requested dataset row axes. The first axis must be "subject". Optional
+        following axes are "position", "ear", "frequency", or "samples".
 
     Returns
     -------
     tuple of str
         Normalized row axes.
+
+    Raises
+    ------
+    ValueError
+        If no axes are provided, if the first axis is not "subject", if axes are
+        duplicated, if an unsupported axis is present, or if both "frequency" and
+        "samples" are requested in the same row definition.
 
     """
     allowed_axes = {"position", "ear", "frequency", "samples"}
@@ -91,17 +109,26 @@ def sanitize_grouped_by(grouped_by: str | Sequence[str]) -> tuple[str, ...]:
 
     Table and media resources can be grouped by subject or subject-ear. This
     helper keeps that contract explicit so scanners and value selectors do not
-    need to interpret arbitrary grouping combinations.
+    need to interpret arbitrary grouping combinations. It accepts the same
+    hyphenated shorthand as
+    :func:`~hrtfpykit.datasets.sanitize.sanitize_index_by`, but only the two
+    grouping layouts supported by the dataset pipeline are valid.
 
     Parameters
     ----------
     grouped_by : str or sequence of str
-        Requested grouping axes.
+        Requested grouping axes. Supported normalized values are ("subject",) and
+        ("subject", "ear").
 
     Returns
     -------
     tuple of str
         Normalized grouping axes.
+
+    Raises
+    ------
+    ValueError
+        If the requested grouping is not subject-only or subject-ear.
 
     """
     if isinstance(grouped_by, str):
@@ -124,17 +151,24 @@ def sanitize_ear(ear: str | None) -> str | None:
 
     Anthropometry and metadata specs can request no ear, both ears, or one side
     when grouped by ear. This helper centralizes accepted values so workflow
-    validation and value selection use the same vocabulary.
+    validation and value selection use the same vocabulary. Empty strings are
+    treated as no fixed ear selection.
 
     Parameters
     ----------
     ear : str or None
-        Ear selector.
+        Ear selector from a table-style spec.
 
     Returns
     -------
-    str
-        or None Normalized ear selector.
+    str or None
+        Normalized ear selector: None, "both", "left", or "right".
+
+    Raises
+    ------
+    ValueError
+        If the selector is not None, not empty, and not one of "both", "left",
+        or "right".
 
     """
     if ear is None or str(ear).strip() == "":
@@ -152,17 +186,23 @@ def sanitize_accessed_by(accessed_by: str) -> str:
 
     Table specs support row-oriented or column-oriented subject layouts. This
     helper validates the setting before table loading so row/column indexing
-    errors remain tied to spec planning.
+    errors remain tied to spec planning rather than surfacing later from
+    :func:`~hrtfpykit.datasets.load.load_table`.
 
     Parameters
     ----------
     accessed_by : str
-        Table access direction.
+        Table access direction requested by metadata or anthropometry specs.
 
     Returns
     -------
     str
-        ``'row'`` or ``'column'``.
+        Normalized access direction, either "row" or "column".
+
+    Raises
+    ------
+    ValueError
+        If the access direction is not "row" or "column".
 
     """
     accessed_by_value = str(accessed_by).strip().lower()
@@ -175,17 +215,28 @@ def sanitize_ears(ears: str | Sequence[str]) -> list[tuple[str, int]]:
     """Normalize HRTF ear selection into labels and source indices.
 
     HRTF-like resources use left/right source-ear indices, while user specs use
-    readable names such as ``both`` or ``left``. This helper returns both
-    representations and rejects duplicate or unsupported ear requests.
+    readable names such as "both" or "left". This helper returns both
+    representations and rejects duplicate or unsupported ear requests. The
+    returned integer indices match the binaural ear axis used by loaded HRTF and
+    HRIR arrays: left is index 0 and right is index 1.
 
     Parameters
     ----------
     ears : str or sequence of str
-        Ear selection.
+        Ear selection from HRTF-style specs. Strings can be "both", "left", or
+        "right". Sequence inputs can contain "left" and "right".
 
     Returns
     -------
-    list of tuple Ear labels and source ear indices.
+    list of tuple
+        Ear labels paired with source ear indices.
+
+    Raises
+    ------
+    ValueError
+        If the selector is unsupported, if a sequence is empty, if a sequence
+        contains duplicate ears, or if a sequence contains any value other than
+        "left" or "right".
 
     """
     if isinstance(ears, str):
@@ -221,12 +272,17 @@ def sanitize_positions(
 
     Position selectors can request all positions or explicit integer indices. This
     helper validates emptiness, duplicates, and bounds so acoustic context
-    building receives a validated index list.
+    building receives a validated index list. It does not resolve named planes or
+    geometric subsets; that is handled by
+    :class:`~hrtfpykit.datasets.acoustic_context.DatasetAcousticContext` before
+    this helper is called.
 
     Parameters
     ----------
     positions : str, sequence, or numpy.ndarray
-        Requested position selection.
+        Requested position selection. The string "all" selects every available
+        source position. Non-string inputs are converted to a one-dimensional
+        integer array.
     position_count : int
         Number of positions available.
 
@@ -234,6 +290,13 @@ def sanitize_positions(
     -------
     list of int
         Validated position indices.
+
+    Raises
+    ------
+    ValueError
+        If a string other than "all" is provided, if the explicit index list is
+        empty, if duplicate indices are present, or if any index is outside the
+        available position range.
 
     """
     if isinstance(positions, str):
@@ -263,19 +326,27 @@ def sanitize_extensions(
 
     Specs and configs may provide extensions with or without a leading dot. This
     helper validates entries, rejects path-like values, lowercases them, and
-    removes duplicates before resource scanning.
+    removes duplicates before resource scanning. A None value means no explicit
+    extension filter was provided; callers can then fall back to dataset
+    configuration defaults.
 
     Parameters
     ----------
     resource_name : str
-        Resource label used in errors.
+        Resource label used in validation errors.
     extensions : tuple, list, or None
-        Extension values to normalize.
+        Extension values to normalize. Entries can include or omit the leading
+        dot.
 
     Returns
     -------
     tuple of str
-        Unique lowercase extensions beginning with ``.``.
+        Unique lowercase extensions beginning with a dot.
+
+    Raises
+    ------
+    ValueError
+        If any extension entry is empty, is only ".", or contains path separators.
 
     """
     if extensions is None:
@@ -323,18 +394,28 @@ def sanitize_specs(
     """Normalize input or target specs into copied spec tuples.
 
     Dataset construction should never mutate caller-owned spec objects. This
-    helper accepts ``None``, a single spec, or a sequence, copies each spec, and
-    rejects duplicate public names before workflow validation continues.
+    helper accepts None, a single spec, or a sequence, copies each spec, and
+    rejects duplicate public names before workflow validation continues. It is the
+    first normalization step used by
+    :class:`~hrtfpykit.datasets.specs_workflow.DatasetSpecWorkflow`, before axis,
+    grouping, path, and resource compatibility checks run.
 
     Parameters
     ----------
     specs : spec, sequence of specs, or None
-        User-provided specs.
+        User-provided dataset specs for an input or target collection.
 
     Returns
     -------
-    tuple
-        of specs Copied and name-validated specs.
+    tuple of specs
+        Copied and name-validated specs.
+
+    Raises
+    ------
+    TypeError
+        If a string is passed instead of a dataset spec object.
+    ValueError
+        If two specs resolve to the same public sample name.
 
     """
     if specs is None:

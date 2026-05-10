@@ -2,25 +2,35 @@ from .specs_registry import has_specs
 
 
 def _summary_title(text: str, width: int = 54, marker: str = "=") -> str:
-    """Format a centered summary title.
+    """Format a centered title line for plain-text summaries.
 
-    Summary output is intentionally plain text so it works in terminals, notebooks,
-    and logs. This helper formats the shared title line used by resource, dataset,
-    and download summaries.
+    The summary helpers return plain text so their output can be printed in
+    terminals, notebooks, logs, and exception messages. This helper strips the
+    title text, adds one leading and trailing space around it, and pads both sides
+    with the selected marker until the requested width is reached.
 
     Parameters
     ----------
     text : str
-        Title text.
-    width : int
-        Desired output width.
-    marker : str
-        Padding marker.
+        Title text to center. Leading and trailing whitespace is removed before
+        formatting.
+    width : int, default=54
+        Desired output width. If width is zero or negative, the stripped text is
+        returned without padding.
+    marker : str, default="="
+        Padding string repeated on both sides of the title.
 
     Returns
     -------
     str
-        Formatted title line.
+        Formatted title line. If the spaced title is already at least as wide as
+        width, the spaced title is returned without marker padding.
+
+    Notes
+    -----
+    This function is intentionally independent from dataset state. It is shared by
+    resource, dataset, and download summaries to keep their headers visually
+    consistent.
 
     """
     cleaned = str(text).strip()
@@ -43,32 +53,42 @@ def resources_summary(
     missing: int = 0,
     missing_subject_ids: tuple[str, ...] | list[str] = tuple(),
 ) -> dict[str, object] | str:
-    """Create a resource summary dictionary or formatted dataset resource summary.
+    """Create resource scan records or a formatted dataset resource summary.
 
-    The function has two modes: scanner mode returns a dictionary from
-    counts, and dataset mode formats the stored summaries for resources actually
-    used by selected specs. This keeps scanner bookkeeping and user-facing summary
-    text aligned.
+    This function has two modes. Scanner mode is used by resource discovery code
+    and returns a compact dictionary containing checked, found, missing, and
+    missing-subject counts. Dataset mode reads the constructed
+    :class:`~hrtfpykit.datasets.state.DatasetState`, filters stored resource
+    summaries to the resource families required by active specs, and returns a
+    plain-text report.
 
     Parameters
     ----------
     dataset : object or None, default=None
-        Dataset instance to summarize. If ``None``, returns a resource summary
-        dictionary from the count arguments.
+        Dataset instance to summarize. When None, scanner mode is used and the
+        count arguments are returned as a dictionary.
     checked : int, default=0
-        Number of resource entries checked.
+        Number of resource entries checked during scanner mode.
     found : int, default=0
-        Number of resource entries found.
+        Number of resource entries found during scanner mode.
     missing : int, default=0
-        Number of resource entries missing.
+        Number of resource entries missing during scanner mode.
     missing_subject_ids : tuple or list of str, default=()
-        Subject IDs missing this resource.
+        Subject IDs missing this resource during scanner mode. Values are stored as
+        a tuple in the returned dictionary.
 
     Returns
     -------
-    dict
-        or str Resource summary dictionary when ``dataset`` is ``None``;
-    otherwise a formatted summary string.
+    dict or str
+        Resource summary dictionary when dataset is None. Otherwise, a formatted
+        summary string containing only resources required by the active specs.
+
+    Notes
+    -----
+    Dataset mode uses :func:`~hrtfpykit.datasets.specs_registry.has_specs` to decide
+    whether "hrtf", "mesh", "anthropometry", "metadata", "image", or "video" should
+    appear in the formatted output. If the constructed state contains no applicable
+    resource records, the summary reports "none".
 
     """
 
@@ -112,20 +132,29 @@ def resources_summary(
 def dataset_summary(dataset: object) -> str:
     """Create a formatted summary for a constructed dataset.
 
-    The summary is built from final dataset state, not constructor arguments, so
-    it reflects exclusions, resource intersection, split selection, selected
-    specs, variants, and acoustic metadata after construction. It is the main
-    summary view for a dataset instance.
+    The summary is built from final
+    :class:`~hrtfpykit.datasets.state.DatasetState` values, not from constructor
+    arguments. It therefore reflects configured exclusions, resource intersection,
+    split selection, normalized input and target specs, selected variants, and
+    acoustic metadata after dataset construction has completed.
 
     Parameters
     ----------
-    dataset : object
+    dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
         Dataset instance with initialized dataset state.
 
     Returns
     -------
     str
-        Human-readable dataset summary.
+        Human-readable dataset summary containing the root path, split, subject
+        counts, sample count, input keys, target keys, selected HRTF or mesh variants
+        when relevant, sample rate when known, and position count when known.
+
+    Notes
+    -----
+    Variant lines are included only when the active specs require the corresponding
+    resource family. This keeps summaries for table-only, image-only, or metadata
+    workflows from showing unrelated HRTF or mesh configuration.
 
     """
 
@@ -182,18 +211,22 @@ def download_summary(
 ) -> str:
     """Create a formatted summary for a dataset download operation.
 
-    The summary aggregates planned jobs, downloaded files, verified existing
-    files, failures, subjects, resources, and selected variants. It is returned
-    after successful downloads and embedded in raised errors when any job fails.
+    The summary aggregates the download plan, downloaded files, verified existing
+    files, failures, subjects, requested resources, and selected variants. Download
+    code returns it after successful runs and embeds it in raised errors when one or
+    more jobs fail.
 
     Parameters
     ----------
-    config : DatasetConfig
-        Dataset configuration used by the downloader.
+    config : :class:`~hrtfpykit.datasets.config.DatasetConfig`
+        Dataset configuration used by the downloader. The summary reads the dataset
+        name from this object.
     root : str or Path
-        Local download root.
+        Local download root reported in the summary.
     download_jobs : list of dict
-        Planned download job records.
+        Planned download job records. Each job is expected to contain a "resource"
+        entry and may contain "subject_id", "hrtf_variant", and "mesh_variant"
+        entries.
     downloaded_count : int
         Number of files downloaded in this run.
     verified_count : int
@@ -204,7 +237,15 @@ def download_summary(
     Returns
     -------
     str
-        Human-readable download summary.
+        Human-readable download summary. The output always includes root and
+        planned-file count. When files were planned, it also includes downloaded,
+        verified, failed, subject, resource, variant, and status lines.
+
+    Notes
+    -----
+    HRTF and mesh variant dictionaries are rendered as comma-separated key-value
+    pairs with None values omitted. Failure details are limited to the first five
+    messages so the summary remains readable when many jobs fail.
 
     """
 

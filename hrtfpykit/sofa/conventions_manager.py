@@ -30,7 +30,7 @@ class ConventionsManager:
     def available_conventions_specifications() -> None:
         """Print the list of available SOFA conventions and versions.
 
-        The table is built from the local ``CONVENTIONS`` registry.
+        The table is built from the local "CONVENTIONS" registry.
 
         Raises
         ------
@@ -99,13 +99,13 @@ class ConventionsManager:
         spec : Mapping[str, Mapping[str, Any]]
             Convention specification to store.
         overwrite : bool, optional
-            If True, allow overwriting an existing version.
+            If "True", allow overwriting an existing version.
 
         Raises
         ------
         ValueError
-            If ``spec`` is invalid or if the version already exists and
-            ``overwrite`` is ``False``.
+            If spec is invalid or if the version already exists and
+            "overwrite" is "False".
         """
         spec_dict = ConventionsManager._validate_spec(spec)
         if name not in CONVENTIONS:
@@ -174,7 +174,7 @@ class ConventionsManager:
         KeyError
             If the requested convention name or version is not registered.
         OSError
-            If the JSON payload cannot be written to ``path``.
+            If the JSON payload cannot be written to "path".
         """
         spec = ConventionsManager.inspect_sofa_specification(name, version)
         payload = {"convention": name, "version": version, "spec": spec}
@@ -188,6 +188,7 @@ class ConventionsManager:
         """Register conventions from a JSON file.
 
         The JSON can be either:
+
         - {"convention": "...", "version": "...", "spec": {...}}
         - {"registry": { "Name": { "1.0": {...}, ... } } }
 
@@ -196,16 +197,16 @@ class ConventionsManager:
         path : str | Path
             Path to the JSON file.
         overwrite : bool, optional
-            If True, allow overwriting existing versions.
+            If "True", allow overwriting existing versions.
 
         Raises
         ------
         FileNotFoundError
-            If ``path`` does not exist.
+            If "path" does not exist.
         ValueError
             If the JSON payload is malformed, contains invalid registry
             entries, or conflicts with existing versions while
-            ``overwrite`` is ``False``.
+            "overwrite" is "False".
         """
         in_path = Path(path)
         if not in_path.exists():
@@ -259,7 +260,7 @@ class ConventionsManager:
         Raises
         ------
         ValueError
-            If ``spec`` is not a mapping, an entry is not a mapping, or one
+            If "spec" is not a mapping, if an entry is not a mapping, or if one
             or more required fields are missing.
         """
 

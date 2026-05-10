@@ -26,40 +26,56 @@ if TYPE_CHECKING:
 
 
 class Transform:
-    """Transformation interface attached to an :class:`HRTF` object.
-
-    ``Transform`` exposes immutable HRTF-processing operations such as windowing,
-    resampling, filtering, directivity conversion, phase replacement, and gain
-    modification. Each method clones the parent HRTF object, applies one
-    operation to the clone, resynchronizes the affected time- or frequency-domain
-    representation when needed, and returns the transformed HRTF object.
-    """
-
     def __init__(self, hrtf: "HRTF") -> None:
+        """Provide immutable HRTF-processing operations for one parent object.
+
+        :class:`~hrtfpykit.hrtf.transforms.Transform` is accessed through
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform` and provides non-mutating
+        HRTF-processing operations. Each method clones the parent
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object, applies one operation to the
+        clone, resynchronizes the affected domain representation, marks the
+        returned object as transformed, and leaves the original HRTF unchanged.
+
+        Time-domain operations modify the impulse-response array stored in
+        :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`, then refresh the
+        frequency-response array stored in
+        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`. Frequency-domain
+        operations do the reverse: they modify the transfer-function array and
+        refresh the impulse-response array. This keeps both acoustic representations
+        available for later plotting, metric calculation, SOFA synchronization,
+        and export.
+
+        Parameters
+        ----------
+        hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+            Parent :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used as the
+            source for cloned transform results.
+        """
         self._hrtf = hrtf
 
     def apply_window(self, window_name: str) -> "HRTF":
-        """Apply a time-domain window to IR values and resync TF.
+        """Apply a time-domain window to IR values and rebuild TF.
+
+        The window is applied along the final IR sample axis. The returned HRTF
+        keeps the original source and ear layout, stores the windowed IR, and
+        recomputes the frequency-domain representation with the current
+        fft_length.
 
         Parameters
         ----------
         window_name : str
-            Window identifier passed to the DSP layer, for example ``"hann"``,
-            ``"hamming"``, ``"blackman"``, or ``"rectangular"``.
+            Window identifier passed to the DSP layer, for example "hann",
+            "hamming", "blackman", or "rectangular".
 
         Returns
         -------
         HRTF
             A new HRTF instance with windowed IR values and refreshed TF data.
 
-        Examples
-        --------
-        Apply a Hann window before inspecting the front direction:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> windowed = hrtf.transform.apply_window("hann")
-        >>> windowed.plot_amplitude(positions="front", show=False)
+        Raises
+        ------
+        ValueError
+            If IR data are unavailable or the requested window is unsupported.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -77,7 +93,11 @@ class Transform:
         location: str = "end",
         value: float = 0,
     ) -> "HRTF":
-        """Pad IR values in time and resync TF.
+        """Pad IR values along the sample axis and rebuild TF.
+
+        Padding is applied to the final IR axis while preserving source and ear
+        layout. The frequency-domain representation is recomputed from the
+        padded IR in the returned HRTF.
 
         Parameters
         ----------
@@ -93,14 +113,11 @@ class Transform:
         HRTF
             A new HRTF instance with padded IR values and refreshed TF data.
 
-        Examples
-        --------
-        Pad one front-facing HRIR before plotting it:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> padded = hrtf.transform.apply_padding(32, location="end")
-        >>> padded.plot_amplitude(positions="front", x_axis="samples", show=False)
+        Raises
+        ------
+        ValueError
+            If IR data are unavailable, padding length is invalid, or
+            location is not supported.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -123,6 +140,12 @@ class Transform:
     ) -> "HRTF":
         """Upsample impulse-response values and resynchronize TF data.
 
+        The transform changes :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`
+        and :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` in
+        the returned object, then recomputes
+        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` and frequency bins
+        from the resampled IR.
+
         Parameters
         ----------
         new_sample_rate : float
@@ -135,15 +158,11 @@ class Transform:
             A new HRTF instance with upsampled IR values, updated IR sample
             rate, and refreshed TF data.
 
-        Examples
-        --------
-        Upsample one front-facing HRIR set to 96 kHz:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> upsampled = hrtf.transform.upsampling(96000.0)
-        >>> upsampled.IR.sample_rate
-        96000.0
+        Raises
+        ------
+        ValueError
+            If IR data or sample-rate metadata are unavailable, or if the
+            target sample rate is not finite and greater than the current rate.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -162,7 +181,13 @@ class Transform:
         self,
         new_sample_rate: float,
     ) -> "HRTF":
-        """Downsample IR values and resync TF.
+        """Downsample impulse-response values and resynchronize TF data.
+
+        The transform changes :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`
+        and :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` in
+        the returned object, then recomputes
+        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` and frequency bins
+        from the resampled IR.
 
         Parameters
         ----------
@@ -176,15 +201,11 @@ class Transform:
             A new HRTF instance with downsampled IR values, updated IR sample
             rate, and refreshed TF data.
 
-        Examples
-        --------
-        Downsample one front-facing HRIR set to 24 kHz:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> downsampled = hrtf.transform.downsampling(24000.0)
-        >>> downsampled.IR.sample_rate
-        24000.0
+        Raises
+        ------
+        ValueError
+            If IR data or sample-rate metadata are unavailable, or if the
+            target sample rate is not finite and lower than the current rate.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -206,7 +227,11 @@ class Transform:
         num_taps: int = 101,
         window: str | None = None,
     ) -> "HRTF":
-        """Apply FIR filtering to IR values and resync TF.
+        """Apply FIR filtering to IR values and rebuild TF.
+
+        Filtering is performed in the time domain along the final IR sample
+        axis. The returned object stores the filtered IR and recomputes the TF
+        representation from it.
 
         Parameters
         ----------
@@ -225,18 +250,12 @@ class Transform:
         HRTF
             A new HRTF instance with filtered IR values and refreshed TF data.
 
-        Examples
-        --------
-        Low-pass one front direction with an FIR design:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> lowpassed = hrtf.transform.apply_fir_filter(
-        ...     "lowpass",
-        ...     cutoff=3000.0,
-        ...     num_taps=31,
-        ... )
-        >>> lowpassed.plot_magnitude(positions="front", show=False)
+        Raises
+        ------
+        ValueError
+            If IR data or sample-rate metadata are unavailable, filter
+            arguments are invalid, or cutoff values are incompatible with the
+            sample rate.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -261,7 +280,11 @@ class Transform:
         cutoff: float | tuple[float, float] | None = None,
         order: int = 10,
     ) -> "HRTF":
-        """Apply IIR filtering to IR values and resync TF.
+        """Apply IIR filtering to IR values and rebuild TF.
+
+        Filtering is performed in the time domain along the final IR sample
+        axis. The returned object stores the filtered IR and recomputes the TF
+        representation from it.
 
         Parameters
         ----------
@@ -278,18 +301,12 @@ class Transform:
         HRTF
             A new HRTF instance with filtered IR values and refreshed TF data.
 
-        Examples
-        --------
-        Smooth one front direction with an IIR low-pass filter:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> smoothed = hrtf.transform.apply_iir_filter(
-        ...     "lowpass",
-        ...     cutoff=3000.0,
-        ...     order=4,
-        ... )
-        >>> smoothed.plot_magnitude(positions="front", show=False)
+        Raises
+        ------
+        ValueError
+            If IR data or sample-rate metadata are unavailable, filter
+            arguments are invalid, or cutoff values are incompatible with the
+            sample rate.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -313,7 +330,11 @@ class Transform:
         fft_length: int | None = None,
         epsilon: float = 1e-12,
     ) -> "HRTF":
-        """Convert IR values to minimum phase and resync TF.
+        """Convert IR values to minimum phase and rebuild TF.
+
+        The transform replaces each current HRIR with a minimum-phase version
+        derived from its magnitude response. The returned object then refreshes
+        the TF representation from the minimum-phase IR.
 
         Parameters
         ----------
@@ -329,14 +350,10 @@ class Transform:
         HRTF
             A new HRTF instance with minimum-phase IR values and refreshed TF data.
 
-        Examples
-        --------
-        Convert one direction into a minimum-phase version:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> minimum_phase_hrtf = hrtf.transform.minimum_phase()
-        >>> minimum_phase_hrtf.plot_amplitude(positions="front", show=False)
+        Raises
+        ------
+        ValueError
+            If IR data are unavailable or minimum-phase parameters are invalid.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -361,20 +378,24 @@ class Transform:
     ) -> "HRTF":
         """Convert the current HRTF into its common transfer function (CTF).
 
+        The CTF collapses the source axis into a single common response per ear.
+        The returned HRTF keeps a singleton source axis for compatibility with
+        source-based plotting and SOFA update workflows.
+
         Parameters
         ----------
         weights : bool, optional
-            If ``False``, all source positions contribute equally. If ``True``,
+            If False, all source positions contribute equally. If True,
             diffuse-field weights are derived internally from the HRTF source
             positions using spherical Voronoi areas.
         magnitude_average : {"log", "linear"}, optional
             Rule used to average source magnitudes before the minimum-phase
-            CTF reconstruction. ``"log"`` computes a log-magnitude average
-            (geometric mean in linear magnitude). ``"linear"`` computes a
+            CTF reconstruction. "log" computes a log-magnitude average
+            (geometric mean in linear magnitude). "linear" computes a
             direct linear-magnitude average (arithmetic mean).
         attenuation : float | None, optional
             Optional attenuation in dB applied to the CTF magnitude before the
-            minimum-phase reconstruction. If ``None``, no attenuation is
+            minimum-phase reconstruction. If None, no attenuation is
             applied.
 
         Returns
@@ -383,18 +404,11 @@ class Transform:
             A new HRTF instance containing the CTF. The output keeps a
             singleton compatibility source axis.
 
-        Examples
-        --------
-        Collapse a loaded HRTF into a single common transfer function:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> ctf = hrtf.transform.to_ctf(weights=True, magnitude_average="linear")
-        >>> ctf.plot_magnitude(
-        ...     positions=ctf.Sources.get_positions(angle_unit="degrees")[0, :2],
-        ...     ear="both",
-        ...     show=False,
-        ... )
+        Raises
+        ------
+        ValueError
+            If TF data, IR reference length, source geometry, weighting
+            inputs, or averaging parameters are invalid.
         """
         transformed_hrtf = ctf_from_hrtf(
             hrtf=self._hrtf,
@@ -413,21 +427,25 @@ class Transform:
     ) -> "HRTF":
         """Convert the current HRTF into its directional transfer function (DTF).
 
+        The DTF removes a common transfer component estimated from the current
+        HRTF. The returned HRTF preserves the source layout of the input object
+        and rebuilds IR data from the DTF-domain TF values.
+
         Parameters
         ----------
         weights : bool, optional
-            If ``False``, all source positions contribute equally to the
-            internal CTF estimate. If ``True``, diffuse-field weights are
+            If False, all source positions contribute equally to the
+            internal CTF estimate. If True, diffuse-field weights are
             derived internally from the HRTF source positions using spherical
             Voronoi areas.
         magnitude_average : {"log", "linear"}, optional
             Rule used to estimate the internal CTF magnitude before the DTF
-            division. ``"log"`` computes a log-magnitude average
-            (geometric mean in linear magnitude). ``"linear"`` computes a
+            division. "log" computes a log-magnitude average
+            (geometric mean in linear magnitude). "linear" computes a
             direct linear-magnitude average (arithmetic mean).
         attenuation : float | None, optional
             Optional attenuation in dB applied to the DTF after the CTF
-            division. If ``None``, no attenuation is applied.
+            division. If None, no attenuation is applied.
 
         Returns
         -------
@@ -435,18 +453,11 @@ class Transform:
             A new HRTF instance containing the DTF while preserving the
             source layout of the current HRTF.
 
-        Examples
-        --------
-        Remove the common transfer function and inspect the directional component:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> dtf = hrtf.transform.to_dtf(weights=True, attenuation=20.0)
-        >>> dtf.plot_magnitude(
-        ...     positions=["front", "left"],
-        ...     ear="both",
-        ...     show=False,
-        ... )
+        Raises
+        ------
+        ValueError
+            If TF data, IR reference length, source geometry, weighting
+            inputs, or averaging parameters are invalid.
         """
         transformed_hrtf = dtf_from_hrtf(
             hrtf=self._hrtf,
@@ -463,12 +474,19 @@ class Transform:
     ) -> "HRTF":
         """Replace time-domain IR values and rebuild TF data.
 
+        new_ir replaces the full current IR array. The leading dimensions
+        before the final sample axis must match the current spatial and ear
+        layout. When "new_ir" is an :class:`~hrtfpykit.hrtf.domain.IR` or
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object and provides a sample rate,
+        that sample rate is copied into the returned HRTF before TF
+        recomputation.
+
         Parameters
         ----------
         new_ir : np.ndarray | IR | HRTF
             Time-domain data used to replace the current IR values. NumPy
             arrays must keep the same spatial and ear layout as the current
-            HRTF. ``IR`` and ``HRTF`` inputs contribute their IR values, and
+            HRTF. :class:`~hrtfpykit.hrtf.domain.IR` and :class:`~hrtfpykit.hrtf.hrtf.HRTF` inputs contribute their IR values, and
             when available their sample rate.
 
         Returns
@@ -476,17 +494,11 @@ class Transform:
         HRTF
             A new HRTF instance with modified IR values and rebuilt TF data.
 
-        Examples
-        --------
-        Replace one direction with a gated HRIR:
-
-        >>> import numpy as np
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> edited_ir = np.array(hrtf.IR.values, copy=True)
-        >>> edited_ir[..., -32:] = 0.0
-        >>> gated = hrtf.transform.modify_ir(edited_ir)
-        >>> gated.plot_amplitude(positions="front", show=False)
+        Raises
+        ------
+        ValueError
+            If replacement data are missing, empty, not array-like in the
+            expected way, or do not match the current leading IR/TF layout.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -543,28 +555,27 @@ class Transform:
     ) -> "HRTF":
         """Replace TF phase values and rebuild IR.
 
+        The transform preserves the current TF magnitude and replaces only the
+        phase component. The replacement phase must be compatible with the
+        current TF layout and is interpreted according to unit.
+
         Parameters
         ----------
         new_phase : np.ndarray
             Phase array with the same TF layout as the current HRTF.
         unit : {"degrees", "radians"}, default="degrees"
-            Unit used by ``new_phase``.
+            Unit used by new_phase.
 
         Returns
         -------
         HRTF
             A new HRTF instance with modified TF phase and rebuilt IR data.
 
-        Examples
-        --------
-        Replace one transfer function with a zero-phase version:
-
-        >>> import numpy as np
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> zero_phase = np.zeros_like(hrtf.TF.phase)
-        >>> phase_aligned = hrtf.transform.modify_phase(zero_phase, unit="degrees")
-        >>> phase_aligned.plot_amplitude(positions="front", show=False)
+        Raises
+        ------
+        ValueError
+            If TF data or frequency bins are unavailable, unit is invalid,
+            or the replacement phase cannot be broadcast to the TF layout.
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -586,30 +597,34 @@ class Transform:
     ) -> "HRTF":
         """Replace frequency-domain TF values and rebuild IR data.
 
+        new_tf replaces the full complex TF array. The leading dimensions
+        before the frequency axis must match the current TF layout, or the
+        current IR leading layout when no TF data are present. Frequency bins
+        are copied from :class:`~hrtfpykit.hrtf.domain.TF` or
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` inputs when available; otherwise
+        they are reused or inferred from the current sample rate when the TF
+        length changes.
+
         Parameters
         ----------
         new_tf : np.ndarray | TF | HRTF
             Frequency-domain data used to replace the current TF values. NumPy
             arrays must keep the same spatial and ear layout as the current
-            HRTF. ``TF`` and ``HRTF`` inputs contribute their TF values, and
-            when available their frequency bins.
+            HRTF. :class:`~hrtfpykit.hrtf.domain.TF` and
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` inputs contribute their TF
+            values and, when available, their frequency bins.
 
         Returns
         -------
         HRTF
             A new HRTF instance with modified TF values and rebuilt IR data.
 
-        Examples
-        --------
-        Soften the highest bins before replacing one transfer function:
-
-        >>> import numpy as np
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> edited_tf = np.array(hrtf.TF.values, copy=True)
-        >>> edited_tf[..., -24:] *= 0.5
-        >>> softened = hrtf.transform.modify_tf(edited_tf)
-        >>> softened.plot_magnitude(positions="front", show=False)
+        Raises
+        ------
+        ValueError
+            If replacement data are missing, empty, have incompatible leading
+            shape, contain too few frequency bins, or require frequency-bin
+            inference without valid sample-rate metadata.
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -702,27 +717,27 @@ class Transform:
     ) -> "HRTF":
         """Replace TF magnitude values and rebuild IR.
 
+        The transform preserves the current TF phase and replaces only the
+        magnitude component. new_magnitude must be compatible with the
+        current TF layout and is interpreted according to scale.
+
         Parameters
         ----------
         new_magnitude : np.ndarray
             Magnitude array with the same TF layout as the current HRTF.
         scale : {"linear", "db"}, default="linear"
-            Magnitude scale used by ``new_magnitude``.
+            Magnitude scale used by new_magnitude.
 
         Returns
         -------
         HRTF
             A new HRTF instance with modified TF magnitude and rebuilt IR data.
 
-        Examples
-        --------
-        Tilt the magnitude while preserving the original phase:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> tilted_magnitude = hrtf.TF.magnitude * 0.9
-        >>> softened = hrtf.transform.modify_magnitude(tilted_magnitude, scale="linear")
-        >>> softened.plot_magnitude(positions="front", show=False)
+        Raises
+        ------
+        ValueError
+            If TF data or frequency bins are unavailable, scale is invalid,
+            or the replacement magnitude cannot be broadcast to the TF layout.
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -745,16 +760,20 @@ class Transform:
     ) -> "HRTF":
         """Apply a TF-domain gain and rebuild IR.
 
+        Gain modifies TF magnitude while preserving phase. Scalar gains apply
+        globally; array gains can target sources, ears, or frequency bins when
+        they are broadcast-compatible with :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
+
         Parameters
         ----------
         gain : float | np.ndarray
             Gain applied to the current TF magnitude while preserving phase.
             Scalar gains affect every source, ear, and bin equally. Array
             gains must be broadcast-compatible with the current TF shape. In
-            ``scale="db"``, negative values attenuate and positive values
+            scale="db", negative values attenuate and positive values
             amplify.
         scale : {"linear", "db"}, default="db"
-            Scale used by ``gain``.
+            Scale used by gain.
 
         Returns
         -------
@@ -762,19 +781,11 @@ class Transform:
             A new HRTF instance with gain-adjusted TF values and rebuilt IR
             data.
 
-        Examples
-        --------
-        Attenuate one selected direction by 6 dB:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> quieter = hrtf.transform.apply_gain(-6.0, scale="db")
-        >>> quieter.plot_magnitude(positions="front", show=False)
-
-        Apply a gentle linear gain boost to the whole TF:
-
-        >>> louder = hrtf.transform.apply_gain(1.1, scale="linear")
-        >>> louder.plot_magnitude(positions="front", show=False)
+        Raises
+        ------
+        ValueError
+            If TF data or frequency bins are unavailable, scale is invalid,
+            or gain cannot be broadcast to the current TF layout.
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -793,6 +804,10 @@ class Transform:
     def modify_fft_length(self, new_fft_length: int) -> "HRTF":
         """Set the HRTF FFT length and recompute TF from the current IR.
 
+        The returned object keeps the current IR unchanged and rebuilds TF
+        using new_fft_length. This changes frequency-bin spacing and TF
+        length but does not add time-domain information to the HRIR.
+
         Parameters
         ----------
         new_fft_length : int
@@ -803,15 +818,11 @@ class Transform:
         HRTF
             A new HRTF instance with updated FFT length and recomputed TF data.
 
-        Examples
-        --------
-        Increase FFT resolution before inspecting the magnitude response:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> dense_tf = hrtf.transform.modify_fft_length(1024)
-        >>> dense_tf.TF.values.shape[-1]
-        513
+        Raises
+        ------
+        ValueError
+            If IR data are unavailable or the FFT length is invalid for
+            real-FFT conversion.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -831,24 +842,25 @@ class Transform:
     ) -> "HRTF":
         """Update the target source coordinate system.
 
+        This updates the coordinate system used by :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions`
+        on the returned HRTF. It does not rewrite SOFA SourcePosition
+        values; positions are converted on read through the source manager.
+
         Parameters
         ----------
         coordinate_system : {"spherical", "cartesian", "lateral-polar"}
-            Target coordinate system used by ``Sources`` when positions are read.
+            Target coordinate system used by :class:`~hrtfpykit.hrtf.sources.Sources` when positions are read.
 
         Returns
         -------
         HRTF
-            A new HRTF instance with updated ``Sources.source_coordinate_system``.
+            A new HRTF instance with updated :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`.
 
-        Examples
-        --------
-        Switch the source grid to cartesian coordinates before plotting it:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> cartesian = hrtf.transform.modify_source_coordinate_system("cartesian")
-        >>> cartesian.plot_source_grid(show=False)
+        Raises
+        ------
+        ValueError
+            If coordinate_system is not one of the supported source
+            coordinate systems.
         """
         coordinate_system = str(coordinate_system).strip().lower()
         allowed_coordinate_systems = {"spherical", "cartesian", "lateral-polar"}
@@ -867,29 +879,33 @@ class Transform:
         itd: float,
         unit: str = "samples",
     ) -> "HRTF":
-        """Add a fixed ITD to the current IR values and resync TF.
+        """Add an interaural time delay to IR values and rebuild TF.
+
+        Positive ITD values delay the left ear; negative values delay the right
+        ear. A scalar delay is applied to every source position. Array delays
+        must match the leading IR shape before the ear and sample axes, which
+        allows position-dependent ITD perturbations.
 
         Parameters
         ----------
         itd : float
             ITD value to apply. Positive values delay the left ear and
             negative values delay the right ear.
-        unit : {"seconds", "samples"}, default="seconds"
-            Unit used by ``itd``.
+        unit : {"seconds", "samples"}, default="samples"
+            Unit used by itd.
 
         Returns
         -------
         HRTF
             A new HRTF instance with ITD-modified IR values and refreshed TF data.
 
-        Examples
-        --------
-        Add a fixed ITD to one front-facing direction:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa").select(positions="front")
-        >>> delayed = hrtf.transform.add_itd(4, unit="samples")
-        >>> delayed.plot_amplitude(positions="front", show=False)
+        Raises
+        ------
+        ValueError
+            If IR data do not contain two ear channels, delay values are
+            non-finite, delay-array shape is incompatible with the IR layout,
+            seconds are requested without sample-rate metadata, or the absolute
+            delay is not smaller than the IR length.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -978,16 +994,18 @@ class Transform:
     ) -> "HRTF":
         """Estimate and remove ITD from the current IR values, then resync TF.
 
-        The ITD sign convention follows ``itd``: positive ITD means
+        The ITD sign convention follows itd: positive ITD means
         left-ear delay relative to right-ear and negative ITD means right-ear
-        delay relative to left-ear.
+        delay relative to left-ear. Compensation is applied per source by
+        advancing the delayed channel and zero-filling the tail introduced by
+        the shift.
 
         Parameters
         ----------
         method : {"threshold", "maxiacce"}, default="threshold"
             ITD estimator used to compute the delay per position.
         thresh_level : float, default=-10.0
-            Threshold offset in dB used when ``method="threshold"``.
+            Threshold offset in dB used when method="threshold".
         upper_cut_freq : float, default=3000.0
             Low-pass cutoff in Hz applied before ITD estimation.
         filter_order : int, default=10
@@ -999,14 +1017,12 @@ class Transform:
             A new HRTF instance with ITD-compensated IR values and refreshed
             TF data. Compensation is applied per source position.
 
-        Examples
-        --------
-        Remove measured ITD before plotting the horizontal trend:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("my_hrtf.sofa")
-        >>> aligned = hrtf.transform.delete_itd(method="threshold")
-        >>> aligned.plot_itd_curve(show=False)
+        Raises
+        ------
+        ValueError
+            If IR data do not contain two ear channels, ITD estimation
+            parameters are invalid, or an estimated delay is not smaller than
+            the IR length.
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR

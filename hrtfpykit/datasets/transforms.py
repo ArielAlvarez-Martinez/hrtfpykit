@@ -11,18 +11,33 @@ if TYPE_CHECKING:
 
 
 class HRTFTransform:
-    """Factory for dataset-level HRTF transform callables.
+    """Factory namespace for HRTF preprocessing callables used by datasets.
 
-    ``HRTFTransform`` creates small callables that can be passed as
-    ``dataset_hrtf_transform`` to dataset constructors. The callable receives a
-    loaded HRTF object, calls the corresponding HRTF transform method, and returns
-    the transformed HRTF before spec values are extracted.
+    :class:`~hrtfpykit.datasets.HRTFTransform` creates small callables
+    that can be passed to dataset constructors as "dataset_hrtf_transform". During
+    dataset loading, each callable receives the subject
+    :class:`~hrtfpykit.hrtf.hrtf.HRTF`, runs one HRTF operation, and returns the
+    transformed object before specs extract values.
+
+    The factory methods are thin adapters over
+    :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform` and
+    :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select`. They do not load files, mutate
+    dataset state, or change the original SOFA resources. They only package
+    transform arguments so the same preprocessing can be applied consistently to
+    every loaded subject.
+
+    Notes
+    -----
+    The returned callables are executed by dataset HRTF loading utilities, after a
+    subject HRTF is read and before it is cached. If the callable returns an object
+    that does not behave like an HRTF, dataset loading raises an error before sample
+    extraction continues.
 
     Examples
     --------
     >>> from hrtfpykit.datasets import HUTUBS
-    >>> from hrtfpykit.datasets.specs import HRTFSpec
-    >>> from hrtfpykit.datasets.transforms import HRTFTransform
+    >>> from hrtfpykit.datasets import HRTFSpec
+    >>> from hrtfpykit.datasets import HRTFTransform
     >>> dataset = HUTUBS(
     ...     root="datasets/hutubs",
     ...     inputs=HRTFSpec(),
@@ -36,17 +51,20 @@ class HRTFTransform:
         *args: object,
         **kwargs: object,
     ) -> Callable[[object], object]:
-        """Create a dataset-level transform from an HRTF transform method name.
+        """Create a dataset-level callable from an HRTF transform method name.
 
         This is the generic factory used by the named convenience methods below. It
-        delays method lookup until a real HRTF object is loaded, then forwards the
-        stored arguments to ``hrtf.transform.<method_name>`` so the same transform can
-        be reused across subjects.
+        stores the requested transform method name and arguments, then delays method
+        lookup until a real :class:`~hrtfpykit.hrtf.hrtf.HRTF` object is loaded.
+        When executed, the returned callable looks up method_name on
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform`, calls it with the stored
+        arguments, and returns the transformed HRTF.
 
         Parameters
         ----------
         method_name : str
-            Name of the method available under ``hrtf.transform``.
+            Name of the method available through
+            :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform`.
         *args : object
             Positional arguments forwarded to the transform method.
         **kwargs : object
@@ -55,14 +73,29 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Callable that accepts an HRTF object and returns the transformed HRTF
-        object.
+            Callable that accepts an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object and
+            returns the transformed HRTF object.
+
+        Raises
+        ------
+        TypeError
+            Raised by the returned callable if the supplied object does not expose a
+            transform attribute.
+        AttributeError
+            Raised by the returned callable if method_name is not available or not
+            callable on the object's transform namespace.
+
+        Notes
+        -----
+        The factory marks the returned callable with "__hrtf_transform__" so callers
+        can distinguish HRTF transform wrappers from arbitrary user callables when
+        introspection is needed.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.build("apply_padding", 16, location="end")
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -91,29 +124,44 @@ class HRTFTransform:
         *args: object,
         **kwargs: object,
     ) -> Callable[[object], object]:
-        """Create a dataset-level source selection transform.
+        """Create a dataset-level source selection callable.
 
-        Selection is special because it calls ``hrtf.select`` directly rather than a
-        method under ``hrtf.transform``. The returned callable lets datasets reduce
-        source positions before specs extract values, while preserving the same
-        transform interface as other factories.
+        Selection is special because it calls
+        :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select` directly rather than a method under
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform`. The returned callable lets a
+        dataset reduce or reorder source positions before specs extract acoustic
+        values, while preserving the same "dataset_hrtf_transform" interface as the
+        other factories.
 
         Parameters
         ----------
         *args : object
-            Positional arguments forwarded to ``hrtf.select``.
+            Positional arguments forwarded to :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select`.
         **kwargs : object
-            Keyword arguments forwarded to ``hrtf.select``.
+            Keyword arguments forwarded to :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select`.
 
         Returns
         -------
         callable
-            Callable that accepts an HRTF object and returns the selected HRTF.
+            Callable that accepts an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object and
+            returns the selected HRTF.
+
+        Raises
+        ------
+        AttributeError
+            Raised by the returned callable if the supplied object does not expose a
+            callable :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select`-compatible method.
+
+        Notes
+        -----
+        Use this factory when the training or evaluation dataset should expose a
+        source subset, for example a fixed plane or a small set of named positions,
+        without rewriting the source SOFA files.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
         ...     dataset_hrtf_transform=HRTFTransform.select(positions=[0, 1]),
@@ -133,28 +181,36 @@ class HRTFTransform:
 
     @staticmethod
     def apply_window(window_name: str) -> Callable[[object], object]:
-        """Create a transform that applies a named window to HRTF IR data.
+        """Create a callable that applies a named window to each subject HRIR.
 
-        The factory stores the window name and returns a callable suitable for
-        ``dataset_hrtf_transform``. Each loaded subject HRTF receives the same window
-        operation before spec values are selected.
+        The returned callable forwards window_name to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_window`. The transform
+        operates on time-domain IR values, applies the window along the final sample
+        axis, and refreshes the TF representation before dataset specs read values.
 
         Parameters
         ----------
         window_name : str
-            Window identifier forwarded to
-            :meth:`hrtfpykit.hrtf.transforms.Transform.apply_window`.
+            Window identifier forwarded to the HRTF transform layer, for example
+            "hann", "hamming", "blackman", or "rectangular".
 
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        Windowing is useful when dataset samples should suppress late HRIR samples
+        or enforce a consistent time-domain taper before frequency-domain features
+        are computed.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.apply_window("hann")
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -170,11 +226,12 @@ class HRTFTransform:
         location: str = "end",
         value: float = 0,
     ) -> Callable[[object], object]:
-        """Create a transform that pads HRTF IR data.
+        """Create a callable that pads each subject HRIR.
 
-        The factory stores padding length, location, and fill value, then forwards
-        them to the HRTF transform API for every loaded subject. It applies IR length
-        adjustment before extraction.
+        The returned callable forwards padding_length, location, and value to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_padding`. The transform
+        pads the final IR sample axis and rebuilds TF values with the active FFT
+        length before sample extraction.
 
         Parameters
         ----------
@@ -188,13 +245,20 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        Padding changes the time-domain sample count available to sample-indexed
+        specs and can also change derived frequency-domain values after TF
+        resynchronization.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.apply_padding(16, location="end", value=0.0)
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -211,28 +275,36 @@ class HRTFTransform:
 
     @staticmethod
     def upsampling(new_sample_rate: float) -> Callable[[object], object]:
-        """Create a transform that upsamples HRTF data.
+        """Create a callable that upsamples each subject HRIR.
 
-        The returned callable forwards the requested sample rate to the HRTF transform
-        layer. Using it at dataset construction keeps all subject HRTFs in the same
-        transformed sampling context.
+        The returned callable forwards new_sample_rate to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.upsampling`. The transform
+        resamples IR values to the target rate, updates IR sample-rate metadata, and
+        recomputes TF values and frequency bins from the resampled IR.
 
         Parameters
         ----------
         new_sample_rate : float
-            Target sample rate in hertz. It is forwarded to the HRTF
-            upsampling transform for every loaded subject.
+            Target sample rate in hertz. It must be greater than the current subject
+            IR sample rate.
 
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        Dataset-level upsampling keeps all loaded subjects in the same transformed
+        sampling context before HRTF, ITD, ILD, SH, or sample-indexed specs resolve
+        their values.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.upsampling(96000.0)
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -244,28 +316,36 @@ class HRTFTransform:
 
     @staticmethod
     def downsampling(new_sample_rate: float) -> Callable[[object], object]:
-        """Create a transform that downsamples HRTF data.
+        """Create a callable that downsamples each subject HRIR.
 
-        The returned callable forwards the requested sample rate to the HRTF transform
-        layer. This supports model inputs that use a lower acoustic sample rate than the
-        source dataset files.
+        The returned callable forwards new_sample_rate to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.downsampling`. The transform
+        resamples IR values to the target rate, updates IR sample-rate metadata, and
+        recomputes TF values and frequency bins from the resampled IR.
 
         Parameters
         ----------
         new_sample_rate : float
-            Target sample rate in hertz. It is forwarded to the HRTF
-            downsampling transform for every loaded subject.
+            Target sample rate in hertz. It must be lower than the current subject
+            IR sample rate.
 
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        Downsampling is intended for workflows that need a lower acoustic sampling
+        rate than the original SOFA files while keeping the dataset interface
+        unchanged.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.downsampling(44100.0)
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -282,16 +362,18 @@ class HRTFTransform:
         num_taps: int = 101,
         window: str | None = None,
     ) -> Callable[[object], object]:
-        """Create a transform that applies an FIR filter.
+        """Create a callable that applies FIR filtering to each subject HRIR.
 
-        The factory captures filter type, cutoff, tap count, and optional window, then
-        applies that FIR filter to every loaded subject HRTF. It keeps filtering
-        configuration close to dataset construction.
+        The returned callable forwards filter, cutoff, num_taps, and window to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_fir_filter`. Filtering is
+        performed in the time domain, then TF values are rebuilt before specs read
+        the loaded subject.
 
         Parameters
         ----------
         filter : str
-            FIR filter type accepted by the HRTF transform layer.
+            FIR filter type accepted by the HRTF transform layer, such as
+            "lowpass", "highpass", or "bandpass".
         cutoff : float | tuple[float, float] | None, default=None
             Cutoff frequency or frequency pair in hertz.
         num_taps : int, default=101
@@ -302,13 +384,19 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        FIR filtering is appropriate when a reproducible linear-phase preprocessing
+        step should be applied uniformly across all subjects selected by a dataset.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.apply_fir_filter(
         ...     "lowpass",
         ...     cutoff=8000.0,
@@ -334,15 +422,18 @@ class HRTFTransform:
         cutoff: float | tuple[float, float] | None = None,
         order: int = 10,
     ) -> Callable[[object], object]:
-        """Create a transform that applies an IIR filter.
+        """Create a callable that applies IIR filtering to each subject HRIR.
 
-        The factory captures filter type, cutoff, and order, then applies that IIR
-        filter to every loaded subject HRTF. It applies dataset-level preprocessing.
+        The returned callable forwards filter, cutoff, and order to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_iir_filter`. Filtering is
+        performed in the time domain, then TF values are rebuilt before specs read
+        the loaded subject.
 
         Parameters
         ----------
         filter : str
-            IIR filter type accepted by the HRTF transform layer.
+            IIR filter type accepted by the HRTF transform layer, such as
+            "lowpass", "highpass", or "bandpass".
         cutoff : float | tuple[float, float] | None, default=None
             Cutoff frequency or frequency pair in hertz.
         order : int, default=10
@@ -351,13 +442,19 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        IIR filtering is useful when compact Butterworth-style preprocessing is more
+        important than linear-phase behavior.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.apply_iir_filter(
         ...     "highpass",
         ...     cutoff=200.0,
@@ -382,16 +479,17 @@ class HRTFTransform:
         fft_length: int | None = None,
         epsilon: float = 1e-12,
     ) -> Callable[[object], object]:
-        """Create a transform that converts HRTF data to minimum phase.
+        """Create a callable that converts each subject HRIR to minimum phase.
 
-        The factory stores minimum-phase method parameters and applies the conversion
-        to every loaded subject HRTF. It lets datasets expose transformed acoustics
-        without modifying original SOFA files.
+        The returned callable forwards method, fft_length, and epsilon to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.minimum_phase`. The transform
+        replaces each HRIR with a minimum-phase version derived from its magnitude
+        response, then rebuilds TF values for the loaded subject.
 
         Parameters
         ----------
         method : str, default="homomorphic"
-            Minimum-phase reconstruction method passed to the HRTF transform.
+            Minimum-phase reconstruction method passed to the HRTF transform layer.
         fft_length : int | None, default=None
             Optional FFT length used during minimum-phase reconstruction.
         epsilon : float, default=1e-12
@@ -400,13 +498,20 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        Minimum-phase conversion is a dataset-side preprocessing step only. It lets
+        a dataset expose minimum-phase acoustics without modifying the original SOFA
+        files.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.minimum_phase(method="homomorphic")
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -427,10 +532,12 @@ class HRTFTransform:
         magnitude_average: str = "log",
         attenuation: float | None = None,
     ) -> Callable[[object], object]:
-        """Create a transform that converts HRTF data to common transfer function form.
+        """Create a callable that converts each subject HRTF to CTF form.
 
-        The factory stores CTF averaging options and applies them across subjects before
-        specs consume common-transfer-function-normalized HRTFs.
+        The returned callable forwards weights, magnitude_average, and attenuation
+        to :meth:`~hrtfpykit.hrtf.transforms.Transform.to_ctf`. The transform
+        collapses the source axis into a singleton common transfer function per ear
+        before dataset specs consume the subject HRTF.
 
         Parameters
         ----------
@@ -445,13 +552,19 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        The CTF output has a singleton source axis. Dataset specs that index by
+        position should be configured with that changed source layout in mind.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.to_ctf(weights=False, magnitude_average="log")
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -472,11 +585,12 @@ class HRTFTransform:
         magnitude_average: str = "log",
         attenuation: float | None = None,
     ) -> Callable[[object], object]:
-        """Create a transform that converts HRTF data to directional transfer function
-        form.
+        """Create a callable that converts each subject HRTF to DTF form.
 
-        The factory stores DTF averaging options and applies them across subjects before
-        specs consume directional-transfer-function-normalized HRTFs.
+        The returned callable forwards weights, magnitude_average, and attenuation
+        to :meth:`~hrtfpykit.hrtf.transforms.Transform.to_dtf`. The transform
+        estimates and removes a common transfer component while preserving the
+        subject source layout.
 
         Parameters
         ----------
@@ -491,13 +605,19 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        DTF conversion is useful when learning or analysis should focus on
+        direction-dependent spectral structure rather than the common ear response.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.to_dtf(weights=False, magnitude_average="log")
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -514,29 +634,38 @@ class HRTFTransform:
 
     @staticmethod
     def modify_ir(new_ir: np.ndarray | IR | HRTF) -> Callable[[object], object]:
-        """Create a transform that replaces IR data.
+        """Create a callable that replaces each subject IR data array.
 
-        The factory stores replacement IR-like data and forwards it to the HRTF
-        transform layer. It supports controlled experiments where dataset
-        resources provide metadata/context but acoustic arrays are replaced.
+        The returned callable forwards new_ir to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.modify_ir`. Replacement data
+        become the loaded subject's time-domain values, and TF values are rebuilt
+        before dataset specs extract outputs.
 
         Parameters
         ----------
         new_ir : np.ndarray | IR | HRTF
             Replacement time-domain data forwarded to
-            :meth:`hrtfpykit.hrtf.transforms.Transform.modify_ir`.
+            :meth:`~hrtfpykit.hrtf.transforms.Transform.modify_ir`.
 
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        The replacement leading shape must be compatible with each loaded subject's
+        source and ear layout. Use this for controlled experiments where dataset
+        metadata and indexing come from real resources but acoustic arrays are
+        supplied externally.
 
         Examples
         --------
         >>> import numpy as np
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.modify_ir(np.zeros((440, 2, 256)))
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -551,11 +680,12 @@ class HRTFTransform:
         new_phase: np.ndarray,
         unit: str = "degrees",
     ) -> Callable[[object], object]:
-        """Create a transform that replaces phase data.
+        """Create a callable that replaces each subject TF phase.
 
-        The factory stores replacement phase data and unit metadata, then forwards
-        both to the HRTF transform layer. It keeps phase modification reusable across
-        every loaded subject.
+        The returned callable forwards new_phase and unit to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.modify_phase`. The transform
+        preserves current TF magnitude, replaces phase values, and rebuilds IR
+        values before sample extraction.
 
         Parameters
         ----------
@@ -563,19 +693,25 @@ class HRTFTransform:
             Replacement phase array with the same TF layout expected by the
             HRTF transform layer.
         unit : {"degrees", "radians"}, default="degrees"
-            Angular unit used by ``new_phase``.
+            Angular unit used by new_phase.
 
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        The replacement phase must be compatible with the TF layout of every loaded
+        subject that will receive the callable.
 
         Examples
         --------
         >>> import numpy as np
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.modify_phase(
         ...     np.zeros((440, 2, 129)),
         ...     unit="radians",
@@ -594,11 +730,12 @@ class HRTFTransform:
 
     @staticmethod
     def modify_tf(new_tf: np.ndarray | TF | HRTF) -> Callable[[object], object]:
-        """Create a transform that replaces TF data.
+        """Create a callable that replaces each subject TF data array.
 
-        The factory stores replacement transfer-function data and forwards it to the
-        HRTF transform layer. It supports experiments that operate directly on
-        frequency-domain representations.
+        The returned callable forwards new_tf to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.modify_tf`. Replacement data
+        become the loaded subject's complex frequency-domain values, and IR values
+        are rebuilt before dataset specs extract outputs.
 
         Parameters
         ----------
@@ -609,14 +746,21 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        The replacement leading shape must be compatible with each loaded subject's
+        source and ear layout. Frequency-bin metadata are copied from TF-like inputs
+        when available.
 
         Examples
         --------
         >>> import numpy as np
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.modify_tf(
         ...     np.zeros((440, 2, 129), dtype=complex),
         ... )
@@ -633,11 +777,12 @@ class HRTFTransform:
         new_magnitude: np.ndarray,
         scale: str = "linear",
     ) -> Callable[[object], object]:
-        """Create a transform that replaces magnitude data.
+        """Create a callable that replaces each subject TF magnitude.
 
-        The factory stores replacement magnitude data and scale information, then
-        forwards both to the HRTF transform layer. It allows magnitude-domain
-        preprocessing to be expressed as a dataset transform.
+        The returned callable forwards new_magnitude and scale to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.modify_magnitude`. The transform
+        preserves current TF phase, replaces magnitude values, and rebuilds IR values
+        before dataset specs consume the loaded subject.
 
         Parameters
         ----------
@@ -645,19 +790,25 @@ class HRTFTransform:
             Replacement magnitude array with the same TF layout expected by
             the HRTF transform layer.
         scale : {"linear", "db"}, default="linear"
-            Magnitude scale used by ``new_magnitude``.
+            Magnitude scale used by new_magnitude.
 
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        The replacement magnitude must be broadcast-compatible with the TF layout of
+        every loaded subject that will receive the callable.
 
         Examples
         --------
         >>> import numpy as np
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.modify_magnitude(
         ...     np.ones((440, 2, 129)),
         ...     scale="linear",
@@ -679,29 +830,36 @@ class HRTFTransform:
         gain: float | np.ndarray,
         scale: str = "db",
     ) -> Callable[[object], object]:
-        """Create a transform that applies gain to HRTF data.
+        """Create a callable that applies TF-domain gain to each subject.
 
-        The factory stores gain and scale arguments and applies them uniformly to
-        every loaded subject. It normalizes or perturbs amplitudes
-        during dataset construction.
+        The returned callable forwards gain and scale to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_gain`. Gain modifies TF
+        magnitude while preserving phase, then IR values are rebuilt from the
+        adjusted TF.
 
         Parameters
         ----------
         gain : float | np.ndarray
             Scalar or broadcast-compatible gain applied to each loaded HRTF.
         scale : {"db", "linear"}, default="db"
-            Scale used to interpret ``gain``.
+            Scale used to interpret gain.
 
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        Scalar gains apply to every source, ear, and frequency bin. Array gains must
+        be broadcast-compatible with each loaded subject's TF layout.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.apply_gain(3.0, scale="db")
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -717,11 +875,12 @@ class HRTFTransform:
 
     @staticmethod
     def modify_fft_length(new_fft_length: int) -> Callable[[object], object]:
-        """Create a transform that changes FFT length.
+        """Create a callable that changes each subject FFT length.
 
-        The factory stores a target FFT length and forwards it to the HRTF transform
-        layer. Use it when frequency-domain specs need a shared bin count
-        across loaded resources.
+        The returned callable forwards new_fft_length to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.modify_fft_length`. The
+        transform keeps current IR values unchanged and recomputes TF values with
+        the requested FFT size.
 
         Parameters
         ----------
@@ -732,13 +891,20 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        Changing FFT length affects the frequency-bin count and spacing exposed to
+        frequency-domain specs, but it does not add new time-domain information to
+        the HRIR.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.modify_fft_length(512)
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -750,11 +916,12 @@ class HRTFTransform:
 
     @staticmethod
     def modify_source_coordinate_system(coordinate_system: str) -> Callable[[object], object]:
-        """Create a transform that changes source coordinate system metadata.
+        """Create a callable that changes source coordinate-system metadata.
 
-        The factory stores the target coordinate system and applies the conversion or
-        metadata update through the HRTF transform API. It keeps coordinate handling
-        explicit at dataset construction time.
+        The returned callable forwards coordinate_system to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.modify_source_coordinate_system`.
+        The transform changes how the subject source manager reports positions,
+        while leaving the source layout and acoustic arrays intact.
 
         Parameters
         ----------
@@ -764,13 +931,20 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        Use this factory when downstream specs or custom code should read source
+        positions in a consistent coordinate system without editing SOFA
+        SourcePosition values.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.modify_source_coordinate_system("spherical")
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -788,29 +962,38 @@ class HRTFTransform:
         itd: float,
         unit: str = "samples",
     ) -> Callable[[object], object]:
-        """Create a transform that adds interaural time difference.
+        """Create a callable that adds ITD to each subject HRIR.
 
-        The factory stores ITD amount and unit, then applies the shift to every loaded
-        subject HRTF. It supports controlled binaural timing perturbations in dataset
-        workflows.
+        The returned callable forwards itd and unit to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.add_itd`. Positive ITD values
+        delay the left ear, negative values delay the right ear, and TF values are
+        rebuilt after the time-domain shift.
 
         Parameters
         ----------
         itd : float
-            Interaural time difference added to each loaded HRTF.
+            Interaural time difference added to each loaded HRTF. Positive values
+            delay the left ear and negative values delay the right ear.
         unit : {"samples", "seconds"}, default="samples"
-            Unit used by ``itd``.
+            Unit used by itd.
 
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        This factory is useful for controlled binaural timing perturbations in
+        dataset workflows. The underlying transform requires two ear channels and a
+        delay smaller than the IR length.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.add_itd(4.0, unit="samples")
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -831,11 +1014,12 @@ class HRTFTransform:
         upper_cut_freq: float = 3000.0,
         filter_order: int = 10,
     ) -> Callable[[object], object]:
-        """Create a transform that removes interaural time difference.
+        """Create a callable that estimates and removes ITD from each subject.
 
-        The factory stores ITD estimation parameters and removes timing differences
-        through the HRTF transform API. Use it for datasets that should expose
-        ITD-normalized acoustics.
+        The returned callable forwards method, thresh_level, upper_cut_freq, and
+        filter_order to :meth:`~hrtfpykit.hrtf.transforms.Transform.delete_itd`.
+        The transform estimates per-source interaural delay, advances the delayed
+        channel, zero-fills the shifted tail, and rebuilds TF values.
 
         Parameters
         ----------
@@ -851,13 +1035,20 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Dataset-level transform callable accepting and returning an HRTF object.
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        Notes
+        -----
+        Use this factory when a dataset should expose ITD-normalized acoustics while
+        preserving the rest of the HRTF workflow. The underlying transform requires
+        valid two-ear IR data and sample-rate metadata for the estimator path.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import HRTFSpec
-        >>> from hrtfpykit.datasets.transforms import HRTFTransform
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
         >>> transform = HRTFTransform.delete_itd(method="threshold")
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",

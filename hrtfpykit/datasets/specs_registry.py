@@ -20,22 +20,41 @@ DatasetSpec = HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySp
 class DatasetSpecDescriptor:
     """Describe one dataset spec type in the central registry.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.specs_registry.DatasetSpecDescriptor` is the
+    immutable metadata record used by the dataset construction pipeline to avoid
+    scattering type checks across workflow, resources, summaries, and value
+    selection. Each descriptor maps one spec class to its public sample name,
+    required resource family, row-axis capabilities, grouping behavior, path
+    behavior, ear-selection support, and runtime selector method.
+
+    The descriptor table is consumed by
+    :class:`~hrtfpykit.datasets.specs_workflow.DatasetSpecWorkflow`,
+    :class:`~hrtfpykit.datasets.resources.DatasetResources`, dataset summaries,
+    split planning, and
+    :class:`~hrtfpykit.datasets.values.DatasetSampleValueSelector`.
+
+    Notes
+    -----
+    The registry is declarative. Adding a new dataset spec type requires adding a
+    descriptor and a matching selector method; otherwise workflow validation or
+    value dispatch will reject the spec.
+
+    Attributes
     ----------
     spec_type : type
-        Concrete spec class.
+        Concrete spec class represented by this descriptor.
     name : str
-        Default public sample key.
+        Default public sample key used when the spec instance does not define an
+        explicit name.
     resource_name : str
-        Resource family used by the spec.
+        Resource family required by the spec, such as "hrtf", "mesh", "metadata",
+        "anthropometry", "image", or "video".
     indexed, acoustic, position_selectable, media, grouped, path_based, ear_selectable : bool
-        Behavioral flags consumed by workflow, resources, and values.
+        Behavioral flags consumed by spec workflow, resource scanning, subject
+        intersection, acoustic context construction, and sample value selection.
     value_method_name : str
-        Selector method name used to resolve sample values.
-
-    Returns
-    -------
-    DatasetSpecDescriptor Immutable registry entry.
+        Name of the value selector method used to resolve this spec during
+        dataset indexing.
     """
     spec_type: type
     name: str
@@ -64,22 +83,28 @@ SPEC_DESCRIPTORS = (
 
 
 def get_spec_descriptor(spec: DatasetSpec) -> DatasetSpecDescriptor:
-    """Return the registry descriptor for a spec object.
+    """Return the registry descriptor for one dataset spec object.
 
     This is the central type-to-behavior lookup for dataset specs. Workflow
     validation, resource scanning, split intersection, and value dispatch all use
     descriptors so spec taxonomy stays in one module instead of scattered
-    ``isinstance`` branches.
+    isinstance branches.
 
     Parameters
     ----------
     spec : dataset spec
-        Spec object to classify.
+        Spec object to classify. The object must be an instance of one of the
+        spec classes declared in the registry.
 
     Returns
     -------
-    DatasetSpecDescriptor Descriptor matching the spec type.
+    DatasetSpecDescriptor
+        Descriptor matching the concrete spec type.
 
+    Raises
+    ------
+    TypeError
+        If the spec type is not registered.
     """
     for descriptor in SPEC_DESCRIPTORS:
         if isinstance(spec, descriptor.spec_type):
@@ -90,20 +115,29 @@ def get_spec_descriptor(spec: DatasetSpec) -> DatasetSpecDescriptor:
 def get_spec_name(spec: DatasetSpec) -> str:
     """Resolve the public name for a spec.
 
-    A spec can provide an explicit ``name`` to control its sample key; otherwise
+    A spec can provide an explicit name to control its sample key; otherwise
     the registry default is used. Centralizing this rule keeps duplicate-name
-    validation and sample dictionary construction use the same naming rule.
+    validation and sample dictionary construction aligned across
+    :func:`~hrtfpykit.datasets.sanitize.sanitize_specs`,
+    :class:`~hrtfpykit.datasets.specs_workflow.DatasetSpecWorkflow`, and
+    :meth:`~hrtfpykit.datasets.base.BaseDataset.__getitem__`.
 
     Parameters
     ----------
     spec : dataset spec
-        Spec object to name.
+        Spec object whose public sample key should be resolved.
 
     Returns
     -------
     str
         Explicit spec name or descriptor default.
 
+    Raises
+    ------
+    ValueError
+        If the spec defines an explicit name that is empty after stripping.
+    TypeError
+        If the spec type is not registered.
     """
     explicit_name = getattr(spec, "name", None)
     if explicit_name is not None:
@@ -136,20 +170,26 @@ def get_specs(
     Parameters
     ----------
     specs : tuple of specs
-        Specs to filter.
+        Specs to filter. Each spec must have a registered descriptor.
     resource_name : str or None, default=None
-        Resource family filter.
+        Optional resource family filter. When provided, only specs whose
+        descriptor uses this resource family are returned.
     indexed, acoustic, position_selectable : bool or None, default=None
-        Descriptor property filters.
+        Optional descriptor property filters. A value of True keeps specs with
+        the matching flag enabled, False keeps specs with the flag disabled, and
+        None leaves that flag unfiltered.
     media, grouped, path_based, ear_selectable : bool or None, default=None
-        Descriptor property filters.
+        Optional descriptor property filters with the same semantics.
 
     Returns
     -------
-    tuple
-        of specs
+    tuple of specs
         Specs matching all provided filters.
 
+    Raises
+    ------
+    TypeError
+        If any spec type is not registered.
     """
     selected_specs: list[DatasetSpec] = []
     for spec in specs:
@@ -190,18 +230,28 @@ def has_specs(
 
     This convenience wrapper is used when a phase only needs a yes/no answer, such
     as whether to scan a resource or include a summary entry. It keeps boolean
-    resource decisions aligned with ``get_specs`` filtering.
+    resource decisions aligned with :func:`~hrtfpykit.datasets.specs_registry.get_specs` filtering.
 
     Parameters
     ----------
     specs : tuple of specs
-        Specs to inspect. **filters Descriptor filters.
+        Specs to inspect.
+    resource_name : str or None, default=None
+        Optional resource family filter.
+    indexed, acoustic, position_selectable : bool or None, default=None
+        Optional descriptor property filters.
+    media, grouped, path_based, ear_selectable : bool or None, default=None
+        Optional descriptor property filters.
 
     Returns
     -------
     bool
-        ``True`` when at least one spec matches.
+        True when at least one spec matches.
 
+    Raises
+    ------
+    TypeError
+        If any spec type is not registered.
     """
     return len(
         get_specs(
@@ -223,19 +273,24 @@ def get_supported_index(spec: DatasetSpec) -> tuple[set[str], str]:
 
     Different specs support different row axes depending on what value they
     produce; for example time-domain HRTF specs support samples while frequency-
-    domain specs support frequency. This helper provides both machine-checkable
-    axes and human-readable combinations for errors.
+    domain specs support frequency. This helper provides both a
+    machine-checkable axis set and a human-readable combination list for workflow
+    errors generated by
+    :class:`~hrtfpykit.datasets.specs_workflow.DatasetSpecWorkflow`.
+
+    Non-indexed specs return an empty axis set and an empty combination string
+    because they do not create additional dataset row axes beyond subject-level
+    resource selection.
 
     Parameters
     ----------
     spec : dataset spec
-        Spec to inspect.
+        Spec to inspect for row-axis compatibility.
 
     Returns
     -------
-    tuple
-        Supported axis set and human-readable combinations.
-
+    tuple[set[str], str]
+        Supported axis set and human-readable index combinations.
     """
     if isinstance(spec, HRTFSpec):
         domain = str(spec.domain).strip().lower()
@@ -276,20 +331,20 @@ def get_axis_compatibility_hint(spec: DatasetSpec, axis_name: str) -> str:
 
     When validation rejects an axis, the error also needs configuration guidance.
     This helper adds spec-specific guidance, such as switching HRTF domain before
-    using frequency indexing.
+    using frequency indexing. The returned text is intentionally prefixed with a
+    space so callers can append it directly to an existing validation message.
 
     Parameters
     ----------
     spec : dataset spec
-        Spec being validated.
+        Spec being validated by the spec workflow.
     axis_name : str
-        Unsupported axis name.
+        Unsupported row-axis name.
 
     Returns
     -------
     str
         Additional compatibility hint, or an empty string.
-
     """
     if isinstance(spec, HRTFSpec):
         domain = str(spec.domain).strip().lower()
@@ -308,12 +363,13 @@ def get_flag_compatibility_hint(spec: DatasetSpec, axis_name: str) -> str:
 
     One-hot and index flags require the corresponding row axis. This helper adds
     spec-specific guidance when a flag is incompatible with the current spec
-    configuration.
+    configuration. The returned text is intentionally prefixed with a space so
+    callers can append it directly to an existing validation message.
 
     Parameters
     ----------
     spec : dataset spec
-        Spec being validated.
+        Spec being validated by the spec workflow.
     axis_name : str
         Axis required by a context flag.
 
@@ -321,7 +377,6 @@ def get_flag_compatibility_hint(spec: DatasetSpec, axis_name: str) -> str:
     -------
     str
         Additional compatibility hint, or an empty string.
-
     """
     if isinstance(spec, HRTFSpec):
         domain = str(spec.domain).strip().lower()

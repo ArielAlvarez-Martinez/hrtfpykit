@@ -40,30 +40,38 @@ SUPPORTED_MEDIA_GROUPED_BY = (("subject",), ("subject", "ear"))
 class DatasetSpecPlan:
     """Store normalized specs and shared dataset indexing decisions.
 
-    Parameters
+    :class:`~hrtfpykit.datasets.specs_workflow.DatasetSpecPlan` is the
+    immutable result produced by
+    :class:`~hrtfpykit.datasets.specs_workflow.DatasetSpecWorkflow`. It contains
+    copied input and target specs, their public sample keys, the shared dataset
+    row axes, the selected ear axis, and the context-encoding flags that row
+    generation must expose.
+
+    The plan is consumed by
+    :class:`~hrtfpykit.datasets.build.DatasetBuilder` before resource scanning and
+    acoustic context construction. It stores spec decisions only; it does not scan
+    paths, load files, or derive acoustic axes from HRTF resources.
+
+    Attributes
     ----------
     input_specs : tuple of specs
-        Specs exposed under ``sample['inputs']`` after sanitization.
+        Copied specs exposed under sample inputs.
     target_specs : tuple of specs
-        Specs exposed under ``sample['target']`` after sanitization.
+        Copied specs exposed under sample targets.
     specs : tuple of specs
-        Combined input and target specs.
+        Combined input and target specs in input-first order.
     input_names, target_names : tuple of str
         Public sample keys for input and target values.
     index_by : tuple of str
-        Shared dataset row axes selected from the indexed specs.
+        Shared dataset row axes selected from indexed specs or inferred from
+        subject-ear grouped resources.
     selected_ears : tuple of tuple
         Ear labels and source ear indices used by ear-indexed rows.
     position_one_hot, position_index, frequency_one_hot, frequency_index : bool
-        Flags indicating which row context encodings should be added.
+        Whether position or frequency context encodings should be added to sample
+        inputs.
     sample_one_hot, sample_index, ear_one_hot, ear_index : bool
-        Flags indicating which sample and ear context encodings should be added.
-
-    Returns
-    -------
-    DatasetSpecPlan
-        Immutable plan consumed by ``DatasetBuilder``.
-
+        Whether sample or ear context encodings should be added to sample inputs.
     """
 
     input_specs: tuple[
@@ -94,12 +102,17 @@ class DatasetSpecPlan:
 class DatasetSpecWorkflow:
     """Normalize and validate dataset specs before resource scanning.
 
-    ``DatasetSpecWorkflow`` turns user-provided input and target specs into one
-    coherent dataset plan. It validates duplicate names, path consistency,
-    supported index axes, shared ``index_by`` behavior, grouped media behavior,
-    ear selection, and requested row-context encodings.
+    :class:`~hrtfpykit.datasets.specs_workflow.DatasetSpecWorkflow` turns
+    user-provided input and target specs into one coherent
+    :class:`~hrtfpykit.datasets.specs_workflow.DatasetSpecPlan`. It validates
+    duplicate sample keys, path consistency across specs that address the same
+    path-based resource family, supported row axes, one shared row structure,
+    grouped table and media resources, selected ears, and requested row-context
+    encodings.
 
-    This utility returns the normalized spec plan consumed by ``DatasetBuilder``.
+    This class is stateless. The workflow mutates only the copied specs returned
+    by :func:`~hrtfpykit.datasets.sanitize.sanitize_specs`, so caller-owned spec
+    objects remain unchanged.
 
     """
 
@@ -115,22 +128,45 @@ class DatasetSpecWorkflow:
         This method is the spec validation pipeline for dataset construction. It
         copies user specs, validates names and path consistency, enforces one shared
         indexed row structure, checks spec-specific axis compatibility, normalizes
-        grouped resources, and decides which row context encodings must be produced.
+        grouped resources, resolves table access settings, derives the shared ear
+        axis, and decides which row context encodings must be produced.
+
+        Indexed specs must all use the same normalized "index_by" tuple. Specs that
+        request a context flag, such as a position index or one-hot ear encoding,
+        must include the corresponding row axis. Table and media specs grouped by
+        ear require an ear-indexed dataset row, even when no acoustic spec is
+        indexed by ear.
 
         Parameters
         ----------
         config : DatasetConfig or type[DatasetConfig]
-            Dataset configuration used for resource availability rules.
+            Dataset configuration passed by the builder. The current workflow uses
+            registry and spec metadata for validation; the parameter keeps the
+            workflow interface aligned with dataset construction.
         inputs : spec, sequence of specs, or None
-            Specs exposed under ``sample['inputs']``.
+            Specs exposed under sample inputs. Values are copied before
+            normalization.
         target : spec, sequence of specs, or None
-            Specs exposed under ``sample['target']``.
+            Specs exposed under sample targets. Values are copied before
+            normalization.
 
         Returns
         -------
         DatasetSpecPlan
             Normalized spec plan used by dataset construction.
 
+        Raises
+        ------
+        TypeError
+            If inputs or target contain values that are not supported dataset
+            specs.
+        ValueError
+            If spec names duplicate, path-based specs for the same resource family
+            disagree on explicit paths, indexed specs use unsupported axes, indexed
+            specs disagree on the shared row axes, context flags are requested
+            without their matching row axes, grouped specs request unsupported
+            grouping, table specs use invalid access or ear selectors, or
+            ear-grouped resources cannot be represented by the dataset row axis.
         """
 
         input_specs = sanitize_specs(inputs)
@@ -334,17 +370,25 @@ class DatasetSpecWorkflow:
         The workflow exposes this wrapper so call sites do not depend directly on
         registry internals. It keeps input/target dictionary naming, duplicate-name
         checks, and value assignment aligned with the central spec registry.
+        The method delegates to
+        :func:`~hrtfpykit.datasets.specs_registry.get_spec_name`.
 
         Parameters
         ----------
         spec : dataset spec
-            Spec object whose name should be resolved.
+            Spec object whose public key should be resolved.
 
         Returns
         -------
         str
             Explicit spec name when provided, otherwise the registry default.
 
+        Raises
+        ------
+        ValueError
+            If the spec defines an explicit name that is empty after stripping.
+        TypeError
+            If the spec type is not registered.
         """
 
         return get_spec_name(spec)

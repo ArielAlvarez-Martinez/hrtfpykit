@@ -16,6 +16,42 @@ def _get_plane_indices(
     angle: float = 0.0,
     angle_unit: str = "degrees",
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Resolve source indices for the nearest measured spatial plane.
+
+    The helper normalizes the current :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources` grid to spherical
+    coordinates before resolving a plane. It respects any active source subset
+    already stored on the :class:`~hrtfpykit.hrtf.hrtf.HRTF` object, so returned indices are relative to the
+    current source view.
+
+    Parameters
+    ----------
+    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object whose source grid is inspected.
+    plane : {"horizontal", "median", "frontal"}
+        Plane family to resolve. "horizontal" selects a constant elevation.
+        "median" and "frontal" select the nearest requested azimuth
+        together with the nearest opposite azimuth.
+    angle : float, default=0.0
+        Requested elevation for "horizontal" or requested azimuth for
+        "median" and "frontal".
+    angle_unit : {"degrees", "radians"}, default="degrees"
+        Unit used by angle and by returned plane angles.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        (indices, real_plane_angles). indices contains integer source
+        indices in the current source view. real_plane_angles contains one
+        rounded elevation for a horizontal plane or two rounded azimuths for
+        median and frontal planes.
+
+    Raises
+    ------
+    ValueError
+        If plane or angle_unit is unsupported, angle is boolean or
+        non-finite, source positions are not an (N, 3) grid, or the active
+        source coordinate system cannot be converted to spherical coordinates.
+    """
     plane_key = str(plane).strip().lower()
     if plane_key not in {"horizontal", "median", "frontal"}:
         raise ValueError("plane must be one of: horizontal, median, frontal")
@@ -82,33 +118,43 @@ def get_horizontal_plane(
     elevation: float = 0.0,
     angle_unit: str = "degrees",
 ) -> tuple[np.ndarray, float]:
-    """Return the horizontal plane nearest to a requested elevation.
+    """Return source indices for the horizontal plane nearest to an elevation.
+
+    A horizontal plane is represented as all source positions whose spherical
+    elevation equals the nearest available elevation in the current source
+    grid. The source grid may be stored as spherical, cartesian, or
+    lateral-polar coordinates; it is converted to spherical coordinates before
+    matching.
+
+    This function is used by HRTF selection, horizontal-plane spectrum plots,
+    interaural-cue plots, and comparison metrics. If hrtf already
+    represents a selected spatial subset, the returned indices address that
+    selected source view.
 
     Parameters
     ----------
-    hrtf : HRTF
-        HRTF instance that provides the source grid to inspect.
+    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object whose :class:`~hrtfpykit.hrtf.sources.Sources` grid is inspected.
     elevation : float, default=0.0
-        Requested horizontal-plane elevation.
+        Requested horizontal-plane elevation. The nearest measured elevation in
+        the grid is used when an exact match is unavailable.
     angle_unit : {"degrees", "radians"}, default="degrees"
-        Angular unit used by ``elevation`` and by the returned real elevation.
+        Angular unit used by elevation and by the returned
+        real_elevation.
 
     Returns
     -------
     tuple[np.ndarray, float]
-        ``(indices, real_elevation)`` where ``indices`` contains the source-grid
-        indices in the selected horizontal plane and ``real_elevation`` is the
-        actual elevation present in the grid.
+        (indices, real_elevation) where indices contains integer
+        source-grid indices in the current source view and real_elevation
+        is the actual grid elevation rounded to two decimals.
 
-    Examples
-    --------
-    Resolve the nearest horizontal plane and inspect its source grid:
-
-    >>> from hrtfpykit.hrtf import load_hrtf
-    >>> hrtf = load_hrtf("my_hrtf.sofa")
-    >>> indices, real_elevation = get_horizontal_plane(hrtf, elevation=0.0)
-    >>> horizontal = hrtf.select(plane="horizontal", plane_angle=real_elevation)
-    >>> horizontal.plot_source_grid(show=False)
+    Raises
+    ------
+    ValueError
+        If elevation is boolean or non-finite, angle_unit is
+        unsupported, the source grid has an invalid shape, or source positions
+        cannot be converted to spherical coordinates.
     """
     indices, real_plane_angles = _get_plane_indices(
         hrtf=hrtf,
@@ -124,33 +170,45 @@ def get_median_plane(
     azimuth: float = 0.0,
     angle_unit: str = "degrees",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return the median plane nearest to a requested azimuth.
+    """Return source indices for the median plane nearest to an azimuth.
+
+    A median-plane query selects the nearest measured azimuth to azimuth and
+    the nearest measured azimuth opposite to it. With the default angle, this
+    resolves the sagittal 0/180 degree plane when those azimuths are
+    present in the grid. The source grid may be stored as spherical,
+    cartesian, or lateral-polar coordinates; it is converted to spherical
+    coordinates before matching.
+
+    This function is used by HRTF selection, plane visualizations, and
+    comparison metrics that need a sagittal source slice. If hrtf already
+    represents a selected spatial subset, returned indices address that
+    selected source view.
 
     Parameters
     ----------
-    hrtf : HRTF
-        HRTF instance that provides the source grid to inspect.
+    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object whose :class:`~hrtfpykit.hrtf.sources.Sources` grid is inspected.
     azimuth : float, default=0.0
-        Requested azimuth used to resolve the nearest median plane.
+        Requested azimuth used to resolve the primary side of the median plane.
+        The opposite side is resolved at azimuth + 180 degrees or
+        azimuth + pi radians.
     angle_unit : {"degrees", "radians"}, default="degrees"
-        Angular unit used by ``azimuth`` and by the returned real azimuths.
+        Angular unit used by azimuth and by returned real azimuths.
 
     Returns
     -------
     tuple[np.ndarray, np.ndarray]
-        ``(indices, real_azimuths)`` where ``indices`` contains the source-grid
-        indices in the selected median plane and ``real_azimuths`` contains the
-        two opposite azimuths that define that plane in the grid.
+        (indices, real_azimuths) where indices contains integer
+        source-grid indices in the current source view and real_azimuths
+        contains the two actual grid azimuths, rounded to two decimals, that
+        define the resolved plane.
 
-    Examples
-    --------
-    Resolve the nearest median plane and inspect that sagittal slice:
-
-    >>> from hrtfpykit.hrtf import load_hrtf
-    >>> hrtf = load_hrtf("my_hrtf.sofa")
-    >>> indices, real_azimuths = get_median_plane(hrtf, azimuth=0.0)
-    >>> median = hrtf.select(plane="median", plane_angle=real_azimuths[0])
-    >>> median.plot_source_grid(show=False)
+    Raises
+    ------
+    ValueError
+        If azimuth is boolean or non-finite, angle_unit is unsupported,
+        the source grid has an invalid shape, or source positions cannot be
+        converted to spherical coordinates.
     """
     return _get_plane_indices(
         hrtf=hrtf,
@@ -165,33 +223,44 @@ def get_frontal_plane(
     azimuth: float = 90.0,
     angle_unit: str = "degrees",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return the frontal plane nearest to a requested azimuth.
+    """Return source indices for the frontal plane nearest to an azimuth.
+
+    A frontal-plane query selects the nearest measured azimuth to azimuth
+    and the nearest measured azimuth opposite to it. With the default angle,
+    this resolves the coronal 90/270 degree plane when those azimuths
+    are present in the grid. The source grid may be stored as spherical,
+    cartesian, or lateral-polar coordinates; it is converted to spherical
+    coordinates before matching.
+
+    This function is used by HRTF selection and source-grid plane plots. If
+    hrtf already represents a selected spatial subset, returned indices
+    address that selected source view.
 
     Parameters
     ----------
-    hrtf : HRTF
-        HRTF instance that provides the source grid to inspect.
+    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object whose :class:`~hrtfpykit.hrtf.sources.Sources` grid is inspected.
     azimuth : float, default=90.0
-        Requested azimuth used to resolve the nearest frontal plane.
+        Requested azimuth used to resolve the primary side of the frontal
+        plane. The opposite side is resolved at azimuth + 180 degrees or
+        azimuth + pi radians.
     angle_unit : {"degrees", "radians"}, default="degrees"
-        Angular unit used by ``azimuth`` and by the returned real azimuths.
+        Angular unit used by azimuth and by returned real azimuths.
 
     Returns
     -------
     tuple[np.ndarray, np.ndarray]
-        ``(indices, real_azimuths)`` where ``indices`` contains the source-grid
-        indices in the selected frontal plane and ``real_azimuths`` contains the
-        two opposite azimuths that define that plane in the grid.
+        (indices, real_azimuths) where indices contains integer
+        source-grid indices in the current source view and real_azimuths
+        contains the two actual grid azimuths, rounded to two decimals, that
+        define the resolved plane.
 
-    Examples
-    --------
-    Resolve the nearest frontal plane and inspect that coronal slice:
-
-    >>> from hrtfpykit.hrtf import load_hrtf
-    >>> hrtf = load_hrtf("my_hrtf.sofa")
-    >>> indices, real_azimuths = get_frontal_plane(hrtf, azimuth=90.0)
-    >>> frontal = hrtf.select(plane="frontal", plane_angle=real_azimuths[0])
-    >>> frontal.plot_source_grid(show=False)
+    Raises
+    ------
+    ValueError
+        If azimuth is boolean or non-finite, angle_unit is unsupported,
+        the source grid has an invalid shape, or source positions cannot be
+        converted to spherical coordinates.
     """
     return _get_plane_indices(
         hrtf=hrtf,

@@ -1,4 +1,3 @@
-"""SOFA conventions stored as Python dictionaries."""
 from typing import Any
 
 SIMPLEFREEFIELDHRTF_1_0 = {

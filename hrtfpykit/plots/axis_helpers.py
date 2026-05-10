@@ -20,35 +20,69 @@ def build_frequency_axis(
     labels: tuple[str, ...] | list[str] | None = None,
     margin_ratio: float = 0.03,
 ) -> dict[str, float | tuple[float, ...] | tuple[str, ...]]:
-    """Build validated frequency-axis configuration values.
+    """Build validated frequency-axis configuration for plot formatters.
+
+    This helper normalizes the frequency bounds, tick positions, tick labels,
+    and margin ratio consumed by
+    :func:`~hrtfpykit.plots.axis_helpers.apply_frequency_axis`. Frequency values
+    are stored in hertz so callers can pass bins directly from HRTF frequency
+    domains, while the axis-application step later converts those values to
+    kilohertz for display.
+
+    If explicit bounds are not provided, they are inferred from
+    frequency_bins. For logarithmic axes, non-positive bins are ignored
+    when inferring the lower bound because Matplotlib cannot place a log axis
+    at or below zero. Tick-label pairs outside the final frequency range are
+    removed from the returned configuration.
 
     Parameters
     ----------
     scale : str
-        Frequency scale mode. Supported values are ``"linear"`` and ``"log"``.
+        Frequency scale mode. Intended values are "linear" and "log".
+        The helper applies additional positivity checks only when scale is
+        "log".
     default_ticks : tuple[float, ...]
-        Default tick positions in Hz used when ``ticks`` is not provided.
+        Default tick positions in Hz used when ticks is not provided.
     default_labels : tuple[str, ...]
-        Default tick labels used when both ``ticks`` and ``labels`` are not provided.
+        Default tick labels used when both ticks and labels are not
+        provided.
     frequency_bins : np.ndarray | None, default=None
-        Frequency-bin vector in Hz used to infer ``freq_min`` and ``freq_max`` when
-        they are not explicitly provided.
+        Frequency-bin vector in Hz used to infer freq_min and freq_max
+        when they are not explicitly provided.
     freq_min : float | None, default=None
         Lower frequency bound in Hz.
     freq_max : float | None, default=None
         Upper frequency bound in Hz.
     ticks : tuple[float, ...] | list[float] | None, default=None
-        Explicit tick positions in Hz.
+        Explicit tick positions in Hz. When labels is omitted, labels are
+        generated from these values in kilohertz.
     labels : tuple[str, ...] | list[str] | None, default=None
-        Explicit tick labels.
+        Explicit tick labels. The number of labels must match the number of
+        tick positions before range filtering.
     margin_ratio : float, default=0.03
-        Relative axis margin used later by axis-application utilities.
+        Non-negative relative axis margin stored for later axis application.
 
     Returns
     -------
     dict[str, float | tuple[float, ...] | tuple[str, ...]]
-        Dictionary with ``ticks``, ``labels``, ``freq_min``, ``freq_max``, and
-        ``margin_ratio`` after validation and range filtering.
+        Dictionary with ticks, labels, freq_min, freq_max, and
+        margin_ratio after validation and range filtering. ticks and
+        labels contain only visible pairs inside the resolved bounds.
+
+    Raises
+    ------
+    ValueError
+        If frequency_bins is not a non-empty one-dimensional array, bounds
+        cannot be inferred, frequency bounds are non-finite, freq_min is
+        not smaller than freq_max, logarithmic bounds or ticks are not
+        positive, the tick and label counts differ, or margin_ratio is
+        negative.
+
+    Notes
+    -----
+    This function prepares configuration only; it does not modify a Matplotlib
+    axis. The plotting classes in :mod:`~hrtfpykit.plots.axis` are the main
+    public consumers.
 
     """
     resolved_frequency_bins = None
@@ -133,16 +167,27 @@ def apply_frequency_axis(
 ) -> None:
     """Apply frequency-axis scaling, limits, ticks, and labels to an axis.
 
+    The helper receives frequencies in hertz and renders the selected
+    Matplotlib axis in kilohertz. It sets the axis scale, expands the limits by
+    margin_ratio, installs fixed major tick positions and labels, disables
+    minor ticks, and hides Matplotlib offset text when available.
+
+    label is optional. When it is None, the existing axis label is
+    preserved so higher-level plot functions can decide whether to keep a
+    label, replace it, or leave a shared subplot unlabeled.
+
     Parameters
     ----------
     scale : str
-        Frequency scale mode. Supported values are ``"linear"`` and ``"log"``.
+        Frequency scale mode. Intended values are "linear" and "log".
+        "log" applies logarithmic scaling; any other value follows the
+        linear branch.
     ax : plt.Axes
         Target Matplotlib axis.
     axis : str
-        Axis selector: ``"x"``, ``"y"``, or ``"z"``.
+        Axis selector: "x", "y", or "z".
     label : str | None, default=None
-        Optional axis label. When ``None``, the existing axis label is preserved.
+        Optional axis label. When None, the existing axis label is preserved.
     freq_min : float | None, default=None
         Lower frequency bound in Hz.
     freq_max : float | None, default=None
@@ -150,13 +195,28 @@ def apply_frequency_axis(
     ticks : tuple[float, ...] | list[float] | None, default=None
         Tick positions in Hz.
     labels : tuple[str, ...] | list[str] | None, default=None
-        Tick labels matching ``ticks``.
+        Tick labels matching ticks.
     margin_ratio : float, default=0.03
         Relative margin applied around axis limits.
 
     Returns
     -------
     None
+
+    Raises
+    ------
+    ValueError
+        If axis is not "x", "y", or "z", if either frequency
+        bound is missing, if tick and label counts differ, or if z-axis
+        formatting is requested on a Matplotlib axis without the required 3D
+        axis methods.
+
+    Notes
+    -----
+    Bounds and tick positions are expected to have already been validated by
+    :func:`~hrtfpykit.plots.axis_helpers.build_frequency_axis` or by an
+    equivalent caller. Invalid numerical values can still surface as Matplotlib
+    errors, especially for logarithmic axes.
 
     """
     if axis not in {"x", "y", "z"}:
@@ -221,17 +281,34 @@ def resolve_three_dimensional_axis_geometry(
 ) -> tuple[float, float, float, float]:
     """Resolve center coordinates and half-span for equal 3D axis limits.
 
+    Source-grid plots use this helper to derive a common axis half-span from
+    Cartesian source positions. The returned centers are the midpoint of the
+    minimum and maximum coordinate on each dimension. The returned half-span is
+    based on the largest coordinate span, with a minimum total span of 1.0
+    so degenerate or nearly planar grids still produce drawable 3D limits.
+
     Parameters
     ----------
     cartesian_positions : np.ndarray
-        Source positions with shape ``(N, 3)`` in Cartesian coordinates.
+        Source positions with shape (N, 3) in Cartesian coordinates.
 
     Returns
     -------
     tuple[float, float, float, float]
-        ``(x_center, y_center, z_center, axis_half_span)`` where
-        ``axis_half_span`` is derived from the maximum span among x, y, and z
-        dimensions, with a minimum total span of ``1.0``.
+        (x_center, y_center, z_center, axis_half_span) where
+        axis_half_span is derived from the maximum span among x, y, and z
+        dimensions, with a minimum total span of 1.0.
+
+    Raises
+    ------
+    ValueError
+        If cartesian_positions does not have shape (N, 3), contains no
+        rows, or contains non-finite values.
+
+    Notes
+    -----
+    The helper does not call Matplotlib directly. Callers pass the returned
+    values to the 3D axis formatters in :mod:`~hrtfpykit.plots.axis`.
 
     """
     resolved_cartesian_positions = np.asarray(cartesian_positions, dtype=float)
@@ -268,18 +345,43 @@ def create_sources_grid_direction_markers(
 ) -> None:
     """Draw front, right, and up direction arrows on a 3D source-grid axis.
 
+    The marker directions are resolved through the provided
+    :class:`~hrtfpykit.hrtf.sources.Sources` object so the labels are tied to
+    the actual source grid rather than to hard-coded Cartesian coordinates.
+    The helper queries the nearest spherical grid positions for front
+    (0, 0), right (270, 0), and up (0, 90), converts those
+    positions to Cartesian coordinates, and draws scaled quiver arrows plus
+    text labels.
+
     Parameters
     ----------
     ax : plt.Axes
-        Target 3D Matplotlib axis.
+        Target 3D Matplotlib axis. The axis must provide Matplotlib's 3D
+        quiver and text drawing methods.
     sources : Sources
-        Sources container used to resolve canonical spherical directions.
+        Sources container used to resolve canonical spherical directions in
+        the current HRTF source grid.
     axis_half_span : float
         Half-span used to scale arrow lengths and label offsets.
 
     Returns
     -------
     None
+
+    Raises
+    ------
+    ValueError
+        If axis_half_span is not finite and positive. Errors raised by
+        source-position lookup or spherical-to-Cartesian conversion are
+        propagated unchanged.
+
+    Notes
+    -----
+    This helper is designed for source-grid figures after 3D limits have been
+    resolved by
+    :func:`~hrtfpykit.plots.axis_helpers.resolve_three_dimensional_axis_geometry`.
+    The marker labels use :data:`~hrtfpykit.plots.labels.Labels.label_box` for
+    visual consistency with other plot annotations.
 
     """
     resolved_axis_half_span = float(axis_half_span)

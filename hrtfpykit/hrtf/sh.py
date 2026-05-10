@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
 import numpy as np
 from scipy.special import sph_harm_y
-from typing import TYPE_CHECKING
-from dataclasses import dataclass
 
 from .coordinates import get_source_positions
 
@@ -12,18 +13,37 @@ if TYPE_CHECKING:
     from .domain import TF
     from .hrtf import HRTF
 
+
 @dataclass
 class SH:
-    """Spherical-harmonic-domain representation of HRTF magnitudes.
+    """Spherical-harmonic representation of HRTF magnitude data.
 
-    ``SH`` stores the coefficient matrix produced by ``sht`` together with the
-    spherical-harmonic basis and reconstruction metadata. Users usually create
-    this object by calling ``sht`` rather than instantiating it directly.
+    :class:`~hrtfpykit.hrtf.SH` is the container returned by
+    :func:`~hrtfpykit.hrtf.sht`. It stores the
+    regularized spherical-harmonic coefficient matrix together with the basis
+    matrix evaluated at the HRTF source directions. The representation is built
+    from linear HRTF magnitudes, not complex transfer functions, so phase is
+    not encoded in the coefficients.
 
-    ``C`` contains the spherical-harmonic coefficients, ``Y`` contains the
-    basis matrix evaluated at the source directions, ``sh_order`` stores the
-    decomposition order, and ``N`` stores the number of source positions used
-    during decomposition.
+    The coefficient axis follows the implementation order used by
+    :func:`~hrtfpykit.hrtf.sht`: for each degree n from 0 through
+    "sh_order", it stores orders m from -n through n. The total coefficient
+    count is (sh_order + 1) ** 2.
+
+    Attributes
+    ----------
+    C : np.ndarray
+        Spherical-harmonic coefficient matrix. For one selected ear the shape
+        is (n_coefficients, n_frequencies). For ear="both" the shape is
+        (n_coefficients, 2, n_frequencies).
+    Y : np.ndarray
+        Real-valued spherical-harmonic basis matrix with shape
+        (N, n_coefficients), evaluated at the source directions used during
+        decomposition.
+    sh_order : int
+        Non-negative spherical-harmonic order used to create C and Y.
+    N : int
+        Number of source positions used during decomposition.
     """
 
     C: np.ndarray
@@ -34,14 +54,15 @@ class SH:
     def get_coefficients(self) -> np.ndarray:
         """Return the spherical-harmonic coefficient matrix.
 
-        ``C`` is the compact representation produced by ``sht``. Its first
-        axis indexes spherical-harmonic coefficients; the remaining axes follow
-        the selected ear layout and frequency bins used during decomposition.
+        This method returns :attr:`~hrtfpykit.hrtf.SH.C` unchanged. The
+        first axis indexes spherical-harmonic coefficients; remaining axes
+        follow the selected ear layout and frequency-bin axis produced by
+        :func:`~hrtfpykit.hrtf.sht`.
 
         Returns
         -------
         np.ndarray
-            Spherical-harmonic coefficient matrix stored in ``C``.
+            The coefficient matrix stored in C.
         """
         return self.C
 
@@ -52,39 +73,67 @@ def sht(
     ear: str = "left",
     epsilon: float = 1e-6,
 ) -> SH:
-    """Compute spherical harmonic decomposition from HRTF magnitudes.
+    """Compute a spherical-harmonic decomposition of HRTF magnitudes.
 
-    This method projects magnitude responses over the spatial source grid into
-    spherical harmonic coefficients. It supports decomposition for one ear
-    (`left` or `right`) or both ears (`both`) across all available frequency bins.
+    The function projects linear HRTF magnitudes from the source grid into a
+    real-valued spherical-harmonic basis. It accepts either an
+    :class:`~hrtfpykit.hrtf.hrtf.HRTF` object or its linked
+    :class:`~hrtfpykit.hrtf.domain.TF` domain object. In both cases, the linked
+    HRTF source grid is used to evaluate the basis. The complex transfer functions
+    stored in :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` are decomposed
+    by magnitude.
+
+    The source coordinates are read as spherical positions in radians. The
+    implementation maps SOFA-style azimuth/elevation to spherical-harmonic
+    angles where phi is the azimuth and theta is pi / 2 minus elevation before
+    evaluating scipy.special.sph_harm_y. Coefficients are solved with Tikhonov
+    regularization.
 
     Parameters
     ----------
     tf : TF | HRTF
-        Input frequency-domain data or an HRTF object containing TF data.
+        Input frequency-domain domain object or
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+        The values stored in
+        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` must have shape
+        (positions, ears, frequency_bins) and contain at least two ear channels.
+        The bins stored in
+        :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` must
+        match the final TF axis.
     sh_order : int
-        Non-negative SH order.
-    ear : str, default="left"
-        Ear selection. Accepted values: `left`, `right`, `both`.
+        Non-negative spherical-harmonic order. The coefficient count is
+        (sh_order + 1) ** 2.
+    ear : {"left", "right", "both"}, default="left"
+        Ear channel used for the decomposition. "left" and "right"
+        produce a two-dimensional coefficient matrix. "both" preserves a
+        two-ear axis in the coefficient matrix.
     epsilon : float, default=1e-6
-        Tikhonov regularization factor added to the normal matrix.
+        Positive Tikhonov regularization factor added to the normal matrix.
+        Larger values stabilize ill-conditioned source grids more strongly but
+        increase regularization bias.
 
     Returns
     -------
     SH
-        SH container with:
+        SH-domain container with C shaped
+        (n_coefficients, n_frequencies) for one ear or
+        (n_coefficients, 2, n_frequencies) for both ears, and Y shaped
+        (N, n_coefficients).
 
-        - `C`: coefficient matrix of shape `(n_coeffs, n_freqs)` or
-          `(n_coeffs, 2, n_freqs)` for `ear="both"`.
-        - `Y`: basis matrix of shape `(N, n_coeffs)`.
-        - `sh_order` and `N` metadata.
+    Raises
+    ------
+    ValueError
+        If tf is not an HRTF or linked TF object, TF values or frequency
+        bins are missing, TF shape is incompatible, the source grid does not
+        match the TF position axis, ear is invalid, sh_order is not a
+        non-negative integer, or epsilon is not finite and positive.
 
     Examples
     --------
     >>> sh = sht(hrtf, sh_order=10, ear="left")
     >>> C = sh.get_coefficients()
-    >>> C.shape
-    (121, n_freqs)
+    >>> C.shape[0]
+    121
     """
     if hasattr(tf, "TF") and hasattr(tf, "Sources"):
         hrtf = tf
@@ -179,19 +228,37 @@ def sht(
     return SH(C=C, Y=Y, sh_order=sh_order, N=N)
 
 def sht_inverse(sh: SH):
-    """Reconstruct magnitude matrix from SH coefficients.
+    """Reconstruct HRTF magnitudes on the original source grid.
+
+    The reconstruction multiplies the basis matrix stored in
+    :attr:`SH.Y <hrtfpykit.hrtf.SH.Y>` by the coefficient matrix stored in
+    :attr:`SH.C <hrtfpykit.hrtf.SH.C>`. It reconstructs magnitudes only and
+    uses the same source directions that were used to build the
+    :class:`~hrtfpykit.hrtf.SH` object; it does not evaluate the
+    spherical-harmonic model on new directions.
 
     Parameters
     ----------
     sh : SH
-        SH-domain object returned by :func:`sht`.
+        SH-domain object returned by :func:`~hrtfpykit.hrtf.sht`.
+        :attr:`~hrtfpykit.hrtf.SH.Y` must have shape (N, n_coefficients)
+        and :attr:`~hrtfpykit.hrtf.SH.C` must start with the same
+        coefficient count implied by :attr:`~hrtfpykit.hrtf.SH.sh_order`.
 
     Returns
     -------
     np.ndarray
-        Reconstructed magnitude matrix:
-        - `(N, n_freqs)` when `sh.C` is 2D.
-        - `(N, 2, n_freqs)` when `sh.C` is 3D (both ears).
+        Reconstructed linear magnitude matrix. The shape is
+        (N, n_frequencies) when sh.C is two-dimensional, or
+        (N, 2, n_frequencies) when sh.C is three-dimensional.
+
+    Raises
+    ------
+    ValueError
+        If :attr:`~hrtfpykit.hrtf.SH.Y`,
+        :attr:`~hrtfpykit.hrtf.SH.C`, :attr:`~hrtfpykit.hrtf.SH.N`, or
+        :attr:`~hrtfpykit.hrtf.SH.sh_order` are mutually inconsistent, or
+        if :attr:`~hrtfpykit.hrtf.SH.C` is not two- or three-dimensional.
 
     Examples
     --------
@@ -230,22 +297,36 @@ def sht_error(
 ) -> tuple[float, float, float, float]:
     """Compute reconstruction error metrics between two magnitude tensors.
 
+    The function compares two linear-magnitude arrays element by element. It
+    is intended for evaluating the output of
+    :func:`~hrtfpykit.hrtf.sht_inverse` against the
+    original magnitudes used for the decomposition, but it accepts any two
+    finite arrays with matching shape.
+
     Parameters
     ----------
     original_magnitude : np.ndarray
-        Reference magnitude values. Must have the same shape as
-        ``reconstructed_magnitude``.
+        Reference linear-magnitude values. Must have the same shape as
+        reconstructed_magnitude.
     reconstructed_magnitude : np.ndarray
-        Reconstructed magnitude values to evaluate against the reference.
+        Reconstructed linear-magnitude values to evaluate against the reference.
 
     Returns
     -------
     tuple[float, float, float, float]
         Error metrics returned as:
-        - ``absolute_error``: L2 norm of the difference.
-        - ``relative_error``: absolute error divided by reference L2 norm.
-        - ``rms_error``: root-mean-square error.
-        - ``max_absolute_error``: maximum absolute point-wise error.
+
+        - absolute_error: L2 norm of original - reconstructed.
+        - relative_error: absolute error divided by the reference L2 norm.
+          If the reference norm is zero, this value is inf.
+        - rms_error: root-mean-square point-wise error.
+        - max_absolute_error: maximum absolute point-wise error.
+
+    Raises
+    ------
+    ValueError
+        If the input arrays have different shapes, are empty, or contain
+        non-finite values.
 
     Examples
     --------

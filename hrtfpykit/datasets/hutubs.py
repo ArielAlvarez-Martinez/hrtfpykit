@@ -20,28 +20,6 @@ from .specs import (
 
 
 class HUTUBS(BaseDataset):
-    """Dataset wrapper for HUTUBS HRTF and auxiliary resources.
-
-    ``HUTUBS`` is the concrete ``BaseDataset`` implementation for the HUTUBS
-    dataset. It maps HUTUBS subject identifiers to local resource paths,
-    supports measured and simulated HRTF variants, handles optional
-    anthropometry, mesh, image, and video resources, and exposes samples through
-    the shared ``dataset[index]`` interface.
-
-    Samples are defined entirely by ``inputs`` and ``target`` specs. During
-    construction the dataset scans the requested resource families, intersects
-    available subjects, applies exclusions and split selection, and builds row
-    contexts for subject-, position-, ear-, frequency-, or sample-indexed data.
-    At access time, the selected subject HRTF is loaded through ``hrtfpykit`` and
-    the requested spec values are extracted into ``sample['inputs']`` and
-    ``sample['target']``.
-
-    The optional download step is explicit and independent from dataset
-    construction. ``download_resources`` chooses what to download, while
-    ``dataset_hrtf_variant`` chooses what already-local HRTF resources are used
-    to build samples.
-    """
-
     def __init__(
         self,
         root: str | Path,
@@ -60,68 +38,72 @@ class HUTUBS(BaseDataset):
     ) -> None:
         """Dataset interface for local or downloadable HUTUBS resources.
 
-        ``HUTUBS`` turns the HUTUBS resource layout into the shared ``BaseDataset``
-        API. The constructor optionally downloads official resources, validates the
-        selected measured/simulated HRTF type, builds the dataset state from
-        input/target specs, and applies HUTUBS-specific anthropometry field
-        selection for left/right measurements.
+        :class:`~hrtfpykit.datasets.HUTUBS` turns the HUTUBS resource layout
+        into the shared :class:`~hrtfpykit.datasets.base.BaseDataset` API. It
+        maps HUTUBS subject identifiers to local resource paths, supports
+        measured and simulated HRTF variants, handles optional anthropometry,
+        mesh, image, and video resources, and exposes samples through the shared
+        integer-indexed dataset interface. HUTUBS-specific anthropometry field
+        selection is applied for left/right measurements.
 
-        ``HUTUBS`` is a concrete ``BaseDataset`` implementation for the HUTUBS
-        dataset. It provides HUTUBS-specific subject IDs, HRTF variants, anthropometry
-        handling, mesh paths, optional image/video resources, and official download
-        wiring. Specs passed through ``inputs`` and ``target`` determine which
-        resources are scanned and how samples are produced.
+        Samples are defined entirely by input and target specs. The dataset
+        scans the requested resource families, intersects available subjects, applies
+        exclusions and split selection, and builds row contexts for subject-,
+        position-, ear-, frequency-, or sample-indexed data. At access time, the
+        selected subject HRTF is loaded through
+        :func:`~hrtfpykit.hrtf.load_hrtf`, and the requested spec values are
+        extracted into sample inputs and sample targets.
 
         Download selection is independent from dataset construction selection.
-        ``download_resources`` and ``download_hrtf_variant`` control which official
-        files are downloaded. ``dataset_hrtf_variant`` controls which local HRTF files
-        are scanned and loaded after the download step. The constructor does not infer
-        download resources from ``inputs`` or ``target`` and does not copy
-        ``dataset_hrtf_variant`` into ``download_hrtf_variant``.
+        download_resources and download_hrtf_variant control which official
+        files are downloaded. dataset_hrtf_variant controls which local HRTF files
+        are scanned and loaded after the download step. The dataset does not infer
+        download resources from inputs or target and does not copy
+        dataset_hrtf_variant into download_hrtf_variant.
 
         Parameters
         ----------
         root : str or Path
             Local HUTUBS dataset root.
-        dataset_hrtf_variant : {'measured', 'simulated'} or dict, default='measured'
+        dataset_hrtf_variant : {"measured", "simulated"} or dict, default="measured"
             HUTUBS HRTF resource variant used for dataset construction.
         dataset_hrtf_transform : callable or None, default=None
             Optional transform applied to loaded HRTFs before spec extraction.
         download : bool, default=False
-            If ``True``, downloads selected official HUTUBS resources before dataset
+            If True, downloads selected official HUTUBS resources before dataset
             construction.
         download_resources : str or sequence of str, default='hrtf'
             Official resources requested for download. This value is not inferred
-            from ``inputs`` or ``target``.
-        download_hrtf_variant : str or dict, default='measured'
+            from inputs or target.
+        download_hrtf_variant : str or dict, default="measured"
             HRTF variant requested for download. This value is independent from
-            ``dataset_hrtf_variant``.
+            dataset_hrtf_variant.
         exclude_subject_ids : str, int, sequence, or None, default=None
             HUTUBS subjects excluded before scanning and splitting.
         inputs : spec, sequence of specs, or None, default=None
-            Specs exposed under ``sample['inputs']``.
+            Specs exposed under sample inputs.
         target : spec, sequence of specs, or None, default=None
-            Specs exposed under ``sample['target']``.
-        split : {'all', 'train', 'validation', 'test'}, default='all'
+            Specs exposed under sample targets.
+        split : {"all", "train", "validation", "test"}, default="all"
             Subject split used by this dataset instance.
         split_ratio : tuple of float, default=(0.8, 0.1, 0.1)
             Train, validation, and test split ratios.
         split_seed : int, default=0
             Random seed used for deterministic split assignment.
         verbose : bool, default=False
-            If ``True``, prints resource and dataset summaries. Download summaries print
+            If True, prints resource and dataset summaries. Download summaries print
             whenever files are downloaded.
 
         Returns
         -------
         HUTUBS
             Dataset object supporting indexed sample extraction and subject HRTF
-        loading.
+            loading.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets.specs import AnthropometrySpec, HRTFSpec
+        >>> from hrtfpykit.datasets import AnthropometrySpec, HRTFSpec
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
         ...     inputs=[HRTFSpec(index_by=("subject", "position")), AnthropometrySpec()],
@@ -199,7 +181,7 @@ class HUTUBS(BaseDataset):
         -------
         object
             Filtered value containing the requested ear-specific fields and shared
-        fields.
+            fields.
 
         """
         if not isinstance(value, dict):

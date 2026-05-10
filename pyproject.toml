@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hrtfpykit"
 dynamic = ["version"]
-description = "Toolkit for loading, handling, analyzing, and visualizing HRTF data in Python"
+description = "Python toolkit for SOFA-backed HRTF workflows: dataset construction, acoustic transforms, metrics, and visualization"
 readme = "README.md"
 requires-python = ">=3.13"
 authors = [{ name = "Ariel Alvarez-Martinez" }]

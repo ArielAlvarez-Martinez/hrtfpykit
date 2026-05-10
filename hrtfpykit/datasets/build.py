@@ -25,13 +25,30 @@ if TYPE_CHECKING:
 
 
 class DatasetBuilder:
-    """Build explicit dataset state from config, specs, resources, and splits.
-
-    ``DatasetBuilder`` owns the construction sequence for ``BaseDataset``. It
-    normalizes variants, applies spec planning, scans resources, applies subject
-    splits, derives acoustic context, and writes the final ``DatasetState``.
-    """
     def __init__(self, dataset: "BaseDataset") -> None:
+        """Orchestrate construction of one dataset instance state.
+
+        :class:`~hrtfpykit.datasets.build.DatasetBuilder` owns the construction
+        sequence for :class:`~hrtfpykit.datasets.base.BaseDataset`. It resets the target
+        dataset to a fresh :class:`~hrtfpykit.datasets.state.DatasetState`,
+        normalizes HRTF and mesh variants, plans specs, scans resources, applies
+        subject exclusions and split selection, derives acoustic context, and
+        builds the row table consumed by length queries and integer indexing.
+
+        The builder is an internal orchestration object rather than a user-facing
+        dataset. It keeps construction logic outside
+        :meth:`~hrtfpykit.datasets.base.BaseDataset.__init__`
+        while still writing every value into the shared dataset state explicitly.
+        Concrete datasets such as :class:`~hrtfpykit.datasets.HUTUBS`
+        and :class:`~hrtfpykit.datasets.SONICOM` call it through
+        their base-class initializer.
+
+        Parameters
+        ----------
+        dataset : BaseDataset
+            Dataset instance whose state will be replaced and populated by
+            :meth:`~hrtfpykit.datasets.build.DatasetBuilder.build`.
+        """
         self._dataset = dataset
 
     def build(
@@ -49,43 +66,85 @@ class DatasetBuilder:
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         verbose: bool = False,
     ) -> None:
-        """Build all explicit dataset state for one dataset instance.
+        """Build all explicit state for one dataset instance.
 
-        This method is the central construction pipeline for ``BaseDataset``. It
-        initializes state, validates resource variants, normalizes specs, scans and
-        validates resources, plans the split, derives acoustic context, and builds the
-        row table consumed by ``__getitem__``.
+        This method is the central construction pipeline for
+        :class:`~hrtfpykit.datasets.base.BaseDataset`. It replaces the current
+        dataset state, stores the basic construction arguments, validates and
+        normalizes HRTF and mesh variants, asks
+        :class:`~hrtfpykit.datasets.specs_workflow.DatasetSpecWorkflow` to
+        normalize input and target specs, asks
+        :class:`~hrtfpykit.datasets.resources.DatasetResources` to scan local
+        resources, asks :class:`~hrtfpykit.datasets.split.DatasetSplitPlanner`
+        to select subjects, asks
+        :class:`~hrtfpykit.datasets.acoustic_context.DatasetAcousticContext` to
+        derive acoustic axes, and finally builds the row table consumed by
+        indexed sample extraction.
+
+        Variant normalization happens before resource scanning. HRTF mappings may
+        contain "type", "sample_rate", and "version" keys. Mesh
+        mappings may contain "type" and "version" keys. Unsupported keys
+        or values are rejected against the dataset configuration before any file
+        scan begins.
 
         Parameters
         ----------
         config : DatasetConfig or type[DatasetConfig]
-            Dataset configuration.
+            Dataset configuration used for subject identifiers, supported resource
+            variants, resource templates, and configured exclusions.
         root : str or Path
-            Local dataset root.
+            Local dataset root. The path is expanded with Path(root).expanduser()
+            and stored in the dataset state.
         dataset_hrtf_transform : callable or None
-            Optional loaded-HRTF transform.
-        inputs, target : spec, sequence of specs, or None
-            Requested input and target specs.
+            Optional transform stored for later subject HRTF loading. The builder
+            does not call the transform.
+        inputs : spec, sequence of specs, or None
+            Requested input specs exposed under sample inputs.
+        target : spec, sequence of specs, or None
+            Requested target specs exposed under sample targets.
         dataset_hrtf_variant : str, dict, or None
-            HRTF resource variant selected for dataset construction.
+            HRTF resource variant selected for dataset construction. Mapping
+            values are normalized into a stored dictionary when sample-rate or
+            version selectors are present; simple type-only variants are stored as
+            strings.
         dataset_mesh_variant : str, dict, or None
-            Mesh resource variant selected for dataset construction.
+            Mesh resource variant selected for dataset construction. Mapping
+            values are normalized into a stored dictionary when a version selector
+            is present; simple type-only variants are stored as strings.
         split : str
-            Requested split.
+            Requested subject split, passed to the split planner.
         split_ratio : tuple of float
-            Train, validation, and test ratios.
+            Train, validation, and test ratios used for split planning.
         split_seed : int
-            Deterministic split seed.
+            Seed used for deterministic subject shuffling.
         exclude_subject_ids : str, int, sequence, or None
-            Additional subjects to exclude.
+            Additional subjects excluded before resource intersection and split
+            planning.
         verbose : bool
-            Whether verbose dataset behavior is enabled.
+            Whether verbose dataset behavior is enabled. The value is stored in
+            state for loaders and summaries.
 
         Returns
         -------
         None
-            Assigns the final dataset state in-place.
+            The method mutates the target dataset state in place.
 
+        Raises
+        ------
+        ValueError
+            If HRTF or mesh variant keys, types, sample rates, or versions are
+            unsupported, required variant selectors are missing, or delegated spec,
+            resource, split, acoustic-context, or row-building validation fails.
+        TypeError
+            If delegated workflows receive values with unsupported Python types.
+
+        Notes
+        -----
+        Specs are normalized before resource scanning so only required resource
+        families are scanned. Resource scanning runs before split planning so
+        subjects missing required files are removed before train, validation, or
+        test selection. Acoustic context runs after split planning because it
+        uses one selected subject as the representative HRTF axis source.
         """
         dataset = self._dataset
         state = DatasetState()
@@ -292,33 +351,63 @@ class DatasetBuilder:
         selected_frequency_indices: tuple[int, ...] | list[int],
         selected_sample_indices: tuple[int, ...] | list[int],
     ) -> list[dict[str, str | int | None]]:
-        """Build dataset row dictionaries from selected subjects and indexed axes.
+        """Build dataset row dictionaries from selected subjects and row axes.
 
-        Rows are records that identify one subject plus optional selected
-        position, ear, frequency, and sample indices. Value selectors consume these
-        records later, which keeps expensive resource loading out of row construction
-        and makes sample extraction deterministic.
+        Each row records one subject plus optional context for the axes present in
+        "index_by". The method creates the Cartesian product of selected
+        subjects and selected axis values. Axes not present in "index_by" are
+        represented by None values in the row dictionary, which lets value
+        selectors distinguish subject-only specs from position-, ear-,
+        frequency-, or sample-indexed specs without changing the row schema.
+
+        Row records are lightweight. They contain indices and labels only; HRTF,
+        mesh, table, image, or video resources are loaded later by
+        :class:`~hrtfpykit.datasets.values.DatasetSampleValueSelector` when
+        :meth:`~hrtfpykit.datasets.base.BaseDataset.__getitem__` requests a sample.
 
         Parameters
         ----------
         subject_ids : tuple of str
-            Subjects included in the selected split.
+            Canonical subject identifiers included in the selected split.
         index_by : tuple of str
-            Dataset row axes.
+            Dataset row axes. Supported non-subject axes are "position",
+            "ear", "frequency", and "samples".
         selected_position_indices : sequence
-            Position indices used to expand rows.
+            Source-position indices used when "position" is included in
+            "index_by".
         selected_ears : sequence
-            Ear names and indices used to expand rows.
+            Ear labels and source-ear indices used when "ear" is included in
+            "index_by".
         selected_frequency_indices : sequence
-            Frequency indices used to expand rows.
+            Frequency-bin indices used when "frequency" is included in
+            "index_by".
         selected_sample_indices : sequence
-            Sample indices used to expand rows.
+            Time-sample indices used when "samples" is included in
+            "index_by".
 
         Returns
         -------
         list of dict
-            Row records consumed by ``BaseDataset.__getitem__``.
+            Row records consumed by
+            :meth:`~hrtfpykit.datasets.base.BaseDataset.__getitem__`. Each record
+            contains "subject_id", "position_index",
+            "selected_position_index", "ear", "ear_index",
+            "selected_ear_index", "frequency_index",
+            "selected_frequency_index", "sample_index", and
+            "selected_sample_index".
 
+        Raises
+        ------
+        ValueError
+            If selected axis values cannot be converted to integers or ear entries
+            cannot be unpacked as (ear_name, ear_index) pairs.
+
+        Notes
+        -----
+        "position_index", "frequency_index", and "sample_index" store the
+        actual index into the acoustic axis. The corresponding selected
+        fields store the ordinal index inside the selected subset and are used for
+        one-hot encodings.
         """
         rows: list[dict[str, str | int | None]] = []
         include_position = "position" in index_by

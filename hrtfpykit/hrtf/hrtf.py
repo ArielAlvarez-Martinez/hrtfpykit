@@ -31,30 +31,37 @@ def load_hrtf(
     mesh2hrtf_compatible: bool = False,
     mesh2hrtf_n_shift: int | None = 30,
 ) -> "HRTF":
-    """Load a SOFA file as an :class:`HRTF` object.
+    """Load a SOFA file as an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
 
-    This function is the public loader for SOFA-backed HRTF workflows in
-    ``hrtfpykit``. It reads the file through the package SOFA API, verifies
+    This function is the public loader for SOFA-based HRTF workflows in
+    hrtfpykit. It reads the file through the package SOFA API, verifies
     that the declared SOFA convention is an HRTF convention, and populates the
-    central ``HRTF`` abstraction with synchronized time- and frequency-domain
-    data:
+    central :class:`~hrtfpykit.hrtf.hrtf.HRTF` abstraction with synchronized
+    time- and frequency-domain data. Loaded objects keep the original SOFA
+    handle in :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sofa` while exposing NumPy
+    arrays through :attr:`~hrtfpykit.hrtf.hrtf.HRTF.IR` and
+    :attr:`~hrtfpykit.hrtf.hrtf.HRTF.TF` for processing, plotting, selection,
+    and export.
 
-    - ``IR`` (time domain)
-    - ``TF`` (frequency domain)
+    - :class:`~hrtfpykit.hrtf.domain.IR` (time domain)
+    - :class:`~hrtfpykit.hrtf.domain.TF` (frequency domain)
 
     Supported conventions:
 
-    - ``SimpleFreeFieldHRIR``: loaded from ``Data.IR`` and converted to TF.
-    - ``SimpleFreeFieldHRTF``: loaded from ``Data.Real``/``Data.Imag``/``N``
+    - SimpleFreeFieldHRIR: loaded from "Data.IR" and converted to TF.
+    - SimpleFreeFieldHRTF: loaded from "Data.Real", "Data.Imag", and "N"
       and converted to IR.
 
-    For ``SimpleFreeFieldHRTF``, reconstruction uses positive frequency bins,
-    because HRTF impulse responses are real-valued and the negative frequency
-    bins are redundant. The expected format is uniformly spaced,
-    non-negative, increasing bins. DC (0 Hz) should be present. If DC is
-    missing and bins start at one-bin step (``Δf``), ``hrtfpykit`` prepends
-    DC with value ``1+0j`` (0 dB attenuation at DC) to keep reconstruction
-    consistent.
+    HRIR files derive :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` and
+    :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` with a
+    real FFT. HRTF files rebuild
+    :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` with inverse real FFT
+    from the one-sided positive-frequency representation. For
+    SimpleFreeFieldHRTF input,
+    frequency bins must be non-negative, increasing, and uniformly spaced. DC
+    (0 Hz) should be present. If DC is missing and bins start at one-bin step
+    (Delta f), hrtfpykit prepends DC with value 1+0j to keep
+    reconstruction consistent.
 
     Parameters
     ----------
@@ -67,19 +74,32 @@ def load_hrtf(
     check_sofa_against_conventions : bool, default=True
         Whether to run convention checks when reading the SOFA file.
     fft_length : int | None, default=None
-        Optional FFT length used when deriving TF from HRIR content.
+        Optional FFT length used when deriving TF from HRIR content. For HRTF
+        files, a provided value must match the FFT length implied by
+        N/frequency bins.
     mesh2hrtf_compatible : bool, default=False
-        If ``True``, use Mesh2HRTF-style TF-to-IR reconstruction when loading
-        ``SimpleFreeFieldHRTF`` files.
+        If True, use Mesh2HRTF-style TF-to-IR reconstruction when loading
+        SimpleFreeFieldHRTF files.
     mesh2hrtf_n_shift : int | None, default=30
         Optional circular shift in samples applied after TF-to-IR
-        reconstruction when ``mesh2hrtf_compatible=True``.
+        reconstruction when mesh2hrtf_compatible=True.
 
     Returns
     -------
     HRTF
-        Loaded HRTF object with ``IR``, ``TF``, ``SOFAConventions``, and
-        ``fft_length`` populated.
+        Loaded :class:`~hrtfpykit.hrtf.hrtf.HRTF` object with
+        :class:`~hrtfpykit.hrtf.domain.IR`,
+        :class:`~hrtfpykit.hrtf.domain.TF`,
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.SOFAConventions`, and
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.fft_length` populated.
+
+    Raises
+    ------
+    ValueError
+        If the SOFA file is unavailable, declares an unsupported convention,
+        omits required SOFA variables, contains empty acoustic data, has an
+        invalid sample rate, or provides frequency bins incompatible with the
+        requested FFT length.
 
     Examples
     --------
@@ -205,61 +225,88 @@ def load_hrtf(
 
 
 class HRTF(HRTFPlots):
-    """SOFA-backed HRTF container with synchronized time and frequency domains.
-
-    This class is the main entry point for loading, inspecting, selecting,
-    transforming, plotting, and exporting HRTF/HRIR data stored in SOFA files.
-    It supports ``SimpleFreeFieldHRIR`` and ``SimpleFreeFieldHRTF``
-    conventions, and keeps both domain representations available and aligned:
-
-    - ``IR``: time-domain impulse responses
-    - ``TF``: frequency-domain transfer functions
-
-    The class also exposes a spatial interface through ``Sources``. That
-    interface resolves source-grid positions, coordinate-system metadata,
-    geometric queries (for example named positions), and plane-based selection
-    workflows used by both processing and visualization methods.
-
-    The object exposes plotting workflows for HRTF inspection and analysis.
-    This includes source-grid visualizations, spectral views, plane projections,
-    and metric-oriented plots that operate directly on the current in-memory
-    state (including any selection or transformation).
-
-    Typical lifecycle
-    -----------------
-    1. Load an object with ``hrtfpykit.hrtf.load_hrtf``.
-    2. Inspect or subset data with ``Sources`` and :meth:`select`.
-    3. Apply transforms through ``transform``.
-    4. Visualize using plotting methods exposed by the object.
-    5. Synchronize and export with :meth:`update_sofa` and :meth:`save`.
-
-    Notes
-    -----
-    The instance keeps a reference to the backed SOFA object (`Sofa`) and tracks
-    whether in-memory data differs from that object through ``_transformed``.
-    Use :meth:`update_sofa` to synchronize in-memory data back to SOFA variables
-    before persistence. This separation keeps transformation workflows explicit:
-    in-memory edits can be explored, plotted, and validated first, and committed
-    to SOFA only when requested.
-    """
-
     def __init__(
         self,
         Sofa: SOFA | None = None,
     ) -> None:
-        """Initialize the HRTF abstraction.
+        """Represent an HRTF or HRIR object loaded from SOFA data.
 
-        The constructor stores the optional SOFA backing object and prepares
-        empty time-domain, frequency-domain, source, receiver, and transform
-        managers through lazy properties. Most users create populated instances
-        with :func:`hrtfpykit.hrtf.load_hrtf` rather than constructing an empty
-        object directly.
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF` is the main in-memory object used
+        to inspect, subset, transform, plot, synchronize, and save HRTF/HRIR
+        data loaded from SOFA files. It supports the SimpleFreeFieldHRIR and
+        SimpleFreeFieldHRTF conventions and keeps both acoustic representations
+        available:
+
+        - :class:`~hrtfpykit.hrtf.domain.IR`: time-domain impulse responses
+        - :class:`~hrtfpykit.hrtf.domain.TF`: frequency-domain transfer functions
+
+        The object stores acoustic arrays separately from the backing
+        :class:`~hrtfpykit.sofa.sofa.SOFA` object. Transformations and
+        selections operate on the in-memory arrays first; SOFA variables are
+        updated only when :meth:`~hrtfpykit.hrtf.hrtf.HRTF.update_sofa` or
+        :meth:`~hrtfpykit.hrtf.hrtf.HRTF.save` is called. This makes processing
+        workflows explicit and prevents intermediate edits from being written
+        to the file representation automatically.
+
+        Spatial metadata and source-grid operations are exposed through
+        :class:`~hrtfpykit.hrtf.sources.Sources`. That manager resolves SOFA
+        "SourcePosition" data, named directions,
+        coordinate-system conversion, and plane-based queries used by both processing
+        and visualization methods.
+
+        The object exposes plotting workflows for HRTF inspection and analysis. This
+        includes source-grid visualizations, spectral views, plane projections, and
+        metric-oriented plots that operate directly on the current in-memory state,
+        including any selection or transformation.
+
+        The object stores the optional SOFA backing object and starts with
+        empty metadata fields. Domain managers such as
+        :class:`~hrtfpykit.hrtf.domain.IR`,
+        :class:`~hrtfpykit.hrtf.domain.TF`,
+        :class:`~hrtfpykit.hrtf.sources.Sources`, and
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform` are created lazily when
+        their properties are first accessed.
+        Raw SOFA variables are not parsed and missing domains are not derived here;
+        :func:`~hrtfpykit.hrtf.load_hrtf` performs that loading and synchronization
+        work.
+
+        Notes
+        -----
+        A typical workflow is to load an object with
+        :func:`~hrtfpykit.hrtf.load_hrtf`, inspect or subset data with
+        :class:`~hrtfpykit.hrtf.sources.Sources` and
+        :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select`, apply transforms through
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform`, visualize using plotting
+        methods, then synchronize and export with
+        :meth:`~hrtfpykit.hrtf.hrtf.HRTF.update_sofa` and
+        :meth:`~hrtfpykit.hrtf.hrtf.HRTF.save`.
+
+        The instance keeps a reference to the backing
+        :class:`~hrtfpykit.sofa.sofa.SOFA` object in
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sofa`. Transformation state is tracked
+        internally; selected source subsets are tracked separately by
+        :class:`~hrtfpykit.hrtf.sources.Sources`.
 
         Parameters
         ----------
-        Sofa : SOFA | None, default=None
-            SOFA object that backs the HRTF instance. When ``None``, the object
-            is created empty and should be populated later.
+        Sofa : :class:`~hrtfpykit.sofa.sofa.SOFA` | None, default=None
+            :class:`~hrtfpykit.sofa.sofa.SOFA` object that backs the HRTF
+            instance. When None, the object is created empty and should be
+            populated later.
+
+        Attributes
+        ----------
+        Sofa : :class:`~hrtfpykit.sofa.sofa.SOFA` or None
+            Backing :class:`~hrtfpykit.sofa.sofa.SOFA` object used for source
+            metadata, persistence, and SOFA synchronization.
+        SOFAConventions : str or None
+            Active SOFA convention associated with the loaded or constructed HRTF
+            object.
+        fft_length : int or None
+            FFT length used when synchronizing between IR and TF representations.
+        _transformed : bool
+            Internal flag indicating whether the in-memory acoustic data were produced
+            by a transform workflow.
         """
         self.Sofa: SOFA | None = Sofa
         self.SOFAConventions: str | None = None
@@ -270,9 +317,11 @@ class HRTF(HRTFPlots):
     def IR(self) -> "IR":
         """Return the time-domain HRIR representation manager.
 
-        The manager stores ``IR.values`` and ``IR.sample_rate`` for the parent
-        HRTF object and exposes time-domain inspection helpers such as sample
-        length, duration, and ITD calculation.
+        The manager stores :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`
+        and :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` for
+        the parent :class:`~hrtfpykit.hrtf.hrtf.HRTF` object and exposes
+        time-domain inspection helpers such as sample length, duration, and
+        ITD calculation.
         """
         return IR(self)
 
@@ -280,8 +329,9 @@ class HRTF(HRTFPlots):
     def TF(self) -> "TF":
         """Return the frequency-domain HRTF representation manager.
 
-        The manager stores complex ``TF.values`` and ``TF.frequency_bins`` for
-        the parent object and exposes derived magnitude, phase, real, and
+        The manager stores complex :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`
+        and :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`
+        for the parent object and exposes derived magnitude, phase, real, and
         imaginary views used by transforms, metrics, and plots.
         """
         return TF(self)
@@ -290,7 +340,7 @@ class HRTF(HRTFPlots):
     def Sources(self) -> "Sources":
         """Return the spatial source-grid manager.
 
-        ``Sources`` reads SOFA ``SourcePosition`` data, converts between the
+        :class:`~hrtfpykit.hrtf.sources.Sources` reads SOFA "SourcePosition" data, converts between the
         supported coordinate systems, resolves named positions, and tracks
         selected source indices after spatial subsetting.
         """
@@ -307,19 +357,19 @@ class HRTF(HRTFPlots):
         return Transform(self)
 
     def clone(self) -> "HRTF":
-        """Create a deep clone of the current HRTF object.
+        """Create a deep clone of the current :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+
+        The clone receives copied IR and TF arrays, sample-rate and
+        frequency-bin metadata, FFT length, transformation state, and source
+        selection state. When the backing :class:`~hrtfpykit.sofa.sofa.SOFA`
+        object can be cloned, the clone receives an independent SOFA handle;
+        otherwise the original handle is retained.
 
         Returns
         -------
         HRTF
-            New object with copied IR, TF, source-selection state, and metadata.
-
-        Examples
-        --------
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf_branch = hrtf.clone()
-        >>> _ = hrtf_branch.transform.apply_gain(-3.0, scale="db")
-
+            New object with copied acoustic arrays, domain metadata, source
+            selection state, SOFA convention metadata, and transformation flag.
         """
         sofa_clone = self.Sofa
         if self.Sofa is not None:
@@ -352,23 +402,27 @@ class HRTF(HRTFPlots):
     def reset(self) -> "HRTF":
         """Reset in-memory HRTF data to the backed SOFA content.
 
+        This method discards current in-memory acoustic edits and reloads the
+        active domain data from :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sofa`. HRIR
+        files are restored from "Data.IR" and "Data.SamplingRate" and then
+        converted to TF. HRTF files are restored from "Data.Real",
+        "Data.Imag", and "N"
+        and then converted to IR. Source selections are cleared when the
+        :class:`~hrtfpykit.hrtf.sources.Sources` manager has already been
+        initialized.
+
         Returns
         -------
         HRTF
             Current instance after restoring IR/TF, source-state, and metadata
-            from the backed SOFA object.
+            from the backed :class:`~hrtfpykit.sofa.sofa.SOFA` object.
 
-        Examples
-        --------
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf = hrtf.transform.apply_window("hann")
-        >>> hrtf.is_transformed()
-        True
-        >>> hrtf.reset()
-        HRTF(...)
-        >>> hrtf.is_transformed()
-        False
-
+        Raises
+        ------
+        ValueError
+            If no SOFA file is attached, the SOFA file is not loaded, the
+            convention is unsupported, or required acoustic variables are
+            missing or empty.
         """
         if self.Sofa is None:
             raise ValueError("Cannot reset an HRTF without a loaded SOFA dataset")
@@ -465,22 +519,19 @@ class HRTF(HRTFPlots):
         return self
 
     def is_transformed(self) -> bool:
-        """Return whether the in-memory object differs from backed SOFA data.
+        """Return the current HRTF transformation flag.
+
+        The flag is set by transform workflows that modify acoustic data. It is
+        a workflow state indicator, not a byte-by-byte comparison between
+        in-memory arrays and the backing SOFA object. Source selection is
+        tracked separately on :class:`~hrtfpykit.hrtf.sources.Sources` and is handled independently by
+        :meth:`~hrtfpykit.hrtf.hrtf.HRTF.update_sofa`.
 
         Returns
         -------
         bool
-            ``True`` if at least one transformation or selection modified current
-            in-memory data; ``False`` otherwise.
-
-        Examples
-        --------
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.is_transformed()
-        False
-        >>> transformed = hrtf.transform.apply_window("hann")
-        >>> transformed.is_transformed()
-        True
+            True if a transform workflow has marked the object as
+            transformed; False otherwise.
 
         """
         return self._transformed
@@ -490,35 +541,49 @@ class HRTF(HRTFPlots):
         change_sofa_dimensions: bool = False,
         sofa_convention: str = "same",
     ) -> None:
-        """Synchronize in-memory IR/TF data into the backed SOFA object.
+        """Synchronize in-memory IR/TF data into the backed :class:`~hrtfpykit.sofa.sofa.SOFA` object.
+
+        The method converts the current acoustic representation into the
+        requested SOFA convention and writes the corresponding SOFA variables
+        on a cloned or updated :class:`~hrtfpykit.sofa.sofa.SOFA` object. It
+        updates HRIR output through "Data.IR" and "Data.SamplingRate"; HRTF
+        output through "Data.Real", "Data.Imag", and "N". Obsolete variables from the
+        opposite convention are removed when the output convention changes.
+
+        Dimension handling is conservative. If transformed data no longer fit
+        existing SOFA dimensions, synchronization raises unless
+        "change_sofa_dimensions=True". When resizing is allowed, supported
+        dependent variables on the measurement axis are subset with the current
+        source selection; unsupported dependent variables still raise explicit
+        errors to avoid silently corrupting SOFA structure.
+
+        The method updates the in-memory
+        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sofa` object only. Use
+        :meth:`~hrtfpykit.hrtf.hrtf.HRTF.save` to persist the synchronized
+        SOFA object to disk.
 
         Parameters
         ----------
         change_sofa_dimensions : bool, default=False
-            If ``True``, allows resizing fixed SOFA dimensions when transformed
+            If True, allows resizing fixed SOFA dimensions when transformed
             data shape differs from backed variables.
         sofa_convention : {'same', 'SimpleFreeFieldHRIR', 'SimpleFreeFieldHRTF'}, default='same'
-            Output SOFA convention to enforce during synchronization. ``'same'``
+            Output SOFA convention to enforce during synchronization. 'same'
             keeps the original backed SOFA convention.
 
         Returns
         -------
         None
-            This method updates ``self.Sofa`` in-place and does not return data.
+            This method updates :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sofa`
+            in-place and does not return data.
 
-        Examples
-        --------
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> transformed = hrtf.transform.apply_padding(padding_length=16, location="end")
-        >>> transformed.update_sofa(change_sofa_dimensions=True)
-        >>> transformed.save("hrtfs/padded.sofa", overwrite=True)
-
-        >>> selected = hrtf.select(positions=["front", "left", "right"])
-        >>> selected.update_sofa(
-        ...     change_sofa_dimensions=True,
-        ...     sofa_convention="SimpleFreeFieldHRTF",
-        ... )
-
+        Raises
+        ------
+        ValueError
+            If no SOFA file is loaded, the convention is unsupported,
+            required domain values are missing, transformed shapes cannot be
+            represented by the SOFA dimensions, or requested dimension changes
+            would affect variables that the method cannot update safely.
         """
         if self.Sofa is None or self.Sofa.netCDF4_dataset is None:
             raise ValueError("SOFA dataset is not loaded")
@@ -870,32 +935,35 @@ class HRTF(HRTFPlots):
     ) -> Path:
         """Update SOFA variables and save to disk.
 
+        This is the persistence endpoint for the HRTF workflow. It first calls
+        :meth:`~hrtfpykit.hrtf.hrtf.HRTF.update_sofa` so the backed
+        :class:`~hrtfpykit.sofa.sofa.SOFA` object reflects the current in-memory
+        IR/TF state and requested convention, then delegates the disk write to
+        :meth:`~hrtfpykit.sofa.sofa.SOFA.save`.
+
         Parameters
         ----------
         path : str | Path | None, default=None
-            Output file path. If ``None``, the backed SOFA path is used.
+            Output file path. If None, the current backed SOFA path is
+            used by the underlying :class:`~hrtfpykit.sofa.sofa.SOFA` object.
         overwrite : bool, default=False
-            If ``True``, allows overwriting an existing file.
+            If True, allows overwriting an existing file.
         change_sofa_dimensions : bool, default=False
-            Forwarded to :meth:`update_sofa` to control SOFA dimension resizing.
+            Forwarded to :meth:`~hrtfpykit.hrtf.hrtf.HRTF.update_sofa` to control SOFA dimension resizing.
         sofa_convention : {'same', 'SimpleFreeFieldHRIR', 'SimpleFreeFieldHRTF'}, default='same'
-            Forwarded to :meth:`update_sofa` to select output convention.
+            Forwarded to :meth:`~hrtfpykit.hrtf.hrtf.HRTF.update_sofa` to select output convention.
 
         Returns
         -------
         Path
             Path to the saved SOFA file.
 
-        Examples
-        --------
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> selected = hrtf.select(positions=["front", "left", "right"])
-        >>> selected.save(
-        ...     path="hrtfs/selected_front_left_right.sofa",
-        ...     overwrite=True,
-        ...     change_sofa_dimensions=True,
-        ... )
-
+        Raises
+        ------
+        ValueError
+            If no SOFA file is attached or synchronization fails.
+        FileExistsError
+            If the target path already exists and overwrite=False.
         """
         if self.Sofa is None:
             raise ValueError("SOFA dataset is not loaded")
@@ -920,41 +988,62 @@ class HRTF(HRTFPlots):
     ) -> "HRTF":
         """Select a spatial subset, ear subset, and/or IR crop from the HRTF.
 
+        Selection returns a cloned :class:`~hrtfpykit.hrtf.hrtf.HRTF` object
+        and leaves the original object unchanged. Spatial selection can be expressed with explicit positions,
+        named positions, a geometric plane, or the intersection of positions
+        and a plane. Source selections are applied along the leading source
+        axis of both :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` and
+        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` when those domains are
+        available.
+
+        Ear selection keeps both ears by default. Selecting "left" or
+        "right" removes the ear axis entry from available IR and TF arrays.
+        IR cropping is applied along the final sample axis and automatically
+        recomputes the TF representation from the cropped IR. Crop boundaries
+        can be provided either as sample indices or as seconds, but not both in
+        the same call.
+
         Parameters
         ----------
         positions : np.ndarray | list[list[float]] | list[float] | None, default=None
-            Explicit positions or named aliases to select.
-        position_coordinate_system : str, default='spherical'
-            Coordinate system used by ``positions``.
+            Explicit positions or named aliases to select. Named positions use
+            the source manager aliases such as "front", "back",
+            "left", and "right". Numeric positions are interpreted in
+            position_coordinate_system.
+        position_coordinate_system : {'spherical', 'cartesian', 'lateral-polar'}, default='spherical'
+            Coordinate system used by numeric positions queries.
         plane : str | None, default=None
             Plane name to filter positions. Supported values are
-            ``horizontal``, ``median``, and ``frontal``.
+            horizontal, median, and frontal.
         plane_angle : float, default=0.0
-            Plane angle for the selected ``plane``.
-        ear : {'both', 'left', 'right'}, default='both'
+            Plane angle used to resolve the nearest available plane. For the
+            horizontal plane this is elevation; for median and frontal planes
+            this is azimuth.
+        ear : {"both", "left", "right"}, default="both"
             Ear selection.
-        angle_unit : str, default='degrees'
-            Angle unit used for spatial queries.
+        angle_unit : {'degrees', 'radians'}, default='degrees'
+            Angle unit used for spatial queries and plane angles.
         start : int | None, default=None
             IR crop start index (samples).
         end : int | None, default=None
             IR crop end index (samples).
         start_seconds : float | None, default=None
-            IR crop start time (seconds). Mutually exclusive with ``start``.
+            IR crop start time (seconds). Mutually exclusive with start.
         end_seconds : float | None, default=None
-            IR crop end time (seconds). Mutually exclusive with ``end``.
+            IR crop end time (seconds). Mutually exclusive with end.
 
         Returns
         -------
         HRTF
-            New HRTF object containing the selected subset.
+            New :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the selected subset.
 
-        Examples
-        --------
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> horizontal = hrtf.select(plane="horizontal", plane_angle=0.0, ear="left")
-        >>> front_slice = hrtf.select(positions=["front"], start_seconds=0.0, end_seconds=0.01)
-
+        Raises
+        ------
+        ValueError
+            If the requested selection is invalid, no positions remain after
+            filtering, the requested ear is unavailable, crop boundaries are
+            invalid, seconds-based cropping is requested without a sample rate,
+            or IR data are unavailable for cropping.
         """
         transformed_hrtf = self.clone()
         selected_indices: np.ndarray | None = None

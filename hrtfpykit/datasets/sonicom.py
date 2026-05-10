@@ -18,25 +18,6 @@ from .specs import (
 )
 
 class SONICOM(BaseDataset):
-    """Dataset wrapper for SONICOM HRTF, mesh, and metadata resources.
-
-    ``SONICOM`` is the concrete ``BaseDataset`` implementation for the SONICOM
-    dataset. It resolves measured and synthetic HRTF variants, scanned or
-    synthetic mesh variants, subject metadata, subject exclusions, and split
-    selection before exposing samples through the shared ``dataset[index]`` API.
-
-    Samples are driven by ``inputs`` and ``target`` specs. Acoustic specs load a
-    subject HRTF with ``hrtfpykit`` and extract time-domain, frequency-domain,
-    ITD, ILD, or spherical-harmonic values. Resource specs can add mesh and
-    metadata values to the same sample. Subjects missing any required resource
-    family are removed before row construction.
-
-    Download configuration and dataset construction configuration are separate.
-    ``download_*`` arguments select files to fetch from the official SONICOM
-    distribution, while ``dataset_hrtf_variant`` and ``dataset_mesh_variant``
-    select the local files used for sample extraction.
-    """
-
     def __init__(
         self,
         root: str | Path,
@@ -57,24 +38,26 @@ class SONICOM(BaseDataset):
     ) -> None:
         """Dataset interface for local or downloadable SONICOM resources.
 
-        ``SONICOM`` turns SONICOM HRTF, mesh, and metadata layouts into the shared
-        ``BaseDataset`` API. The constructor optionally downloads selected resources,
-        passes explicit HRTF and mesh variants into the build pipeline, and lets
-        specs decide which resource families participate in subject intersection and
-        sample extraction.
+        :class:`~hrtfpykit.datasets.SONICOM` turns SONICOM HRTF, mesh, and
+        metadata layouts into the shared
+        :class:`~hrtfpykit.datasets.base.BaseDataset` API. It resolves measured
+        and synthetic HRTF variants, scanned or synthetic mesh variants, subject
+        metadata, subject exclusions, and split selection before exposing samples
+        through the shared integer-indexed dataset interface.
 
-        ``SONICOM`` is a concrete ``BaseDataset`` implementation for the SONICOM
-        dataset. It exposes measured and synthetic HRTF resource variants, selected
-        sample-rate/version combinations, scanned or synthetic meshes, and metadata.
-        Specs passed through ``inputs`` and ``target`` determine which resources are
-        required and how each sample is extracted.
+        Samples are driven by input and target specs. Acoustic specs
+        load a subject HRTF with :func:`~hrtfpykit.hrtf.load_hrtf` and extract
+        time-domain, frequency-domain, ITD, ILD, or spherical-harmonic values.
+        Resource specs can add mesh and metadata values to the same sample.
+        Subjects missing any required resource family are removed before row
+        construction.
 
         Download selection is independent from dataset construction selection.
-        ``download_resources``, ``download_hrtf_variant``, and ``download_mesh_variant``
-        control which official files are downloaded. ``dataset_hrtf_variant`` and
-        ``dataset_mesh_variant`` control which local files are scanned and loaded
-        after the download step. The constructor does not infer download resources
-        from ``inputs`` or ``target`` and does not copy dataset variants into download
+        download_resources, download_hrtf_variant, and download_mesh_variant
+        control which official files are downloaded. dataset_hrtf_variant and
+        dataset_mesh_variant control which local files are scanned and loaded
+        after the download step. The dataset does not infer download resources
+        from inputs or target and does not copy dataset variants into download
         variants.
 
         Parameters
@@ -83,50 +66,50 @@ class SONICOM(BaseDataset):
             Local SONICOM dataset root.
         dataset_hrtf_variant : dict or str
             SONICOM HRTF variant used for dataset construction. Full SONICOM HRTF
-            variants use ``type``, ``sample_rate``, and ``version`` keys.
+            variants use type, sample_rate, and version keys.
         dataset_mesh_variant : dict or str
             SONICOM mesh variant used for dataset construction. Full SONICOM mesh
-            variants use ``type`` and ``version`` keys.
+            variants use type and version keys.
         dataset_hrtf_transform : callable or None, default=None
             Optional transform applied to loaded HRTFs before spec extraction.
         download : bool, default=False
-            If ``True``, downloads selected official SONICOM resources before dataset
+            If True, downloads selected official SONICOM resources before dataset
             construction.
         download_resources : str or sequence of str, default='hrtf'
             Official resources requested for download. This value is not inferred
-            from ``inputs`` or ``target``.
+            from inputs or target.
         download_hrtf_variant : dict, str, or None
             HRTF variant values requested for download. This value is independent
-            from ``dataset_hrtf_variant``.
+            from dataset_hrtf_variant.
         download_mesh_variant : dict, str, or None
             Mesh variant values requested for download. This value is independent
-            from ``dataset_mesh_variant``.
+            from dataset_mesh_variant.
         exclude_subject_ids : str, int, sequence, or None, default=None
             SONICOM subjects excluded before scanning and splitting.
         inputs : spec, sequence of specs, or None, default=None
-            Specs exposed under ``sample['inputs']``.
+            Specs exposed under sample inputs.
         target : spec, sequence of specs, or None, default=None
-            Specs exposed under ``sample['target']``.
-        split : {'all', 'train', 'validation', 'test'}, default='all'
+            Specs exposed under sample targets.
+        split : {"all", "train", "validation", "test"}, default="all"
             Subject split used by this dataset instance.
         split_ratio : tuple of float, default=(0.8, 0.1, 0.1)
             Train, validation, and test split ratios.
         split_seed : int, default=0
             Random seed used for deterministic split assignment.
         verbose : bool, default=False
-            If ``True``, prints resource and dataset summaries. Download summaries print
+            If True, prints resource and dataset summaries. Download summaries print
             whenever files are downloaded.
 
         Returns
         -------
         SONICOM
             Dataset object supporting indexed sample extraction and subject HRTF
-        loading.
+            loading.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import SONICOM
-        >>> from hrtfpykit.datasets.specs import HRTFSpec, MetadataSpec
+        >>> from hrtfpykit.datasets import HRTFSpec, MetadataSpec
         >>> dataset = SONICOM(
         ...     root="datasets/sonicom",
         ...     inputs=[HRTFSpec(), MetadataSpec()],

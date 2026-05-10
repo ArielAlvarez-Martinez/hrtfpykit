@@ -11,7 +11,37 @@ from ..hrtf.coordinates import get_position_alias
 
 @dataclass(frozen=True)
 class Titles:
-    """Central title templates and title helpers for plot methods."""
+    """Title templates and helper methods used by hrtfpykit plots.
+
+    :class:`~hrtfpykit.plots.titles.Titles` centralizes the user-facing text used
+    by the plotting layer. The class stores format templates for source
+    positions, planes, ear labels, and comparison figures, and exposes small
+    static helpers that apply those templates consistently across HRTF, SH, and
+    comparison plots.
+
+    The helpers do not own Matplotlib state. They either return formatted strings or
+    apply titles to caller-provided Matplotlib figures and axes. This keeps title
+    behavior consistent while allowing each plot method to control layout, axes,
+    legends, and rendering.
+
+    Attributes
+    ----------
+    spherical_alias, spherical_position : str
+        Templates for spherical source-position titles with and without a known
+        cardinal alias.
+    cartesian_alias, cartesian_position : str
+        Templates for cartesian source-position titles.
+    lateral_polar_alias, lateral_polar_position : str
+        Templates for lateral-polar source-position titles.
+    horizontal_plane, horizontal_plane_elevation, median_plane : str
+        Templates for plane-level figure titles.
+    elevation_spectrum : str
+        Template for elevation-spectrum figure titles.
+    left_ear, right_ear : str
+        Standard ear labels used by comparison plots.
+    compare_itd_difference, compare_ild_difference, compare_lsd, compare_lsd_plane : str
+        Figure-title labels used by comparison metric plots.
+    """
 
     spherical_alias = "{name} : [Azimuth= {az}°, Elevation= {el}°]"
     spherical_position = "Position : [Azimuth= {az}°, Elevation= {el}°]"
@@ -36,15 +66,32 @@ class Titles:
     ) -> str:
         """Create a subplot title for a spherical source position.
 
+        The helper formats the first two values in selected_positions as
+        azimuth and elevation in degrees. If the position matches one of the
+        built-in cardinal aliases from
+        :func:`~hrtfpykit.hrtf.coordinates.get_position_alias`, the alias is
+        capitalized and used as the title prefix. Otherwise the generic
+        "Position" prefix is used.
+
         Parameters
         ----------
         selected_positions : np.ndarray
-            Position values as ``[azimuth, elevation]`` in degrees.
+            Spherical position values in degrees. The first two values are interpreted
+            as [azimuth, elevation]. A third radius value may be present and is
+            ignored by the title formatting.
 
         Returns
         -------
         str
-            Formatted position title, optionally using a known alias.
+            Formatted subplot title, for example "Front : [Azimuth= 0.0°,
+            Elevation= 0.0°]" or "Position : [Azimuth= 30.0°, Elevation=
+            10.0°]".
+
+        Raises
+        ------
+        ValueError
+            If the position cannot be interpreted by the alias resolver.
+
         """
         position_alias = get_position_alias(
             selected_positions,
@@ -71,17 +118,30 @@ class Titles:
     ) -> str:
         """Create a figure title for horizontal or median plane plots.
 
+        Horizontal-plane titles include the elevation angle only when the angle is
+        not numerically close to zero. Median-plane titles do not use
+        elevation_angle because the median plane is selected by azimuth in the
+        HRTF plane utilities.
+
         Parameters
         ----------
         plane : str
-            Plane name. Supported values are ``"horizontal"`` and ``"median"``.
+            Plane name. Supported values are "horizontal" and "median".
+            Matching is case-insensitive after surrounding whitespace is removed.
         elevation_angle : float, default=0.0
-            Horizontal-plane elevation in degrees.
+            Horizontal-plane elevation in degrees. Used only when plane is
+            "horizontal".
 
         Returns
         -------
         str
-            Formatted plane title.
+            Formatted figure title for the requested plane.
+
+        Raises
+        ------
+        ValueError
+            If plane is not "horizontal" or "median".
+
         """
         plane_key = str(plane).strip().lower()
         if plane_key == "horizontal":
@@ -98,7 +158,18 @@ class Titles:
     def create_elevation_spectrum_title(
         real_azimuth: float,
     ) -> str:
-        """Create a figure title for elevation-spectrum plots."""
+        """Create a figure title for elevation-spectrum plots.
+
+        Parameters
+        ----------
+        real_azimuth : float
+            Azimuth angle in degrees represented by the selected elevation spectrum.
+
+        Returns
+        -------
+        str
+            Formatted elevation-spectrum title.
+        """
         return Titles.elevation_spectrum.format(angle=float(real_azimuth))
 
     @staticmethod
@@ -106,7 +177,24 @@ class Titles:
         ax: Axes,
         title: str,
     ) -> None:
-        """Apply a subplot title on a single axis."""
+        """Apply a title to one Matplotlib subplot axis.
+
+        This is the shared subplot-title entry point used by plot methods before
+        rendering figure-level titles. It delegates directly to Axes.set_title so
+        the title participates in Matplotlib's normal axis layout behavior.
+
+        Parameters
+        ----------
+        ax : Axes
+            Target subplot axis.
+        title : str
+            Title text applied to ax.
+
+        Returns
+        -------
+        None
+
+        """
         ax.set_title(title)
 
     @staticmethod
@@ -118,12 +206,19 @@ class Titles:
     ) -> None:
         """Apply a centered figure title based on visible subplot bounds.
 
+        The title is horizontally centered over the currently visible axes rather
+        than always centered over the entire figure. This keeps titles visually
+        aligned when a layout hides unused axes. When an axis has the
+        hrtfpykit_subplot_title_y_with_figure_title attribute, its subplot-title
+        y-position is adjusted before the figure title is added so subplot titles and
+        figure titles do not overlap.
+
         Parameters
         ----------
         fig : MatplotlibFigure
             Target Matplotlib figure.
         axes : np.ndarray
-            Array of subplot axes used to compute visible bounds.
+            Array of subplot axes used to compute the visible horizontal bounds.
         figure_title_y : float
             Vertical figure-title position in figure coordinates.
         title : str
@@ -132,6 +227,7 @@ class Titles:
         Returns
         -------
         None
+
         """
         visible_axes = tuple(ax for ax in axes if ax.get_visible())
         figure_title_x = 0.5

@@ -24,14 +24,28 @@ if TYPE_CHECKING:
 
 
 class DatasetSampleValueSelector:
-    """Resolve concrete sample values for dataset specs.
+    """Resolve concrete sample values for dataset specs during indexing.
 
-    ``DatasetSampleValueSelector`` is the value extraction layer used by
-    ``BaseDataset.__getitem__``. It receives the dataset state, the current spec,
-    the current subject ID, and the current row context, then returns the value
-    stored under that spec name in ``sample['inputs']`` or ``sample['target']``.
-    Dataset subclasses can override selector methods with the same names to
-    customize specific resource behavior.
+    :class:`~hrtfpykit.datasets.values.DatasetSampleValueSelector` is the value
+    extraction layer used by
+    :meth:`~hrtfpykit.datasets.base.BaseDataset.__getitem__`. For each row and
+    input or target spec, it reads the constructed
+    :class:`~hrtfpykit.datasets.state.DatasetState`, resolves the requested
+    resource or derived acoustic representation, applies row-level indexing, and
+    returns the value placed under the spec name in the sample inputs or sample
+    target dictionary.
+
+    The selector is intentionally stateless. Caching, resource paths, selected axes,
+    loaded table rows, and acoustic context are all stored on the dataset state.
+    Dataset subclasses may provide methods with the same value-method names as the
+    registry descriptors to customize one resource family while leaving the generic
+    fallback implementations available.
+
+    Notes
+    -----
+    The class is a namespace of static methods because value resolution is driven by
+    a dataset instance, a spec instance, and one row dictionary. It does not own
+    resources and does not mutate the row table.
 
     """
 
@@ -45,27 +59,43 @@ class DatasetSampleValueSelector:
         """Dispatch one spec to its registered value selector.
 
         This method is the central runtime dispatcher used by
-        ``BaseDataset.__getitem__``. It asks the registry which selector belongs to
-        the spec, prefers a dataset subclass override when present, and falls back to
-        the generic implementation on ``DatasetSampleValueSelector``.
+        :meth:`~hrtfpykit.datasets.base.BaseDataset.__getitem__`. It asks the spec
+        registry which value method belongs to the spec, prefers a dataset subclass
+        override when one exists, and otherwise calls the generic method on
+        :class:`~hrtfpykit.datasets.values.DatasetSampleValueSelector`.
 
         Parameters
         ----------
-        dataset : BaseDataset
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset instance that owns state, resources, and optional subclass
             selector overrides.
         spec : dataset spec
-            Spec object to resolve.
+            Spec object to resolve. The spec type must be registered in
+            the dataset specs registry.
         subject_id : str
-            Subject ID for the current row.
+            Canonical subject ID for the current row.
         row : dict
-            Row context containing selected position, ear, frequency, and sample
-            indices.
+            Row context containing selected subject, position, ear, frequency, and
+            sample indices.
 
         Returns
         -------
         object
             Concrete sample value for the given spec and row.
+
+        Raises
+        ------
+        ValueError
+            If the spec type is not registered.
+        AttributeError
+            If the registry points to a selector method that is not available on the
+            dataset override or generic selector.
+
+        Notes
+        -----
+        Subclass overrides receive "spec", "subject_id", and "row" after Python
+        binds the dataset instance as "self". Generic static methods receive the
+        dataset explicitly.
 
         """
 
@@ -82,28 +112,37 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
-        """Resolve a ``MeshSpec`` value for one dataset row.
+        """Resolve a :class:`~hrtfpykit.datasets.MeshSpec` value for one dataset row.
 
-        Mesh resources are subject-level, so the selector maps the current subject to
-        its validated mesh path and applies an optional spec transform. It does not
-        load geometry directly, leaving that choice to user transforms or downstream
-        code.
+        Mesh resources are subject-level. The selector reads the validated mesh path
+        for subject_id from the dataset state, converts it to a string, and then
+        applies the optional spec transform. It does not load mesh geometry directly;
+        loading or parsing is left to user transforms or downstream code.
 
         Parameters
         ----------
-        dataset : BaseDataset
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset instance that owns mesh resource paths.
         spec : MeshSpec
             Mesh spec to resolve.
         subject_id : str
-            Subject ID for the current row.
+            Canonical subject ID for the current row.
         row : dict
-            Row context. Mesh values are subject-level and do not use row axes.
+            Row context. Mesh values are subject-level and do not inspect row axes.
 
         Returns
         -------
         object
             Mesh path string or transformed mesh value.
+
+        Raises
+        ------
+        KeyError
+            If subject_id does not have a selected mesh path in dataset state.
+
+        Notes
+        -----
+        The optional transform receives the path string, not a loaded mesh object.
 
         """
 
@@ -119,21 +158,22 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
-        """Resolve an ``ImageSpec`` value for one dataset row.
+        """Resolve an :class:`~hrtfpykit.datasets.ImageSpec` value for one dataset row.
 
-        The selector uses row ear context when images are grouped by subject-ear,
-        collects all indexed files for that media key, applies optional transforms per
-        file, and returns a single value, list, or concatenated array depending on the
-        spec configuration.
+        The selector builds a media key from subject_id and, when the spec is
+        grouped by ear, the row ear value. It reads every indexed image for that key,
+        applies the optional spec transform to each file value, and returns either a
+        single value, a list of values, or one concatenated array depending on the
+        number of matched files and spec.concatenate.
 
         Parameters
         ----------
-        dataset : BaseDataset
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset instance that owns image resource indexes.
         spec : ImageSpec
             Image spec to resolve.
         subject_id : str
-            Subject ID for the current row.
+            Canonical subject ID for the current row.
         row : dict
             Row context used to select an ear group when the spec is ear-grouped.
 
@@ -141,7 +181,22 @@ class DatasetSampleValueSelector:
         -------
         object
             Image path, list of image paths, transformed image values, or a
-        concatenated array when ``spec.concatenate=True``.
+            concatenated array when spec.concatenate is true.
+
+        Raises
+        ------
+        KeyError
+            If the subject and optional ear media key is not present in the image
+            index.
+        ValueError
+            Raised by NumPy if spec.concatenate is true and transformed values cannot
+            be concatenated along axis zero.
+
+        Notes
+        -----
+        Ear selection is ignored unless the spec grouped_by value includes "ear".
+        Position-indexed image keys are not selected here because the current image
+        index uses subject and optional ear context.
 
         """
 
@@ -174,20 +229,21 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
-        """Resolve a ``VideoSpec`` value for one dataset row.
+        """Resolve a :class:`~hrtfpykit.datasets.VideoSpec` value for one dataset row.
 
-        The selector mirrors image behavior for video resources: it uses subject and
-        optional ear context to find indexed files, applies optional transforms, and
-        returns a single value or list depending on how many videos match the row.
+        The selector mirrors image resolution for video resources. It builds a media
+        key from subject_id and, when the spec is grouped by ear, the row ear value.
+        It then reads every indexed video for that key, applies the optional spec
+        transform to each file value, and returns either one value or a list.
 
         Parameters
         ----------
-        dataset : BaseDataset
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset instance that owns video resource indexes.
         spec : VideoSpec
             Video spec to resolve.
         subject_id : str
-            Subject ID for the current row.
+            Canonical subject ID for the current row.
         row : dict
             Row context used to select an ear group when the spec is ear-grouped.
 
@@ -195,6 +251,17 @@ class DatasetSampleValueSelector:
         -------
         object
             Video path, list of video paths, or transformed video values.
+
+        Raises
+        ------
+        KeyError
+            If the subject and optional ear media key is not present in the video
+            index.
+
+        Notes
+        -----
+        Unlike image specs, video specs do not currently concatenate multiple
+        transformed values in this selector.
 
         """
 
@@ -224,29 +291,53 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> np.ndarray:
-        """Resolve an ``HRTFSpec`` value for one dataset row.
+        """Resolve an :class:`~hrtfpykit.datasets.HRTFSpec` value for one dataset row.
 
-        This selector loads the subject HRTF through the dataset cache, applies
-        optional spec-level HRTF transforms, selects domain and signal representation,
-        then slices position, ear, frequency, or sample axes according to the row
-        context. It is the main acoustic array extraction path.
+        This selector loads the subject HRTF through the dataset cache, optionally
+        applies the spec-level HRTF transform, chooses the requested domain and
+        signal representation, and slices position, ear, frequency, or sample axes
+        according to the spec indexing mode and row context. It is the main acoustic
+        array extraction path for raw HRIR, HRTF, magnitude, phase, real, and
+        imaginary values.
 
         Parameters
         ----------
-        dataset : BaseDataset
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset instance that owns HRTF paths, cache, and acoustic context.
         spec : HRTFSpec
             HRTF spec to resolve.
         subject_id : str
-            Subject ID for the current row.
+            Canonical subject ID for the current row.
         row : dict
             Row context containing selected position, ear, frequency, or sample
             indices.
 
         Returns
         -------
-        numpy.ndarray
-            HRTF or HRIR value selected from the loaded subject HRTF.
+        np.ndarray
+            HRTF or HRIR value selected from the loaded subject HRTF. Output shape
+            depends on "spec.index_by", "spec.ears", "spec.domain",
+            "spec.signal", and any selected positions stored in dataset state.
+
+        Raises
+        ------
+        KeyError
+            If subject_id cannot be loaded through the dataset HRTF path index.
+        ValueError
+            If a transformed HRTF changes the position axis in a way that prevents
+            applying the original spec position selection, or if the row ear is not
+            allowed by spec.ears.
+        IndexError
+            If row position, ear, frequency, or sample indices are outside the
+            selected array shape.
+
+        Notes
+        -----
+        Spec-level transforms are cached per subject and transform identity. Dataset-
+        level transforms are applied earlier by the HRTF loading path. When domain is
+        "time", this selector reads IR values and uses the "samples" row axis. For
+        frequency-domain values, it reads TF values and can expose complex values,
+        real part, imaginary part, magnitude, decibel magnitude, or phase.
 
         """
 
@@ -352,27 +443,45 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> np.ndarray:
-        """Resolve an ``ITDSpec`` value for one dataset row.
+        """Resolve an :class:`~hrtfpykit.datasets.ITDSpec` value for one dataset row.
 
-        The selector computes ITD once per subject/spec pair, caches the metric
-        result, applies position selection or row indexing, and finally applies an
-        optional spec transform. It turns full HRTF resources into ITD features.
+        The selector computes interaural time difference once per subject and spec,
+        stores the metric result in the dataset cache, applies selected-position
+        filtering or row-level position indexing, and finally applies the optional
+        spec transform. It turns the loaded subject HRIR into an ITD feature.
 
         Parameters
         ----------
-        dataset : BaseDataset
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset instance that owns HRTF paths, cache, and acoustic context.
         spec : ITDSpec
             ITD spec to resolve.
         subject_id : str
-            Subject ID for the current row.
+            Canonical subject ID for the current row.
         row : dict
             Row context used for position-indexed ITD values.
 
         Returns
         -------
-        numpy.ndarray
-            ITD value selected from the calculated subject ITD array.
+        np.ndarray
+            ITD value selected from the calculated subject ITD array. The result may
+            be a scalar-like array for position-indexed rows or a vector when
+            position is not part of "spec.index_by".
+
+        Raises
+        ------
+        KeyError
+            If subject_id cannot be loaded through the dataset HRTF path index.
+        ValueError
+            If ITD calculation fails because the underlying HRIR data or estimator
+            parameters are invalid.
+        IndexError
+            If row position_index is outside the calculated ITD array.
+
+        Notes
+        -----
+        Cache keys include subject_id and the spec object identity, so different ITD
+        specs with different estimator parameters do not share metric arrays.
 
         """
 
@@ -410,28 +519,47 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> np.ndarray:
-        """Resolve an ``ILDSpec`` value for one dataset row.
+        """Resolve an :class:`~hrtfpykit.datasets.ILDSpec` value for one dataset row.
 
-        The selector computes ILD once per subject/spec pair, caches the metric
-        result, applies position and frequency row selection when requested, and then
-        applies an optional spec transform. It supports both broad-band and frequency-
-        dependent ILD workflows.
+        The selector computes interaural level difference once per subject and spec,
+        stores the metric result in the dataset cache, applies selected-position
+        filtering, applies row-level position or frequency indexing when requested,
+        and then applies the optional spec transform. It supports both broadband and
+        frequency-dependent ILD workflows.
 
         Parameters
         ----------
-        dataset : BaseDataset
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset instance that owns HRTF paths, cache, and acoustic context.
         spec : ILDSpec
             ILD spec to resolve.
         subject_id : str
-            Subject ID for the current row.
+            Canonical subject ID for the current row.
         row : dict
             Row context used for position or frequency indexed ILD values.
 
         Returns
         -------
-        numpy.ndarray
-            ILD value selected from the calculated subject ILD array.
+        np.ndarray
+            ILD value selected from the calculated subject ILD array. The shape
+            depends on whether position or frequency appears in "spec.index_by".
+
+        Raises
+        ------
+        KeyError
+            If subject_id cannot be loaded through the dataset HRTF path index.
+        ValueError
+            If ILD calculation fails because the underlying HRIR data, sample rate,
+            FFT length, mode, or output parameters are invalid.
+        IndexError
+            If row position_index or frequency_index is outside the calculated ILD
+            array.
+
+        Notes
+        -----
+        Cache keys include subject_id and the spec object identity. Position
+        filtering is applied only when the metric output has a leading axis matching
+        the dataset source-position count.
 
         """
 
@@ -473,29 +601,47 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> np.ndarray:
-        """Resolve an ``SHSpec`` value for one dataset row.
+        """Resolve an :class:`~hrtfpykit.datasets.SHSpec` value for one dataset row.
 
-        The selector computes spherical-harmonic coefficients once per subject/spec
-        pair, caches the result, and slices ear or frequency axes according to row
-        context. It gives datasets an SH-domain representation of HRTF data
-        without changing source resources.
+        The selector computes spherical-harmonic coefficients once per subject and
+        spec, stores the coefficient array in the dataset cache, applies ear
+        selection or row-level ear indexing, applies frequency indexing when
+        requested, and finally applies the optional spec transform. It gives datasets
+        an SH-domain representation of HRTF magnitude data without changing source
+        resources.
 
         Parameters
         ----------
-        dataset : BaseDataset
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset instance that owns HRTF paths, cache, and acoustic context.
         spec : SHSpec
             Spherical-harmonic spec to resolve.
         subject_id : str
-            Subject ID for the current row.
+            Canonical subject ID for the current row.
         row : dict
             Row context used for ear or frequency indexed SH values.
 
         Returns
         -------
-        numpy.ndarray
-            Spherical-harmonic coefficient value selected for the current
-        row.
+        np.ndarray
+            Spherical-harmonic coefficient value selected for the current row. The
+            coefficient axis is always retained; ear and frequency axes depend on
+            "spec.index_by" and "spec.ears".
+
+        Raises
+        ------
+        KeyError
+            If subject_id cannot be loaded through the dataset HRTF path index.
+        ValueError
+            If SH decomposition fails, or if row ear is not allowed by spec.ears.
+        IndexError
+            If row ear or frequency indices are outside the coefficient array.
+
+        Notes
+        -----
+        The SH decomposition receives "both" when both ears are requested; otherwise
+        it receives the selected ear name. Cached values are keyed by subject_id and
+        spec object identity.
 
         """
 
@@ -555,21 +701,22 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
-        """Resolve an ``AnthropometrySpec`` value for one dataset row.
+        """Resolve an :class:`~hrtfpykit.datasets.AnthropometrySpec` value for one dataset row.
 
-        The selector maps the row subject to loaded anthropometry table data, supports
-        row-oriented, column-oriented, and MAT matrix access, applies dataset-specific
-        anthropometry selectors, and finally applies an optional spec transform. It is
-        shared table extraction with anthropometry-specific hooks.
+        The selector maps the row subject to the loaded anthropometry resource,
+        supports mapping-style tables, column-oriented lookups, and MAT matrix-like
+        values, applies the dataset-specific anthropometry selector when one is
+        installed, and finally applies the optional spec transform. It is the shared
+        table extraction path for physical-measurement data.
 
         Parameters
         ----------
-        dataset : BaseDataset
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset instance that owns loaded anthropometry rows.
         spec : AnthropometrySpec
             Anthropometry spec to resolve.
         subject_id : str
-            Subject ID for the current row.
+            Canonical subject ID for the current row.
         row : dict
             Row context used for ear-grouped anthropometry selection.
 
@@ -577,6 +724,25 @@ class DatasetSampleValueSelector:
         -------
         object
             Anthropometry row, column, matrix slice, or transformed value.
+
+        Raises
+        ------
+        KeyError
+            If subject_id cannot be resolved to loaded anthropometry data.
+        ValueError
+            If MAT-style access contains multiple candidate variables, matrix access
+            receives a value with fewer than two dimensions, or subject mapping
+            fails.
+        IndexError
+            If row-oriented or column-oriented matrix access requests a subject
+            position outside the loaded table shape.
+
+        Notes
+        -----
+        For mapping-style rows, spec.accessed_by set to "row" returns the subject
+        row. When accessed_by is "column", the selector either gathers the subject
+        column from all row dictionaries or selects a column based on the subject
+        position among selected subjects.
 
         """
 
@@ -679,21 +845,23 @@ class DatasetSampleValueSelector:
         subject_id: str,
         row: dict[str, str | int | None],
     ) -> object:
-        """Resolve a ``MetadataSpec`` value for one dataset row.
+        """Resolve a :class:`~hrtfpykit.datasets.MetadataSpec` value for one dataset row.
 
-        The selector maps the row subject to loaded metadata table data, supports row-
-        oriented, column-oriented, and MAT matrix access, applies dataset-specific
-        metadata selectors, and finally applies an optional spec transform. It mirrors
-        anthropometry extraction while keeping metadata resource identity separate.
+        The selector maps the row subject to the loaded metadata resource, supports
+        mapping-style tables, column-oriented lookups, and MAT matrix-like values,
+        applies the dataset-specific metadata selector when one is installed, and
+        finally applies the optional spec transform. It mirrors anthropometry
+        extraction while keeping general annotations separate from physical
+        measurements.
 
         Parameters
         ----------
-        dataset : BaseDataset
+        dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset instance that owns loaded metadata rows.
         spec : MetadataSpec
             Metadata spec to resolve.
         subject_id : str
-            Subject ID for the current row.
+            Canonical subject ID for the current row.
         row : dict
             Row context used for grouped metadata selection.
 
@@ -701,6 +869,25 @@ class DatasetSampleValueSelector:
         -------
         object
             Metadata row, column, matrix slice, or transformed value.
+
+        Raises
+        ------
+        KeyError
+            If subject_id cannot be resolved to loaded metadata data.
+        ValueError
+            If MAT-style access contains multiple candidate variables, matrix access
+            receives a value with fewer than two dimensions, or subject mapping
+            fails.
+        IndexError
+            If row-oriented or column-oriented matrix access requests a subject
+            position outside the loaded table shape.
+
+        Notes
+        -----
+        For mapping-style rows, spec.accessed_by set to "row" returns the subject
+        row. When accessed_by is "column", the selector either gathers the subject
+        column from all row dictionaries or selects a column based on the subject
+        position among selected subjects.
 
         """
 

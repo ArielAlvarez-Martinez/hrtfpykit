@@ -24,31 +24,66 @@ def load_hrtf(
     hrtf_paths: dict[str, Path] | None = None,
     cache: dict[object, object] | None = None,
 ) -> "HRTF":
-    """Load one subject HRTF through a dataset context.
+    """Load one subject HRTF through an initialized dataset context.
 
     This function is the low-level implementation behind
-    ``BaseDataset.get_subject_hrtf`` and acoustic value extraction. It maps user
-    subject references, finds the selected resource path, uses the dataset cache,
-    applies the dataset-level HRTF transform, and wraps loading errors with
-    subject/path context.
+    :meth:`~hrtfpykit.datasets.base.BaseDataset.get_subject_hrtf` and acoustic
+    value extraction in
+    :meth:`~hrtfpykit.datasets.base.BaseDataset.__getitem__`. It maps a user
+    subject reference through
+    :class:`~hrtfpykit.datasets.split.DatasetSplitPlanner`, resolves the selected
+    HRTF path, reuses the dataset cache, loads the SOFA-based object through
+    :func:`~hrtfpykit.hrtf.load_hrtf`, applies the dataset-level HRTF transform,
+    and wraps loader failures with dataset, subject, and path context.
+
+    The optional subject_ids, hrtf_paths, and cache arguments are used
+    by the resource validator while dataset construction is still in progress.
+    Normal user-facing calls should go through
+    :meth:`~hrtfpykit.datasets.base.BaseDataset.get_subject_hrtf`, which forwards
+    the active dataset state automatically.
 
     Parameters
     ----------
-    dataset : BaseDataset
-        Dataset instance that owns state, paths, transforms, and cache.
+    dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
+        Dataset instance whose internal
+        :class:`~hrtfpykit.datasets.state.DatasetState` contains configuration,
+        resource paths, transform settings, verbosity, and cache objects.
     subject_id : str or int
-        Subject reference to map and load.
+        Subject reference to map and load. Strings can be canonical dataset
+        subject IDs or supported subject aliases; integers are one-based subject
+        positions in subject_ids.
     subject_ids : tuple of str or None, default=None
-        Optional subject scope used for mapping. ``None`` uses available dataset
-        subjects.
-    hrtf_paths : dict or None, default=None
-        Optional subject-to-path map. ``None`` uses dataset state paths.
+        Optional subject scope used for subject mapping. None uses the
+        dataset state's available subjects.
+    hrtf_paths : dict[str, Path] or None, default=None
+        Optional subject-to-path map. None uses the HRTF paths stored in the
+        dataset state.
     cache : dict or None, default=None
-        Optional cache dictionary. ``None`` uses dataset state cache.
+        Optional cache dictionary. None uses the dataset state cache. Loaded
+        objects are stored under a subject-level HRTF cache key.
 
     Returns
     -------
-    HRTF Loaded HRTF object after applying any dataset-level HRTF transform.
+    HRTF
+        Loaded :class:`~hrtfpykit.hrtf.hrtf.HRTF` object after applying any
+        dataset-level HRTF transform.
+
+    Raises
+    ------
+    ValueError
+        If the dataset configuration is not initialized, subject mapping fails,
+        the HRTF file cannot be loaded, or the dataset-level transform does not
+        return an object compatible with :class:`~hrtfpykit.hrtf.hrtf.HRTF`.
+    KeyError
+        If the mapped subject does not have an available HRTF path.
+    FileNotFoundError
+        If the mapped subject has a path entry but the file is missing.
+
+    Notes
+    -----
+    When dataset._state.verbose is false, stdout emitted by
+    :func:`~hrtfpykit.hrtf.load_hrtf` is captured so dataset indexing stays quiet.
+    Missing files emit a warning before :class:`FileNotFoundError` is raised.
 
     """
 
@@ -93,7 +128,7 @@ def load_hrtf(
                     and hasattr(loaded_hrtf, "Sources")
                     and hasattr(loaded_hrtf, "transform")
                 ):
-                    raise ValueError("dataset_hrtf_transform must return an HRTF object")
+                    raise ValueError("dataset_hrtf_transform must return an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object")
         except Exception as exc:
             raise ValueError(
                 f"{state.name}: subject {mapped_subject_id} HRTF file could not be loaded: {path} ({exc})"
@@ -112,34 +147,69 @@ def load_table(
     subject_id: bool = True,
     resource_name: str = "Table",
 ) -> dict[str, dict[str, float | str | None]] | dict[str, object]:
-    """Load a CSV or MAT table and align it to dataset subject IDs.
+    """Load a CSV or MAT table for dataset metadata-style resources.
 
     This function implements the shared table behavior used by metadata and
     anthropometry resources. It maps row- or column-oriented tables onto canonical
-    dataset subject IDs, applies row/column exclusions, converts simple numeric
-    values, and keeps MAT variables available for matrix-style access.
+    dataset subject IDs, applies row and column exclusions, converts simple CSV
+    cell values to floats when possible, preserves non-numeric text, stores empty
+    CSV cells as None, and keeps MAT variables available for matrix-style
+    access.
+
+    CSV files are interpreted in one of two orientations. With
+    accessed_by="row", each data row is assigned to the corresponding subject
+    in :attr:`~hrtfpykit.datasets.config.DatasetConfig.subject_ids`, and the
+    returned mapping is keyed by subject ID. With accessed_by="column", each
+    subject column is assigned by position to the dataset subject order, and the
+    returned mapping is keyed by row label. MAT files are returned as the variable
+    dictionary produced by SciPy after optional row and column deletion.
 
     Parameters
     ----------
-    dataset : BaseDataset
-        Dataset instance that provides canonical subject IDs.
+    dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
+        Dataset instance whose configuration provides canonical subject IDs.
     path : str or Path
-        Table path to load.
+        CSV or MAT table path to load. User home markers are expanded before
+        reading.
     extension : str or None, default=None
-        Explicit extension override. ``None`` uses ``path.suffix``.
+        Explicit extension override. None uses the suffix from path.
+        Values may be passed with or without the leading dot.
     exclude_row, exclude_column : int, sequence of int, or None, default=None
-        Row or column indices removed from the loaded table.
+        Zero-based row or column positions removed from the loaded table. For
+        CSV data, indices are validated against the parsed orientation. For MAT
+        data, indices are forwarded to NumPy deletion on compatible arrays.
     accessed_by : {'row', 'column'}, default='row'
-        Whether subjects are represented by table rows or columns.
+        Whether CSV subjects are represented by table rows or table columns. This
+        argument does not change MAT loading.
     subject_id : bool, default=True
-        Whether the table includes a leading subject identifier row or column.
+        Whether a CSV table includes a leading identifier column in row-oriented
+        mode, or a leading label column in column-oriented mode. When false, all
+        CSV columns are treated as data or subject columns.
     resource_name : str, default='Table'
         Resource label used in validation errors.
 
     Returns
     -------
     dict
-        Table data mapped to dataset subject IDs, or a MAT variable mapping.
+        For row-oriented CSV files, a mapping from subject ID to field values. For
+        column-oriented CSV files, a mapping from row label to per-subject values.
+        For MAT files, a variable dictionary containing the loaded arrays and
+        metadata entries returned by SciPy.
+
+    Raises
+    ------
+    ValueError
+        If the dataset configuration is not initialized, accessed_by is not
+        "row" or "column", a CSV file lacks headers, a requested exclusion
+        index is out of range for CSV data, or the extension is unsupported.
+    OSError
+        If the file cannot be opened or read.
+
+    Notes
+    -----
+    CSV subject identifiers are aligned by table order, not by matching header or
+    row text against subject IDs. Dataset configs therefore need to declare the
+    same subject order used by the table source.
 
     """
 

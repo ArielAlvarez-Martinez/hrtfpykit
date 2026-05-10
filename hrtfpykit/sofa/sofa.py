@@ -25,24 +25,56 @@ def load_sofa(
     parallel: bool = False,
     check_sofa_against_conventions: bool = True,
 ) -> "SOFA":
-    """Load a SOFA file and return a :class:`SOFA` object.
+    """Load a SOFA file into a :class:`~hrtfpykit.sofa.sofa.SOFA` object.
+
+    This is the public entry point for inspecting or editing SOFA files with
+    hrtfpykit. The file is opened with netCDF4, wrapped in a
+    :class:`~hrtfpykit.sofa.sofa.SOFA` instance, and optionally checked
+    against the SOFA convention declared by its global attributes.
+    :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects use this function internally
+    when loading SimpleFreeFieldHRIR and SimpleFreeFieldHRTF files.
 
     Parameters
     ----------
     path : Union[str, pathlib.Path]
-        Path to the SOFA file.
+        Path to an existing ".sofa" file.
     mode : str, default="r"
-        netCDF4 open mode used to open the file.
+        netCDF4 open mode used to open the file, such as "r" for
+        read-only access or "r+" for direct in-place edits.
     parallel : bool, default=False
-        Whether to open the dataset in parallel mode.
+        Whether to request netCDF4 parallel I/O support when opening the
+        netCDF4 object. This is forwarded directly to netCDF4.Dataset.
     check_sofa_against_conventions : bool, default=True
-        Whether to validate the dataset against the declared SOFA
-        convention when opening it.
+        Whether to validate the file against its declared
+        "SOFAConventions" metadata before opening it as a
+        :class:`~hrtfpykit.sofa.sofa.SOFA` object.
+        Convention mismatches are reported by the validation utility, usually
+        as SOFA convention warnings.
 
     Returns
     -------
-    SOFA
-        Loaded SOFA object backed by a netCDF4 dataset.
+    :class:`~hrtfpykit.sofa.sofa.SOFA`
+        :class:`~hrtfpykit.sofa.sofa.SOFA` object whose
+        :attr:`~hrtfpykit.sofa.sofa.SOFA.netCDF4_dataset` attribute is an open
+        netCDF4 storage handle and whose
+        :attr:`~hrtfpykit.sofa.sofa.SOFA.path` attribute points to "path".
+
+    Raises
+    ------
+    FileNotFoundError
+        If "path" does not exist.
+    ValueError
+        If "path" does not end in ".sofa".
+    OSError
+        If netCDF4 cannot open the file with the requested mode or parallel
+        setting.
+
+    Notes
+    -----
+    The returned object owns an open netCDF4 handle. Close
+    :attr:`~hrtfpykit.sofa.sofa.SOFA.netCDF4_dataset` when the loaded file is no longer needed, or save
+    to a separate path with :meth:`~hrtfpykit.sofa.sofa.SOFA.save` when working
+    from a clone.
 
     Examples
     --------
@@ -65,34 +97,57 @@ def load_sofa(
 
 
 class SOFA:
-    """High-level SOFA file handler backed by netCDF4.
-
-    ``SOFA`` is the library abstraction around an open netCDF4 object that
-    follows a SOFA convention. It provides controlled access to dimensions,
-    attributes, and variables, plus explicit loading, cloning, saving, and
-    summary operations for SOFA files.
-
-    Notes
-    -----
-    - No hidden I/O is performed. Files are only read/written when you call
-      ``load()``, ``save()``, or other explicit methods.
-    - The underlying storage object is a netCDF4 ``Dataset``, so standard
-      netCDF4 rules and constraints apply.
-
-    """
-
     def __init__(self):
+        """Represent a SOFA file and its netCDF4 storage handle.
+
+        :class:`~hrtfpykit.sofa.sofa.SOFA` is the library abstraction around an
+        open netCDF4 object that follows a SOFA convention. It provides
+        controlled access to dimensions, global attributes, variables, and
+        variable attributes through hrtfpykit collection wrappers, plus
+        explicit methods for creating, modifying, cloning, saving, and
+        summarizing SOFA files.
+
+        The class is used directly for SOFA inspection workflows and indirectly by
+        :class:`~hrtfpykit.hrtf.hrtf.HRTF`, where it acts as the persistence layer for
+        HRIR/HRTF data, source positions, sampling metadata, and convention metadata.
+
+        Notes
+        -----
+        No hidden I/O is performed. Files are only read or written when you call
+        :func:`~hrtfpykit.sofa.load_sofa`,
+        :meth:`~hrtfpykit.sofa.sofa.SOFA.save`, or other explicit editing
+        methods. The underlying storage object is a netCDF4 Dataset, so
+        standard netCDF4 rules and constraints apply. Methods that mutate SOFA
+        content require a writable netCDF4 handle; the safest workflow is to
+        call :meth:`~hrtfpykit.sofa.sofa.SOFA.clone` or
+        :meth:`~hrtfpykit.sofa.sofa.SOFA.copy_with`, modify the in-memory copy,
+        then save the result explicitly.
+
+        Attributes
+        ----------
+        netCDF4_dataset : netCDF4.Dataset | None
+            Open netCDF4 storage handle backing this
+            :class:`~hrtfpykit.sofa.sofa.SOFA` object. None means no SOFA file
+            has been loaded or created.
+        path : pathlib.Path | None
+            Original or most recent disk path associated with the SOFA object. In-memory
+            clones and dummy SOFA objects start with None.
+
+        """
         self.netCDF4_dataset: Optional[netCDF4.Dataset] = None
         self.path = None
 
     @property
     def Dimensions(self) -> Optional[_Dimensions]:
-        """Return the dimension access wrapper.
+        """Return the SOFA dimension collection wrapper.
+
+        The wrapper exposes dimension names, sizes, and per-dimension
+        :class:`~hrtfpykit.sofa.wraps.DimensionsWrap` objects from the current netCDF4 storage handle.
 
         Returns
         -------
         Optional[_Dimensions]
-            Wrapper for dimension access, or None if no dataset is loaded.
+            Dimension access wrapper, or None when no SOFA file is loaded.
         """
         if self.netCDF4_dataset is None:
             return None
@@ -100,12 +155,17 @@ class SOFA:
 
     @property
     def GlobalAttributes(self) -> Optional[_GlobalAttributes]:
-        """Return the global attribute access wrapper.
+        """Return the SOFA global-attribute collection wrapper.
+
+        Global attributes include convention metadata such as
+        "SOFAConventions", "SOFAConventionsVersion", "DataType",
+        application metadata, and file lifecycle timestamps.
 
         Returns
         -------
         Optional[_GlobalAttributes]
-            Wrapper for global attributes, or None if no dataset is loaded.
+            Global-attribute access wrapper, or None when no SOFA file is
+            loaded.
         """
         if self.netCDF4_dataset is None:
             return None
@@ -113,12 +173,16 @@ class SOFA:
 
     @property
     def Variables(self) -> Optional[_Variables]:
-        """Return the variable access wrapper.
+        """Return the SOFA variable collection wrapper.
+
+        Variables contain the numeric and string arrays stored in the SOFA
+        file, including HRTF/HRIR data arrays, source positions, sampling
+        rates, and frequency vectors.
 
         Returns
         -------
         Optional[_Variables]
-            Wrapper for variables, or None if no dataset is loaded.
+            Variable access wrapper, or None when no SOFA file is loaded.
         """
         if self.netCDF4_dataset is None:
             return None
@@ -126,59 +190,67 @@ class SOFA:
 
     @property
     def VariableAttributes(self) -> Optional[_VariableAttributes]:
-        """Return the variable attribute access wrapper.
+        """Return the SOFA variable-attribute collection wrapper.
+
+        Variable attributes are exposed with "Variable:Attribute" keys,
+        such as "SourcePosition:Type" or "Data.SamplingRate:Units".
+        These attributes describe coordinate systems, units, and semantic
+        labels required by SOFA-based HRTF workflows.
 
         Returns
         -------
         Optional[_VariableAttributes]
-            Wrapper for variable attributes, or None if no dataset is loaded.
+            Variable-attribute access wrapper, or None when no SOFA file is
+            loaded.
         """
         if self.netCDF4_dataset is None:
             return None
         return _VariableAttributes(self.netCDF4_dataset)
 
     def create_dimension(self, name: str, value: int) -> None:
-        """Create a new SOFA dimension.
+        """Create a fixed-size dimension in the loaded SOFA object.
+
+        Dimensions define the axes used by SOFA variables. For example,
+        "M" commonly indexes measurements or source positions, "R" indexes
+        receivers, "N" indexes time samples, and "E" indexes string
+        lengths or emitters depending on the convention.
 
         Parameters
         ----------
         name : str
-            Dimension name.
+            Dimension name to create.
         value : int
-            Dimension size.
+            Dimension size passed to netCDF4.Dataset.createDimension.
 
         Raises
         ------
         ValueError
-            If no dataset is loaded or if the dimension already exists.
+            If no SOFA file is loaded or if the dimension already exists.
+        Exception
+            Propagates errors raised by netCDF4 when the netCDF4 storage handle is not
+            writable or the dimension cannot be created.
 
         Notes
         -----
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Create a working clone before adding a custom dimension:
-
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> sofa_clone.create_dimension("X", 3)
-        >>> sofa_clone.Dimensions.get("X").value
-        3
         """
         dataset = require_dataset(self)
         if name in dataset.dimensions:
             raise ValueError(f"Dimension attribute already exists: {name}")
         dataset.createDimension(name, value)
         print(f"Dimension: '{name}' created succesfully")
-        
+
     def rename_dimension(self, old_name: str, new_name: str) -> None:
-        """Rename an existing SOFA dimension.
+        """Rename an existing dimension in the loaded SOFA object.
+
+        The operation delegates to netCDF4 renameDimension and therefore
+        updates the dimension name at the storage layer. Use this only when you
+        also understand how existing SOFA variables depend on the dimension.
 
         Parameters
         ----------
@@ -190,26 +262,19 @@ class SOFA:
         Raises
         ------
         ValueError
-            If no dataset is loaded or if ``old_name`` does not exist.
+            If no SOFA file is loaded or if old_name does not exist.
+        Exception
+            Propagates errors raised by netCDF4, including attempts to rename
+            dimensions on read-only netCDF4 storage handles or to invalid names.
 
         Notes
         -----
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Rename the measurement dimension in a working clone:
-
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> sofa_clone.rename_dimension("M", "Measurements")
-        >>> "Measurements" in sofa_clone.Dimensions.get_names()
-        True
         """
         dataset = require_dataset(self)
         if old_name not in dataset.dimensions:
@@ -219,39 +284,38 @@ class SOFA:
         print(f"Dimension: '{old_name}' renamed succesfully")
 
     def create_global_attribute(self, name: str, value: Optional[str] = None) -> None:
-        """Create a global SOFA attribute.
+        """Create a global attribute on the loaded SOFA object.
+
+        Global attributes describe file-level SOFA metadata such as
+        "SOFAConventions", "SOFAConventionsVersion", "DataType",
+        application metadata, and date fields. This method adds a new global
+        attribute and refuses to overwrite an existing one.
 
         Parameters
         ----------
         name : str
-            Attribute name.
+            Global attribute name to create.
         value : Optional[str], optional
-            Attribute value. Empty string is used when None.
+            Attribute value. An empty string is stored when None is
+            supplied.
 
         Raises
         ------
         ValueError
-            If no dataset is loaded or if the global attribute already
+            If no SOFA file is loaded or if the global attribute already
             exists.
+        Exception
+            Propagates errors raised by netCDF4 when the attribute cannot be
+            written.
 
         Notes
         -----
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Add a descriptive global attribute to a working clone:
-
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> sofa_clone.create_global_attribute("DemoNote", "Measured in booth A")
-        >>> sofa_clone.GlobalAttributes.get("DemoNote").value
-        'Measured in booth A'
         """
         dataset = require_dataset(self)
         if name in dataset.ncattrs():
@@ -261,40 +325,37 @@ class SOFA:
         print(f"Global attribute: '{name}' created succesfully")
 
     def modify_global_attribute(self, name: str, value: str) -> None:
-        """Modify an existing global SOFA attribute.
+        """Modify an existing global attribute on the loaded SOFA object.
+
+        This method updates file-level metadata that already exists on the
+        netCDF4 storage handle. It is commonly used by HRTF save workflows to keep
+        "SOFAConventions", "DataType", "DateModified", and hrtfpykit API
+        metadata synchronized after IR/TF changes.
 
         Parameters
         ----------
         name : str
-            Attribute name.
+            Existing global attribute name.
         value : str
             New attribute value.
 
         Raises
         ------
         ValueError
-            If no dataset is loaded or if the global attribute does not
+            If no SOFA file is loaded or if the global attribute does not
             exist.
+        Exception
+            Propagates errors raised by netCDF4 when the attribute cannot be
+            written.
 
         Notes
         -----
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Update an existing global attribute in a working clone:
-
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> sofa_clone.create_global_attribute("DemoNote", "draft")
-        >>> sofa_clone.modify_global_attribute("DemoNote", "validated")
-        >>> sofa_clone.GlobalAttributes.get("DemoNote").value
-        'validated'
         """
         dataset = require_dataset(self)
         if name not in dataset.ncattrs():
@@ -303,7 +364,12 @@ class SOFA:
         print(f"Global attribute: '{name}' modified succesfully")
 
     def delete_global_attribute(self, name: str) -> None:
-        """Delete a global SOFA attribute.
+        """Delete a global attribute from the loaded SOFA object.
+
+        Removing global attributes can make a SOFA file invalid if required
+        convention metadata is deleted. Use this method for controlled editing
+        workflows where the resulting file will be validated or completed
+        before saving.
 
         Parameters
         ----------
@@ -313,28 +379,20 @@ class SOFA:
         Raises
         ------
         ValueError
-            If no dataset is loaded or if the global attribute does not
+            If no SOFA file is loaded or if the global attribute does not
             exist.
+        Exception
+            Propagates errors raised by netCDF4 when the attribute cannot be
+            removed.
 
         Notes
         -----
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Remove a temporary global attribute from a working clone:
-
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> sofa_clone.create_global_attribute("DemoNote", "temporary")
-        >>> sofa_clone.delete_global_attribute("DemoNote")
-        >>> "DemoNote" in sofa_clone.GlobalAttributes.get_names()
-        False
         """
         dataset = require_dataset(self)
         if name not in dataset.ncattrs():
@@ -343,40 +401,40 @@ class SOFA:
         print(f"Global attribute: '{name}' deleted succesfully")
 
     def create_variable_attribute(self, name: str, value: Optional[str] = None) -> None:
-        """Create a variable attribute.
+        """Create an attribute on an existing SOFA variable.
+
+        Variable attributes describe variable-specific metadata such as units,
+        coordinate system type, and long names. The public key format is
+        "Variable:Attribute" so the same style can be used by
+        :attr:`~hrtfpykit.sofa.sofa.SOFA.VariableAttributes` and
+        :attr:`~hrtfpykit.sofa.wraps.VariablesWrap.attributes`.
 
         Parameters
         ----------
         name : str
-            Attribute name in the form ``"Variable:Attribute"``.
+            Attribute key in the form "Variable:Attribute".
         value : Optional[str], optional
-            Attribute value. Empty string is used when None.
+            Attribute value. An empty string is stored when None is
+            supplied.
 
         Raises
         ------
         ValueError
-            If no dataset is loaded, ``name`` is malformed, the target
+            If no SOFA file is loaded, "name" is malformed, the target
             variable does not exist, or the variable attribute already
             exists.
+        Exception
+            Propagates errors raised by netCDF4 when the attribute cannot be
+            written.
 
         Notes
         -----
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Tag one variable with custom metadata:
-
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> sofa_clone.create_variable_attribute("Data.IR:DemoTag", "raw")
-        >>> sofa_clone.VariableAttributes.get("Data.IR:DemoTag").value
-        'raw'
         """
         dataset = require_dataset(self)
         if ":" not in name:
@@ -392,41 +450,38 @@ class SOFA:
         print(f"Variable attribute: '{name}' created succesfully")
 
     def modify_variable_attribute(self, name: str, value: str) -> None:
-        """Modify an existing variable attribute.
+        """Modify an existing attribute on a SOFA variable.
+
+        Use this method to update variable metadata without changing the
+        variable data array. For HRTF files this is typically used for units
+        and coordinate-system metadata, for example "SourcePosition:Type" or
+        "Data.SamplingRate:Units".
 
         Parameters
         ----------
         name : str
-            Attribute name in the form ``"Variable:Attribute"``.
+            Attribute key in the form "Variable:Attribute".
         value : str
             New attribute value.
 
         Raises
         ------
         ValueError
-            If no dataset is loaded, ``name`` is malformed, the target
+            If no SOFA file is loaded, "name" is malformed, the target
             variable does not exist, or the variable attribute does not
             exist.
+        Exception
+            Propagates errors raised by netCDF4 when the attribute cannot be
+            written.
 
         Notes
         -----
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Update one custom variable attribute:
-
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> sofa_clone.create_variable_attribute("Data.IR:DemoTag", "raw")
-        >>> sofa_clone.modify_variable_attribute("Data.IR:DemoTag", "windowed")
-        >>> sofa_clone.VariableAttributes.get("Data.IR:DemoTag").value
-        'windowed'
         """
         dataset = require_dataset(self)
         if ":" not in name:
@@ -441,39 +496,36 @@ class SOFA:
         print(f"Variable attribute: '{name}' modified succesfully")
 
     def delete_variable_attribute(self, name: str) -> None:
-        """Delete a variable attribute.
+        """Delete an attribute from a SOFA variable.
+
+        Removing variable attributes can make a SOFA file ambiguous or invalid
+        when the attribute is required by the declared convention. For example,
+        source-position units and coordinate-system type are required by
+        hrtfpykit source-grid logic.
 
         Parameters
         ----------
         name : str
-            Attribute name in the form ``"Variable:Attribute"``.
+            Attribute key in the form "Variable:Attribute".
 
         Raises
         ------
         ValueError
-            If no dataset is loaded, ``name`` is malformed, the target
+            If no SOFA file is loaded, "name" is malformed, the target
             variable does not exist, or the variable attribute does not
             exist.
+        Exception
+            Propagates errors raised by netCDF4 when the attribute cannot be
+            removed.
 
         Notes
         -----
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Remove one custom variable attribute:
-
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> sofa_clone.create_variable_attribute("Data.IR:DemoTag", "raw")
-        >>> sofa_clone.delete_variable_attribute("Data.IR:DemoTag")
-        >>> "Data.IR:DemoTag" in sofa_clone.VariableAttributes.get_names()
-        False
         """
         dataset = require_dataset(self)
         if ":" not in name:
@@ -495,51 +547,55 @@ class SOFA:
         dtype: Optional[Union[str, np.dtype]] = None,
         attributes: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Create a SOFA variable and optionally its attributes.
+        """Create a SOFA variable and optionally attach metadata.
+
+        The new variable is created with the provided dimension names and data.
+        Data are converted to a NumPy array, checked against the target
+        dimension shape, and assigned through netCDF4 broadcasting. This is
+        used by HRTF update workflows when a converted representation requires
+        variables that were not present in the original SOFA file, such as
+        creating frequency-domain variables when saving as
+        SimpleFreeFieldHRTF.
 
         Parameters
         ----------
         name : str
-            Variable name.
+            Variable name to create, for example "Data.IR",
+            "Data.Real", "Data.Imag", or "N".
         data : Union[np.ndarray, list]
-            Variable data.
+            Data assigned to the new variable. The value is converted with
+            "np.array" before shape checks and assignment.
         dimensions : Union[tuple[str, ...], list[str]]
-            Dimension names in order, matching the data shape.
+            Existing netCDF4 dimension names in storage order.
         dtype : Optional[Union[str, np.dtype]], optional
-            Data type for the variable. Defaults to the array dtype.
+            Data type passed to netCDF4.Dataset.createVariable. If "dtype" is
+            None, the converted data array dtype is used.
         attributes : Optional[Dict[str, Any]], optional
-            Optional attributes to set on the variable.
+            Optional variable attributes to set after variable creation.
 
         Raises
         ------
         ValueError
-            If no dataset is loaded, the variable already exists, one or more
-            dimensions are missing, or ``data`` cannot be broadcast to the
+            If no SOFA file is loaded, the variable already exists, one or more
+            dimensions are missing, or data cannot be broadcast to the
             requested shape.
+        Exception
+            Propagates errors raised by netCDF4 during variable creation,
+            attribute assignment, or data assignment.
 
         Notes
         -----
         The function warns when dimension sizes do not coincide with the
-        dataset dimensions and raises an error if the data cannot be
-        broadcast to the target shape.
+        netCDF4 dimensions and raises an error if the data cannot be broadcast
+        to the target shape. Unlimited dimensions use the supplied data size on
+        that axis when available.
+
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Add a new custom variable to a working clone:
-
-        >>> import numpy as np
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> data = np.zeros((sofa_clone.netCDF4_dataset.dimensions["M"].size,))
-        >>> sofa_clone.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
-        >>> sofa_clone.Variables.get("Custom").value.shape
-        (1,)
         """
         dataset = require_dataset(self)
         if name in dataset.variables:
@@ -580,42 +636,40 @@ class SOFA:
     def modify_variable(self, name: str, data: Union[np.ndarray, list]) -> None:
         """Overwrite data for an existing SOFA variable.
 
+        The replacement data are converted to a NumPy array, validated against
+        the variable's dimension shape, and assigned through netCDF4. The
+        variable definition, dimensions, dtype, and attributes are preserved;
+        only its stored values are replaced.
+
         Parameters
         ----------
         name : str
-            Variable name.
+            Existing variable name.
         data : Union[np.ndarray, list]
-            New variable data.
+            New variable data. The value is converted with "np.array" before
+            shape checks and assignment.
 
         Raises
         ------
         ValueError
-            If no dataset is loaded, the variable does not exist, or ``data``
+            If no SOFA file is loaded, the variable does not exist, or data
             cannot be broadcast to the variable shape.
+        Exception
+            Propagates errors raised by netCDF4 during data assignment.
 
         Notes
         -----
         The function warns when dimension sizes do not coincide with the
-        dataset dimensions and raises an error if the data cannot be
-        broadcast to the target shape.
+        netCDF4 dimensions and raises an error if the data cannot be broadcast
+        to the target shape. For unlimited dimensions, the replacement array's
+        axis length is accepted when provided.
+
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Overwrite an existing variable with new data:
-
-        >>> import numpy as np
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> new_data = np.zeros_like(sofa_clone.Variables.get("Data.IR").value)
-        >>> sofa_clone.modify_variable("Data.IR", new_data)
-        >>> sofa_clone.Variables.get("Data.IR").value.shape
-        (1, 2, 1)
         """
         dataset = require_dataset(self)
         if name not in dataset.variables:
@@ -638,7 +692,12 @@ class SOFA:
         print(f"Variable: '{name}' modified succesfully")
 
     def delete_variable(self, name: str) -> None:
-        """Delete a SOFA variable.
+        """Delete a variable from the loaded SOFA object.
+
+        This method removes a variable by name from the underlying netCDF4
+        storage handle. Deleting convention-required variables can make a SOFA file
+        invalid; validate or rebuild required content before saving the
+        result.
 
         Parameters
         ----------
@@ -648,29 +707,19 @@ class SOFA:
         Raises
         ------
         ValueError
-            If no dataset is loaded or if the variable does not exist.
+            If no SOFA file is loaded or if the variable does not exist.
+        Exception
+            Propagates errors raised by netCDF4 when the variable cannot be
+            removed.
 
         Notes
         -----
         Editing a SOFA file requires writable access. The recommended
-        workflow is to load the original dataset, create an in-memory
-        clone with ``clone()``, apply edits to the clone, and save when
-        you are ready. Direct in-place editing with ``mode="r+"`` is
+        workflow is to load the original SOFA file, create an in-memory
+        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        you are ready. Direct in-place editing with mode "r+" is
         still available for expert users.
 
-        Examples
-        --------
-        Create and then remove a temporary variable:
-
-        >>> import numpy as np
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> data = np.zeros((sofa_clone.netCDF4_dataset.dimensions["M"].size,))
-        >>> sofa_clone.create_variable("Custom", data, ("M",), attributes={"Units": "unitless"})
-        >>> sofa_clone.delete_variable("Custom")
-        >>> "Custom" in sofa_clone.Variables.get_names()
-        False
         """
         dataset = require_dataset(self)
         if name not in dataset.variables:
@@ -687,43 +736,64 @@ class SOFA:
         custom_global_attributes: Optional[Dict[str, str]] = None,
         override_default_global_attributes: bool = False,
     ) -> "SOFA":
-        """Create an in-memory SOFA object following a convention.
+        """Create an in-memory SOFA object from a supported convention.
 
-        The returned object is backed by a diskless netCDF4 ``Dataset`` and is
-        useful for synthetic examples, tests, and workflows that construct SOFA
-        content before saving it to disk.
+        The returned object is backed by a diskless netCDF4 Dataset and is
+        useful for synthetic examples, tests, and workflows that construct
+        SOFA content before saving it to disk. Dimensions, variables, global
+        attributes, and variable attributes are derived from hrtfpykit's local
+        SOFA convention specifications.
 
         Parameters
         ----------
         sofa_conventions : str
-            SOFA convention name.
+            Supported SOFA convention name, such as
+            "SimpleFreeFieldHRIR" or "SimpleFreeFieldHRTF".
         version : Optional[str], optional
-            Convention version. If None, the latest available is used.
+            Convention version. If "version" is None, the latest version available in
+            the local convention table is used.
         dim_sizes : Optional[Dict[str, int]], optional
-            Dimension size overrides.
+            Dimension size overrides. Keys are normalized to uppercase.
+            Passing size 0 for a non-reserved dimension creates that
+            dimension as unlimited. The reserved "S" dimension must not be
+            supplied and is always created as unlimited.
         custom_global_attributes : Optional[Dict[str, str]], optional
-            Additional global attributes to set.
+            Additional global attributes used to complete or override the
+            default hrtfpykit metadata fields.
         override_default_global_attributes : bool, optional
-            If True, custom attributes override defaults even if set.
+            If "True", "custom_global_attributes" override existing default
+            values. If "False", custom values fill only missing or empty
+            metadata fields.
 
         Returns
         -------
         SOFA
-            In-memory SOFA object backed by a diskless netCDF4 dataset.
+            In-memory :class:`~hrtfpykit.sofa.sofa.SOFA` object backed by a writable diskless netCDF4
+            netCDF4 storage handle. The returned object's :attr:`~hrtfpykit.sofa.sofa.SOFA.path` is None until it is
+            saved.
 
         Raises
         ------
         ValueError
             If the convention name or version is unsupported, or if
-            ``dim_sizes`` tries to override the reserved unlimited ``S``
+            "dim_sizes" tries to override the reserved unlimited "S"
             dimension.
+        Exception
+            Propagates errors raised by netCDF4 while creating dimensions,
+            variables, attributes, or assigning default data.
 
         Notes
         -----
-        The dummy SOFA object always includes an unlimited ``S`` dimension with
-        initial size 0. Passing ``S`` in ``dim_sizes`` raises an error because
-        ``S`` is reserved by the SOFA conventions. To create other unlimited
-        dimensions, set their size to 0 in ``dim_sizes``.
+        The dummy :class:`~hrtfpykit.sofa.sofa.SOFA` object always includes an unlimited "S" dimension with
+        initial size 0. Passing "S" in "dim_sizes" raises an error because
+        "S" is reserved by the SOFA conventions. To create other unlimited
+        dimensions, set their size to 0 in "dim_sizes".
+
+        Defaults from the convention table are assigned when available. If a
+        non-scalar default cannot be broadcast to the resolved variable shape,
+        the variable is initialized with zeros so that the SOFA object remains
+        structurally usable and can be filled by later calls to
+        :meth:`~hrtfpykit.sofa.sofa.SOFA.modify_variable`.
 
         """
         print("Creating in-memory dummy SOFA dataset")
@@ -876,18 +946,23 @@ class SOFA:
         return sofa_object
 
     def save(self, path: Optional[Union[str, pathlib.Path]] = None, overwrite: bool = False) -> pathlib.Path:
-        """Save the SOFA object to disk.
+        """Save the current SOFA object to disk.
 
-        The method writes the currently loaded netCDF4-backed SOFA content to a
-        file. When ``path`` is omitted, the object is synchronized back to its
-        original file path.
+        The method writes the currently loaded SOFA object content to disk.
+        When "path" is omitted, the object is synchronized back to its
+        original file path recorded in
+        :attr:`~hrtfpykit.sofa.sofa.SOFA.path`. When "path" is provided, a
+        complete netCDF4 copy is written to a temporary file and then moved
+        into place.
 
         Parameters
         ----------
         path : Optional[Union[str, pathlib.Path]], optional
-            Target path. If None, saves to the original path.
+            Target path. If "path" is None, the loaded SOFA object is synchronized to the
+            original path recorded in :attr:`~hrtfpykit.sofa.sofa.SOFA.path`.
         overwrite : bool, optional
-            If True, allows overwriting an existing file.
+            If "True", allows replacing an existing destination file when
+            "path" is provided.
 
         Returns
         -------
@@ -897,31 +972,31 @@ class SOFA:
         Raises
         ------
         ValueError
-            If no dataset is loaded or if ``path`` is omitted and the SOFA
+            If no SOFA file is loaded or if "path" is omitted and the SOFA
             object has no original path.
         FileExistsError
-            If the destination already exists and ``overwrite`` is ``False``.
+            If the destination already exists and "overwrite" is "False".
+        Exception
+            Propagates errors raised by netCDF4 or the filesystem while
+            copying dimensions, attributes, variables, or replacing the target
+            file.
 
         Notes
         -----
-        Calling ``save()`` without a path synchronizes the loaded SOFA content
-        back to the original file recorded in ``self.path``.
+        Calling :meth:`~hrtfpykit.sofa.sofa.SOFA.save` without a path synchronizes the loaded SOFA content
+        back to the original file recorded in :attr:`~hrtfpykit.sofa.sofa.SOFA.path`.
 
-        Cloned SOFA objects and objects returned by ``copy_with()`` are
-        independent in-memory datasets. If one of those objects should replace
+        Cloned :class:`~hrtfpykit.sofa.sofa.SOFA` objects and objects returned by :meth:`~hrtfpykit.sofa.sofa.SOFA.copy_with` are
+        independent in-memory SOFA objects. If one of those objects should replace
         an existing SOFA file on disk, save it to that filename with
-        ``overwrite=True``. In that case the method writes a temporary copy
+        "overwrite=True". In that case the method writes a temporary copy
         first and then replaces the destination file.
 
-        Examples
-        --------
-        Overwrite an existing SOFA file with an updated clone:
+        This method copies dimensions, global attributes, variables, variable
+        attributes, and variable values. It does not run SOFA convention
+        validation before writing; call the validation utilities explicitly
+        when validation is part of the workflow.
 
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> sofa_clone.create_global_attribute("ProcessingNote", "windowed copy")
-        >>> _ = sofa_clone.save("my_sofa.sofa", overwrite=True)
         """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
@@ -968,36 +1043,34 @@ class SOFA:
         return target_path
 
     def clone(self) -> "SOFA":
-        """Create an in-memory writable clone of the current SOFA object.
+        """Create an in-memory writable clone of the current :class:`~hrtfpykit.sofa.sofa.SOFA` object.
+
+        The clone contains a full copy of dimensions, global attributes,
+        variables, variable attributes, and variable values from the current
+        SOFA object. It is backed by a diskless netCDF4 Dataset and has no file
+        path until saved.
 
         Returns
         -------
         SOFA
-            A new SOFA instance backed by a diskless dataset.
+            New SOFA instance backed by an independent diskless netCDF4 storage handle.
 
         Raises
         ------
         ValueError
-            If no dataset is loaded.
+            If no SOFA file is loaded.
+        Exception
+            Propagates errors raised by netCDF4 while copying SOFA content.
 
         Notes
         -----
-        The clone is an in-memory writable copy of the current dataset.
-        Each call creates a new independent diskless NetCDF dataset, so
-        cloning the same SOFA object multiple times is supported. Because the
+        The clone is an in-memory writable copy of the current SOFA object.
+        Each call creates a new independent diskless netCDF4 storage handle, so
+        cloning the same :class:`~hrtfpykit.sofa.sofa.SOFA` object multiple times is supported. Because the
         clone is independent from the original NetCDF handle, you can later
         save it to a new filename or replace an existing file with
-        ``save(..., overwrite=True)``.
+        :meth:`~hrtfpykit.sofa.sofa.SOFA.save` with overwrite enabled.
 
-        Examples
-        --------
-        Clone a SOFA object before editing it:
-
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> sofa_clone = sofa.clone()
-        >>> sofa_clone.Variables.get("Data.IR").value.shape == sofa.Variables.get("Data.IR").value.shape
-        True
         """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
@@ -1038,53 +1111,51 @@ class SOFA:
         variable_attributes: dict[str, dict[str, Any]] | None = None,
         variables: dict[str, np.ndarray] | None = None,
     ) -> "SOFA":
-        """Create a modified in-memory copy of the current SOFA object.
+        """Create a modified in-memory copy of the current :class:`~hrtfpykit.sofa.sofa.SOFA` object.
+
+        :meth:`~hrtfpykit.sofa.sofa.SOFA.copy_with` is a structured cloning helper for workflows that need
+        to resize fixed dimensions or replace existing arrays while preserving
+        the rest of the SOFA file. It is used by HRTF save/update logic when
+        transformed IR/TF data no longer match the original SOFA dimensions.
 
         Parameters
         ----------
         dim_sizes : dict[str, int] | None
-            Dimension size overrides. Only fixed dimensions may be overridden.
+            Size overrides for existing fixed dimensions. Unlimited dimensions
+            cannot be overridden.
         global_attributes : dict[str, Any] | None
-            Global attributes to add or replace.
+            Global attributes to add or replace in the copied SOFA object.
         variable_attributes : dict[str, dict[str, Any]] | None
-            Per-variable attributes to add or replace.
+            Per-variable attributes to add or replace. The outer keys are
+            existing variable names and inner keys are attribute names without
+            the "Variable:" prefix.
         variables : dict[str, numpy.ndarray] | None
-            Variable data overrides. Only existing variable names are supported.
+            Replacement data for existing variables. New variables cannot be
+            created with this method.
 
         Returns
         -------
         SOFA
-            A new SOFA instance backed by a diskless dataset.
+            New SOFA instance backed by an independent diskless netCDF4 storage handle with
+            the requested overrides applied.
 
         Raises
         ------
         ValueError
-            If the dataset is not loaded, an override refers to a missing
+            If the SOFA file is not loaded, an override refers to a missing
             dimension or variable, or a provided array cannot be broadcast
             to the target variable shape.
+        Exception
+            Propagates errors raised by netCDF4 while copying or assigning
+            SOFA content.
 
-        Warnings
-        --------
-        - If you override a dimension size, you must also provide replacement
-          arrays for variables that depend on that dimension (e.g., ``Data.IR``),
-          otherwise shape checks will fail.
-        - Only existing variables can be overridden; use a separate creation
-          workflow if you need to add brand-new variables.
-
-        Examples
-        --------
-        Resize the ``N`` dimension and replace ``Data.IR`` accordingly:
-
-        >>> import numpy as np
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> new_ir = np.zeros((sofa.Variables.get("Data.IR").value.shape[0], 2, 200))
-        >>> sofa_mod = sofa.copy_with(
-        ...     dim_sizes={"N": 200},
-        ...     variables={"Data.IR": new_ir},
-        ... )
-        >>> sofa_mod.Variables.get("Data.IR").value.shape[-1]
-        200
+        Notes
+        -----
+        If you override a dimension size, provide replacement arrays for all
+        variables that depend on that dimension unless their existing values
+        can still broadcast to the new target shape. Use
+        :meth:`~hrtfpykit.sofa.sofa.SOFA.create_variable`
+        on a writable copy when you need to add brand-new variables.
 
         """
         if self.netCDF4_dataset is None:
@@ -1163,26 +1234,29 @@ class SOFA:
         return sofa_object
 
     def summary(self) -> str:
-        """Return a formatted summary of GLOBALS Attributes, Variables and Variables Attributes.
+        """Return a text summary of the loaded SOFA object.
+
+        The summary is intended for quick inspection in notebooks, terminals,
+        and debugging logs. It lists global attributes first, then each
+        variable with its dimension names, dimension sizes, and variable
+        attributes.
 
         Returns
         -------
         str
-            Multi-line summary string.
+            Multi-line summary of global attributes, variables, dimensions,
+            and variable attributes.
 
         Raises
         ------
         ValueError
-            If no dataset is loaded.
+            If no SOFA file is loaded.
 
-        Examples
-        --------
-        Generate a text summary before saving or validating the SOFA file:
+        Notes
+        -----
+        This method does not validate the file and does not print by itself.
+        It only builds and returns the summary string.
 
-        >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("my_sofa.sofa")
-        >>> "GLOBAL ATTRIBUTES" in sofa.summary()
-        True
         """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")

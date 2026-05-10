@@ -1,5 +1,6 @@
 __all__ = [
     "compare_magnitude",
+    "compare_amplitude",
     "compare_absolute_itd",
     "compare_absolute_ild",
     "compare_itd_curve",
@@ -17,6 +18,9 @@ def __getattr__(name: str):
     if name == "compare_magnitude":
         from .compare import compare_magnitude
         return compare_magnitude
+    if name == "compare_amplitude":
+        from .compare import compare_amplitude
+        return compare_amplitude
     if name == "compare_absolute_itd":
         from .compare import compare_absolute_itd
         return compare_absolute_itd

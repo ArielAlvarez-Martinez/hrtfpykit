@@ -11,12 +11,31 @@ from .labels import Labels
 
 
 class Axis(ABC):
-    """Base contract for all plotting axis formatters."""
+    """Base interface for Matplotlib axis formatters used by hrtfpykit.
+
+    Axis defines the shared formatter contract and provides common label
+    application for x, y, and z axes. Concrete subclasses specialize this
+    interface for HRTF frequency axes, HRIR time/sample axes, interaural-cue
+    axes, polar axes, and 3D source-grid axes.
+    """
 
     @staticmethod
     @abstractmethod
     def apply(*args, **kwargs) -> None:
-        """Apply axis formatting for the concrete axis formatter."""
+        """Apply formatting implemented by a concrete axis formatter.
+
+        Concrete subclasses define the accepted parameters because frequency,
+        direction, polar, and 3D axes require different context.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        NotImplementedError
+            Always raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @staticmethod
@@ -28,20 +47,30 @@ class Axis(ABC):
     ) -> None:
         """Apply x, y, or z axis labels with a default fallback.
 
+        The method centralizes label resolution for all axis formatters. If
+        label is None, default_label is used; otherwise label is
+        converted to str and applied to the selected Matplotlib axis.
+
         Parameters
         ----------
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: ``"x"``, ``"y"``, or ``"z"``.
+            Axis selector: "x", "y", or "z".
         default_label : str
-            Default label used when ``label`` is not provided.
+            Default label used when label is not provided.
         label : str | None, default=None
             Optional explicit label.
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            If axis is not "x", "y", or "z", or if z-axis
+            labeling is requested on a non-3D Matplotlib axis.
 
         """
         if axis not in {"x", "y", "z"}:
@@ -60,11 +89,28 @@ class Axis(ABC):
 
 
 class DirectionAxis(Axis, ABC):
-    """Base formatter for directional angle axes."""
+    """Shared formatter for angle-valued direction axes.
+
+    :class:`~hrtfpykit.plots.axis.DirectionAxis` implements the common limit and
+    tick logic used by azimuth, elevation, and lateral-polar angle axes.
+    Subclasses provide default labels, tick spacing, and optional fixed limits
+    while reusing the same Matplotlib locator and formatter behavior.
+    """
 
     @classmethod
     def get_tick_step(cls) -> float:
-        """Return the directional tick-step value used by the axis class."""
+        """Return the directional tick spacing used by the axis class.
+
+        Returns
+        -------
+        float
+            Tick spacing in degrees.
+
+        Raises
+        ------
+        NotImplementedError
+            Always raised by the base class.
+        """
         raise NotImplementedError
 
     @staticmethod
@@ -79,12 +125,18 @@ class DirectionAxis(Axis, ABC):
     ) -> None:
         """Apply directional limits and ticks for angle-like axes.
 
+        The method applies a label, resolves axis limits from values or
+        default_limits, and installs fixed major ticks inside the displayed
+        range. Tick labels are integer degree values. Boundary ticks are omitted
+        when values define the limits so endpoint labels do not duplicate the
+        axis limits.
+
         Parameters
         ----------
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: ``"x"``, ``"y"``, or ``"z"``.
+            Axis selector: "x", "y", or "z".
         default_label : str
             Default label text.
         values : np.ndarray | None, default=None
@@ -92,13 +144,20 @@ class DirectionAxis(Axis, ABC):
         tick_step : float | None, default=None
             Tick spacing in axis units.
         default_limits : tuple[float, float] | None, default=None
-            Fallback limits used when ``values`` is not provided.
+            Fallback limits used when values is not provided.
         label : str | None, default=None
             Optional explicit label.
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            If axis is invalid, z-axis formatting is requested on a non-3D
+            axis, tick_step is not positive, values is empty, or
+            values contains non-finite entries.
 
         """
         resolved_tick_step = 20.0 if tick_step is None else float(tick_step)
@@ -193,7 +252,20 @@ class DirectionAxis(Axis, ABC):
 
 
 class FrequencyLogAxis(Axis):
-    """Log-frequency axis formatter with standard HRTF-oriented ticks."""
+    """Logarithmic frequency-axis formatter for HRTF magnitude plots.
+
+    :class:`~hrtfpykit.plots.axis.FrequencyLogAxis` builds and applies the
+    standard logarithmic frequency scale used by HRTF spectrum plots.
+    Configuration values are specified in Hz to match the frequency bins stored
+    by frequency-domain objects, while
+    :func:`~hrtfpykit.plots.axis_helpers.apply_frequency_axis` converts axis
+    limits and ticks to kHz for display.
+
+    Attributes
+    ----------
+    frequency_ticks : tuple[float, ...]
+        Default logarithmic tick positions in Hz.
+    """
 
     frequency_ticks: tuple[float, ...] = (
         250,
@@ -217,6 +289,13 @@ class FrequencyLogAxis(Axis):
     ) -> dict[str, float | tuple[float, ...] | tuple[str, ...]]:
         """Build validated configuration for logarithmic frequency axes.
 
+        The returned dictionary is intended to be passed to
+        :meth:`~hrtfpykit.plots.axis.FrequencyLogAxis.apply`. Frequency bounds
+        and ticks are stored in Hz. Tick labels are filtered to the visible range
+        and default to the
+        hrtfpykit logarithmic frequency labels when custom ticks and labels are
+        not provided.
+
         Parameters
         ----------
         frequency_bins : np.ndarray | None, default=None
@@ -228,7 +307,7 @@ class FrequencyLogAxis(Axis):
         ticks : tuple[float, ...] | list[float] | None, default=None
             Tick positions in Hz.
         labels : tuple[str, ...] | list[str] | None, default=None
-            Tick labels matching ``ticks``.
+            Tick labels matching ticks.
         margin_ratio : float, default=0.03
             Relative axis margin.
 
@@ -236,6 +315,14 @@ class FrequencyLogAxis(Axis):
         -------
         dict[str, float | tuple[float, ...] | tuple[str, ...]]
             Frequency-axis configuration dictionary.
+
+        Raises
+        ------
+        ValueError
+            If frequency bounds cannot be inferred, bounds are non-finite or
+            empty, the lower bound is not positive, ticks and labels have
+            different lengths, logarithmic ticks are non-positive, or
+            margin_ratio is negative.
 
         """
         return build_frequency_axis(
@@ -259,20 +346,34 @@ class FrequencyLogAxis(Axis):
     ) -> None:
         """Apply a logarithmic frequency-axis configuration.
 
+        config must be produced by
+        :meth:`~hrtfpykit.plots.axis.FrequencyLogAxis.build` or contain the same
+        keys: "freq_min", "freq_max", "ticks", "labels", and "margin_ratio".
+        Values are interpreted in Hz and rendered in kHz on the selected
+        Matplotlib axis.
+
         Parameters
         ----------
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: ``"x"``, ``"y"``, or ``"z"``.
+            Axis selector: "x", "y", or "z".
         label : str | None, default=None
             Optional axis label.
         config : dict[str, float | tuple[float, ...] | tuple[str, ...]] | None
-            Configuration produced by :meth:`build`.
+            Configuration produced by
+            :meth:`~hrtfpykit.plots.axis.FrequencyLogAxis.build`.
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            If config is missing or if delegated frequency-axis application
+            receives an invalid axis or incompatible tick labels.
+
         """
         if config is None:
             raise ValueError("config is required")
@@ -290,7 +391,19 @@ class FrequencyLogAxis(Axis):
 
 
 class FrequencyLinearAxis(Axis):
-    """Linear-frequency axis formatter with standard HRTF-oriented ticks."""
+    """Linear frequency-axis formatter for HRTF and comparison plots.
+
+    :class:`~hrtfpykit.plots.axis.FrequencyLinearAxis` builds and applies the
+    standard linear frequency scale used by HRTF spectrum, heatmap, comparison,
+    and spherical-harmonic plots. Configuration values are specified in Hz to
+    match stored frequency bins, while the applied Matplotlib axis is displayed
+    in kHz.
+
+    Attributes
+    ----------
+    frequency_ticks : tuple[float, ...]
+        Default linear tick positions in Hz.
+    """
 
     frequency_ticks: tuple[float, ...] = (
         2000,
@@ -316,6 +429,12 @@ class FrequencyLinearAxis(Axis):
     ) -> dict[str, float | tuple[float, ...] | tuple[str, ...]]:
         """Build validated configuration for linear frequency axes.
 
+        The returned dictionary is intended to be passed to
+        :meth:`~hrtfpykit.plots.axis.FrequencyLinearAxis.apply`. Frequency
+        bounds and ticks are stored in Hz. Tick labels are filtered to the
+        visible range and default to the hrtfpykit linear frequency labels when
+        custom ticks and labels are not provided.
+
         Parameters
         ----------
         frequency_bins : np.ndarray | None, default=None
@@ -327,7 +446,7 @@ class FrequencyLinearAxis(Axis):
         ticks : tuple[float, ...] | list[float] | None, default=None
             Tick positions in Hz.
         labels : tuple[str, ...] | list[str] | None, default=None
-            Tick labels matching ``ticks``.
+            Tick labels matching ticks.
         margin_ratio : float, default=0.03
             Relative axis margin.
 
@@ -335,6 +454,14 @@ class FrequencyLinearAxis(Axis):
         -------
         dict[str, float | tuple[float, ...] | tuple[str, ...]]
             Frequency-axis configuration dictionary.
+
+        Raises
+        ------
+        ValueError
+            If frequency bounds cannot be inferred, bounds are non-finite or
+            empty, ticks and labels have different lengths, or margin_ratio
+            is negative.
+
         """
         return build_frequency_axis(
             scale="linear",
@@ -357,20 +484,34 @@ class FrequencyLinearAxis(Axis):
     ) -> None:
         """Apply a linear frequency-axis configuration.
 
+        config must be produced by
+        :meth:`~hrtfpykit.plots.axis.FrequencyLinearAxis.build` or contain the
+        same keys: "freq_min", "freq_max", "ticks", "labels", and
+        "margin_ratio". Values are interpreted in Hz and rendered in kHz on the
+        selected Matplotlib axis.
+
         Parameters
         ----------
         ax : plt.Axes
             Target Matplotlib axis.
         axis : str
-            Axis selector: ``"x"``, ``"y"``, or ``"z"``.
+            Axis selector: "x", "y", or "z".
         label : str | None, default=None
             Optional axis label.
         config : dict[str, float | tuple[float, ...] | tuple[str, ...]] | None
-            Configuration produced by :meth:`build`.
+            Configuration produced by
+            :meth:`~hrtfpykit.plots.axis.FrequencyLinearAxis.build`.
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            If config is missing or if delegated frequency-axis application
+            receives an invalid axis or incompatible tick labels.
+
         """
         if config is None:
             raise ValueError("config is required")
@@ -388,7 +529,13 @@ class FrequencyLinearAxis(Axis):
 
 
 class MagnitudeAxis(Axis):
-    """Axis formatter for linear and decibel HRTF magnitude plots."""
+    """Axis-label formatter for HRTF magnitude values.
+
+    :class:`~hrtfpykit.plots.axis.MagnitudeAxis` chooses the default magnitude
+    label used by spectra and heatmaps. When "unit" is "db", the decibel label
+    is selected; all other unit values select the linear magnitude label. Unit
+    validation is performed by the calling plot functions.
+    """
 
     @staticmethod
     def apply(
@@ -397,13 +544,42 @@ class MagnitudeAxis(Axis):
         unit: str,
         label: str | None = None,
     ) -> None:
-        """Apply magnitude axis labeling for linear or decibel units."""
+        """Apply a magnitude label to the selected axis.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            Target Matplotlib axis.
+        axis : str
+            Axis selector: "x", "y", or "z".
+        unit : str
+            Magnitude unit. "db" selects Labels.magnitude_db; any other
+            value selects Labels.magnitude_linear.
+        label : str | None, default=None
+            Optional explicit label overriding the unit-derived default.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the selected axis is invalid, or if z-axis labeling is requested
+            on a non-3D Matplotlib axis.
+
+        """
         default_label = Labels.magnitude_db if unit == "db" else Labels.magnitude_linear
         Axis.apply_label(ax=ax, axis=axis, default_label=default_label, label=label)
 
 
 class AmplitudeAxis(Axis):
-    """Axis formatter for time-domain impulse-response amplitude plots."""
+    """Axis-label formatter for time-domain HRIR amplitude plots.
+
+    :class:`~hrtfpykit.plots.axis.AmplitudeAxis` applies the default ordinate
+    label used by impulse-response visualizations. It does not configure limits
+    or ticks because amplitude scaling depends on the plotted HRIR samples.
+    """
 
     @staticmethod
     def apply(
@@ -411,7 +587,28 @@ class AmplitudeAxis(Axis):
         axis: str,
         label: str | None = None,
     ) -> None:
-        """Apply impulse-response amplitude label on the selected axis."""
+        """Apply the impulse-response amplitude label to an axis.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            Target Matplotlib axis.
+        axis : str
+            Axis selector: "x", "y", or "z".
+        label : str | None, default=None
+            Optional explicit label overriding Labels.impulse_response.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the selected axis is invalid, or if z-axis labeling is requested
+            on a non-3D Matplotlib axis.
+
+        """
         Axis.apply_label(
             ax=ax,
             axis=axis,
@@ -421,7 +618,11 @@ class AmplitudeAxis(Axis):
 
 
 class TimeAxis(Axis):
-    """Axis formatter for time values displayed in seconds or derived units."""
+    """Axis-label formatter for HRIR time values in seconds.
+
+    TimeAxis is used by impulse-response plots when the horizontal
+    coordinate has already been converted from sample indices to seconds.
+    """
 
     @staticmethod
     def apply(
@@ -429,12 +630,37 @@ class TimeAxis(Axis):
         axis: str,
         label: str | None = None,
     ) -> None:
-        """Apply time label on the selected axis."""
+        """Apply the default time label to an axis.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            Target Matplotlib axis.
+        axis : str
+            Axis selector: "x", "y", or "z".
+        label : str | None, default=None
+            Optional explicit label overriding Labels.time.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the selected axis is invalid, or if z-axis labeling is requested
+            on a non-3D Matplotlib axis.
+
+        """
         Axis.apply_label(ax=ax, axis=axis, default_label=Labels.time, label=label)
 
 
 class SampleAxis(Axis):
-    """Axis formatter for discrete impulse-response sample indices."""
+    """Axis-label formatter for discrete HRIR sample indices.
+
+    :class:`~hrtfpykit.plots.axis.SampleAxis` is used by impulse-response plots
+    that display the raw sample index rather than a physical time vector.
+    """
 
     @staticmethod
     def apply(
@@ -442,12 +668,39 @@ class SampleAxis(Axis):
         axis: str,
         label: str | None = None,
     ) -> None:
-        """Apply sample-index label on the selected axis."""
+        """Apply the default sample-index label to an axis.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            Target Matplotlib axis.
+        axis : str
+            Axis selector: "x", "y", or "z".
+        label : str | None, default=None
+            Optional explicit label overriding Labels.samples.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the selected axis is invalid, or if z-axis labeling is requested
+            on a non-3D Matplotlib axis.
+
+        """
         Axis.apply_label(ax=ax, axis=axis, default_label=Labels.samples, label=label)
 
 
 class XAxis(Axis):
-    """3D x-axis label and symmetric-limit formatter."""
+    """3D x-axis label and symmetric-limit formatter.
+
+    :class:`~hrtfpykit.plots.axis.XAxis` is used by source-grid plots after
+    spherical SOFA source positions are converted to Cartesian coordinates. When
+    "center" and "half_span" are supplied, the formatter applies limits that
+    keep the rendered 3D source cloud visually balanced with the y and z axes.
+    """
 
     @staticmethod
     def apply(
@@ -457,6 +710,10 @@ class XAxis(Axis):
         label: str | None = None,
     ) -> None:
         """Apply x-axis label and optionally symmetric limits around a center.
+
+        The label is always applied. Limits are changed only when both
+        center and half_span are provided; omitting both leaves the
+        current Matplotlib limits unchanged.
 
         Parameters
         ----------
@@ -472,6 +729,14 @@ class XAxis(Axis):
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            If only one of center or half_span is provided, if the
+            center is not finite, or if the half-span is not finite and
+            positive.
+
         """
         Axis.apply_label(ax=ax, axis="x", default_label=Labels.three_d_x_label, label=label)
         if center is None and half_span is None:
@@ -488,7 +753,15 @@ class XAxis(Axis):
 
 
 class YAxis(Axis):
-    """3D y-axis label and symmetric-limit formatter."""
+    """3D y-axis label and symmetric-limit formatter.
+
+    :class:`~hrtfpykit.plots.axis.YAxis` mirrors
+    :class:`~hrtfpykit.plots.axis.XAxis` for the Cartesian y coordinate in 3D
+    source-grid views. It is normally used together with
+    :class:`~hrtfpykit.plots.axis.XAxis` and
+    :class:`~hrtfpykit.plots.axis.ZAxis` so source positions use comparable
+    limits on all dimensions.
+    """
 
     @staticmethod
     def apply(
@@ -498,6 +771,10 @@ class YAxis(Axis):
         label: str | None = None,
     ) -> None:
         """Apply y-axis label and optionally symmetric limits around a center.
+
+        The label is always applied. Limits are changed only when both
+        center and half_span are provided; omitting both leaves the
+        current Matplotlib limits unchanged.
 
         Parameters
         ----------
@@ -513,6 +790,14 @@ class YAxis(Axis):
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            If only one of center or half_span is provided, if the
+            center is not finite, or if the half-span is not finite and
+            positive.
+
         """
         Axis.apply_label(ax=ax, axis="y", default_label=Labels.three_d_y_label, label=label)
         if center is None and half_span is None:
@@ -529,7 +814,14 @@ class YAxis(Axis):
 
 
 class ZAxis(Axis):
-    """3D z-axis label and symmetric-limit formatter."""
+    """3D z-axis label and symmetric-limit formatter.
+
+    :class:`~hrtfpykit.plots.axis.ZAxis` completes the Cartesian-axis formatting
+    used by 3D source-grid plots. Unlike
+    :class:`~hrtfpykit.plots.axis.XAxis` and
+    :class:`~hrtfpykit.plots.axis.YAxis`, it requires a Matplotlib 3D axis when
+    either labeling or limit application reaches z-axis-specific methods.
+    """
 
     @staticmethod
     def apply(
@@ -539,6 +831,10 @@ class ZAxis(Axis):
         label: str | None = None,
     ) -> None:
         """Apply z-axis label and optionally symmetric limits around a center.
+
+        The label is always applied through the Matplotlib 3D z-axis API.
+        Limits are changed only when both center and half_span are
+        provided; omitting both leaves the current z limits unchanged.
 
         Parameters
         ----------
@@ -554,6 +850,14 @@ class ZAxis(Axis):
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            If ax is not a 3D axis, if only one of center or
+            half_span is provided, if the center is not finite, or if the
+            half-span is not finite and positive.
+
         """
         Axis.apply_label(ax=ax, axis="z", default_label=Labels.three_d_z_label, label=label)
         if center is None and half_span is None:
@@ -573,7 +877,25 @@ class ZAxis(Axis):
 
 
 class AzimuthAnglesAxis(DirectionAxis):
-    """Azimuth-axis formatter with configurable signed or unsigned range."""
+    """Azimuth-axis formatter with configurable signed or unsigned range.
+
+    :class:`~hrtfpykit.plots.axis.AzimuthAnglesAxis` normalizes azimuth values
+    and applies the direction formatter used by horizontal-plane,
+    source-position, and cue-difference plots. It supports the unsigned
+    SOFA-style "0-360" convention and the signed "-180-180" convention often
+    used for frontal-left/right views.
+
+    Attributes
+    ----------
+    direction_tick_step : float
+        Default azimuth tick spacing in degrees.
+    azimuth_range_modes : tuple[str, str]
+        Supported range-mode identifiers.
+    azimuth_limits_unsigned : tuple[float, float]
+        Default axis limits for "0-360" mode.
+    azimuth_limits_signed : tuple[float, float]
+        Default axis limits for "-180-180" mode.
+    """
 
     direction_tick_step: float = 20.0
     azimuth_range_modes: tuple[str, str] = ("0-360", "-180-180")
@@ -582,12 +904,36 @@ class AzimuthAnglesAxis(DirectionAxis):
 
     @classmethod
     def get_tick_step(cls) -> float:
-        """Return azimuth tick spacing in degrees."""
+        """Return the default azimuth tick spacing.
+
+        Returns
+        -------
+        float
+            Tick spacing in degrees used by
+            :meth:`~hrtfpykit.plots.axis.AzimuthAnglesAxis.apply`.
+        """
         return cls.direction_tick_step
 
     @staticmethod
     def get_range_mode(range_mode: str | None = None) -> str:
-        """Resolve and validate azimuth range mode."""
+        """Resolve and validate the azimuth range convention.
+
+        Parameters
+        ----------
+        range_mode : str | None, default=None
+            Requested azimuth convention. None resolves to "0-360".
+
+        Returns
+        -------
+        str
+            Validated range mode, either "0-360" or "-180-180".
+
+        Raises
+        ------
+        ValueError
+            If range_mode is not one of the supported conventions.
+
+        """
         resolved_range_mode = (
             AzimuthAnglesAxis.azimuth_range_modes[0]
             if range_mode is None
@@ -604,17 +950,28 @@ class AzimuthAnglesAxis(DirectionAxis):
     ) -> np.ndarray:
         """Transform azimuth values to the selected range convention.
 
+        Values are interpreted in degrees. In "0-360" mode, values wrap
+        with modulo 360. In "-180-180" mode, values wrap to the signed
+        interval and values numerically equal to -180 are represented as
+        180 to avoid a duplicate boundary label.
+
         Parameters
         ----------
         values : np.ndarray
             Input azimuth values in degrees.
         range_mode : str | None, default=None
-            ``"0-360"`` or ``"-180-180"``.
+            "0-360" or "-180-180".
 
         Returns
         -------
         np.ndarray
             Transformed azimuth values in degrees.
+
+        Raises
+        ------
+        ValueError
+            If range_mode is not one of the supported conventions.
+
         """
         resolved_values = np.asarray(values, dtype=float)
         resolved_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=range_mode)
@@ -632,7 +989,39 @@ class AzimuthAnglesAxis(DirectionAxis):
         range_mode: str | None = None,
         label: str | None = None,
     ) -> None:
-        """Apply azimuth-axis formatting using the selected range mode."""
+        """Apply azimuth-axis labels, limits, and ticks.
+
+        If values are provided, they are first normalized with
+        :meth:`~hrtfpykit.plots.axis.AzimuthAnglesAxis.transform_values`, then
+        passed to
+        :meth:`~hrtfpykit.plots.axis.DirectionAxis.apply_direction` so limits
+        follow the data. If values is None, the selected range mode supplies the
+        default azimuth limits.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            Target Matplotlib axis.
+        axis : str
+            Axis selector: "x", "y", or "z".
+        values : np.ndarray | None, default=None
+            Optional azimuth values in degrees.
+        range_mode : str | None, default=None
+            Azimuth convention, either "0-360" or "-180-180".
+        label : str | None, default=None
+            Optional explicit label overriding Labels.azimuth.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the range mode, axis selector, tick step, or provided direction
+            values are invalid.
+
+        """
         resolved_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=range_mode)
         transformed_values = (
             None
@@ -655,7 +1044,13 @@ class AzimuthAnglesAxis(DirectionAxis):
 
 
 class AzimuthAnglesAxisPolarProjection(Axis):
-    """Azimuth formatter for polar projection axes."""
+    """Azimuth formatter for Matplotlib polar projection axes.
+
+    :class:`~hrtfpykit.plots.axis.AzimuthAnglesAxisPolarProjection` configures
+    polar-theta ticks for circular HRTF plots. The zero-angle direction is set
+    to north so azimuth plots follow the conventional top-down spatial
+    orientation used elsewhere in hrtfpykit.
+    """
 
     @staticmethod
     def apply(
@@ -674,6 +1069,13 @@ class AzimuthAnglesAxisPolarProjection(Axis):
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            If ax is not a polar projection, or if tick_step is not a
+            finite positive value.
+
         """
         if getattr(ax, "name", "") != "polar":
             raise ValueError("AzimuthAnglesAxisPolarProjection requires a polar axis")
@@ -687,7 +1089,14 @@ class AzimuthAnglesAxisPolarProjection(Axis):
 
 
 class RadialAxisPolarProjection(Axis):
-    """Radial-axis formatter for polar projection axes."""
+    """Radial-axis formatter for Matplotlib polar projection axes.
+
+    :class:`~hrtfpykit.plots.axis.RadialAxisPolarProjection` derives radial
+    limits from cue or metric values and formats radial tick labels for polar
+    HRTF comparisons. It is used when a circular azimuth view needs a radial
+    scale for magnitude, error, directivity, or another scalar plotted against
+    direction.
+    """
 
     @staticmethod
     def apply(
@@ -701,6 +1110,10 @@ class RadialAxisPolarProjection(Axis):
     ) -> None:
         """Apply radial limits, ticks, and labels for polar plots.
 
+        The radial maximum is expanded to the next tick boundary after a small
+        margin. Empty radial data produces a one-step radial range so the axis
+        remains drawable.
+
         Parameters
         ----------
         ax : plt.Axes
@@ -712,7 +1125,7 @@ class RadialAxisPolarProjection(Axis):
         tick_step : float, default=1.0
             Radial tick spacing.
         tick_label_style : str, default="integer"
-            Tick-label formatting mode: ``"integer"`` or ``"decimal_comma_4"``.
+            Tick-label formatting mode: "integer" or "decimal_comma_4".
         label_position : float, default=350.0
             Radial label angular position in degrees.
         label : str | None, default=None
@@ -721,6 +1134,14 @@ class RadialAxisPolarProjection(Axis):
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            If ax is not a polar projection, if radial values contain
+            non-finite data, if tick_step is not finite and positive, if
+            tick_label_style is unsupported, or if label_position is
+            not finite.
 
         """
         if getattr(ax, "name", "") != "polar":
@@ -770,13 +1191,30 @@ class RadialAxisPolarProjection(Axis):
 
 
 class ElevationAnglesAxis(DirectionAxis):
-    """Axis formatter for elevation-angle coordinates in spatial plots."""
+    """Axis formatter for elevation-angle coordinates in spatial plots.
+
+    :class:`~hrtfpykit.plots.axis.ElevationAnglesAxis` applies the shared
+    direction formatting used by source-position and plane-selection plots where
+    elevation is measured in degrees above or below the horizontal plane.
+
+    Attributes
+    ----------
+    elevation_tick_step : float
+        Default elevation tick spacing in degrees.
+    """
 
     elevation_tick_step: float = 10.0
 
     @classmethod
     def get_tick_step(cls) -> float:
-        """Return elevation tick spacing in degrees."""
+        """Return the default elevation tick spacing.
+
+        Returns
+        -------
+        float
+            Tick spacing in degrees used by
+            :meth:`~hrtfpykit.plots.axis.ElevationAnglesAxis.apply`.
+        """
         return cls.elevation_tick_step
 
     @staticmethod
@@ -786,7 +1224,30 @@ class ElevationAnglesAxis(DirectionAxis):
         values: np.ndarray | None = None,
         label: str | None = None,
     ) -> None:
-        """Apply elevation-axis labeling, limits, and ticks."""
+        """Apply elevation-axis labels, limits, and ticks.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            Target Matplotlib axis.
+        axis : str
+            Axis selector: "x", "y", or "z".
+        values : np.ndarray | None, default=None
+            Optional elevation values in degrees used to derive axis limits.
+        label : str | None, default=None
+            Optional explicit label overriding Labels.elevation.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the axis selector is invalid, z-axis formatting is requested on
+            a non-3D axis, or provided direction values are empty or non-finite.
+
+        """
         DirectionAxis.apply_direction(
             ax=ax,
             axis=axis,
@@ -798,14 +1259,34 @@ class ElevationAnglesAxis(DirectionAxis):
 
 
 class PolarAnglesAxis(DirectionAxis):
-    """Lateral-polar angle axis formatter."""
+    """Lateral-polar angle axis formatter.
+
+    :class:`~hrtfpykit.plots.axis.PolarAnglesAxis` formats the lateral-polar
+    coordinate used by spherical-harmonic and source-direction visualizations.
+    When values are not supplied, it uses the full -90 to 270 degree range
+    expected by the local plotting conventions.
+
+    Attributes
+    ----------
+    direction_tick_step : float
+        Default polar-angle tick spacing in degrees.
+    polar_limits : tuple[float, float]
+        Default lateral-polar axis limits in degrees.
+    """
 
     direction_tick_step: float = 20.0
     polar_limits: tuple[float, float] = (-90.0, 270.0)
 
     @classmethod
     def get_tick_step(cls) -> float:
-        """Return polar-angle tick spacing in degrees."""
+        """Return the default lateral-polar tick spacing.
+
+        Returns
+        -------
+        float
+            Tick spacing in degrees used by
+            :meth:`~hrtfpykit.plots.axis.PolarAnglesAxis.apply`.
+        """
         return cls.direction_tick_step
 
     @staticmethod
@@ -815,7 +1296,30 @@ class PolarAnglesAxis(DirectionAxis):
         values: np.ndarray | None = None,
         label: str | None = None,
     ) -> None:
-        """Apply lateral-polar axis labeling, limits, and ticks."""
+        """Apply lateral-polar axis labels, limits, and ticks.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            Target Matplotlib axis.
+        axis : str
+            Axis selector: "x", "y", or "z".
+        values : np.ndarray | None, default=None
+            Optional lateral-polar values in degrees used to derive limits.
+        label : str | None, default=None
+            Optional explicit label overriding Labels.polar.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the axis selector is invalid, z-axis formatting is requested on
+            a non-3D axis, or provided direction values are empty or non-finite.
+
+        """
         DirectionAxis.apply_direction(
             ax=ax,
             axis=axis,
