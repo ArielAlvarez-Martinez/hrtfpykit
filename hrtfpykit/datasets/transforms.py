@@ -14,15 +14,15 @@ class HRTFTransform:
     """Factory namespace for reusable HRTF preprocessing callables.
 
     :class:`~hrtfpykit.datasets.HRTFTransform` creates small callables that
-    receive a subject :class:`~hrtfpykit.hrtf.hrtf.HRTF`, run one HRTF
+    receive a subject :class:`~hrtfpykit.hrtf.HRTF`, run one HRTF
     operation, and return the transformed object. These callables can be used
     as dataset-level transforms through ``dataset_hrtf_transform`` or as
     HRTF-level spec transforms, for example through
     :class:`~hrtfpykit.datasets.HRTFSpec`.
 
     The factory methods are thin adapters over
-    :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform` and
-    :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select`. They do not load files, mutate
+    :attr:`~hrtfpykit.hrtf.HRTF.transform` and
+    :meth:`~hrtfpykit.hrtf.HRTF.select`. They do not load files, mutate
     dataset state, or change the original SOFA resources. They only package
     transform arguments so the same preprocessing can be applied consistently to
     every loaded subject.
@@ -48,16 +48,16 @@ class HRTFTransform:
 
         This is the generic factory used by the named convenience methods below. It
         stores the requested transform method name and arguments, then delays method
-        lookup until a real :class:`~hrtfpykit.hrtf.hrtf.HRTF` object is loaded.
+        lookup until a real :class:`~hrtfpykit.hrtf.HRTF` object is loaded.
         When executed, the returned callable looks up method_name on
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform`, calls it with the stored
+        :attr:`~hrtfpykit.hrtf.HRTF.transform`, calls it with the stored
         arguments, and returns the transformed HRTF.
 
         Parameters
         ----------
         method_name : str
             Name of the method available through
-            :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform`.
+            :attr:`~hrtfpykit.hrtf.HRTF.transform`.
         *args : object
             Positional arguments forwarded to the transform method.
         **kwargs : object
@@ -66,7 +66,7 @@ class HRTFTransform:
         Returns
         -------
         callable
-            Callable that accepts an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object and
+            Callable that accepts an :class:`~hrtfpykit.hrtf.HRTF` object and
             returns the transformed HRTF object.
 
         Raises
@@ -120,8 +120,8 @@ class HRTFTransform:
         """Create an HRTF-level source selection callable.
 
         Selection is special because it calls
-        :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select` directly rather than a method under
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform`. The returned callable lets a
+        :meth:`~hrtfpykit.hrtf.HRTF.select` directly rather than a method under
+        :attr:`~hrtfpykit.hrtf.HRTF.transform`. The returned callable lets a
         dataset reduce or reorder source positions before specs extract acoustic
         values. The returned callable can be used through
         ``dataset_hrtf_transform`` or through HRTF-level spec transform hooks.
@@ -129,21 +129,21 @@ class HRTFTransform:
         Parameters
         ----------
         *args : object
-            Positional arguments forwarded to :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select`.
+            Positional arguments forwarded to :meth:`~hrtfpykit.hrtf.HRTF.select`.
         **kwargs : object
-            Keyword arguments forwarded to :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select`.
+            Keyword arguments forwarded to :meth:`~hrtfpykit.hrtf.HRTF.select`.
 
         Returns
         -------
         callable
-            Callable that accepts an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object and
+            Callable that accepts an :class:`~hrtfpykit.hrtf.HRTF` object and
             returns the selected HRTF.
 
         Raises
         ------
         AttributeError
             Raised by the returned callable if the supplied object does not expose a
-            callable :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select`-compatible method.
+            callable :meth:`~hrtfpykit.hrtf.HRTF.select`-compatible method.
 
         Notes
         -----
@@ -191,7 +191,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -239,7 +239,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -285,7 +285,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -326,7 +326,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -378,7 +378,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -436,7 +436,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -492,7 +492,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -546,7 +546,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -599,7 +599,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -644,7 +644,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -692,7 +692,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -740,7 +740,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -789,7 +789,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -841,7 +841,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -885,7 +885,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -925,7 +925,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -974,7 +974,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----
@@ -1029,7 +1029,7 @@ class HRTFTransform:
         -------
         callable
             Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Notes
         -----

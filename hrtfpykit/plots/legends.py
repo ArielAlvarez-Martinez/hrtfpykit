@@ -53,7 +53,7 @@ class Ear(Legends):
     :class:`~hrtfpykit.plots.legends.Ear` labels traces by receiver channel
     rather than by subject. It is used by HRTF magnitude and impulse-response
     plotting code where one axis can display the left ear, the right ear, or
-    both ears from the same :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+    both ears from the same :class:`~hrtfpykit.hrtf.HRTF` object.
     The strategy validates that the requested labels match the selected ear mode
     before delegating to Matplotlib.
 
@@ -136,7 +136,7 @@ class Subjects(Legends):
     """Legend strategy for traces that compare multiple HRTF subjects.
 
     :class:`~hrtfpykit.plots.legends.Subjects` labels one trace per
-    :class:`~hrtfpykit.hrtf.hrtf.HRTF` object in comparison plots. It is used by
+    :class:`~hrtfpykit.hrtf.HRTF` object in comparison plots. It is used by
     magnitude, impulse-response, ITD, ILD, and LSD comparison helpers where each
     plotted line represents a different subject, dataset entry, or processing
     pipeline. The strategy accepts an optional bounding-box anchor so plot
@@ -163,7 +163,7 @@ class Subjects(Legends):
 
         Labels are generated as ``subject_1`` through ``subject_n`` and are used
         when comparison helpers receive multiple
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects without explicit legend names.
+        :class:`~hrtfpykit.hrtf.HRTF` objects without explicit legend names.
         The function validates count before creating labels so downstream legend
         code always receives a non-empty label sequence.
 
@@ -229,7 +229,7 @@ class Subjects(Legends):
         -----
         The method does not verify the number of plotted artists. Callers should
         validate that the label count matches the number of
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects or traces before rendering
+        :class:`~hrtfpykit.hrtf.HRTF` objects or traces before rendering
         the legend.
 
         """

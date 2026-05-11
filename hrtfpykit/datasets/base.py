@@ -55,7 +55,7 @@ class BaseDataset:
         exclusions, split settings, and acoustic metadata into a single
         :class:`~hrtfpykit.datasets.state.DatasetState` object. The resulting
         dataset exposes a stable indexed interface for
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects, derived ITD and ILD values,
+        :class:`~hrtfpykit.hrtf.HRTF` objects, derived ITD and ILD values,
         spherical-harmonic coefficients, meshes, anthropometry, metadata,
         images, and videos.
 
@@ -167,7 +167,7 @@ class BaseDataset:
         Returns
         -------
         HRTF
-            Loaded :class:`~hrtfpykit.hrtf.hrtf.HRTF` object after applying any
+            Loaded :class:`~hrtfpykit.hrtf.HRTF` object after applying any
             dataset-level HRTF transform.
 
         Raises
@@ -175,7 +175,7 @@ class BaseDataset:
         ValueError
             If dataset state is incomplete, subject mapping fails, HRTF loading
             fails, or the dataset-level HRTF transform does not return an
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            :class:`~hrtfpykit.hrtf.HRTF` object.
         KeyError
             If the mapped subject does not have an available HRTF resource in the
             dataset scan.

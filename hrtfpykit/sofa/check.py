@@ -69,7 +69,7 @@ def check_sofa_against_conventions(
     Raises
     ------
     ValueError
-        If ``target`` is a :class:`~hrtfpykit.sofa.sofa.SOFA` object without a
+        If ``target`` is a :class:`~hrtfpykit.sofa.SOFA` object without a
         loaded netCDF4 handle.
     OSError
         If ``target`` is a path-like input that cannot be opened as a SOFA
@@ -84,7 +84,8 @@ def check_sofa_against_conventions(
     >>> summary = check_sofa_against_conventions(
     ...     "hrtfs/P0001_FreeFieldComp_44kHz.sofa"
     ... )
-    >>> assert summary["convention"]["name"] == "SimpleFreeFieldHRIR"
+    >>> summary["convention"]["name"]
+    'SimpleFreeFieldHRIR'
     """
     dataset, _closer = _resolve_dataset(target)
     try:
@@ -322,8 +323,10 @@ def check_sofa_security(
     ...     "hrtfs/P0001_FreeFieldComp_44kHz.sofa",
     ...     print_report=False,
     ... )
-    >>> if not report["passed"]:
-    ...     raise RuntimeError(f"SOFA security checks failed: {report['failed']}")
+    >>> report["passed"]
+    True
+    >>> report["failed"]
+    []
     >>> check_names = [check["name"] for check in report["checks"]]
     >>> "hdf5_min_safe_version" in check_names
     True

@@ -30,9 +30,9 @@ class Transform:
         """Provide immutable HRTF-processing operations for one parent object.
 
         :class:`~hrtfpykit.hrtf.transforms.Transform` is accessed through
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform` and provides non-mutating
+        :attr:`~hrtfpykit.hrtf.HRTF.transform` and provides non-mutating
         HRTF-processing operations. Each method clones the parent
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object, applies one operation to the
+        :class:`~hrtfpykit.hrtf.HRTF` object, applies one operation to the
         clone, resynchronizes the affected domain representation, marks the
         returned object as transformed, and leaves the original HRTF unchanged.
 
@@ -47,9 +47,22 @@ class Transform:
 
         Parameters
         ----------
-        hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-            Parent :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used as the
+        hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+            Parent :class:`~hrtfpykit.hrtf.HRTF` object used as the
             source for cloned transform results.
+
+        Examples
+        --------
+        Access the transform namespace from a loaded HRTF and apply a
+        preprocessing step without changing the original object:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> windowed = hrtf.transform.apply_window("hann")
+        >>> hrtf.is_transformed()
+        False
+        >>> windowed.is_transformed()
+        True
         """
         self._hrtf = hrtf
 
@@ -76,6 +89,19 @@ class Transform:
         ------
         ValueError
             If IR data are unavailable or the requested window is unsupported.
+
+        Examples
+        --------
+        Apply a Hann window to the HRIR samples and keep the source and ear
+        layout unchanged:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> windowed = hrtf.transform.apply_window("hann")
+        >>> windowed.IR.values.shape
+        (793, 2, 256)
+        >>> windowed.TF.values.shape
+        (793, 2, 129)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -118,6 +144,21 @@ class Transform:
         ValueError
             If IR data are unavailable, padding length is invalid, or
             location is not supported.
+
+        Examples
+        --------
+        Append silent samples to every HRIR and rebuild the frequency-domain
+        representation from the padded signals:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.IR.values.shape
+        (793, 2, 256)
+        >>> padded = hrtf.transform.apply_padding(32, location="end")
+        >>> padded.IR.values.shape
+        (793, 2, 288)
+        >>> padded.TF.values.shape
+        (793, 2, 129)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -163,6 +204,23 @@ class Transform:
         ValueError
             If IR data or sample-rate metadata are unavailable, or if the
             target sample rate is not finite and greater than the current rate.
+
+        Examples
+        --------
+        Resample a SOFA-loaded HRTF to a higher sampling rate before later
+        time-domain processing:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.IR.sample_rate
+        44100.0
+        >>> hrtf.IR.values.shape
+        (793, 2, 256)
+        >>> upsampled = hrtf.transform.upsampling(88200.0)
+        >>> upsampled.IR.sample_rate
+        88200.0
+        >>> upsampled.IR.values.shape
+        (793, 2, 512)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -206,6 +264,23 @@ class Transform:
         ValueError
             If IR data or sample-rate metadata are unavailable, or if the
             target sample rate is not finite and lower than the current rate.
+
+        Examples
+        --------
+        Resample a SOFA-loaded HRTF to a lower sampling rate and keep TF data
+        synchronized with the new HRIR samples:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.IR.sample_rate
+        44100.0
+        >>> hrtf.IR.values.shape
+        (793, 2, 256)
+        >>> downsampled = hrtf.transform.downsampling(22050.0)
+        >>> downsampled.IR.sample_rate
+        22050.0
+        >>> downsampled.IR.values.shape
+        (793, 2, 128)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -256,6 +331,23 @@ class Transform:
             If IR data or sample-rate metadata are unavailable, filter
             arguments are invalid, or cutoff values are incompatible with the
             sample rate.
+
+        Examples
+        --------
+        Low-pass filter the HRIRs with an FIR design and use the returned HRTF
+        for subsequent metric or plotting workflows:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> filtered = hrtf.transform.apply_fir_filter(
+        ...     filter="lowpass",
+        ...     cutoff=3000.0,
+        ...     num_taps=31,
+        ... )
+        >>> filtered.IR.values.shape
+        (793, 2, 256)
+        >>> filtered.is_transformed()
+        True
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -307,6 +399,23 @@ class Transform:
             If IR data or sample-rate metadata are unavailable, filter
             arguments are invalid, or cutoff values are incompatible with the
             sample rate.
+
+        Examples
+        --------
+        Apply a Butterworth low-pass filter to the HRIRs and keep the derived
+        transfer functions available on the returned object:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> filtered = hrtf.transform.apply_iir_filter(
+        ...     filter="lowpass",
+        ...     cutoff=3000.0,
+        ...     order=4,
+        ... )
+        >>> filtered.IR.values.shape
+        (793, 2, 256)
+        >>> filtered.TF.values.shape
+        (793, 2, 129)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -354,6 +463,19 @@ class Transform:
         ------
         ValueError
             If IR data are unavailable or minimum-phase parameters are invalid.
+
+        Examples
+        --------
+        Convert the HRIRs to a minimum-phase representation while preserving
+        the current HRTF layout:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> minimum = hrtf.transform.minimum_phase()
+        >>> minimum.IR.values.shape
+        (793, 2, 256)
+        >>> minimum.is_transformed()
+        True
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -409,6 +531,19 @@ class Transform:
         ValueError
             If TF data, IR reference length, source geometry, weighting
             inputs, or averaging parameters are invalid.
+
+        Examples
+        --------
+        Estimate the common transfer function of a SOFA-loaded HRTF and inspect
+        the singleton source axis kept in the result:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.TF.values.shape
+        (793, 2, 129)
+        >>> ctf = hrtf.transform.to_ctf(weights=False)
+        >>> ctf.TF.values.shape
+        (1, 2, 129)
         """
         transformed_hrtf = ctf_from_hrtf(
             hrtf=self._hrtf,
@@ -458,6 +593,21 @@ class Transform:
         ValueError
             If TF data, IR reference length, source geometry, weighting
             inputs, or averaging parameters are invalid.
+
+        Examples
+        --------
+        Remove the common transfer component while keeping the original source
+        grid layout:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.TF.values.shape
+        (793, 2, 129)
+        >>> dtf = hrtf.transform.to_dtf(weights=False)
+        >>> dtf.TF.values.shape
+        (793, 2, 129)
+        >>> dtf.IR.values.shape
+        (793, 2, 256)
         """
         transformed_hrtf = dtf_from_hrtf(
             hrtf=self._hrtf,
@@ -477,7 +627,7 @@ class Transform:
         new_ir replaces the full current IR array. The leading dimensions
         before the final sample axis must match the current spatial and ear
         layout. When ``new_ir`` is an :class:`~hrtfpykit.hrtf.domain.IR` or
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object and provides a sample rate,
+        :class:`~hrtfpykit.hrtf.HRTF` object and provides a sample rate,
         that sample rate is copied into the returned HRTF before TF
         recomputation.
 
@@ -486,7 +636,7 @@ class Transform:
         new_ir : np.ndarray | IR | HRTF
             Time-domain data used to replace the current IR values. NumPy
             arrays must keep the same spatial and ear layout as the current
-            HRTF. :class:`~hrtfpykit.hrtf.domain.IR` and :class:`~hrtfpykit.hrtf.hrtf.HRTF` inputs contribute their IR values, and
+            HRTF. :class:`~hrtfpykit.hrtf.domain.IR` and :class:`~hrtfpykit.hrtf.HRTF` inputs contribute their IR values, and
             when available their sample rate.
 
         Returns
@@ -499,6 +649,24 @@ class Transform:
         ValueError
             If replacement data are missing, empty, not array-like in the
             expected way, or do not match the current leading IR/TF layout.
+
+        Examples
+        --------
+        Replace HRIR values with an edited copy and let the transform rebuild
+        the transfer functions:
+
+        >>> import numpy as np
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> ir = np.array(hrtf.IR.values, copy=True)
+        >>> ir[..., :8] = 0.0
+        >>> modified = hrtf.transform.modify_ir(ir)
+        >>> modified.IR.values[0, 0, :8]
+        array([0., 0., 0., 0., 0., 0., 0., 0.])
+        >>> modified.IR.values.shape
+        (793, 2, 256)
+        >>> modified.TF.values.shape
+        (793, 2, 129)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -576,6 +744,22 @@ class Transform:
         ValueError
             If TF data or frequency bins are unavailable, unit is invalid,
             or the replacement phase cannot be broadcast to the TF layout.
+
+        Examples
+        --------
+        Replace phase values with an edited phase array while preserving the
+        current TF magnitude:
+
+        >>> import numpy as np
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> phase = np.array(hrtf.TF.phase, copy=True)
+        >>> phase[..., 1:] *= 0.95
+        >>> modified = hrtf.transform.modify_phase(phase, unit="radians")
+        >>> modified.TF.values.shape
+        (793, 2, 129)
+        >>> modified.IR.values.shape
+        (793, 2, 256)
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -601,7 +785,7 @@ class Transform:
         before the frequency axis must match the current TF layout, or the
         current IR leading layout when no TF data are present. Frequency bins
         are copied from :class:`~hrtfpykit.hrtf.domain.TF` or
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` inputs when available; otherwise
+        :class:`~hrtfpykit.hrtf.HRTF` inputs when available; otherwise
         they are reused or inferred from the current sample rate when the TF
         length changes.
 
@@ -611,7 +795,7 @@ class Transform:
             Frequency-domain data used to replace the current TF values. NumPy
             arrays must keep the same spatial and ear layout as the current
             HRTF. :class:`~hrtfpykit.hrtf.domain.TF` and
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` inputs contribute their TF
+            :class:`~hrtfpykit.hrtf.HRTF` inputs contribute their TF
             values and, when available, their frequency bins.
 
         Returns
@@ -625,6 +809,25 @@ class Transform:
             If replacement data are missing, empty, have incompatible leading
             shape, contain too few frequency bins, or require frequency-bin
             inference without valid sample-rate metadata.
+
+        Examples
+        --------
+        Replace TF values with a scaled complex copy and rebuild the
+        time-domain representation:
+
+        >>> import numpy as np
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> round(float(hrtf.TF.magnitude[0, 0, 1]), 6)
+        0.209696
+        >>> tf = np.array(hrtf.TF.values, copy=True) * 0.98
+        >>> modified = hrtf.transform.modify_tf(tf)
+        >>> round(float(modified.TF.magnitude[0, 0, 1]), 6)
+        0.205502
+        >>> modified.TF.values.shape
+        (793, 2, 129)
+        >>> modified.IR.values.shape
+        (793, 2, 256)
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -738,6 +941,25 @@ class Transform:
         ValueError
             If TF data or frequency bins are unavailable, scale is invalid,
             or the replacement magnitude cannot be broadcast to the TF layout.
+
+        Examples
+        --------
+        Replace the TF magnitude with a slightly attenuated copy and keep the
+        original phase:
+
+        >>> import numpy as np
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> round(float(hrtf.TF.magnitude[0, 0, 1]), 6)
+        0.209696
+        >>> magnitude = np.array(hrtf.TF.magnitude, copy=True) * 0.95
+        >>> modified = hrtf.transform.modify_magnitude(magnitude, scale="linear")
+        >>> round(float(modified.TF.magnitude[0, 0, 1]), 6)
+        0.199212
+        >>> modified.TF.values.shape
+        (793, 2, 129)
+        >>> modified.IR.values.shape
+        (793, 2, 256)
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -786,6 +1008,22 @@ class Transform:
         ValueError
             If TF data or frequency bins are unavailable, scale is invalid,
             or gain cannot be broadcast to the current TF layout.
+
+        Examples
+        --------
+        Apply a broadband attenuation in dB to all source positions and ears:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> round(float(hrtf.TF.magnitude[0, 0, 1]), 6)
+        0.209696
+        >>> quieter = hrtf.transform.apply_gain(-3.0, scale="db")
+        >>> round(float(quieter.TF.magnitude[0, 0, 1]), 6)
+        0.148454
+        >>> quieter.TF.values.shape
+        (793, 2, 129)
+        >>> quieter.is_transformed()
+        True
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
@@ -823,6 +1061,23 @@ class Transform:
         ValueError
             If IR data are unavailable or the FFT length is invalid for
             real-FFT conversion.
+
+        Examples
+        --------
+        Increase the FFT length used for IR-to-TF conversion and inspect the
+        resulting frequency-bin count:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.fft_length
+        256
+        >>> hrtf.TF.values.shape
+        (793, 2, 129)
+        >>> modified = hrtf.transform.modify_fft_length(512)
+        >>> modified.fft_length
+        512
+        >>> modified.TF.values.shape
+        (793, 2, 257)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -861,6 +1116,21 @@ class Transform:
         ValueError
             If coordinate_system is not one of the supported source
             coordinate systems.
+
+        Examples
+        --------
+        Read source positions in Cartesian coordinates from a transformed HRTF:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.Sources.source_coordinate_system
+        'spherical'
+        >>> cartesian = hrtf.transform.modify_source_coordinate_system("cartesian")
+        >>> positions = cartesian.Sources.get_positions()
+        >>> cartesian.Sources.source_coordinate_system
+        'cartesian'
+        >>> positions.shape
+        (793, 3)
         """
         coordinate_system = str(coordinate_system).strip().lower()
         allowed_coordinate_systems = {"spherical", "cartesian", "lateral-polar"}
@@ -906,6 +1176,22 @@ class Transform:
             non-finite, delay-array shape is incompatible with the IR layout,
             seconds are requested without sample-rate metadata, or the absolute
             delay is not smaller than the IR length.
+
+        Examples
+        --------
+        Add a two-sample delay to the left ear for every source position:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.IR.get_itd(output="samples")[:5]
+        array([-3, -4, -3, -4, -4])
+        >>> delayed = hrtf.transform.add_itd(2, unit="samples")
+        >>> delayed.IR.get_itd(output="samples")[:5]
+        array([-1, -2, -1, -2, -2])
+        >>> delayed.IR.values.shape
+        (793, 2, 256)
+        >>> delayed.is_transformed()
+        True
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
@@ -1023,6 +1309,23 @@ class Transform:
             If IR data do not contain two ear channels, ITD estimation
             parameters are invalid, or an estimated delay is not smaller than
             the IR length.
+
+        Examples
+        --------
+        Estimate and remove ITD from each source position before comparing
+        magnitude-focused features:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.IR.get_itd(output="samples")[:5]
+        array([-3, -4, -3, -4, -4])
+        >>> no_itd = hrtf.transform.delete_itd()
+        >>> no_itd.IR.get_itd(output="samples")[:5]
+        array([0, 0, 0, 0, 0])
+        >>> no_itd.IR.values.shape
+        (793, 2, 256)
+        >>> no_itd.TF.values.shape
+        (793, 2, 129)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR

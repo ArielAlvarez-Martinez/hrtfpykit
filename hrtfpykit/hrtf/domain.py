@@ -20,19 +20,19 @@ if TYPE_CHECKING:
 
 class IR:
     def __init__(self, hrtf: HRTF) -> None:
-        """Represent the time-domain HRIR view owned by an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+        """Represent the time-domain HRIR view owned by an :class:`~hrtfpykit.hrtf.HRTF` object.
 
         :class:`~hrtfpykit.hrtf.domain.IR` stores the HRIR sample array and
         sample-rate metadata used by the parent
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` abstraction. It is created lazily by
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.IR` and acts as the in-memory
+        :class:`~hrtfpykit.hrtf.HRTF` abstraction. It is created lazily by
+        :attr:`~hrtfpykit.hrtf.HRTF.IR` and acts as the in-memory
         time-domain view of SOFA ``Data.IR`` data or data reconstructed from
         SimpleFreeFieldHRTF frequency-domain files.
 
         The object does not own independent source metadata. Its leading axes
         are expected to stay aligned with
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources` and with the sibling
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.TF` representation. Time-domain
+        :attr:`~hrtfpykit.hrtf.HRTF.Sources` and with the sibling
+        :attr:`~hrtfpykit.hrtf.HRTF.TF` representation. Time-domain
         transforms update :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`
         and :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>`
         first, then synchronize
@@ -42,8 +42,8 @@ class IR:
 
         Parameters
         ----------
-        hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-            Parent :class:`~hrtfpykit.hrtf.hrtf.HRTF` object that owns this
+        hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+            Parent :class:`~hrtfpykit.hrtf.HRTF` object that owns this
             time-domain representation.
 
         Attributes
@@ -54,6 +54,30 @@ class IR:
             axes before the final sample axis as preserved metadata axes.
         sample_rate : float or None
             Sampling rate in hertz for the impulse-response data.
+
+        Examples
+        --------
+        Load a SOFA file and access the HRIR samples, sample-rate metadata,
+        signal length, duration, and ITD values through ``hrtf.IR``:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> ir_values = hrtf.IR.values
+        >>> sample_rate = hrtf.IR.sample_rate
+        >>> first_position_left_ir = hrtf.IR.values[0, 0, :]
+        >>> itd_samples = hrtf.IR.get_itd(output="samples")
+        >>> ir_values.shape
+        (793, 2, 256)
+        >>> sample_rate
+        44100.0
+        >>> first_position_left_ir.shape
+        (256,)
+        >>> hrtf.IR.ir_length
+        256
+        >>> hrtf.IR.ir_duration
+        0.005804988662131519
+        >>> itd_samples.shape
+        (793,)
         """
         self._hrtf = hrtf
         self.values: np.ndarray | None = None
@@ -67,7 +91,7 @@ class IR:
         :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` and therefore
         reflects the current in-memory time-domain representation, including
         any padding, resampling, or replacement performed through
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.transform`.
+        :attr:`~hrtfpykit.hrtf.HRTF.transform`.
 
         Returns
         -------
@@ -166,18 +190,18 @@ class IR:
 
 class TF:
     def __init__(self, hrtf: HRTF) -> None:
-        """Represent the frequency-domain HRTF view owned by an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+        """Represent the frequency-domain HRTF view owned by an :class:`~hrtfpykit.hrtf.HRTF` object.
 
         :class:`~hrtfpykit.hrtf.domain.TF` stores the complex HRTF
         frequency-response array and its frequency bins for the parent
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` abstraction. It is created lazily by
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.TF` and acts as the in-memory
+        :class:`~hrtfpykit.hrtf.HRTF` abstraction. It is created lazily by
+        :attr:`~hrtfpykit.hrtf.HRTF.TF` and acts as the in-memory
         frequency-domain view of SOFA ``Data.Real`` and ``Data.Imag`` data or
         data computed from HRIR files.
 
         The object is expected to stay aligned with the sibling
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.IR` and
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources` representations.
+        :attr:`~hrtfpykit.hrtf.HRTF.IR` and
+        :attr:`~hrtfpykit.hrtf.HRTF.Sources` representations.
         Frequency-domain transforms update
         :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` and
         :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`
@@ -188,8 +212,8 @@ class TF:
 
         Parameters
         ----------
-        hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-            Parent :class:`~hrtfpykit.hrtf.hrtf.HRTF` object that owns this frequency-domain representation.
+        hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+            Parent :class:`~hrtfpykit.hrtf.HRTF` object that owns this frequency-domain representation.
 
         Attributes
         ----------
@@ -200,6 +224,38 @@ class TF:
         frequency_bins : numpy.ndarray or None
             One-dimensional frequency-bin values in hertz corresponding to the final
             axis of :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
+
+        Examples
+        --------
+        Load a SOFA file and access the frequency-domain HRTF values, frequency
+        axis, bin metadata, and derived spectral arrays through ``hrtf.TF``:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.TF.values.shape
+        (793, 2, 129)
+        >>> hrtf.TF.values.dtype
+        dtype('complex128')
+        >>> hrtf.TF.frequency_bins[:5]
+        array([  0.      , 172.265625, 344.53125 , 516.796875, 689.0625  ])
+        >>> hrtf.TF.tf_length
+        129
+        >>> hrtf.TF.frequency_bins_step
+        172.265625
+        >>> hrtf.TF.min_frequency_bin
+        0.0
+        >>> hrtf.TF.max_frequency_bin
+        22050.0
+        >>> hrtf.TF.magnitude.shape
+        (793, 2, 129)
+        >>> hrtf.TF.get_magnitude_db().shape
+        (793, 2, 129)
+        >>> hrtf.TF.phase.shape
+        (793, 2, 129)
+        >>> hrtf.TF.real.shape
+        (793, 2, 129)
+        >>> hrtf.TF.imag.shape
+        (793, 2, 129)
         """
         self._hrtf = hrtf
         self.values: np.ndarray | None = None
@@ -212,7 +268,7 @@ class TF:
         The value is derived from the final axis of
         :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` and corresponds to
         the current one-sided frequency-domain representation used by the
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+        :class:`~hrtfpykit.hrtf.HRTF` object.
 
         Returns
         -------

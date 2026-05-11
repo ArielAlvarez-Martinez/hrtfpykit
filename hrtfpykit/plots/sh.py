@@ -27,7 +27,7 @@ def plot_sht_reconstruction_comparison(
     """Compare original and SH-reconstructed HRTF magnitude spectra.
 
     This diagnostic plot overlays the magnitude stored in
-    :attr:`~hrtfpykit.hrtf.hrtf.HRTF.TF` with a magnitude matrix reconstructed
+    :attr:`~hrtfpykit.hrtf.HRTF.TF` with a magnitude matrix reconstructed
     from spherical-harmonic coefficients, typically the output of
     :func:`~hrtfpykit.hrtf.sht_inverse`. It is used to inspect how well a
     selected spherical-harmonic order reproduces the spectral detail of one
@@ -53,8 +53,8 @@ def plot_sht_reconstruction_comparison(
 
     Parameters
     ----------
-    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object providing the reference
+    hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.HRTF` object providing the reference
         complex TF data, frequency bins, and source-grid metadata.
         :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` must have shape
         (positions, ears, frequency_bins) and include at least two ear channels.
@@ -276,7 +276,7 @@ def plot_sht_reconstruction_error(
     -----
     ``reconstructed_magnitude`` must contain linear magnitude values with the same
     source-position and frequency axes as the
-    :class:`~hrtfpykit.hrtf.hrtf.HRTF` object's current TF data. The frequency
+    :class:`~hrtfpykit.hrtf.HRTF` object's current TF data. The frequency
     axis is taken from
     :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` and
     displayed in kHz.
@@ -288,8 +288,8 @@ def plot_sht_reconstruction_error(
 
     Parameters
     ----------
-    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object providing the reference
+    hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.HRTF` object providing the reference
         complex TF data, frequency bins, and source-grid metadata.
         :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` must have shape
         (positions, ears, frequency_bins) and include at least two ear channels.

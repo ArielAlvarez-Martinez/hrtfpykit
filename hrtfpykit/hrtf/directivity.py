@@ -18,17 +18,17 @@ def ctf_from_hrtf(
     magnitude_average: str = "log",
     attenuation: float | None = None,
 ) -> "HRTF":
-    """Estimate a common transfer function from an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+    """Estimate a common transfer function from an :class:`~hrtfpykit.hrtf.HRTF` object.
 
     A common transfer function (CTF) describes the source-independent spectral
     component of an HRTF. This function estimates that component by averaging
     the magnitude response over the source axis, reconstructing a
     minimum-phase response from the averaged magnitude, and returning the
-    result as a new :class:`~hrtfpykit.hrtf.hrtf.HRTF` instance. The output keeps a singleton source axis
+    result as a new :class:`~hrtfpykit.hrtf.HRTF` instance. The output keeps a singleton source axis
     so it can still be used with the same plotting, transformation, and SOFA
-    synchronization workflows as ordinary :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects.
+    synchronization workflows as ordinary :class:`~hrtfpykit.hrtf.HRTF` objects.
 
-    The computation is performed on :attr:`~hrtfpykit.hrtf.hrtf.HRTF.TF`. If
+    The computation is performed on :attr:`~hrtfpykit.hrtf.HRTF.TF`. If
     :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is available, its
     final-axis length is treated as the reference HRIR support:
     the reconstructed CTF impulse response is cropped or zero-padded to that
@@ -37,13 +37,13 @@ def ctf_from_hrtf(
 
     Parameters
     ----------
-    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-        Input :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+    hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+        Input :class:`~hrtfpykit.hrtf.HRTF` object.
         :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` supplies the
         complex transfer functions,
         :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`
         supplies the active frequency grid, and
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources` supplies source geometry when
+        :attr:`~hrtfpykit.hrtf.HRTF.Sources` supplies source geometry when
         diffuse-field weighting is requested.
     weights : bool, optional
         If False, all source positions contribute equally. If True,
@@ -64,7 +64,7 @@ def ctf_from_hrtf(
     Returns
     -------
     HRTF
-        New :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the CTF. For a typical binaural input with
+        New :class:`~hrtfpykit.hrtf.HRTF` object containing the CTF. For a typical binaural input with
         TF.values.shape == (M, 2, F), the output uses
         TF.values.shape == (1, 2, F) and a matching singleton-source IR
         representation.
@@ -247,14 +247,14 @@ def dtf_from_hrtf(
     magnitude_average: str = "log",
     attenuation: float | None = None,
 ) -> "HRTF":
-    """Estimate a directional transfer function from an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+    """Estimate a directional transfer function from an :class:`~hrtfpykit.hrtf.HRTF` object.
 
     A directional transfer function (DTF) isolates the source-dependent part
     of an HRTF by removing an internally estimated common transfer function
     (CTF). This function computes the CTF with
     :func:`~hrtfpykit.hrtf.directivity.ctf_from_hrtf`, divides
     the original complex TF values by that CTF on the active frequency grid,
-    and returns the directional result as a new :class:`~hrtfpykit.hrtf.hrtf.HRTF` instance.
+    and returns the directional result as a new :class:`~hrtfpykit.hrtf.HRTF` instance.
 
     The output preserves the source layout of the input object. If
     :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is available, its
@@ -264,13 +264,13 @@ def dtf_from_hrtf(
 
     Parameters
     ----------
-    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-        Input :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+    hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+        Input :class:`~hrtfpykit.hrtf.HRTF` object.
         :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` supplies the
         complex transfer functions,
         :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`
         supplies the active frequency grid, and
-        :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources` supplies source geometry when
+        :attr:`~hrtfpykit.hrtf.HRTF.Sources` supplies source geometry when
         diffuse-field weighting is requested for the internal CTF.
     weights : bool, optional
         If False, all source positions contribute equally to the internal
@@ -290,7 +290,7 @@ def dtf_from_hrtf(
     Returns
     -------
     HRTF
-        New :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the DTF. For a typical binaural input with
+        New :class:`~hrtfpykit.hrtf.HRTF` object containing the DTF. For a typical binaural input with
         TF.values.shape == (M, 2, F), the output keeps the same source and
         ear layout and returns DTF values on the same frequency grid.
 
@@ -420,12 +420,12 @@ def hrtf_from_dtf_and_ctf(
     Parameters
     ----------
     dtf : HRTF
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the directional transfer function. Its
+        :class:`~hrtfpykit.hrtf.HRTF` object containing the directional transfer function. Its
         :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` define the directional spectral component, its
         :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` define the output frequency grid, and its source
         layout defines the source layout of the reconstructed HRTF.
     ctf : HRTF
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the common transfer function. It is typically
+        :class:`~hrtfpykit.hrtf.HRTF` object containing the common transfer function. It is typically
         the singleton-source compatibility object produced by
         :func:`~hrtfpykit.hrtf.directivity.ctf_from_hrtf`, but any CTF-like HRTF can be used when its
         leading TF dimensions broadcast to the DTF layout without expanding
@@ -434,7 +434,7 @@ def hrtf_from_dtf_and_ctf(
     Returns
     -------
     HRTF
-        New :class:`~hrtfpykit.hrtf.hrtf.HRTF` object containing the reconstructed transfer function and
+        New :class:`~hrtfpykit.hrtf.HRTF` object containing the reconstructed transfer function and
         impulse response. The source layout follows dtf. The TF frequency
         grid follows :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` and must match the CTF grid.
 
@@ -453,7 +453,7 @@ def hrtf_from_dtf_and_ctf(
     metadata are preserved through cloning, while only TF and IR values are
     replaced by the reconstructed data. If a reference DTF IR length is
     available, reconstructed HRIRs are cropped or zero-padded to that support
-    and the TF is rebuilt with :attr:`~hrtfpykit.hrtf.hrtf.HRTF.fft_length`.
+    and the TF is rebuilt with :attr:`~hrtfpykit.hrtf.HRTF.fft_length`.
     """
     try:
         dtf_tf = dtf.TF

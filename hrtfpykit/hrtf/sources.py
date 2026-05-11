@@ -25,10 +25,10 @@ class Sources:
         """Manage source positions, coordinate systems, and spatial selections.
 
         :class:`~hrtfpykit.hrtf.sources.Sources` is the source-position
-        manager used by :class:`~hrtfpykit.hrtf.hrtf.HRTF`. It reads SOFA
+        manager used by :class:`~hrtfpykit.hrtf.HRTF`. It reads SOFA
         ``SourcePosition`` values and their ``SourcePosition:Type`` and
         ``SourcePosition:Units`` attributes from the owning
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object, converts positions on
+        :class:`~hrtfpykit.hrtf.HRTF` object, converts positions on
         demand, and resolves source-grid queries used by selection, metrics,
         spherical harmonics, and plotting utilities.
 
@@ -38,7 +38,7 @@ class Sources:
         :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` and query
         methods expose positions; it does not rewrite the stored SOFA
         ``SourcePosition`` array by itself. Spatial subsets created
-        through :meth:`~hrtfpykit.hrtf.hrtf.HRTF.select` are also respected, so
+        through :meth:`~hrtfpykit.hrtf.HRTF.select` are also respected, so
         returned arrays and matched indices refer to the current HRTF view rather than
         necessarily to every source in the original SOFA file.
 
@@ -59,11 +59,11 @@ class Sources:
 
         Parameters
         ----------
-        hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF` | None, default=None
+        hrtf : :class:`~hrtfpykit.hrtf.HRTF` | None, default=None
             Owning HRTF instance. Most user code obtains this object from
-            :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources`. A usable manager
+            :attr:`~hrtfpykit.hrtf.HRTF.Sources`. A usable manager
             requires an HRTF with a loaded
-            :class:`~hrtfpykit.sofa.sofa.SOFA` object containing
+            :class:`~hrtfpykit.sofa.SOFA` object containing
             ``SourcePosition`` metadata.
 
         Attributes
@@ -73,6 +73,49 @@ class Sources:
         _selected_indices : numpy.ndarray or None
             Source-position indices retained by the current HRTF view after spatial
             selection.
+
+        Examples
+        --------
+        Load a SOFA file and access source-grid positions, coordinate-system
+        metadata, available angles, nearest-position matches, and selected
+        source views through ``hrtf.Sources``:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.Sources.source_coordinate_system
+        'spherical'
+        >>> hrtf.Sources.get_positions().shape
+        (793, 3)
+        >>> hrtf.Sources.get_positions()[:3]
+        array([[  0. , -45. ,   1.5],
+               [  0. , -30. ,   1.5],
+               [  0. , -20. ,   1.5]])
+        >>> hrtf.Sources.get_positions(angle_unit="radians")[0]
+        array([ 0.        , -0.78539816,  1.5       ])
+        >>> hrtf.Sources.get_azimuth_angles()[:5]
+        array([ 0.,  5., 10., 15., 20.])
+        >>> hrtf.Sources.get_elevation_angles()
+        array([-45., -30., -20., -10.,   0.,  10.,  20.,  30.,  45.,  60.,  75.,
+                90.])
+        >>> elevations_at_front, real_azimuth = (
+        ...     hrtf.Sources.get_elevation_angles_for_azimuth(0.0)
+        ... )
+        >>> elevations_at_front[:5]
+        array([-45., -30., -20., -10.,   0.])
+        >>> real_azimuth
+        0.0
+        >>> azimuths_on_horizontal, real_elevation = (
+        ...     hrtf.Sources.get_azimuth_angles_for_elevation(0.0)
+        ... )
+        >>> azimuths_on_horizontal[:5]
+        array([ 0.,  5., 10., 15., 20.])
+        >>> real_elevation
+        0.0
+        >>> hrtf.Sources.get_position_index("front")
+        (4, array([0. , 0. , 1.5]))
+        >>> selected = hrtf.select(positions=["front", "left", "right"])
+        >>> selected.Sources.get_positions().shape
+        (3, 3)
         """
         self._hrtf = hrtf
         self.source_coordinate_system = self._hrtf.Sofa.VariableAttributes.get("SourcePosition:Type").value
@@ -84,7 +127,7 @@ class Sources:
     ) -> np.ndarray:
         """Return the current source grid in the configured coordinate system.
 
-        Positions are read from the owning :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        Positions are read from the owning :class:`~hrtfpykit.hrtf.HRTF`
         object's SOFA ``SourcePosition`` variable each time this method is
         called. The SOFA coordinate system is taken from ``SourcePosition:Type``
         and converted to
@@ -433,7 +476,7 @@ class Sources:
         """Return the nearest source index and its resolved grid position.
 
         The query is matched against the current source grid, including any
-        source subset already selected on the owning :class:`~hrtfpykit.hrtf.hrtf.HRTF` object. Numeric
+        source subset already selected on the owning :class:`~hrtfpykit.hrtf.HRTF` object. Numeric
         positions are interpreted in coordinate_system. Named positions use
         the canonical horizontal spherical aliases ``front``, ``back``,
         ``left``, and ``right`` and are then returned in the requested

@@ -52,11 +52,11 @@ if TYPE_CHECKING:
 
 
 class HRTFPlots:
-    """Visualization methods inherited by :class:`~hrtfpykit.hrtf.hrtf.HRTF`.
+    """Visualization methods inherited by :class:`~hrtfpykit.hrtf.HRTF`.
 
     :class:`~hrtfpykit.plots.hrtf.HRTFPlots` groups the plotting operations that operate on an HRTF
     object's current :class:`~hrtfpykit.hrtf.domain.IR`, :class:`~hrtfpykit.hrtf.domain.TF`, and :class:`~hrtfpykit.hrtf.sources.Sources` state. The methods are
-    attached to the main :class:`~hrtfpykit.hrtf.hrtf.HRTF` abstraction so plots
+    attached to the main :class:`~hrtfpykit.hrtf.HRTF` abstraction so plots
     reflect any previous loading, source selection, domain conversion, ITD
     compensation, windowing, or other transformation applied to the object.
 
@@ -70,7 +70,7 @@ class HRTFPlots:
 
     Notes
     -----
-    These methods are intended to be called from an :class:`~hrtfpykit.hrtf.hrtf.HRTF` instance, not from
+    These methods are intended to be called from an :class:`~hrtfpykit.hrtf.HRTF` instance, not from
     a standalone :class:`~hrtfpykit.plots.hrtf.HRTFPlots` object. Every plotting method validates the
     required domain representation before drawing, creates a Matplotlib figure
     through the hrtfpykit plotting wrappers, optionally calls

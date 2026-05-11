@@ -25,13 +25,13 @@ def load_sofa(
     parallel: bool = False,
     check_sofa_against_conventions: bool = True,
 ) -> "SOFA":
-    """Load a SOFA file into a :class:`~hrtfpykit.sofa.sofa.SOFA` object.
+    """Load a SOFA file into a :class:`~hrtfpykit.sofa.SOFA` object.
 
     This is the public entry point for inspecting or editing SOFA files with
     hrtfpykit. The file is opened with netCDF4, wrapped in a
-    :class:`~hrtfpykit.sofa.sofa.SOFA` instance, and optionally checked
+    :class:`~hrtfpykit.sofa.SOFA` instance, and optionally checked
     against the SOFA convention declared by its global attributes.
-    :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects use this function internally
+    :class:`~hrtfpykit.hrtf.HRTF` objects use this function internally
     when loading SimpleFreeFieldHRIR and SimpleFreeFieldHRTF files.
 
     Parameters
@@ -47,17 +47,17 @@ def load_sofa(
     check_sofa_against_conventions : bool, default=True
         Whether to validate the file against its declared
         ``SOFAConventions`` metadata before opening it as a
-        :class:`~hrtfpykit.sofa.sofa.SOFA` object.
+        :class:`~hrtfpykit.sofa.SOFA` object.
         Convention mismatches are reported by the validation utility, usually
         as SOFA convention warnings.
 
     Returns
     -------
-    :class:`~hrtfpykit.sofa.sofa.SOFA`
-        :class:`~hrtfpykit.sofa.sofa.SOFA` object whose
-        :attr:`~hrtfpykit.sofa.sofa.SOFA.netCDF4_dataset` attribute is an open
+    :class:`~hrtfpykit.sofa.SOFA`
+        :class:`~hrtfpykit.sofa.SOFA` object whose
+        :attr:`~hrtfpykit.sofa.SOFA.netCDF4_dataset` attribute is an open
         netCDF4 storage handle and whose
-        :attr:`~hrtfpykit.sofa.sofa.SOFA.path` attribute points to ``path``.
+        :attr:`~hrtfpykit.sofa.SOFA.path` attribute points to ``path``.
 
     Raises
     ------
@@ -72,8 +72,8 @@ def load_sofa(
     Notes
     -----
     The returned object owns an open netCDF4 handle. Close
-    :attr:`~hrtfpykit.sofa.sofa.SOFA.netCDF4_dataset` when the loaded file is no longer needed, or save
-    to a separate path with :meth:`~hrtfpykit.sofa.sofa.SOFA.save` when working
+    :attr:`~hrtfpykit.sofa.SOFA.netCDF4_dataset` when the loaded file is no longer needed, or save
+    to a separate path with :meth:`~hrtfpykit.sofa.SOFA.save` when working
     from a clone.
 
     Examples
@@ -83,17 +83,16 @@ def load_sofa(
     when inspection is finished:
 
     >>> from hrtfpykit.sofa import load_sofa
-    >>> sofa = load_sofa(
-    ...     "hrtfs/P0001_FreeFieldComp_44kHz.sofa",
-    ...     check_sofa_against_conventions=False,
-    ... )
+    >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
     >>> try:
     ...     convention = sofa.GlobalAttributes.get("SOFAConventions").value
     ...     ir_shape = sofa.Variables.get("Data.IR").value.shape
     ... finally:
     ...     sofa.netCDF4_dataset.close()
-    >>> assert convention == "SimpleFreeFieldHRIR"
-    >>> assert ir_shape[1] == 2
+    >>> convention
+    'SimpleFreeFieldHRIR'
+    >>> ir_shape
+    (793, 2, 256)
     """
     print(f"Loading SOFA file from: {path}")
     sofa_object = SOFA()
@@ -112,7 +111,7 @@ class SOFA:
     def __init__(self):
         """Represent a SOFA file and its netCDF4 storage handle.
 
-        :class:`~hrtfpykit.sofa.sofa.SOFA` is the library abstraction around an
+        :class:`~hrtfpykit.sofa.SOFA` is the library abstraction around an
         open netCDF4 object that follows a SOFA convention. It provides
         controlled access to dimensions, global attributes, variables, and
         variable attributes through hrtfpykit collection wrappers, plus
@@ -120,26 +119,26 @@ class SOFA:
         summarizing SOFA files.
 
         The class is used directly for SOFA inspection workflows and indirectly by
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF`, where it acts as the persistence layer for
+        :class:`~hrtfpykit.hrtf.HRTF`, where it acts as the persistence layer for
         HRIR/HRTF data, source positions, sampling metadata, and convention metadata.
 
         Notes
         -----
         No hidden I/O is performed. Files are only read or written when you call
         :func:`~hrtfpykit.sofa.load_sofa`,
-        :meth:`~hrtfpykit.sofa.sofa.SOFA.save`, or other explicit editing
+        :meth:`~hrtfpykit.sofa.SOFA.save`, or other explicit editing
         methods. The underlying storage object is a netCDF4 Dataset, so
         standard netCDF4 rules and constraints apply. Methods that mutate SOFA
         content require a writable netCDF4 handle; the safest workflow is to
-        call :meth:`~hrtfpykit.sofa.sofa.SOFA.clone` or
-        :meth:`~hrtfpykit.sofa.sofa.SOFA.copy_with`, modify the in-memory copy,
+        call :meth:`~hrtfpykit.sofa.SOFA.clone` or
+        :meth:`~hrtfpykit.sofa.SOFA.copy_with`, modify the in-memory copy,
         then save the result explicitly.
 
         Attributes
         ----------
         netCDF4_dataset : netCDF4.Dataset | None
             Open netCDF4 storage handle backing this
-            :class:`~hrtfpykit.sofa.sofa.SOFA` object. None means no SOFA file
+            :class:`~hrtfpykit.sofa.SOFA` object. None means no SOFA file
             has been loaded or created.
         path : pathlib.Path | None
             Original or most recent disk path associated with the SOFA object. In-memory
@@ -246,7 +245,7 @@ class SOFA:
         -----
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -283,7 +282,7 @@ class SOFA:
         -----
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -324,7 +323,7 @@ class SOFA:
         -----
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -364,7 +363,7 @@ class SOFA:
         -----
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -401,7 +400,7 @@ class SOFA:
         -----
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -418,7 +417,7 @@ class SOFA:
         Variable attributes describe variable-specific metadata such as units,
         coordinate system type, and long names. The public key format is
         ``Variable:Attribute`` so the same style can be used by
-        :attr:`~hrtfpykit.sofa.sofa.SOFA.VariableAttributes` and
+        :attr:`~hrtfpykit.sofa.SOFA.VariableAttributes` and
         :attr:`~hrtfpykit.sofa.wraps.VariablesWrap.attributes`.
 
         Parameters
@@ -443,7 +442,7 @@ class SOFA:
         -----
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -490,7 +489,7 @@ class SOFA:
         -----
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -534,7 +533,7 @@ class SOFA:
         -----
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -604,7 +603,7 @@ class SOFA:
 
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -678,7 +677,7 @@ class SOFA:
 
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -728,7 +727,7 @@ class SOFA:
         -----
         Editing a SOFA file requires writable access. The recommended
         workflow is to load the original SOFA file, create an in-memory
-        clone with :meth:`~hrtfpykit.sofa.sofa.SOFA.clone`, apply edits to the clone, and save when
+        clone with :meth:`~hrtfpykit.sofa.SOFA.clone`, apply edits to the clone, and save when
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
@@ -780,8 +779,8 @@ class SOFA:
         Returns
         -------
         SOFA
-            In-memory :class:`~hrtfpykit.sofa.sofa.SOFA` object backed by a writable diskless netCDF4
-            netCDF4 storage handle. The returned object's :attr:`~hrtfpykit.sofa.sofa.SOFA.path` is None until it is
+            In-memory :class:`~hrtfpykit.sofa.SOFA` object backed by a writable diskless netCDF4
+            netCDF4 storage handle. The returned object's :attr:`~hrtfpykit.sofa.SOFA.path` is None until it is
             saved.
 
         Raises
@@ -796,7 +795,7 @@ class SOFA:
 
         Notes
         -----
-        The dummy :class:`~hrtfpykit.sofa.sofa.SOFA` object always includes an unlimited ``S`` dimension with
+        The dummy :class:`~hrtfpykit.sofa.SOFA` object always includes an unlimited ``S`` dimension with
         initial size 0. Passing ``S`` in ``dim_sizes`` raises an error because
         ``S`` is reserved by the SOFA conventions. To create other unlimited
         dimensions, set their size to 0 in ``dim_sizes``.
@@ -805,7 +804,7 @@ class SOFA:
         non-scalar default cannot be broadcast to the resolved variable shape,
         the variable is initialized with zeros so that the SOFA object remains
         structurally usable and can be filled by later calls to
-        :meth:`~hrtfpykit.sofa.sofa.SOFA.modify_variable`.
+        :meth:`~hrtfpykit.sofa.SOFA.modify_variable`.
 
         """
         print("Creating in-memory dummy SOFA dataset")
@@ -963,7 +962,7 @@ class SOFA:
         The method writes the currently loaded SOFA object content to disk.
         When ``path`` is omitted, the object is synchronized back to its
         original file path recorded in
-        :attr:`~hrtfpykit.sofa.sofa.SOFA.path`. When ``path`` is provided, a
+        :attr:`~hrtfpykit.sofa.SOFA.path`. When ``path`` is provided, a
         complete netCDF4 copy is written to a temporary file and then moved
         into place.
 
@@ -971,7 +970,7 @@ class SOFA:
         ----------
         path : Optional[Union[str, pathlib.Path]], optional
             Target path. If ``path`` is None, the loaded SOFA object is synchronized to the
-            original path recorded in :attr:`~hrtfpykit.sofa.sofa.SOFA.path`.
+            original path recorded in :attr:`~hrtfpykit.sofa.SOFA.path`.
         overwrite : bool, optional
             If ``True``, allows replacing an existing destination file when
             ``path`` is provided.
@@ -995,10 +994,10 @@ class SOFA:
 
         Notes
         -----
-        Calling :meth:`~hrtfpykit.sofa.sofa.SOFA.save` without a path synchronizes the loaded SOFA content
-        back to the original file recorded in :attr:`~hrtfpykit.sofa.sofa.SOFA.path`.
+        Calling :meth:`~hrtfpykit.sofa.SOFA.save` without a path synchronizes the loaded SOFA content
+        back to the original file recorded in :attr:`~hrtfpykit.sofa.SOFA.path`.
 
-        Cloned :class:`~hrtfpykit.sofa.sofa.SOFA` objects and objects returned by :meth:`~hrtfpykit.sofa.sofa.SOFA.copy_with` are
+        Cloned :class:`~hrtfpykit.sofa.SOFA` objects and objects returned by :meth:`~hrtfpykit.sofa.SOFA.copy_with` are
         independent in-memory SOFA objects. If one of those objects should replace
         an existing SOFA file on disk, save it to that filename with
         ``overwrite=True``. In that case the method writes a temporary copy
@@ -1055,7 +1054,7 @@ class SOFA:
         return target_path
 
     def clone(self) -> "SOFA":
-        """Create an in-memory writable clone of the current :class:`~hrtfpykit.sofa.sofa.SOFA` object.
+        """Create an in-memory writable clone of the current :class:`~hrtfpykit.sofa.SOFA` object.
 
         The clone contains a full copy of dimensions, global attributes,
         variables, variable attributes, and variable values from the current
@@ -1078,10 +1077,10 @@ class SOFA:
         -----
         The clone is an in-memory writable copy of the current SOFA object.
         Each call creates a new independent diskless netCDF4 storage handle, so
-        cloning the same :class:`~hrtfpykit.sofa.sofa.SOFA` object multiple times is supported. Because the
+        cloning the same :class:`~hrtfpykit.sofa.SOFA` object multiple times is supported. Because the
         clone is independent from the original NetCDF handle, you can later
         save it to a new filename or replace an existing file with
-        :meth:`~hrtfpykit.sofa.sofa.SOFA.save` with overwrite enabled.
+        :meth:`~hrtfpykit.sofa.SOFA.save` with overwrite enabled.
 
         """
         if self.netCDF4_dataset is None:
@@ -1123,9 +1122,9 @@ class SOFA:
         variable_attributes: dict[str, dict[str, Any]] | None = None,
         variables: dict[str, np.ndarray] | None = None,
     ) -> "SOFA":
-        """Create a modified in-memory copy of the current :class:`~hrtfpykit.sofa.sofa.SOFA` object.
+        """Create a modified in-memory copy of the current :class:`~hrtfpykit.sofa.SOFA` object.
 
-        :meth:`~hrtfpykit.sofa.sofa.SOFA.copy_with` is a structured cloning helper for workflows that need
+        :meth:`~hrtfpykit.sofa.SOFA.copy_with` is a structured cloning helper for workflows that need
         to resize fixed dimensions or replace existing arrays while preserving
         the rest of the SOFA file. It is used by HRTF save/update logic when
         transformed IR/TF data no longer match the original SOFA dimensions.
@@ -1166,7 +1165,7 @@ class SOFA:
         If you override a dimension size, provide replacement arrays for all
         variables that depend on that dimension unless their existing values
         can still broadcast to the new target shape. Use
-        :meth:`~hrtfpykit.sofa.sofa.SOFA.create_variable`
+        :meth:`~hrtfpykit.sofa.SOFA.create_variable`
         on a writable copy when you need to add brand-new variables.
 
         """

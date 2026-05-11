@@ -35,7 +35,7 @@ class HRTFSpec:
         encodings should be added to sample inputs. The spec does not load
         files by itself; it is consumed during dataset construction and by
         dataset indexing when sample values are extracted from the loaded
-        subject :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+        subject :class:`~hrtfpykit.hrtf.HRTF` object.
 
         The spec controls three independent concerns: the acoustic representation
         selected by ``domain`` and ``signal``; the source and ear subset selected
@@ -56,7 +56,7 @@ class HRTFSpec:
             Acoustic domain to return. ``time`` returns HRIR-style sample data;
             ``frequency`` returns HRTF-style frequency data.
         signal : str, default=``ir``
-            Signal component to extract from the loaded :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+            Signal component to extract from the loaded :class:`~hrtfpykit.hrtf.HRTF` object.
         positions : {``all``} or sequence of int, default=``all``
             Source-position indices to include.
         plane : str, tuple, dict, or None, default=None
@@ -125,7 +125,7 @@ class ITDSpec:
         :class:`~hrtfpykit.datasets.ITDSpec` asks a dataset to derive binaural
         timing cues from the HRTF files selected by the dataset instead of
         returning full HRIR/HRTF arrays. The dataset loads the subject
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object, optionally restricts the
+        :class:`~hrtfpykit.hrtf.HRTF` object, optionally restricts the
         source grid with ``positions`` or ``plane``, computes ITD using the
         configured estimator, and returns either a whole ITD vector or the
         value selected by the current row context.
@@ -208,7 +208,7 @@ class ILDSpec:
 
         :class:`~hrtfpykit.datasets.ILDSpec` asks a dataset to compute binaural
         level cues from the loaded subject
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object instead of returning full
+        :class:`~hrtfpykit.hrtf.HRTF` object instead of returning full
         acoustic arrays. The spec controls the position subset, optional plane
         selection, broad-band or frequency-dependent output, row indexing, and
         numerical parameters used by the ILD calculation. It becomes active only

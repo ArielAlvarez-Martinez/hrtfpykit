@@ -10,7 +10,7 @@ class _Data(ABC):
         """Define shared behavior for SOFA collection wrappers.
 
         ``_Data`` stores the open netCDF4 storage handle used by a
-        :class:`~hrtfpykit.sofa.sofa.SOFA` instance and defines the collection
+        :class:`~hrtfpykit.sofa.SOFA` instance and defines the collection
         interface shared by dimensions, global attributes, variable
         attributes, and variables. Concrete subclasses expose SOFA storage
         objects through hrtfpykit wrapper classes so callers can inspect SOFA
@@ -150,7 +150,7 @@ class _Dimensions(_Data):
     def __init__(self, dataset : netCDF4.Dataset = None):
         """Expose SOFA dimensions from a netCDF4-backed SOFA storage handle.
 
-        ``_Dimensions`` backs :attr:`~hrtfpykit.sofa.sofa.SOFA.Dimensions`. It exposes
+        ``_Dimensions`` backs :attr:`~hrtfpykit.sofa.SOFA.Dimensions`. It exposes
         dimension names, sizes, wrapped dimension objects, and a compact text summary.
         Dimension wrappers are used to inspect SOFA axes such as ``M`` for
         measurements, ``R`` for receivers, and ``N`` for samples or frequency bins,
@@ -474,7 +474,7 @@ class _GlobalAttributes(_AttributesBase):
         """Expose file-level SOFA metadata from a netCDF4 storage handle.
 
         ``_GlobalAttributes`` backs
-        :attr:`~hrtfpykit.sofa.sofa.SOFA.GlobalAttributes`. It exposes file-level
+        :attr:`~hrtfpykit.sofa.SOFA.GlobalAttributes`. It exposes file-level
         metadata such as ``SOFAConventions``, ``SOFAConventionsVersion``,
         ``DataType``, application metadata, and date fields through the shared
         attribute-wrapper API.
@@ -557,7 +557,7 @@ class _VariableAttributes(_AttributesBase):
         """Expose attributes attached to individual SOFA variables.
 
         ``_VariableAttributes`` backs
-        :attr:`~hrtfpykit.sofa.sofa.SOFA.VariableAttributes`. It exposes attributes
+        :attr:`~hrtfpykit.sofa.SOFA.VariableAttributes`. It exposes attributes
         attached to individual variables using the hrtfpykit key format
         ``Variable:Attribute``. These attributes describe units, coordinate
         systems, and semantic labels required by SOFA-based HRTF workflows.
@@ -646,7 +646,7 @@ class _Variables(_Data):
     def __init__(self, dataset : netCDF4.Dataset = None):
         """Expose SOFA variable data and metadata from a netCDF4 storage handle.
 
-        ``_Variables`` backs :attr:`~hrtfpykit.sofa.sofa.SOFA.Variables`. It exposes
+        ``_Variables`` backs :attr:`~hrtfpykit.sofa.SOFA.Variables`. It exposes
         variable names, NumPy values, wrapped variable objects, and a summary of
         variable dimensions and attributes. This collection is the primary read path
         for SOFA arrays such as ``Data.IR``, ``Data.Real``, ``Data.Imag``,

@@ -18,15 +18,15 @@ def _get_plane_indices(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Resolve source indices for the nearest measured spatial plane.
 
-    The helper normalizes the current :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources` grid to spherical
+    The helper normalizes the current :attr:`~hrtfpykit.hrtf.HRTF.Sources` grid to spherical
     coordinates before resolving a plane. It respects any active source subset
-    already stored on the :class:`~hrtfpykit.hrtf.hrtf.HRTF` object, so returned indices are relative to the
+    already stored on the :class:`~hrtfpykit.hrtf.HRTF` object, so returned indices are relative to the
     current source view.
 
     Parameters
     ----------
-    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object whose source grid is inspected.
+    hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.HRTF` object whose source grid is inspected.
     plane : {``horizontal``, ``median``, ``frontal``}
         Plane family to resolve. ``horizontal`` selects a constant elevation.
         ``median`` and ``frontal`` select the nearest requested azimuth
@@ -133,8 +133,8 @@ def get_horizontal_plane(
 
     Parameters
     ----------
-    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object whose :class:`~hrtfpykit.hrtf.sources.Sources` grid is inspected.
+    hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.HRTF` object whose :class:`~hrtfpykit.hrtf.sources.Sources` grid is inspected.
     elevation : float, default=0.0
         Requested horizontal-plane elevation. The nearest measured elevation in
         the grid is used when an exact match is unavailable.
@@ -186,8 +186,8 @@ def get_median_plane(
 
     Parameters
     ----------
-    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object whose :class:`~hrtfpykit.hrtf.sources.Sources` grid is inspected.
+    hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.HRTF` object whose :class:`~hrtfpykit.hrtf.sources.Sources` grid is inspected.
     azimuth : float, default=0.0
         Requested azimuth used to resolve the primary side of the median plane.
         The opposite side is resolved at azimuth + 180 degrees or
@@ -238,8 +238,8 @@ def get_frontal_plane(
 
     Parameters
     ----------
-    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object whose :class:`~hrtfpykit.hrtf.sources.Sources` grid is inspected.
+    hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.HRTF` object whose :class:`~hrtfpykit.hrtf.sources.Sources` grid is inspected.
     azimuth : float, default=90.0
         Requested azimuth used to resolve the primary side of the frontal
         plane. The opposite side is resolved at azimuth + 180 degrees or

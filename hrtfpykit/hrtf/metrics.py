@@ -364,10 +364,10 @@ def itd_difference(
     Parameters
     ----------
     hrtf_a : HRTF
-        First :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide IR data,
+        First :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide IR data,
         an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_b``.
     hrtf_b : HRTF
-        Second :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide IR data,
+        Second :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide IR data,
         an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_a``.
     method : {``threshold``, ``maxiacce``}, default=``threshold``
         ITD estimator used for both HRTFs.
@@ -405,10 +405,15 @@ def itd_difference(
 
     Examples
     --------
-    >>> from hrtfpykit.hrtf import itd_difference
-    >>> itd_diff = itd_difference(hrtf_a, hrtf_b)
+    Compare two HRTFs measured on the same source grid and return one absolute
+    timing-difference value per source position:
+
+    >>> from hrtfpykit.hrtf import load_hrtf, itd_difference
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> itd_diff = itd_difference(hrtf_a, hrtf_b, output="seconds")
     >>> itd_diff.shape
-    (hrtf_a.IR.values.shape[0],)
+    (793,)
     """
     for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
         if not hasattr(hrtf, "IR") or not hasattr(hrtf, "Sources"):
@@ -489,10 +494,10 @@ def ild_difference(
     Parameters
     ----------
     hrtf_a : HRTF
-        First :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide IR data,
+        First :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide IR data,
         an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_b``.
     hrtf_b : HRTF
-        Second :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide IR data,
+        Second :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide IR data,
         an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_a``.
     mode : {``broad-band``, ``frequency-dependent``}, default=``broad-band``
         ILD mode used for both HRTFs. Broad-band mode compares RMS level ratios,
@@ -531,10 +536,20 @@ def ild_difference(
 
     Examples
     --------
-    >>> from hrtfpykit.hrtf import ild_difference
-    >>> ild_diff = ild_difference(hrtf_a, hrtf_b)
+    Compare frequency-dependent ILD values for two HRTFs measured on the same
+    source grid:
+
+    >>> from hrtfpykit.hrtf import load_hrtf, ild_difference
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> ild_diff = ild_difference(
+    ...     hrtf_a,
+    ...     hrtf_b,
+    ...     mode="frequency-dependent",
+    ...     output="db",
+    ... )
     >>> ild_diff.shape
-    (hrtf_a.IR.values.shape[0],)
+    (793, 129)
     """
     for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
         if not hasattr(hrtf, "IR") or not hasattr(hrtf, "Sources"):
@@ -616,7 +631,7 @@ def lsd(
     The comparison can be restricted to one ear, both ears, all source
     positions, a measured horizontal or median plane, explicit source-position
     queries, explicit frequency queries, or a reduced scalar. Position queries
-    are resolved against :attr:`~hrtfpykit.hrtf.hrtf.HRTF.Sources` in spherical degrees and then
+    are resolved against :attr:`~hrtfpykit.hrtf.HRTF.Sources` in spherical degrees and then
     intersected with the selected plane. Frequency queries are mapped to the
     nearest available TF bins and duplicate bin selections are removed.
 
@@ -628,10 +643,10 @@ def lsd(
     Parameters
     ----------
     hrtf_a : HRTF
-        First :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide TF values,
+        First :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide TF values,
         frequency bins, and a source grid matching hrtf_b.
     hrtf_b : HRTF
-        Second :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used in the comparison. It must provide TF values,
+        Second :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide TF values,
         frequency bins, and a source grid matching hrtf_a.
     ear : {``left``, ``right``, ``both``}, default=``both``
         Ear channel selection. ``left`` uses ear channel 0, ``right``
@@ -702,25 +717,23 @@ def lsd(
 
     Examples
     --------
-    >>> lsd(hrtf_a, hrtf_b, reduction="global")
-    >>> lsd(hrtf_a, hrtf_b, ear="left", reduction="none")
-    >>> lsd(hrtf_a, hrtf_b, ear="left", reduction="locations")
-    >>> lsd(
+    Compare the horizontal-plane spectra of two HRTFs at a few analysis
+    frequencies and reduce over source locations:
+
+    >>> from hrtfpykit.hrtf import load_hrtf, lsd
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> spectral_error = lsd(
     ...     hrtf_a,
     ...     hrtf_b,
-    ...     ear="right",
+    ...     ear="both",
     ...     plane="horizontal",
     ...     elevation=0.0,
-    ...     reduction="frequencies",
+    ...     frequencies=[500.0, 1000.0, 4000.0],
+    ...     reduction="locations",
     ... )
-    >>> lsd(
-    ...     hrtf_a,
-    ...     hrtf_b,
-    ...     ear="left",
-    ...     plane="median",
-    ...     frequencies=4000.0,
-    ...     reduction="global",
-    ... )
+    >>> spectral_error.shape
+    (3,)
     """
     for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
         if not hasattr(hrtf, "TF") or not hasattr(hrtf, "Sources"):

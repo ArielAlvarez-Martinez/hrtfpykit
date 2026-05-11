@@ -54,7 +54,7 @@ def compare_magnitude(
     show: bool = True,
     titles: bool = True,
 ) -> None:
-    """Compare HRTF magnitude responses across multiple :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects.
+    """Compare HRTF magnitude responses across multiple :class:`~hrtfpykit.hrtf.HRTF` objects.
 
     The function overlays one magnitude curve per HRTF for each requested
     source position. It is designed for comparing subjects, measurements,
@@ -73,7 +73,7 @@ def compare_magnitude(
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
         entries. Every object must contain frequency-domain data and frequency
         bins.
     positions : str | list | tuple | np.ndarray, default=(``front``,)
@@ -490,7 +490,7 @@ def compare_amplitude(
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects to compare. The list must
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must
         contain at least 2 and at most 5 entries. Every object must contain
         time-domain IR data.
     positions : str | list | tuple | np.ndarray, default=(``front``,)
@@ -804,7 +804,7 @@ def compare_absolute_itd(
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects to compare. The list must
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must
         contain at least 2 and at most 5 entries. Every object must contain IR
         data and an IR sample rate.
     elevation_angle : float, default=0.0
@@ -1043,7 +1043,7 @@ def compare_absolute_ild(
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects to compare. The list must
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must
         contain at least 2 and at most 5 entries. Every object must contain IR
         data and an IR sample rate.
     elevation_angle : float, default=0.0
@@ -1283,7 +1283,7 @@ def compare_itd_curve(
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
         entries. Every object must contain IR data and an IR sample rate.
     elevation_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available
@@ -1518,7 +1518,7 @@ def compare_ild_curve(
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
         entries. Every object must contain IR data and an IR sample rate.
     elevation_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available

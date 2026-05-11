@@ -282,7 +282,7 @@ def get_spherical_positions(
     Parameters
     ----------
     sources : Sources
-        Source-grid manager attached to an :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        Source-grid manager attached to an :class:`~hrtfpykit.hrtf.HRTF`
         object. The object must provide
         :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` and
         :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`.
@@ -355,7 +355,7 @@ def get_source_positions(
     Parameters
     ----------
     sources : Sources
-        Source-grid manager attached to an :class:`~hrtfpykit.hrtf.hrtf.HRTF`
+        Source-grid manager attached to an :class:`~hrtfpykit.hrtf.HRTF`
         object. The object must provide
         :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` and
         :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`.

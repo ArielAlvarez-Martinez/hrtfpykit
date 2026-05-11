@@ -44,6 +44,19 @@ class SH:
         Non-negative spherical-harmonic order used to create C and Y.
     N : int
         Number of source positions used during decomposition.
+
+    Examples
+    --------
+    Decompose both-ear HRTF magnitudes and inspect the coefficient and basis
+    dimensions stored in the returned container:
+
+    >>> from hrtfpykit.hrtf import load_hrtf, sht
+    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> sh = sht(hrtf, sh_order=3, ear="both")
+    >>> sh.C.shape
+    (16, 2, 129)
+    >>> sh.Y.shape
+    (793, 16)
     """
 
     C: np.ndarray
@@ -63,6 +76,18 @@ class SH:
         -------
         np.ndarray
             The coefficient matrix stored in C.
+
+        Examples
+        --------
+        Retrieve the coefficient matrix after decomposing an HRTF into
+        spherical harmonics:
+
+        >>> from hrtfpykit.hrtf import load_hrtf, sht
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sh = sht(hrtf, sh_order=3, ear="both")
+        >>> coefficients = sh.get_coefficients()
+        >>> coefficients.shape
+        (16, 2, 129)
         """
         return self.C
 
@@ -77,7 +102,7 @@ def sht(
 
     The function projects linear HRTF magnitudes from the source grid into a
     real-valued spherical-harmonic basis. It accepts either an
-    :class:`~hrtfpykit.hrtf.hrtf.HRTF` object or its linked
+    :class:`~hrtfpykit.hrtf.HRTF` object or its linked
     :class:`~hrtfpykit.hrtf.domain.TF` domain object. In both cases, the linked
     HRTF source grid is used to evaluate the basis. The complex transfer functions
     stored in :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` are decomposed
@@ -93,7 +118,7 @@ def sht(
     ----------
     tf : TF | HRTF
         Input frequency-domain domain object or
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object.
+        :class:`~hrtfpykit.hrtf.HRTF` object.
         The values stored in
         :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` must have shape
         (positions, ears, frequency_bins) and contain at least two ear channels.
@@ -130,10 +155,14 @@ def sht(
 
     Examples
     --------
-    >>> sh = sht(hrtf, sh_order=10, ear="left")
-    >>> C = sh.get_coefficients()
-    >>> C.shape[0]
-    121
+    Compute a low-order spherical-harmonic representation from a SOFA-backed
+    HRTF and keep both ears in the coefficient tensor:
+
+    >>> from hrtfpykit.hrtf import load_hrtf, sht
+    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> sh = sht(hrtf, sh_order=3, ear="both")
+    >>> sh.get_coefficients().shape
+    (16, 2, 129)
     """
     if hasattr(tf, "TF") and hasattr(tf, "Sources"):
         hrtf = tf
@@ -262,10 +291,14 @@ def sht_inverse(sh: SH):
 
     Examples
     --------
-    >>> sh = sht(hrtf, sh_order=8, ear="both")
+    Reconstruct magnitudes on the same source grid used for decomposition:
+
+    >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
+    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> sh = sht(hrtf, sh_order=3, ear="both")
     >>> magnitude_reconstructed = sht_inverse(sh)
-    >>> magnitude_reconstructed.shape[0] == sh.N
-    True
+    >>> magnitude_reconstructed.shape
+    (793, 2, 129)
     """
     C = np.asarray(sh.C)
     Y = np.asarray(sh.Y)
@@ -330,13 +363,20 @@ def sht_error(
 
     Examples
     --------
+    Measure reconstruction error after decomposing and reconstructing the left
+    ear HRTF magnitudes:
+
+    >>> import numpy as np
+    >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_error, sht_inverse
+    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> sh = sht(hrtf, sh_order=3, ear="left")
     >>> reconstructed = sht_inverse(sh)
     >>> abs_err, rel_err, rms_err, max_err = sht_error(
     ...     original_magnitude=np.abs(hrtf.TF.values[:, 0, :]),
     ...     reconstructed_magnitude=reconstructed,
     ... )
-    >>> rms_err >= 0.0
-    True
+    >>> tuple(round(value, 6) for value in (abs_err, rel_err, rms_err, max_err))
+    (22.470729, 0.211882, 0.070256, 0.686853)
     """
     original_values = np.asarray(original_magnitude, dtype=float)
     reconstructed_values = np.asarray(reconstructed_magnitude, dtype=float)

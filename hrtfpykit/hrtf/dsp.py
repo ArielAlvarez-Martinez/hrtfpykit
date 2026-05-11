@@ -1600,10 +1600,10 @@ def tf_from_ir(
     FFT length.
 
     When ir is an :class:`~hrtfpykit.hrtf.domain.IR` object, the function also acts as the main
-    synchronization bridge between :class:`~hrtfpykit.hrtf.domain.IR` and :class:`~hrtfpykit.hrtf.domain.TF` inside an :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-    instance. In that mode it updates the linked :attr:`~hrtfpykit.hrtf.hrtf.HRTF.TF` object in place,
+    synchronization bridge between :class:`~hrtfpykit.hrtf.domain.IR` and :class:`~hrtfpykit.hrtf.domain.TF` inside an :class:`~hrtfpykit.hrtf.HRTF`
+    instance. In that mode it updates the linked :attr:`~hrtfpykit.hrtf.HRTF.TF` object in place,
     rebuilds :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` from the resolved sample rate and FFT
-    length, and stores the resolved fft_length on the parent :class:`~hrtfpykit.hrtf.hrtf.HRTF`.
+    length, and stores the resolved fft_length on the parent :class:`~hrtfpykit.hrtf.HRTF`.
     That is the expected recalculation step after editing :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`,
     changing :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>`, or applying time-domain transforms that must
     stay consistent with the frequency-domain representation.
@@ -1627,7 +1627,7 @@ def tf_from_ir(
     tuple[np.ndarray, np.ndarray, int] | TF
         For NumPy input, returns (tf_values, frequency_bins, fft_length_used).
         For :class:`~hrtfpykit.hrtf.domain.IR` input, returns the updated :class:`~hrtfpykit.hrtf.domain.TF` object linked to the same
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` instance.
+        :class:`~hrtfpykit.hrtf.HRTF` instance.
 
     Raises
     ------
@@ -1710,10 +1710,10 @@ def ir_from_tf(
     resolved sample rate and FFT length.
 
     When tf is a :class:`~hrtfpykit.hrtf.domain.TF` object, the function also acts as the main
-    synchronization bridge from :class:`~hrtfpykit.hrtf.domain.TF` back to :class:`~hrtfpykit.hrtf.domain.IR` inside an :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-    instance. In that mode it updates the linked :attr:`~hrtfpykit.hrtf.hrtf.HRTF.IR` object in place,
+    synchronization bridge from :class:`~hrtfpykit.hrtf.domain.TF` back to :class:`~hrtfpykit.hrtf.domain.IR` inside an :class:`~hrtfpykit.hrtf.HRTF`
+    instance. In that mode it updates the linked :attr:`~hrtfpykit.hrtf.HRTF.IR` object in place,
     restores :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` from the frequency-bin spacing, and stores the
-    resolved fft_length on the parent :class:`~hrtfpykit.hrtf.hrtf.HRTF`. That is the expected
+    resolved fft_length on the parent :class:`~hrtfpykit.hrtf.HRTF`. That is the expected
     recalculation step after editing :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`, changing
     :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`, or applying magnitude or phase operations that must
     remain consistent with the time-domain representation.
@@ -1743,7 +1743,7 @@ def ir_from_tf(
     tuple[np.ndarray, float, int] | IR
         For NumPy input, returns (ir_values, sample_rate, fft_length_used).
         For :class:`~hrtfpykit.hrtf.domain.TF` input, returns the updated :class:`~hrtfpykit.hrtf.domain.IR` object linked to the same
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` instance.
+        :class:`~hrtfpykit.hrtf.HRTF` instance.
 
     Raises
     ------

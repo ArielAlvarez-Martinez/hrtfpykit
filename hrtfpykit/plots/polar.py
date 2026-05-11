@@ -35,8 +35,8 @@ def create_horizontal_plane_curve(
 
     Parameters
     ----------
-    hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-        :class:`~hrtfpykit.hrtf.hrtf.HRTF` object whose
+    hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+        :class:`~hrtfpykit.hrtf.HRTF` object whose
         :class:`~hrtfpykit.hrtf.sources.Sources` manager provides the current
         source grid. Spatial selections already applied to the HRTF are
         reflected by the source positions used here.

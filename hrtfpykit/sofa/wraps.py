@@ -18,7 +18,7 @@ class DimensionsWrap:
         -----
         This wrapper is intended for inspection. It does not mutate the underlying
         SOFA file; dimension edits are handled by methods on
-        :class:`~hrtfpykit.sofa.sofa.SOFA`.
+        :class:`~hrtfpykit.sofa.SOFA`.
 
         Parameters
         ----------
@@ -75,7 +75,7 @@ class AttributesWrap:
         -----
         The wrapper is a small read object. To create, modify, or delete SOFA
         attributes, use the corresponding methods on
-        :class:`~hrtfpykit.sofa.sofa.SOFA`.
+        :class:`~hrtfpykit.sofa.SOFA`.
 
         Parameters
         ----------
@@ -175,7 +175,7 @@ class VariablesWrap:
         ``Variable:Attribute``. For example, the ``Type`` attribute on
         ``SourcePosition`` is returned under ``SourcePosition:Type``. This
         matches the lookup convention used by
-        :attr:`~hrtfpykit.sofa.sofa.SOFA.VariableAttributes` and by HRTF
+        :attr:`~hrtfpykit.sofa.SOFA.VariableAttributes` and by HRTF
         source-coordinate code.
 
         Returns

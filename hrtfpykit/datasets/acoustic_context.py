@@ -116,8 +116,8 @@ class DatasetAcousticContext:
             only when plane is None.
         plane : str, tuple, dict, or None
             Optional plane selector used instead of explicit position indices.
-        hrtf : :class:`~hrtfpykit.hrtf.hrtf.HRTF`
-            :class:`~hrtfpykit.hrtf.hrtf.HRTF` object used to inspect available
+        hrtf : :class:`~hrtfpykit.hrtf.HRTF`
+            :class:`~hrtfpykit.hrtf.HRTF` object used to inspect available
             source positions and resolve plane membership.
 
         Returns

@@ -65,7 +65,7 @@ def load_hrtf(
     Returns
     -------
     HRTF
-        Loaded :class:`~hrtfpykit.hrtf.hrtf.HRTF` object after applying any
+        Loaded :class:`~hrtfpykit.hrtf.HRTF` object after applying any
         dataset-level HRTF transform.
 
     Raises
@@ -73,7 +73,7 @@ def load_hrtf(
     ValueError
         If the dataset configuration is not initialized, subject mapping fails,
         the HRTF file cannot be loaded, or the dataset-level transform does not
-        return an object compatible with :class:`~hrtfpykit.hrtf.hrtf.HRTF`.
+        return an object compatible with :class:`~hrtfpykit.hrtf.HRTF`.
     KeyError
         If the mapped subject does not have an available HRTF path.
     FileNotFoundError
@@ -128,7 +128,7 @@ def load_hrtf(
                     and hasattr(loaded_hrtf, "Sources")
                     and hasattr(loaded_hrtf, "transform")
                 ):
-                    raise ValueError("dataset_hrtf_transform must return an :class:`~hrtfpykit.hrtf.hrtf.HRTF` object")
+                    raise ValueError("dataset_hrtf_transform must return an :class:`~hrtfpykit.hrtf.HRTF` object")
         except Exception as exc:
             raise ValueError(
                 f"{state.name}: subject {mapped_subject_id} HRTF file could not be loaded: {path} ({exc})"
