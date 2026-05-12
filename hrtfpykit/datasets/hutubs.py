@@ -100,6 +100,36 @@ class HUTUBS(BaseDataset):
             Dataset object supporting indexed sample extraction and subject HRTF
             loading.
 
+        Examples
+        --------
+        Build a validation split from simulated HUTUBS HRTFs and align each
+        ear-indexed HRIR sample with the matching left/right anthropometry fields:
+
+        >>> from hrtfpykit.datasets import AnthropometrySpec, HRTFSpec, HUTUBS
+        >>> dataset = HUTUBS(
+        ...     root="datasets/hutubs",
+        ...     dataset_hrtf_variant={"type": "simulated"},
+        ...     inputs=[
+        ...         HRTFSpec(
+        ...             domain="time",
+        ...             signal="ir",
+        ...             index_by=("subject", "ear"),
+        ...             ears="both",
+        ...             ear_index=True,
+        ...             name="hrir",
+        ...         ),
+        ...         AnthropometrySpec(
+        ...             grouped_by=("subject", "ear"),
+        ...             ear_index=True,
+        ...             name="ear_anthropometry",
+        ...         ),
+        ...     ],
+        ...     split="validation",
+        ...     split_ratio=(0.7, 0.15, 0.15),
+        ...     split_seed=24,
+        ... )
+        >>> sample = dataset[0]
+
         """
         if isinstance(dataset_hrtf_variant, Mapping):
             unknown_keys = set(dataset_hrtf_variant) - {"type"}

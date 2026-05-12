@@ -141,15 +141,24 @@ def compare_magnitude(
 
     Examples
     --------
+    Compare left-ear magnitude responses from two SOFA files at two source
+    directions, using a logarithmic frequency axis and a shared dB reference:
+
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_magnitude
-    >>> compare_magnitude([h1, h2], positions=["front", "left"], ear="left", show=False)
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_magnitude(
-    ...     [h1, h2, h3],
-    ...     positions="front",
-    ...     ear="both",
-    ...     legends=["baseline", "pipe_a", "pipe_b"],
-    ...     line_styles=["-", "--", ":"],
-    ...     show=False,
+    ...     [hrtf_a, hrtf_b],
+    ...     positions=["front", "left"],
+    ...     ear="left",
+    ...     x_axis="log",
+    ...     unit="db",
+    ...     reference="max",
+    ...     legends=["P0001", "P0002"],
+    ...     line_styles=["-", "--"],
+    ...     freq_min=200.0,
+    ...     freq_max=16000.0,
     ... )
     """
     if not isinstance(hrtfs, list):
@@ -545,15 +554,20 @@ def compare_amplitude(
 
     Examples
     --------
+    Compare both ears of the front-direction impulse responses for two HRTFs,
+    using sample indices on the x-axis:
+
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_amplitude
-    >>> compare_amplitude([h1, h2], positions=["front", "right"], ear="left", show=False)
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_amplitude(
-    ...     [h1, h2],
+    ...     [hrtf_a, hrtf_b],
     ...     positions="front",
     ...     ear="both",
     ...     x_axis="samples",
-    ...     legends=["reference", "candidate"],
-    ...     show=False,
+    ...     legends=["P0001", "P0002"],
+    ...     line_styles=["-", "--"],
     ... )
     """
     if not isinstance(hrtfs, list):
@@ -850,14 +864,17 @@ def compare_absolute_itd(
 
     Examples
     --------
+    Compare absolute ITD on the horizontal plane for two HRTFs:
+
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_absolute_itd
-    >>> compare_absolute_itd([h1, h2], show=False)
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_absolute_itd(
-    ...     [h1, h2, h3],
-    ...     elevation_angle=10.0,
-    ...     legends=["baseline", "pipe_a", "pipe_b"],
-    ...     line_styles=["-", "--", ":"],
-    ...     show=False,
+    ...     [hrtf_a, hrtf_b],
+    ...     elevation_angle=0.0,
+    ...     legends=["P0001", "P0002"],
+    ...     line_styles=["-", "--"],
     ... )
     """
     if not isinstance(hrtfs, list):
@@ -1089,14 +1106,17 @@ def compare_absolute_ild(
 
     Examples
     --------
+    Compare absolute ILD on the horizontal plane for two HRTFs:
+
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_absolute_ild
-    >>> compare_absolute_ild([h1, h2], show=False)
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_absolute_ild(
-    ...     [h1, h2, h3],
-    ...     elevation_angle=10.0,
-    ...     legends=["baseline", "pipe_a", "pipe_b"],
-    ...     line_styles=["-", "--", ":"],
-    ...     show=False,
+    ...     [hrtf_a, hrtf_b],
+    ...     elevation_angle=0.0,
+    ...     legends=["P0001", "P0002"],
+    ...     line_styles=["-", "--"],
     ... )
     """
     if not isinstance(hrtfs, list):
@@ -1329,14 +1349,17 @@ def compare_itd_curve(
 
     Examples
     --------
+    Compare the signed ITD curve around the horizontal plane:
+
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_itd_curve
-    >>> compare_itd_curve([h1, h2], show=False)
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_itd_curve(
-    ...     [h1, h2, h3],
-    ...     elevation_angle=10.0,
-    ...     legends=["baseline", "pipe_a", "pipe_b"],
-    ...     line_styles=["-", "--", ":"],
-    ...     show=False,
+    ...     [hrtf_a, hrtf_b],
+    ...     elevation_angle=0.0,
+    ...     legends=["P0001", "P0002"],
+    ...     line_styles=["-", "--"],
     ... )
     """
     if not isinstance(hrtfs, list):
@@ -1564,14 +1587,17 @@ def compare_ild_curve(
 
     Examples
     --------
+    Compare the signed ILD curve around the horizontal plane:
+
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_ild_curve
-    >>> compare_ild_curve([h1, h2], show=False)
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_ild_curve(
-    ...     [h1, h2, h3],
-    ...     elevation_angle=10.0,
-    ...     legends=["baseline", "pipe_a", "pipe_b"],
-    ...     line_styles=["-", "--", ":"],
-    ...     show=False,
+    ...     [hrtf_a, hrtf_b],
+    ...     elevation_angle=0.0,
+    ...     legends=["P0001", "P0002"],
+    ...     line_styles=["-", "--"],
     ... )
     """
     if not isinstance(hrtfs, list):
@@ -1802,15 +1828,20 @@ def compare_itd_difference(
 
     Examples
     --------
+    Plot the signed ITD difference between two HRTFs that share the same source
+    grid:
+
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_itd_difference
-    >>> compare_itd_difference(h1, h2, show=False)
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_itd_difference(
-    ...     h1,
-    ...     h2,
-    ...     output="samples",
+    ...     hrtf_a,
+    ...     hrtf_b,
+    ...     method="threshold",
+    ...     output="seconds",
     ...     azimuth_range_mode="-180-180",
     ...     colormap="viridis",
-    ...     show=False,
     ... )
     """
     for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
@@ -2009,15 +2040,19 @@ def compare_ild_difference(
 
     Examples
     --------
+    Plot broad-band ILD differences between two HRTFs across the shared source
+    grid:
+
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_ild_difference
-    >>> compare_ild_difference(h1, h2, show=False)
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_ild_difference(
-    ...     h1,
-    ...     h2,
-    ...     mode="frequency-dependent",
+    ...     hrtf_a,
+    ...     hrtf_b,
+    ...     mode="broad-band",
     ...     output="db",
     ...     colormap="plasma",
-    ...     show=False,
     ... )
     """
     difference_values = np.asarray(
@@ -2173,15 +2208,18 @@ def compare_lsd(
 
     Examples
     --------
+    Plot a full-grid log-spectral-distance summary for the right ear:
+
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_lsd
-    >>> compare_lsd(h1, h2, show=False)
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_lsd(
-    ...     h1,
-    ...     h2,
+    ...     hrtf_a,
+    ...     hrtf_b,
     ...     ear="right",
     ...     azimuth_range_mode="-180-180",
     ...     colormap="viridis",
-    ...     show=False,
     ... )
     """
     difference_values = np.asarray(
@@ -2349,23 +2387,22 @@ def compare_lsd_plane(
 
     Examples
     --------
-    Horizontal-plane LSD heatmap at the nearest 0° elevation:
+    Plot a horizontal-plane LSD heatmap from 100 Hz to 16 kHz:
 
+    >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_lsd_plane
-    >>> compare_lsd_plane(h1, h2, plane="horizontal", elevation=0.0, show=False)
-
-    Median-plane LSD heatmap for the right ear:
-
+    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_lsd_plane(
-    ...     h1,
-    ...     h2,
-    ...     plane="median",
+    ...     hrtf_a,
+    ...     hrtf_b,
+    ...     plane="horizontal",
     ...     ear="right",
+    ...     elevation=0.0,
     ...     x_axis="log",
     ...     freq_min=100.0,
     ...     freq_max=16000.0,
     ...     colormap="viridis",
-    ...     show=False,
     ... )
     """
     plane_key = str(plane).strip().lower()

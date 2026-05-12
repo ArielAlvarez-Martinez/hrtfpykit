@@ -54,8 +54,7 @@ def plot_sht_reconstruction_comparison(
     spectra before conversion to decibels.
 
     The function creates a new :class:`~hrtfpykit.plots.figure.Figure` with a
-    single axis and returns None. Use ``show`` as False when composing plots in
-    tests, scripts, notebooks, or custom Matplotlib workflows.
+    single axis and returns None.
 
     Parameters
     ----------
@@ -120,8 +119,12 @@ def plot_sht_reconstruction_comparison(
     >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
     >>> from hrtfpykit.plots import plot_sht_reconstruction_comparison
     >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> sh = sht(hrtf, sh_order=8, ear="both")
-    >>> reconstructed = sht_inverse(sh)
+    >>> sh_representation = sht(hrtf, sh_order=8, ear="both")
+    >>> sh_representation.C.shape
+    (81, 2, 129)
+    >>> reconstructed = sht_inverse(sh_representation)
+    >>> reconstructed.shape
+    (793, 2, 129)
     >>> plot_sht_reconstruction_comparison(
     ...     hrtf=hrtf,
     ...     reconstructed_magnitude=reconstructed,
@@ -129,6 +132,9 @@ def plot_sht_reconstruction_comparison(
     ...     ear="left",
     ...     x_axis="log",
     ...     unit="db",
+    ...     reference="max",
+    ...     freq_min=200.0,
+    ...     freq_max=16000.0,
     ... )
     """
     if hrtf.TF.values is None:
@@ -330,9 +336,7 @@ def plot_sht_reconstruction_error(
     displayed in kHz.
 
     The function creates a new :class:`~hrtfpykit.plots.figure.Figure` with a
-    single axis and returns None. Use ``show`` as False when validating plots in
-    automated tests or when adding additional Matplotlib customizations before
-    display.
+    single axis and returns None.
 
     Parameters
     ----------
@@ -400,8 +404,12 @@ def plot_sht_reconstruction_error(
     >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
     >>> from hrtfpykit.plots import plot_sht_reconstruction_error
     >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> sh = sht(hrtf, sh_order=8, ear="both")
-    >>> reconstructed = sht_inverse(sh)
+    >>> sh_representation = sht(hrtf, sh_order=8, ear="both")
+    >>> sh_representation.C.shape
+    (81, 2, 129)
+    >>> reconstructed = sht_inverse(sh_representation)
+    >>> reconstructed.shape
+    (793, 2, 129)
     >>> plot_sht_reconstruction_error(
     ...     hrtf=hrtf,
     ...     reconstructed_magnitude=reconstructed,
@@ -409,7 +417,9 @@ def plot_sht_reconstruction_error(
     ...     ear="right",
     ...     x_axis="log",
     ...     magnitude="db",
-    ...     reference=1.0,
+    ...     reference="max",
+    ...     freq_min=200.0,
+    ...     freq_max=16000.0,
     ... )
     """
     if hrtf.TF.values is None:

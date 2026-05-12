@@ -106,6 +106,42 @@ class SONICOM(BaseDataset):
             Dataset object supporting indexed sample extraction and subject HRTF
             loading.
 
+        Examples
+        --------
+        Build a training split from measured 44.1 kHz FreeFieldComp HRTFs,
+        scanned watertight meshes, and the SONICOM metadata table:
+
+        >>> from hrtfpykit.datasets import HRTFSpec, MeshSpec, MetadataSpec, SONICOM
+        >>> dataset = SONICOM(
+        ...     root="datasets/sonicom",
+        ...     dataset_hrtf_variant={
+        ...         "type": "measured",
+        ...         "sample_rate": 44100,
+        ...         "version": "FreeFieldComp",
+        ...     },
+        ...     dataset_mesh_variant={
+        ...         "type": "scanned",
+        ...         "version": "watertight",
+        ...     },
+        ...     inputs=[
+        ...         HRTFSpec(
+        ...             domain="frequency",
+        ...             signal="tf_magnitude_db",
+        ...             index_by=("subject", "position", "ear"),
+        ...             ears="both",
+        ...             position_index=True,
+        ...             ear_index=True,
+        ...             name="magnitude_db",
+        ...         ),
+        ...         MeshSpec(name="head_mesh"),
+        ...         MetadataSpec(name="subject_metadata"),
+        ...     ],
+        ...     split="train",
+        ...     split_ratio=(0.8, 0.1, 0.1),
+        ...     split_seed=42,
+        ... )
+        >>> sample = dataset[0]
+
         """
         if download:
             downloaded, download_report = BaseDownload(

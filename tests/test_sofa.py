@@ -1,5 +1,6 @@
 import os
 import warnings
+from collections.abc import Generator
 
 import numpy as np
 import pytest
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def real_sofa() -> SOFA:
+def real_sofa() -> Generator[SOFA, None, None]:
     sofa = load_sofa(SOFA_PATH, check_sofa_against_conventions=True)
     try:
         yield sofa
