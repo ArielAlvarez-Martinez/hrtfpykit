@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 import numpy as np
-from .coordinates import (
+from ..coordinates import (
     cartesian_to_lateral_polar,
     cartesian_to_spherical,
     get_closest_position_index,
@@ -73,49 +73,6 @@ class Sources:
         _selected_indices : numpy.ndarray or None
             Source-position indices retained by the current HRTF view after spatial
             selection.
-
-        Examples
-        --------
-        Load a SOFA file and access source-grid positions, coordinate-system
-        metadata, available angles, nearest-position matches, and selected
-        source views through ``hrtf.Sources``:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.Sources.source_coordinate_system
-        'spherical'
-        >>> hrtf.Sources.get_positions().shape
-        (793, 3)
-        >>> hrtf.Sources.get_positions()[:3]
-        array([[  0. , -45. ,   1.5],
-               [  0. , -30. ,   1.5],
-               [  0. , -20. ,   1.5]])
-        >>> hrtf.Sources.get_positions(angle_unit="radians")[0]
-        array([ 0.        , -0.78539816,  1.5       ])
-        >>> hrtf.Sources.get_azimuth_angles()[:5]
-        array([ 0.,  5., 10., 15., 20.])
-        >>> hrtf.Sources.get_elevation_angles()
-        array([-45., -30., -20., -10.,   0.,  10.,  20.,  30.,  45.,  60.,  75.,
-                90.])
-        >>> elevations_at_front, real_azimuth = (
-        ...     hrtf.Sources.get_elevation_angles_for_azimuth(0.0)
-        ... )
-        >>> elevations_at_front[:5]
-        array([-45., -30., -20., -10.,   0.])
-        >>> real_azimuth
-        0.0
-        >>> azimuths_on_horizontal, real_elevation = (
-        ...     hrtf.Sources.get_azimuth_angles_for_elevation(0.0)
-        ... )
-        >>> azimuths_on_horizontal[:5]
-        array([ 0.,  5., 10., 15., 20.])
-        >>> real_elevation
-        0.0
-        >>> hrtf.Sources.get_position_index("front")
-        (4, array([0. , 0. , 1.5]))
-        >>> selected = hrtf.select(positions=["front", "left", "right"])
-        >>> selected.Sources.get_positions().shape
-        (3, 3)
         """
         self._hrtf = hrtf
         self.source_coordinate_system = self._hrtf.Sofa.VariableAttributes.get("SourcePosition:Type").value

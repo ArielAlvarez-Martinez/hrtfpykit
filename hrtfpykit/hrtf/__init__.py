@@ -1,6 +1,7 @@
 from .hrtf import HRTF, load_hrtf
-from .metrics import ild_difference, itd_difference, lsd
-from .sh import SH, sht, sht_error, sht_inverse
+from ..metrics import ild_difference, itd_difference, lsd
+from ..sh import SH, sht, sht_error, sht_inverse
+
 
 
 __all__ = [

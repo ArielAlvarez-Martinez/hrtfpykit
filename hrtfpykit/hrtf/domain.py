@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .dsp import (
+from ..dsp import (
     imag,
     magnitude,
     magnitude_db,
@@ -12,7 +12,7 @@ from .dsp import (
     real,
     signal_duration,
 )
-from .metrics import itd
+from ..metrics import itd
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -54,30 +54,6 @@ class IR:
             axes before the final sample axis as preserved metadata axes.
         sample_rate : float or None
             Sampling rate in hertz for the impulse-response data.
-
-        Examples
-        --------
-        Load a SOFA file and access the HRIR samples, sample-rate metadata,
-        signal length, duration, and ITD values through ``hrtf.IR``:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> ir_values = hrtf.IR.values
-        >>> sample_rate = hrtf.IR.sample_rate
-        >>> first_position_left_ir = hrtf.IR.values[0, 0, :]
-        >>> itd_samples = hrtf.IR.get_itd(output="samples")
-        >>> ir_values.shape
-        (793, 2, 256)
-        >>> sample_rate
-        44100.0
-        >>> first_position_left_ir.shape
-        (256,)
-        >>> hrtf.IR.ir_length
-        256
-        >>> hrtf.IR.ir_duration
-        0.005804988662131519
-        >>> itd_samples.shape
-        (793,)
         """
         self._hrtf = hrtf
         self.values: np.ndarray | None = None
@@ -224,38 +200,6 @@ class TF:
         frequency_bins : numpy.ndarray or None
             One-dimensional frequency-bin values in hertz corresponding to the final
             axis of :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
-
-        Examples
-        --------
-        Load a SOFA file and access the frequency-domain HRTF values, frequency
-        axis, bin metadata, and derived spectral arrays through ``hrtf.TF``:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.TF.values.shape
-        (793, 2, 129)
-        >>> hrtf.TF.values.dtype
-        dtype('complex128')
-        >>> hrtf.TF.frequency_bins[:5]
-        array([  0.      , 172.265625, 344.53125 , 516.796875, 689.0625  ])
-        >>> hrtf.TF.tf_length
-        129
-        >>> hrtf.TF.frequency_bins_step
-        172.265625
-        >>> hrtf.TF.min_frequency_bin
-        0.0
-        >>> hrtf.TF.max_frequency_bin
-        22050.0
-        >>> hrtf.TF.magnitude.shape
-        (793, 2, 129)
-        >>> hrtf.TF.get_magnitude_db().shape
-        (793, 2, 129)
-        >>> hrtf.TF.phase.shape
-        (793, 2, 129)
-        >>> hrtf.TF.real.shape
-        (793, 2, 129)
-        >>> hrtf.TF.imag.shape
-        (793, 2, 129)
         """
         self._hrtf = hrtf
         self.values: np.ndarray | None = None

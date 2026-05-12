@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from ..sofa.sofa import SOFA
-from .dsp import ir_from_tf, tf_from_ir
+from ..dsp import ir_from_tf, tf_from_ir
 
 
 @dataclass(frozen=True)

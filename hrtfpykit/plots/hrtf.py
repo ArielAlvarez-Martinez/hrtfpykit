@@ -32,15 +32,15 @@ from .layouts import Layout_1, Layout_2Horizontal, Layout_2Vertical, Layout_3
 from .legends import Ear
 from .polar import create_horizontal_plane_curve
 from .titles import Titles
-from ..hrtf.coordinates import (
+from ..coordinates import (
     get_named_positions,
     get_position_queries,
     get_source_positions,
     spherical_to_lateral_polar,
 )
-from ..hrtf.dsp import magnitude_to_db, tf_from_ir
-from ..hrtf.metrics import ild, itd
-from ..hrtf.planes import (
+from ..dsp import magnitude_to_db, tf_from_ir
+from ..metrics import ild, itd
+from ..planes import (
     get_frontal_plane,
     get_horizontal_plane,
     get_median_plane,
@@ -75,6 +75,15 @@ class HRTFPlots:
     required domain representation before drawing, creates a Matplotlib figure
     through the hrtfpykit plotting wrappers, optionally calls
     matplotlib.pyplot.show(), and returns None.
+
+    Examples
+    --------
+    Load an HRTF and call the plotting methods from the main
+    :class:`~hrtfpykit.hrtf.HRTF` object:
+
+    >>> from hrtfpykit.hrtf import load_hrtf
+    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf.plot_magnitude(positions=["front", "left"], x_axis="log")
     """
 
     def plot_magnitude(
@@ -151,6 +160,22 @@ class HRTFPlots:
         and three or four positions use :class:`~hrtfpykit.plots.layouts.Layout_3`. With ear=``both``, left
         and right channels are drawn together on each subplot and labelled with
         the shared ear legend.
+
+        Examples
+        --------
+        Plot normalized magnitude responses for front and lateral directions
+        on a logarithmic frequency axis:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_magnitude(
+        ...     positions=["front", "left", "right"],
+        ...     x_axis="log",
+        ...     ear="both",
+        ...     reference="max",
+        ...     freq_min=200.0,
+        ...     freq_max=16000.0,
+        ... )
         """
         if unit not in {"db", "linear"}:
             raise AttributeError(
@@ -355,6 +380,18 @@ class HRTFPlots:
         and three or four positions use :class:`~hrtfpykit.plots.layouts.Layout_3`. With ear=``both``, left
         and right HRIR channels are drawn on the same subplot and labelled with
         the shared ear legend.
+
+        Examples
+        --------
+        Plot time-domain HRIR waveforms for front and side directions:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_amplitude(
+        ...     positions=["front", "left", "right"],
+        ...     ear="both",
+        ...     x_axis="time",
+        ... )
         """
         if ear not in {"left", "right", "both"}:
             raise AttributeError(
@@ -533,6 +570,22 @@ class HRTFPlots:
         The plot uses a vertical two-panel layout with independent x axes. This
         makes it useful for checking whether a transformation applied to the
         HRIR is reflected in the corresponding magnitude response.
+
+        Examples
+        --------
+        Plot the impulse response and magnitude response for one source
+        direction in the same figure:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_amplitude_and_magnitude(
+        ...     position="front",
+        ...     ear="both",
+        ...     amplitude_x_axis="time",
+        ...     magnitude_x_axis="log",
+        ...     magnitude="db",
+        ...     reference="max",
+        ... )
         """
         if ear not in {"left", "right", "both"}:
             raise AttributeError(
@@ -821,6 +874,21 @@ class HRTFPlots:
         convention. When unit=``db`` and reference=``max``, normalization
         is computed over the plotted plane and selected ear channels before
         conversion to decibels.
+
+        Examples
+        --------
+        Plot a horizontal-plane spectrum heatmap around ear height:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_spectrum_plane(
+        ...     plane="horizontal",
+        ...     elevation_angle=0.0,
+        ...     x_axis="log",
+        ...     ear="both",
+        ...     freq_min=200.0,
+        ...     freq_max=16000.0,
+        ... )
         """
         if plane not in ("horizontal", "median"):
             raise AttributeError(
@@ -1107,6 +1175,21 @@ class HRTFPlots:
         the nearest available azimuth is selected using circular angular
         distance. When unit=``db`` and reference=``max``, normalization is
         computed over the plotted slice and selected ear channels.
+
+        Examples
+        --------
+        Plot a front-facing elevation spectrum to inspect how magnitude changes
+        from below to above the listener:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_elevation_spectrum(
+        ...     azimuth="front",
+        ...     x_axis="log",
+        ...     ear="both",
+        ...     freq_min=200.0,
+        ...     freq_max=16000.0,
+        ... )
         """
         if unit not in {"db", "linear"}:
             raise AttributeError(
@@ -1324,6 +1407,14 @@ class HRTFPlots:
         Azimuth is displayed in the signed -180 .. 180 convention, where
         positive azimuth values correspond to the left side and negative values
         correspond to the right side.
+
+        Examples
+        --------
+        Plot signed ITD around the horizontal plane:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_itd_curve(elevation_angle=0.0)
         """
         resolved_margins = Margins()
         azimuth_range_mode = "-180-180"
@@ -1453,6 +1544,14 @@ class HRTFPlots:
         The polar azimuth axis uses 30-degree ticks with a north-up orientation.
         The radial label defaults to Labels.itd_seconds and radial ticks use
         the decimal-comma style configured by the polar-axis helper.
+
+        Examples
+        --------
+        Plot the absolute ITD cue around the horizontal plane in polar form:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_absolute_itd(elevation_angle=0.0)
         """
         resolved_margins = Margins()
         polar_tick_step = 30.0
@@ -1594,6 +1693,19 @@ class HRTFPlots:
         Horizontal-plane azimuths are displayed in the signed -180 .. 180
         convention. The frequency axis is always linear for this plot because
         the method currently builds a :class:`~hrtfpykit.plots.axis.FrequencyLinearAxis` configuration.
+
+        Examples
+        --------
+        Plot frequency-dependent ILD over the horizontal plane:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_ild_plane(
+        ...     plane="horizontal",
+        ...     elevation_angle=0.0,
+        ...     freq_min=200.0,
+        ...     freq_max=16000.0,
+        ... )
         """
         if plane not in ("horizontal", "median"):
             raise AttributeError("plot_ild_plane plane accepts horizontal or median")
@@ -1791,6 +1903,14 @@ class HRTFPlots:
         Azimuth is displayed in the signed -180 .. 180 convention, where
         positive azimuth values correspond to the left side and negative values
         correspond to the right side.
+
+        Examples
+        --------
+        Plot signed broad-band ILD around the horizontal plane:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_ild_curve(elevation_angle=0.0)
         """
         resolved_margins = Margins()
         azimuth_range_mode = "-180-180"
@@ -1921,6 +2041,14 @@ class HRTFPlots:
         The polar azimuth axis uses 30-degree ticks with a north-up orientation.
         The radial label defaults to Labels.ild_db and radial ticks are
         formatted as integer decibel values.
+
+        Examples
+        --------
+        Plot the absolute broad-band ILD cue around the horizontal plane:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_absolute_ild(elevation_angle=0.0)
         """
         resolved_margins = Margins()
         polar_tick_step = 30.0
@@ -2037,6 +2165,14 @@ class HRTFPlots:
         The plot uses an equal-aspect 3D axis derived from the full Cartesian
         source extent. Axis labels use the library's 3D coordinate labels in
         meters.
+
+        Examples
+        --------
+        Plot the measurement source grid from a loaded SOFA file:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_source_grid()
         """
         resolved_margins = Margins()
         source_grid_scatter_size = 28.0
@@ -2153,6 +2289,15 @@ class HRTFPlots:
         Duplicate plane names are ignored after the first occurrence. A legend
         is added to distinguish the background source grid from each highlighted
         plane.
+
+        Examples
+        --------
+        Plot the source grid and highlight the canonical horizontal, median,
+        and frontal planes:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_plane_grid(plane=["horizontal", "median", "frontal"])
         """
         resolved_margins = Margins()
         source_grid_scatter_size = 18.0

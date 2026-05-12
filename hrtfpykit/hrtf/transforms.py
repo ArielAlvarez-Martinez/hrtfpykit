@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from typing import TYPE_CHECKING
 
-from .dsp import (
+from ..dsp import (
     downsampling,
     fir_filter,
     iir_filter,
@@ -17,7 +17,7 @@ from .dsp import (
     upsampling,
     window,
 )
-from .metrics import itd
+from ..metrics import itd
 from .domain import IR, TF
 from .directivity import ctf_from_hrtf, dtf_from_hrtf
 

@@ -5,7 +5,7 @@ import pytest
 
 from hrtfpykit.hrtf.hrtf import HRTF
 from hrtfpykit.hrtf import load_hrtf
-from hrtfpykit.hrtf.metrics import itd
+from hrtfpykit.metrics import itd
 from hrtfpykit.sofa import load_sofa
 
 

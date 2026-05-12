@@ -4,12 +4,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typing import TYPE_CHECKING
 
-from .axis import Axis, FrequencyLinearAxis, MagnitudeAxis
+from .axis import Axis, FrequencyLinearAxis, FrequencyLogAxis, MagnitudeAxis
 from .figure import Figure
 from .layouts import Layout_1
 from .titles import Titles
-from ..hrtf.coordinates import get_position_queries
-from ..hrtf.dsp import magnitude_to_db
+from ..coordinates import get_position_queries
+from ..dsp import magnitude_to_db
+from ..sh import sht_error
 
 if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
@@ -20,8 +21,11 @@ def plot_sht_reconstruction_comparison(
     reconstructed_magnitude: np.ndarray,
     position: np.ndarray | list | tuple | str = "front",
     ear: str = "left",
+    x_axis: str = "linear",
     unit: str = "db",
     reference: float | str = 1.0,
+    freq_min: float | None = None,
+    freq_max: float | None = None,
     show: bool = True,
 ) -> None:
     """Compare original and SH-reconstructed HRTF magnitude spectra.
@@ -41,11 +45,13 @@ def plot_sht_reconstruction_comparison(
 
     Notes
     -----
-    ``reconstructed_magnitude`` must contain linear magnitude values, not
-    decibels. Passing ``unit`` as ``db`` affects only the plotted values. If
-    ``reference`` is ``max``, both traces are normalized by the maximum magnitude
-    across the selected original and reconstructed spectra before conversion to
-    decibels.
+    ``reconstructed_magnitude`` must contain linear reconstructed magnitude
+    values, not decibels. Passing ``unit`` as ``db`` affects only the plotted
+    values. In dB mode, absolute magnitudes are converted with a small positive
+    floor so unconstrained SH reconstructions with negative fitted values can be
+    displayed. If ``reference`` is ``max``, both traces are normalized by the
+    maximum absolute magnitude across the selected original and reconstructed
+    spectra before conversion to decibels.
 
     The function creates a new :class:`~hrtfpykit.plots.figure.Figure` with a
     single axis and returns None. Use ``show`` as False when composing plots in
@@ -74,12 +80,20 @@ def plot_sht_reconstruction_comparison(
         reconstructed_magnitude has an ear axis, for the reconstructed trace. For
         a single-ear reconstruction with shape (N, F), choose the ear that was
         used when computing the SH coefficients.
+    x_axis : {``linear``, ``log``}, default=``linear``
+        Frequency-axis scale used for the plot.
     unit : {``db``, ``linear``}, default=``db``
         Magnitude unit used on the y axis.
     reference : float | str, default=1.0
         Reference used when unit=``db``. Passing ``max`` normalizes both
         traces by the maximum magnitude across the selected original and
         reconstructed spectra.
+    freq_min : float | None, default=None
+        Lower frequency bound in hertz. When omitted, the minimum available
+        frequency bin is used.
+    freq_max : float | None, default=None
+        Upper frequency bound in hertz. When omitted, the maximum available
+        frequency bin is used.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
 
@@ -91,11 +105,12 @@ def plot_sht_reconstruction_comparison(
     Raises
     ------
     ValueError
-        If TF values or frequency bins are unavailable, if ear or unit is
-        unsupported, if position does not resolve to exactly one source position,
-        if original or reconstructed arrays have incompatible shapes, if the selected
-        position is out of bounds, or if the frequency-bin axis does not match the
-        selected magnitude trace.
+        If TF values or frequency bins are unavailable, if ear, x_axis, or unit
+        is unsupported, if position does not resolve to exactly one source
+        position, if original or reconstructed arrays have incompatible shapes,
+        if the selected position is out of bounds, if the frequency-bin axis
+        does not match the selected magnitude trace, if frequency bounds are
+        invalid, or if no frequency bins fall inside the selected range.
 
     Examples
     --------
@@ -104,7 +119,7 @@ def plot_sht_reconstruction_comparison(
 
     >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
     >>> from hrtfpykit.plots import plot_sht_reconstruction_comparison
-    >>> hrtf = load_hrtf("my_hrtf.sofa")
+    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
     >>> sh = sht(hrtf, sh_order=8, ear="both")
     >>> reconstructed = sht_inverse(sh)
     >>> plot_sht_reconstruction_comparison(
@@ -112,8 +127,8 @@ def plot_sht_reconstruction_comparison(
     ...     reconstructed_magnitude=reconstructed,
     ...     position="front",
     ...     ear="left",
+    ...     x_axis="log",
     ...     unit="db",
-    ...     show=False,
     ... )
     """
     if hrtf.TF.values is None:
@@ -124,6 +139,9 @@ def plot_sht_reconstruction_comparison(
     resolved_ear = str(ear).strip().lower()
     if resolved_ear not in {"left", "right"}:
         raise ValueError("ear accepts left or right")
+    resolved_x_axis = str(x_axis).strip().lower()
+    if resolved_x_axis not in {"linear", "log"}:
+        raise ValueError("x_axis accepts linear or log")
     resolved_unit = str(unit).strip().lower()
     if resolved_unit not in {"db", "linear"}:
         raise ValueError("unit accepts db or linear")
@@ -186,6 +204,21 @@ def plot_sht_reconstruction_comparison(
     frequency_bins = np.asarray(hrtf.TF.frequency_bins, dtype=float).reshape(-1)
     if frequency_bins.size != original_position_values.size:
         raise ValueError("TF frequency_bins length must match magnitude frequency axis")
+    frequency_axis = FrequencyLogAxis if resolved_x_axis == "log" else FrequencyLinearAxis
+    frequency_axis_config = frequency_axis.build(
+        frequency_bins=frequency_bins,
+        freq_min=freq_min,
+        freq_max=freq_max,
+    )
+    selected_frequency_indices = np.where(
+        (frequency_bins >= float(frequency_axis_config["freq_min"]))
+        & (frequency_bins <= float(frequency_axis_config["freq_max"]))
+    )[0]
+    if selected_frequency_indices.size == 0:
+        raise ValueError("No frequency bins fall inside the selected frequency range")
+    frequency_bins = frequency_bins[selected_frequency_indices]
+    original_position_values = original_position_values[selected_frequency_indices]
+    reconstructed_position_values = reconstructed_position_values[selected_frequency_indices]
     frequency_khz = frequency_bins / 1000.0
 
     if resolved_unit == "db":
@@ -194,22 +227,31 @@ def plot_sht_reconstruction_comparison(
                 np.max(
                     np.concatenate(
                         [
-                            original_position_values.reshape(-1),
-                            reconstructed_position_values.reshape(-1),
+                            np.abs(original_position_values).reshape(-1),
+                            np.abs(reconstructed_position_values).reshape(-1),
                         ]
                     )
                 )
             )
         else:
             resolved_reference = reference
+        db_floor = 1e-12
         original_plot_values = np.asarray(
-            magnitude_to_db(original_position_values, reference=resolved_reference),
+            magnitude_to_db(
+                np.maximum(np.abs(original_position_values), db_floor),
+                reference=resolved_reference,
+            ),
             dtype=float,
         )
         reconstructed_plot_values = np.asarray(
-            magnitude_to_db(reconstructed_position_values, reference=resolved_reference),
+            magnitude_to_db(
+                np.maximum(np.abs(reconstructed_position_values), db_floor),
+                reference=resolved_reference,
+            ),
             dtype=float,
         )
+        if not np.all(np.isfinite(original_plot_values)) or not np.all(np.isfinite(reconstructed_plot_values)):
+            raise ValueError("dB magnitude arrays must contain finite values")
     else:
         original_plot_values = original_position_values
         reconstructed_plot_values = reconstructed_position_values
@@ -230,8 +272,7 @@ def plot_sht_reconstruction_comparison(
         linestyle="--",
     )
 
-    frequency_axis_config = FrequencyLinearAxis.build(frequency_bins=frequency_bins)
-    FrequencyLinearAxis.apply(
+    frequency_axis.apply(
         ax=ax,
         axis="x",
         config=frequency_axis_config,
@@ -256,21 +297,28 @@ def plot_sht_reconstruction_error(
     reconstructed_magnitude: np.ndarray,
     position: np.ndarray | list | tuple | str = "front",
     ear: str = "left",
+    x_axis: str = "linear",
+    magnitude: str = "linear",
+    reference: float | str = 1.0,
+    freq_min: float | None = None,
+    freq_max: float | None = None,
     show: bool = True,
 ) -> None:
     """Plot SH reconstruction magnitude error for one direction and ear.
 
-    This diagnostic plot shows the point-wise linear-magnitude error between the
+    This diagnostic plot shows the point-wise magnitude error between the
     original HRTF magnitude and a spherical-harmonic reconstruction at one source
     position and ear. The plotted error is original_magnitude -
-    reconstructed_magnitude for the selected trace, and the subplot title includes
-    the root-mean-square error across frequency.
+    reconstructed_magnitude for the selected trace in the requested magnitude
+    domain, and the subplot title includes the root-mean-square error across
+    frequency.
 
     Use this function after :func:`~hrtfpykit.hrtf.sht_inverse` to inspect
     where a selected spherical-harmonic order loses spectral detail for a specific
     direction. Unlike
     :func:`~hrtfpykit.plots.plot_sht_reconstruction_comparison`, this function
-    always plots linear-magnitude error rather than decibel values.
+    plots the error directly instead of overlaying original and reconstructed
+    spectra.
 
     Notes
     -----
@@ -309,6 +357,23 @@ def plot_sht_reconstruction_error(
         reconstructed_magnitude has an ear axis, for the reconstructed trace. For
         a single-ear reconstruction with shape (N, F), choose the ear that was
         used when computing the SH coefficients.
+    x_axis : {``linear``, ``log``}, default=``linear``
+        Frequency-axis scale used for the plot.
+    magnitude : {``linear``, ``db``}, default=``linear``
+        Magnitude domain used for the error trace. ``linear`` plots the raw
+        linear-magnitude reconstruction error. ``db`` converts absolute
+        magnitudes to decibels before subtracting, so the plotted trace is a
+        point-wise LSD-style dB error.
+    reference : float | str, default=1.0
+        Reference used when magnitude=``db``. Passing ``max`` normalizes both
+        original and reconstructed values by the maximum absolute magnitude in
+        the selected trace before dB conversion.
+    freq_min : float | None, default=None
+        Lower frequency bound in hertz. When omitted, the minimum available
+        frequency bin is used.
+    freq_max : float | None, default=None
+        Upper frequency bound in hertz. When omitted, the maximum available
+        frequency bin is used.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
 
@@ -320,11 +385,13 @@ def plot_sht_reconstruction_error(
     Raises
     ------
     ValueError
-        If TF values or frequency bins are unavailable, if ear is unsupported, if
-        position does not resolve to exactly one source position, if original or
-        reconstructed arrays have incompatible shapes, if the selected position is out
-        of bounds, or if the frequency-bin axis does not match the selected magnitude
-        trace.
+        If TF values or frequency bins are unavailable, if ear, x_axis, or
+        magnitude is unsupported, if position does not resolve to exactly one source
+        position, if original or reconstructed arrays have incompatible shapes,
+        if the selected position is out of bounds, if the frequency-bin axis
+        does not match the selected magnitude trace, if frequency bounds are
+        invalid, if no frequency bins fall inside the selected range, or if dB
+        conversion cannot produce finite values.
 
     Examples
     --------
@@ -332,7 +399,7 @@ def plot_sht_reconstruction_error(
 
     >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
     >>> from hrtfpykit.plots import plot_sht_reconstruction_error
-    >>> hrtf = load_hrtf("my_hrtf.sofa")
+    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
     >>> sh = sht(hrtf, sh_order=8, ear="both")
     >>> reconstructed = sht_inverse(sh)
     >>> plot_sht_reconstruction_error(
@@ -340,7 +407,9 @@ def plot_sht_reconstruction_error(
     ...     reconstructed_magnitude=reconstructed,
     ...     position="left",
     ...     ear="right",
-    ...     show=False,
+    ...     x_axis="log",
+    ...     magnitude="db",
+    ...     reference=1.0,
     ... )
     """
     if hrtf.TF.values is None:
@@ -351,6 +420,12 @@ def plot_sht_reconstruction_error(
     resolved_ear = str(ear).strip().lower()
     if resolved_ear not in {"left", "right"}:
         raise ValueError("ear accepts left or right")
+    resolved_x_axis = str(x_axis).strip().lower()
+    if resolved_x_axis not in {"linear", "log"}:
+        raise ValueError("x_axis accepts linear or log")
+    resolved_magnitude = str(magnitude).strip().lower()
+    if resolved_magnitude not in {"linear", "db"}:
+        raise ValueError("magnitude accepts linear or db")
 
     position_queries = get_position_queries(position)
     if len(position_queries) != 1:
@@ -402,11 +477,69 @@ def plot_sht_reconstruction_error(
     frequency_bins = np.asarray(hrtf.TF.frequency_bins, dtype=float).reshape(-1)
     if frequency_bins.size != original_position_values.size:
         raise ValueError("TF frequency_bins length must match magnitude frequency axis")
+    frequency_axis = FrequencyLogAxis if resolved_x_axis == "log" else FrequencyLinearAxis
+    frequency_axis_config = frequency_axis.build(
+        frequency_bins=frequency_bins,
+        freq_min=freq_min,
+        freq_max=freq_max,
+    )
+    selected_frequency_indices = np.where(
+        (frequency_bins >= float(frequency_axis_config["freq_min"]))
+        & (frequency_bins <= float(frequency_axis_config["freq_max"]))
+    )[0]
+    if selected_frequency_indices.size == 0:
+        raise ValueError("No frequency bins fall inside the selected frequency range")
+    frequency_bins = frequency_bins[selected_frequency_indices]
+    original_position_values = original_position_values[selected_frequency_indices]
+    reconstructed_position_values = reconstructed_position_values[selected_frequency_indices]
     frequency_khz = frequency_bins / 1000.0
 
-    error_values = original_position_values - reconstructed_position_values
-    y_label = "Magnitude Error"
-    rms_error = float(np.sqrt(np.mean(np.asarray(error_values, dtype=float) ** 2)))
+    if resolved_magnitude == "db":
+        if isinstance(reference, str) and str(reference).strip().lower() == "max":
+            resolved_reference = float(
+                np.max(
+                    np.concatenate(
+                        [
+                            np.abs(original_position_values).reshape(-1),
+                            np.abs(reconstructed_position_values).reshape(-1),
+                        ]
+                    )
+                )
+            )
+        else:
+            resolved_reference = reference
+        db_floor = 1e-12
+        original_error_values = np.asarray(
+            magnitude_to_db(
+                np.maximum(np.abs(original_position_values), db_floor),
+                reference=resolved_reference,
+            ),
+            dtype=float,
+        )
+        reconstructed_error_values = np.asarray(
+            magnitude_to_db(
+                np.maximum(np.abs(reconstructed_position_values), db_floor),
+                reference=resolved_reference,
+            ),
+            dtype=float,
+        )
+        if not np.all(np.isfinite(original_error_values)) or not np.all(np.isfinite(reconstructed_error_values)):
+            raise ValueError("dB magnitude arrays must contain finite values")
+        error_values = original_error_values - reconstructed_error_values
+        y_label = "Magnitude Error (dB)"
+        rms_label = "LSD RMS"
+        rms_unit = " dB"
+    else:
+        error_values = original_position_values - reconstructed_position_values
+        y_label = "Magnitude Error"
+        rms_label = "RMS"
+        rms_unit = ""
+    _, _, rms_error, _ = sht_error(
+        original_magnitude=original_position_values,
+        reconstructed_magnitude=reconstructed_position_values,
+        magnitude=resolved_magnitude,
+        reference=reference,
+    )
 
     figure = Figure(Layout_1())
     ax = figure.get_ax("main")
@@ -417,8 +550,7 @@ def plot_sht_reconstruction_error(
         color="red",
     )
 
-    frequency_axis_config = FrequencyLinearAxis.build(frequency_bins=frequency_bins)
-    FrequencyLinearAxis.apply(
+    frequency_axis.apply(
         ax=ax,
         axis="x",
         config=frequency_axis_config,
@@ -432,7 +564,7 @@ def plot_sht_reconstruction_error(
         ax=ax,
         title=(
             f"{Titles.create_position_title(np.asarray(selected_position, dtype=float)[:2])}"
-            f" | Error | RMS={rms_error:.6f}"
+            f" | Error | {rms_label}={rms_error:.6f}{rms_unit}"
         ),
     )
     if show:

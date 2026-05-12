@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy.spatial import SphericalVoronoi
 
-from .coordinates import get_spherical_positions, spherical_to_cartesian
-from .dsp import ir_from_tf, magnitude as tf_magnitude, minimum_phase, tf_from_ir
+from ..coordinates import get_spherical_positions, spherical_to_cartesian
+from ..dsp import ir_from_tf, magnitude as tf_magnitude, minimum_phase, tf_from_ir
 
 if TYPE_CHECKING:
     from .hrtf import HRTF

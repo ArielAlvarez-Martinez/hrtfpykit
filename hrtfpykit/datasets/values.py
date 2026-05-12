@@ -14,9 +14,9 @@ from .specs import (
     VideoSpec,
 )
 from .specs_registry import get_spec_descriptor
-from ..hrtf.dsp import imag, magnitude, magnitude_db, phase, real
-from ..hrtf.metrics import ild, itd
-from ..hrtf.sh import sht
+from ..dsp import imag, magnitude, magnitude_db, phase, real
+from ..metrics import ild, itd
+from ..sh import sht
 from .split import DatasetSplitPlanner
 
 if TYPE_CHECKING:

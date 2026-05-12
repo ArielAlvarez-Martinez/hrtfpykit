@@ -78,20 +78,16 @@ def load_sofa(
 
     Examples
     --------
-    Open a SimpleFreeFieldHRIR convention SOFA file, inspect its convention
-    metadata and HRIR array shape, then close the underlying netCDF4 handle
-    when inspection is finished:
+    Open a SimpleFreeFieldHRIR convention SOFA file and inspect its convention
+    metadata, source grid, and HRIR array through the SOFA wrappers:
 
     >>> from hrtfpykit.sofa import load_sofa
     >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> try:
-    ...     convention = sofa.GlobalAttributes.get("SOFAConventions").value
-    ...     ir_shape = sofa.Variables.get("Data.IR").value.shape
-    ... finally:
-    ...     sofa.netCDF4_dataset.close()
-    >>> convention
+    >>> sofa.GlobalAttributes.get("SOFAConventions").value
     'SimpleFreeFieldHRIR'
-    >>> ir_shape
+    >>> sofa.Variables.get("SourcePosition").value.shape
+    (793, 3)
+    >>> sofa.Variables.get("Data.IR").value.shape
     (793, 2, 256)
     """
     print(f"Loading SOFA file from: {path}")
@@ -144,6 +140,27 @@ class SOFA:
             Original or most recent disk path associated with the SOFA object. In-memory
             clones and dummy SOFA objects start with None.
 
+        Examples
+        --------
+        Load a SOFA file and access its main metadata and array collections
+        through a :class:`~hrtfpykit.sofa.SOFA` object:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa.path.name
+        'P0001_FreeFieldComp_44kHz.sofa'
+        >>> sofa.Dimensions.get("M").value
+        793
+        >>> sofa.Dimensions.get("R").value
+        2
+        >>> sofa.Dimensions.get("N").value
+        256
+        >>> sofa.GlobalAttributes.get("SOFAConventions").value
+        'SimpleFreeFieldHRIR'
+        >>> sofa.VariableAttributes.get("SourcePosition:Type").value
+        'spherical'
+        >>> sofa.Variables.get("Data.IR").value.shape
+        (793, 2, 256)
         """
         self.netCDF4_dataset: Optional[netCDF4.Dataset] = None
         self.path = None
@@ -159,6 +176,20 @@ class SOFA:
         -------
         Optional[_Dimensions]
             Dimension access wrapper, or None when no SOFA file is loaded.
+
+        Examples
+        --------
+        Inspect the measurement, receiver, and sample dimensions of a loaded
+        SimpleFreeFieldHRIR SOFA file:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa.Dimensions.get("M").value
+        793
+        >>> sofa.Dimensions.get("R").value
+        2
+        >>> sofa.Dimensions.get("N").value
+        256
         """
         if self.netCDF4_dataset is None:
             return None
@@ -177,6 +208,17 @@ class SOFA:
         Optional[_GlobalAttributes]
             Global-attribute access wrapper, or None when no SOFA file is
             loaded.
+
+        Examples
+        --------
+        Read convention-level metadata from a loaded SOFA file:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa.GlobalAttributes.get("SOFAConventions").value
+        'SimpleFreeFieldHRIR'
+        >>> sofa.GlobalAttributes.get("DataType").value
+        'FIR'
         """
         if self.netCDF4_dataset is None:
             return None
@@ -194,6 +236,20 @@ class SOFA:
         -------
         Optional[_Variables]
             Variable access wrapper, or None when no SOFA file is loaded.
+
+        Examples
+        --------
+        Read acoustic data, source positions, and sample-rate values from a
+        loaded SOFA file:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa.Variables.get("Data.IR").value.shape
+        (793, 2, 256)
+        >>> sofa.Variables.get("SourcePosition").value.shape
+        (793, 3)
+        >>> sofa.Variables.get("Data.SamplingRate").value
+        array([44100.])
         """
         if self.netCDF4_dataset is None:
             return None
@@ -213,6 +269,17 @@ class SOFA:
         Optional[_VariableAttributes]
             Variable-attribute access wrapper, or None when no SOFA file is
             loaded.
+
+        Examples
+        --------
+        Read coordinate-system and units metadata for source positions:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa.VariableAttributes.get("SourcePosition:Type").value
+        'spherical'
+        >>> sofa.VariableAttributes.get("SourcePosition:Units").value
+        'degree, degree, metre'
         """
         if self.netCDF4_dataset is None:
             return None
@@ -249,6 +316,19 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Add a custom dimension to an in-memory clone and inspect the new
+        dimension metadata:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_dimension("Q", 3)
+        >>> editable.Dimensions.get("Q").value
+        3
+        >>> editable.Dimensions.get("Q").is_unlimited
+        False
         """
         dataset = require_dataset(self)
         if name in dataset.dimensions:
@@ -286,6 +366,18 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Rename a custom dimension on an in-memory clone before adding variables
+        that depend on it:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_dimension("Q", 2)
+        >>> editable.rename_dimension("Q", "Q2")
+        >>> editable.Dimensions.get("Q2").value
+        2
         """
         dataset = require_dataset(self)
         if old_name not in dataset.dimensions:
@@ -327,6 +419,20 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Add file-level metadata to a clone without changing the source SOFA
+        file:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_global_attribute(
+        ...     "ExampleNote",
+        ...     "created from a clone",
+        ... )
+        >>> editable.GlobalAttributes.get("ExampleNote").value
+        'created from a clone'
         """
         dataset = require_dataset(self)
         if name in dataset.ncattrs():
@@ -367,6 +473,18 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Update a global attribute on a cloned SOFA object and read the edited
+        value back through the global-attribute wrapper:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_global_attribute("ExampleNote", "initial note")
+        >>> editable.modify_global_attribute("ExampleNote", "updated note")
+        >>> editable.GlobalAttributes.get("ExampleNote").value
+        'updated note'
         """
         dataset = require_dataset(self)
         if name not in dataset.ncattrs():
@@ -404,6 +522,17 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Remove a custom global attribute from an in-memory clone:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_global_attribute("ExampleNote", "temporary")
+        >>> editable.delete_global_attribute("ExampleNote")
+        >>> "ExampleNote" in editable.GlobalAttributes.get_names()
+        False
         """
         dataset = require_dataset(self)
         if name not in dataset.ncattrs():
@@ -446,6 +575,19 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Add metadata to the HRIR variable on a cloned SOFA object:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_variable_attribute(
+        ...     "Data.IR:ExampleNote",
+        ...     "time-domain data",
+        ... )
+        >>> editable.VariableAttributes.get("Data.IR:ExampleNote").value
+        'time-domain data'
         """
         dataset = require_dataset(self)
         if ":" not in name:
@@ -493,6 +635,17 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Update metadata on the HRIR variable of a cloned SOFA object:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_variable_attribute("Data.IR:ExampleNote", "initial")
+        >>> editable.modify_variable_attribute("Data.IR:ExampleNote", "edited copy")
+        >>> editable.VariableAttributes.get("Data.IR:ExampleNote").value
+        'edited copy'
         """
         dataset = require_dataset(self)
         if ":" not in name:
@@ -537,6 +690,18 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Delete a custom variable attribute after using it during an editing
+        workflow:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_variable_attribute("Data.IR:ExampleNote", "temporary")
+        >>> editable.delete_variable_attribute("Data.IR:ExampleNote")
+        >>> "Data.IR:ExampleNote" in editable.VariableAttributes.get_names()
+        False
         """
         dataset = require_dataset(self)
         if ":" not in name:
@@ -607,6 +772,25 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Create a small derived variable on a cloned SOFA object and attach
+        units metadata to it:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_dimension("Q", 3)
+        >>> editable.create_variable(
+        ...     "ExampleVector",
+        ...     [1.0, 2.0, 3.0],
+        ...     ("Q",),
+        ...     attributes={"Units": "1"},
+        ... )
+        >>> editable.Variables.get("ExampleVector").value
+        array([1., 2., 3.])
+        >>> editable.VariableAttributes.get("ExampleVector:Units").value
+        '1'
         """
         dataset = require_dataset(self)
         if name in dataset.variables:
@@ -681,6 +865,21 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Replace HRIR samples on a cloned SOFA object while preserving the
+        ``Data.IR`` variable definition and metadata:
+
+        >>> import numpy as np
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> ir = editable.Variables.get("Data.IR").value
+        >>> edited_ir = np.array(ir, copy=True)
+        >>> edited_ir[..., :8] = 0.0
+        >>> editable.modify_variable("Data.IR", edited_ir)
+        >>> editable.Variables.get("Data.IR").value[0, 0, :8]
+        array([0., 0., 0., 0., 0., 0., 0., 0.])
         """
         dataset = require_dataset(self)
         if name not in dataset.variables:
@@ -731,6 +930,19 @@ class SOFA:
         you are ready. Direct in-place editing with mode ``r+`` is
         still available for expert users.
 
+        Examples
+        --------
+        Remove a custom variable from a cloned SOFA object after using it as
+        temporary metadata:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_dimension("Q", 3)
+        >>> editable.create_variable("ExampleVector", [1.0, 2.0, 3.0], ("Q",))
+        >>> editable.delete_variable("ExampleVector")
+        >>> "ExampleVector" in editable.Variables.get_names()
+        False
         """
         dataset = require_dataset(self)
         if name not in dataset.variables:
@@ -806,6 +1018,20 @@ class SOFA:
         structurally usable and can be filled by later calls to
         :meth:`~hrtfpykit.sofa.SOFA.modify_variable`.
 
+        Examples
+        --------
+        Create a small in-memory SimpleFreeFieldHRIR object, then inspect the
+        convention metadata and the shape of the initialized HRIR variable:
+
+        >>> from hrtfpykit.sofa import SOFA
+        >>> sofa = SOFA.create_dummy(
+        ...     "SimpleFreeFieldHRIR",
+        ...     dim_sizes={"M": 4, "R": 2, "N": 32, "E": 1},
+        ... )
+        >>> sofa.GlobalAttributes.get("SOFAConventions").value
+        'SimpleFreeFieldHRIR'
+        >>> sofa.Variables.get("Data.IR").value.shape
+        (4, 2, 32)
         """
         print("Creating in-memory dummy SOFA dataset")
         print(f"SOFA conventions: {sofa_conventions}")
@@ -1008,6 +1234,23 @@ class SOFA:
         validation before writing; call the validation utilities explicitly
         when validation is part of the workflow.
 
+        Examples
+        --------
+        Save an edited clone to a relative output path:
+
+        >>> from pathlib import Path
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_global_attribute("ExampleNote", "saved copy")
+        >>> output_dir = Path("processed")
+        >>> output_dir.mkdir(exist_ok=True)
+        >>> saved_path = editable.save(
+        ...     output_dir / "P0001_sofa_copy.sofa",
+        ...     overwrite=True,
+        ... )
+        >>> saved_path.name
+        'P0001_sofa_copy.sofa'
         """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
@@ -1082,6 +1325,21 @@ class SOFA:
         save it to a new filename or replace an existing file with
         :meth:`~hrtfpykit.sofa.SOFA.save` with overwrite enabled.
 
+        Examples
+        --------
+        Clone a loaded SOFA object before editing metadata, leaving the source
+        SOFA object unchanged:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_global_attribute("ExampleNote", "clone only")
+        >>> editable.path is None
+        True
+        >>> editable.GlobalAttributes.get("ExampleNote").value
+        'clone only'
+        >>> "ExampleNote" in sofa.GlobalAttributes.get_names()
+        False
         """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
@@ -1168,6 +1426,22 @@ class SOFA:
         :meth:`~hrtfpykit.sofa.SOFA.create_variable`
         on a writable copy when you need to add brand-new variables.
 
+        Examples
+        --------
+        Create a resized copy with shorter HRIR data while keeping the original
+        SOFA object unchanged:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> ir = sofa.Variables.get("Data.IR").value
+        >>> cropped = sofa.copy_with(
+        ...     dim_sizes={"N": 128},
+        ...     variables={"Data.IR": ir[..., :128]},
+        ... )
+        >>> sofa.Variables.get("Data.IR").value.shape
+        (793, 2, 256)
+        >>> cropped.Variables.get("Data.IR").value.shape
+        (793, 2, 128)
         """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
@@ -1268,6 +1542,18 @@ class SOFA:
         This method does not validate the file and does not print by itself.
         It only builds and returns the summary string.
 
+        Examples
+        --------
+        Build a text summary and check that it includes the main SOFA sections
+        and HRIR variable dimensions:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> summary = sofa.summary()
+        >>> summary.splitlines()[:3]
+        ['****************************', '     GLOBAL ATTRIBUTES', '****************************']
+        >>> "Data.IR : dimensions= (M=793, R=2, N=256)" in summary
+        True
         """
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")

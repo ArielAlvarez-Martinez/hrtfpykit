@@ -10,12 +10,10 @@ from .compare import (
     compare_lsd_plane,
     compare_magnitude,
 )
-from .hrtf import HRTFPlots
 from .sh import plot_sht_reconstruction_comparison, plot_sht_reconstruction_error
 
 
 __all__ = [
-    "HRTFPlots",
     "compare_absolute_ild",
     "compare_absolute_itd",
     "compare_amplitude",

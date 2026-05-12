@@ -1,12 +1,15 @@
 from __future__ import annotations
-
+from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
 
 from .labels import Labels
-from ..hrtf.coordinates import spherical_to_cartesian
-from ..hrtf.sources import Sources
+from ..coordinates import spherical_to_cartesian
+
+
+if TYPE_CHECKING:
+    from ..hrtf.sources import Sources
 
 
 def build_frequency_axis(

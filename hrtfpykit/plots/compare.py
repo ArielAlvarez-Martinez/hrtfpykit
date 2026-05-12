@@ -26,10 +26,10 @@ from .layouts import Layout_1, Layout_2Horizontal, Layout_2Vertical, Layout_3
 from .legends import Subjects
 from .titles import Titles
 from .._warnings import HRTFPyKitWarning, warn_user
-from ..hrtf.coordinates import get_position_queries, get_source_positions
-from ..hrtf.dsp import magnitude_to_db
-from ..hrtf.metrics import ild, ild_difference, itd, lsd
-from ..hrtf.planes import get_horizontal_plane, get_median_plane
+from ..coordinates import get_position_queries, get_source_positions
+from ..dsp import magnitude_to_db
+from ..metrics import ild, ild_difference, itd, lsd
+from ..planes import get_horizontal_plane, get_median_plane
 from .polar import create_horizontal_plane_curve
 
 

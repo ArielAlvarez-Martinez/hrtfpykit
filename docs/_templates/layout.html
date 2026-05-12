@@ -1,0 +1,12 @@
+{% extends "!layout.html" %}
+
+{% block extrahead %}
+{{ super() }}
+<script>
+  try {
+    if (!localStorage.getItem("theme")) {
+      localStorage.setItem("theme", "dark");
+    }
+  } catch (error) {}
+</script>
+{% endblock %}

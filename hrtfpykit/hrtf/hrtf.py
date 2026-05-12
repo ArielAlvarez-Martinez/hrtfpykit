@@ -5,12 +5,12 @@ import importlib.metadata
 
 import hrtfpykit.sofa
 import numpy as np
-from .coordinates import get_position_queries
-from .dsp import (
+from ..coordinates import get_position_queries
+from ..dsp import (
     ir_from_tf,
     tf_from_ir,
 )
-from .planes import (
+from ..planes import (
     get_frontal_plane,
     get_horizontal_plane,
     get_median_plane,
@@ -322,6 +322,30 @@ class HRTF(HRTFPlots):
         the parent :class:`~hrtfpykit.hrtf.HRTF` object and exposes
         time-domain inspection helpers such as sample length, duration, and
         ITD calculation.
+
+        Examples
+        --------
+        Load a SOFA file and access the HRIR samples, sample-rate metadata,
+        signal length, duration, and ITD values through ``hrtf.IR``:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> ir_values = hrtf.IR.values
+        >>> sample_rate = hrtf.IR.sample_rate
+        >>> first_position_left_ir = hrtf.IR.values[0, 0, :]
+        >>> itd_samples = hrtf.IR.get_itd(output="samples")
+        >>> ir_values.shape
+        (793, 2, 256)
+        >>> sample_rate
+        44100.0
+        >>> first_position_left_ir.shape
+        (256,)
+        >>> hrtf.IR.ir_length
+        256
+        >>> hrtf.IR.ir_duration
+        0.005804988662131519
+        >>> itd_samples.shape
+        (793,)
         """
         return IR(self)
 
@@ -333,6 +357,38 @@ class HRTF(HRTFPlots):
         and :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`
         for the parent object and exposes derived magnitude, phase, real, and
         imaginary views used by transforms, metrics, and plots.
+
+        Examples
+        --------
+        Load a SOFA file and access the frequency-domain HRTF values, frequency
+        axis, bin metadata, and derived spectral arrays through ``hrtf.TF``:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.TF.values.shape
+        (793, 2, 129)
+        >>> hrtf.TF.values.dtype
+        dtype('complex128')
+        >>> hrtf.TF.frequency_bins[:5]
+        array([  0.      , 172.265625, 344.53125 , 516.796875, 689.0625  ])
+        >>> hrtf.TF.tf_length
+        129
+        >>> hrtf.TF.frequency_bins_step
+        172.265625
+        >>> hrtf.TF.min_frequency_bin
+        0.0
+        >>> hrtf.TF.max_frequency_bin
+        22050.0
+        >>> hrtf.TF.magnitude.shape
+        (793, 2, 129)
+        >>> hrtf.TF.get_magnitude_db().shape
+        (793, 2, 129)
+        >>> hrtf.TF.phase.shape
+        (793, 2, 129)
+        >>> hrtf.TF.real.shape
+        (793, 2, 129)
+        >>> hrtf.TF.imag.shape
+        (793, 2, 129)
         """
         return TF(self)
 
@@ -343,6 +399,49 @@ class HRTF(HRTFPlots):
         :class:`~hrtfpykit.hrtf.sources.Sources` reads SOFA ``SourcePosition``
         data, converts between the supported coordinate systems, resolves named
         positions, and tracks selected source indices after spatial subsetting.
+
+        Examples
+        --------
+        Load a SOFA file and access source-grid positions, coordinate-system
+        metadata, available angles, nearest-position matches, and selected
+        source views through ``hrtf.Sources``:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.Sources.source_coordinate_system
+        'spherical'
+        >>> hrtf.Sources.get_positions().shape
+        (793, 3)
+        >>> hrtf.Sources.get_positions()[:3]
+        array([[  0. , -45. ,   1.5],
+               [  0. , -30. ,   1.5],
+               [  0. , -20. ,   1.5]])
+        >>> hrtf.Sources.get_positions(angle_unit="radians")[0]
+        array([ 0.        , -0.78539816,  1.5       ])
+        >>> hrtf.Sources.get_azimuth_angles()[:5]
+        array([ 0.,  5., 10., 15., 20.])
+        >>> hrtf.Sources.get_elevation_angles()
+        array([-45., -30., -20., -10.,   0.,  10.,  20.,  30.,  45.,  60.,  75.,
+                90.])
+        >>> elevations_at_front, real_azimuth = (
+        ...     hrtf.Sources.get_elevation_angles_for_azimuth(0.0)
+        ... )
+        >>> elevations_at_front[:5]
+        array([-45., -30., -20., -10.,   0.])
+        >>> real_azimuth
+        0.0
+        >>> azimuths_on_horizontal, real_elevation = (
+        ...     hrtf.Sources.get_azimuth_angles_for_elevation(0.0)
+        ... )
+        >>> azimuths_on_horizontal[:5]
+        array([ 0.,  5., 10., 15., 20.])
+        >>> real_elevation
+        0.0
+        >>> hrtf.Sources.get_position_index("front")
+        (4, array([0. , 0. , 1.5]))
+        >>> selected = hrtf.select(positions=["front", "left", "right"])
+        >>> selected.Sources.get_positions().shape
+        (3, 3)
         """
         return Sources(self)
 
