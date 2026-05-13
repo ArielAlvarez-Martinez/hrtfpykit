@@ -20,16 +20,16 @@ Why hrtfpykit?
 **HRTF research** often requires more than reading one SOFA file. If you have
 worked with HRTFs, you have probably met the usual ritual: searching for public
 datasets, discovering that every measurement setup has its own personality,
-reshaping HRIRs until the arrays finally agree, and jumping between scripts,
-platforms, and tools that were never designed to speak to each other. Datasets
+adapting HRIR arrays to different dataset layouts, and moving between scripts,
+platforms, and tools with different assumptions. Datasets
 such as ARI, HUTUBS, and SONICOM made this work much more accessible, especially
 compared with the pre SOFA days of CSV files, spreadsheets, and heroic column
 name interpretation. Even today, the workflow can still become fragmented very
 quickly.
 
-**hrtfpykit** was created to keep those steps in the **same ecosystem**. It gives
-**researchers** a way to work with HRTFs without losing the connection between
-the file, the acoustic representation, and the experiment.
+**hrtfpykit** was created to make those steps part of a clearer workflow. It
+gives **researchers** a way to work with HRTFs without losing the connection
+between the file, the acoustic representation, and the experiment.
 
 
 What does hrtfpykit enable?
