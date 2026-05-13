@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=77", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hrtfpykit"
-dynamic = ["version"]
+version = "0.0.4"
 description = "hrtfpykit is a Python toolkit for working with Head Related Transfer Functions (HRTFs) stored in SOFA files. Around that core, it creates an ecosystem of tools for HRTF research and dataset pipelines creation"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -65,6 +65,3 @@ Issues = "https://github.com/ArielAlvarez-Martinez/hrtfpykit/issues"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["hrtfpykit*"]
-
-[tool.setuptools.dynamic]
-version = { attr = "hrtfpykit.__version__" }

@@ -13,3 +13,4 @@ build/
 hrtfpykit-wheel/
 wheels/
 dist/
+tmp/

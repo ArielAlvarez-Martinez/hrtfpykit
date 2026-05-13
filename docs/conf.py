@@ -1,14 +1,15 @@
 from pathlib import Path
 import sys
+import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from hrtfpykit import __version__
 
 project = "hrtfpykit"
 author = "Ariel Alvarez-Martinez"
 copyright = "Ariel Alvarez-Martinez"
-version = __version__
+version = tomllib.loads(
+    (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+)["project"]["version"]
 
 extensions = [
     "sphinx.ext.autodoc",
