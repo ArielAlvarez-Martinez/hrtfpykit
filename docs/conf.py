@@ -15,6 +15,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
+    "myst_nb",
 ]
 
 autosummary_generate = True
@@ -26,6 +27,7 @@ toc_object_entries = True
 toc_object_entries_show_parents = "hide"
 napoleon_google_docstring = False
 napoleon_numpy_docstring = True
+nb_execution_mode = "off"
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "*.ipynb_checkpoints"]
