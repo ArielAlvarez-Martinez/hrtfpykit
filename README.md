@@ -97,27 +97,6 @@ print(sample["inputs"].keys())
 
 ```
 
-## Development
-
-Run tests:
-
-```bash
-pytest
-```
-
-Build the documentation:
-
-```bash
-sphinx -W -b html docs docs/_build/html
-```
-
-Build and check package distributions:
-
-```bash
-python -m build
-python -m twine check dist/*
-```
-
 ## Citation
 
 Forum acusticum article, arvix  or whatever
