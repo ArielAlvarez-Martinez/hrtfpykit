@@ -37,14 +37,14 @@ the file, the acoustic representation, and the experiment.
 
 ## What you can do
 
-- Open, inspect, validate, edit, clone, and save SOFA files.
-- Load HRTFs as objects with synchronized IR and TF representations.
-- Select source positions, ears, samples, and frequency bins.
-- Modify HRTFs with transformations and acoustic processing steps.
-- Create plots for amplitude, magnitude, spectral cues, ITD, ILD, LSD, source
+- **Open**,** inspect, validate, edit, clone, and save SOFA files.
+- **Load** HRTFs as objects with synchronized IR and TF representations.
+- **Select** source positions, ears, samples, and frequency bins.
+- **Modify** HRTFs with transformations and acoustic processing steps.
+- **Create** plots for amplitude, magnitude, spectral cues, ITD, ILD, LSD, source
   grids, spatial planes, and HRTF comparisons.
-- Build map style dataset pipelines from public HRTF datasets.
-- Align HRTFs with subject resources for analysis and deep learning workflows.
+- **Build** map style dataset pipelines from public HRTF datasets.
+- **Align** HRTFs with subject resources for analysis and deep learning workflows.
 
 ## Documentation
 
