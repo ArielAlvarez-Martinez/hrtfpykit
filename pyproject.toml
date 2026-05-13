@@ -36,7 +36,6 @@ docs = [
 
 [project.urls]
 Homepage = "https://github.com/ArielAlvarez-Martinez/hrtfpykit"
-Documentation = ""
 Repository = "https://github.com/ArielAlvarez-Martinez/hrtfpykit.git"
 Issues = "https://github.com/ArielAlvarez-Martinez/hrtfpykit/issues"
 
