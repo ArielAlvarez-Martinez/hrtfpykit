@@ -141,8 +141,8 @@ def compare_magnitude(
 
     Examples
     --------
-    Compare left-ear magnitude responses from two SOFA files at two source
-    directions, using a logarithmic frequency axis and a shared dB reference:
+    Compare left-ear magnitude responses from two SOFA files at the front
+    direction, using a logarithmic frequency axis and a shared dB reference:
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_magnitude
@@ -150,14 +150,13 @@ def compare_magnitude(
     >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_magnitude(
     ...     [hrtf_a, hrtf_b],
-    ...     positions=["front", "left"],
+    ...     positions="front",
     ...     ear="left",
     ...     x_axis="log",
     ...     unit="db",
     ...     reference="max",
     ...     legends=["P0001", "P0002"],
     ...     line_styles=["-", "--"],
-    ...     freq_min=200.0,
     ...     freq_max=16000.0,
     ... )
     """
@@ -454,6 +453,8 @@ def compare_magnitude(
                 )
             else:
                 Titles.create_subplots_titles(ax=ax, title="")
+            if Figure.shared_x_visible:
+                ax.tick_params(axis="x", which="both", labelbottom=True)
             Subjects.apply(
                 ax=ax,
                 labels=resolved_legends,
@@ -554,8 +555,8 @@ def compare_amplitude(
 
     Examples
     --------
-    Compare both ears of the front-direction impulse responses for two HRTFs,
-    using sample indices on the x-axis:
+    Compare left-ear front-direction impulse responses for two HRTFs, using
+    sample indices on the x-axis:
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_amplitude
@@ -564,7 +565,7 @@ def compare_amplitude(
     >>> compare_amplitude(
     ...     [hrtf_a, hrtf_b],
     ...     positions="front",
-    ...     ear="both",
+    ...     ear="left",
     ...     x_axis="samples",
     ...     legends=["P0001", "P0002"],
     ...     line_styles=["-", "--"],
@@ -777,6 +778,8 @@ def compare_amplitude(
                 )
             else:
                 Titles.create_subplots_titles(ax=ax, title="")
+            if Figure.shared_x_visible:
+                ax.tick_params(axis="x", which="both", labelbottom=True)
             Subjects.apply(
                 ax=ax,
                 labels=resolved_legends,
@@ -2400,7 +2403,6 @@ def compare_lsd_plane(
     ...     ear="right",
     ...     elevation=0.0,
     ...     x_axis="log",
-    ...     freq_min=100.0,
     ...     freq_max=16000.0,
     ...     colormap="viridis",
     ... )

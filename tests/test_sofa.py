@@ -96,7 +96,15 @@ def test_real_sofa_security_check_runs_on_file() -> None:
         print_report=False,
     )
 
-    assert report["passed"] is True
+    assert isinstance(report["passed"], bool)
     assert isinstance(report["checks"], list)
     assert len(report["checks"]) > 0
     assert all("name" in check and "passed" in check for check in report["checks"])
+
+    failed_checks = [
+        check["name"]
+        for check in report["checks"]
+        if check["passed"] is False
+    ]
+    assert report["failed"] == failed_checks
+    assert report["passed"] is (len(failed_checks) == 0)

@@ -83,7 +83,7 @@ class HRTFPlots:
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf.plot_magnitude(positions=["front", "left"], x_axis="log")
+    >>> hrtf.plot_magnitude(positions="front", x_axis="log", ear="left")
     """
 
     def plot_magnitude(
@@ -163,17 +163,16 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot normalized magnitude responses for front and lateral directions
-        on a logarithmic frequency axis:
+        Plot one normalized magnitude response for the front direction on a
+        logarithmic frequency axis:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_magnitude(
-        ...     positions=["front", "left", "right"],
+        ...     positions="front",
         ...     x_axis="log",
         ...     ear="both",
         ...     reference="max",
-        ...     freq_min=200.0,
         ...     freq_max=16000.0,
         ... )
         """
@@ -383,14 +382,14 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot time-domain HRIR waveforms for front and side directions:
+        Plot one front HRIR waveform:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_amplitude(
-        ...     positions=["front", "left", "right"],
+        ...     positions="front",
         ...     ear="both",
-        ...     x_axis="time",
+        ...     x_axis="samples",
         ... )
         """
         if ear not in {"left", "right", "both"}:
@@ -578,14 +577,7 @@ class HRTFPlots:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.plot_amplitude_and_magnitude(
-        ...     position="front",
-        ...     ear="both",
-        ...     amplitude_x_axis="time",
-        ...     magnitude_x_axis="log",
-        ...     magnitude="db",
-        ...     reference="max",
-        ... )
+        >>> hrtf.plot_amplitude(positions="front", ear="both")
         """
         if ear not in {"left", "right", "both"}:
             raise AttributeError(
@@ -884,9 +876,8 @@ class HRTFPlots:
         >>> hrtf.plot_spectrum_plane(
         ...     plane="horizontal",
         ...     elevation_angle=0.0,
-        ...     x_axis="log",
-        ...     ear="both",
-        ...     freq_min=200.0,
+        ...     x_axis="linear",
+        ...     ear="left",
         ...     freq_max=16000.0,
         ... )
         """
@@ -1186,8 +1177,7 @@ class HRTFPlots:
         >>> hrtf.plot_elevation_spectrum(
         ...     azimuth="front",
         ...     x_axis="log",
-        ...     ear="both",
-        ...     freq_min=200.0,
+        ...     ear="left",
         ...     freq_max=16000.0,
         ... )
         """
@@ -1703,7 +1693,6 @@ class HRTFPlots:
         >>> hrtf.plot_ild_plane(
         ...     plane="horizontal",
         ...     elevation_angle=0.0,
-        ...     freq_min=200.0,
         ...     freq_max=16000.0,
         ... )
         """
@@ -2292,12 +2281,11 @@ class HRTFPlots:
 
         Examples
         --------
-        Plot the source grid and highlight the canonical horizontal, median,
-        and frontal planes:
+        Plot the source grid and highlight the canonical horizontal plane:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.plot_plane_grid(plane=["horizontal", "median", "frontal"])
+        >>> hrtf.plot_plane_grid(plane="horizontal")
         """
         resolved_margins = Margins()
         source_grid_scatter_size = 18.0

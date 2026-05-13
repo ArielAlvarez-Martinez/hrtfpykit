@@ -5,11 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hrtfpykit"
 dynamic = ["version"]
-description = "Python toolkit for SOFA-backed HRTF workflows: dataset construction, acoustic transforms, metrics, and visualization"
+description = "hrtfpykit is a Python toolkit for working with Head Related Transfer Functions (HRTFs) stored in SOFA files. Around that core, it creates an ecosystem of tools for HRTF research and dataset pipelines creation"
 readme = "README.md"
 requires-python = ">=3.13"
-authors = [{ name = "Ariel Alvarez-Martinez" }]
-keywords = ["audio", "hrtf", "sofa", "spatial-audio"]
+authors = [{ name = "Ariel Alvarez-Martinez", email = "aalvmarprojects@gmail.com"}]
+maintainers = [{name = "Ariel Alvarez-Martinez", email = "aalvmarprojects@gmail.com"}]
+keywords = ["audio", "hrtf", "sofa", "spatial-audio", "datasets"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
@@ -32,6 +33,12 @@ docs = [
   "sphinx>=9.1.0",
   "furo>=2025.7.19",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ArielAlvarez-Martinez/hrtfpykit"
+Documentation = ""
+Repository = "https://github.com/ArielAlvarez-Martinez/hrtfpykit.git"
+Issues = "https://github.com/ArielAlvarez-Martinez/hrtfpykit/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
