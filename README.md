@@ -37,7 +37,7 @@ the file, the acoustic representation, and the experiment.
 
 ## What you can do
 
-- **Open**,** inspect, validate, edit, clone, and save SOFA files.
+- **Open**, inspect, validate, edit, clone, and save SOFA files.
 - **Load** HRTFs as objects with synchronized IR and TF representations.
 - **Select** source positions, ears, samples, and frequency bins.
 - **Modify** HRTFs with transformations and acoustic processing steps.
