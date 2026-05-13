@@ -299,9 +299,11 @@ transforms are reflected in the generated figures.
 Comparison plots
 ~~~~~~~~~~~~~~~~
 
-Comparison plots are standalone functions for comparing subjects, measurements,
-model outputs, or processing pipelines. They are especially useful when
-evaluating HRTF individualization results against measured HRTFs.
+Comparison plots put multiple HRTFs into the same visual frame. They can overlay
+HRIR waveforms, HRTF magnitude responses, ITD and ILD cue curves, and LSD maps
+over a source grid or spatial plane. The comparison stays tied to the selected
+position, ear, frequency range, or plane, so differences are shown in the
+acoustic view where they appear.
 
 :func:`~hrtfpykit.plots.compare_amplitude`
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

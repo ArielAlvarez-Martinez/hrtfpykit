@@ -99,7 +99,7 @@ print(sample["inputs"].keys())
 
 ## Citation
 
-Forum acusticum article, arvix  or whatever
+Forum acusticum article, arXiv  or whatever
 
 ## License
 

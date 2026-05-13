@@ -12,7 +12,20 @@ license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [{ name = "Ariel Alvarez-Martinez", email = "aalvmarprojects@gmail.com"}]
 maintainers = [{name = "Ariel Alvarez-Martinez", email = "aalvmarprojects@gmail.com"}]
-keywords = ["audio", "hrtf", "sofa", "spatial-audio", "datasets"]
+keywords = [
+  "audio",
+  "research",
+  "deep-learning",
+  "hrtf",
+  "spatial-audio",
+  "audio-processing",
+  "science-research",
+  "hrtf-individualization",
+  "pytorch-dataset",
+  "hrtfs",
+  "sofa",
+  "datasets",
+]
 classifiers = [
   "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",
