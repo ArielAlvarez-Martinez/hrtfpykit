@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,14 +8,24 @@ dynamic = ["version"]
 description = "hrtfpykit is a Python toolkit for working with Head Related Transfer Functions (HRTFs) stored in SOFA files. Around that core, it creates an ecosystem of tools for HRTF research and dataset pipelines creation"
 readme = "README.md"
 requires-python = ">=3.13"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
 authors = [{ name = "Ariel Alvarez-Martinez", email = "aalvmarprojects@gmail.com"}]
 maintainers = [{name = "Ariel Alvarez-Martinez", email = "aalvmarprojects@gmail.com"}]
 keywords = ["audio", "hrtf", "sofa", "spatial-audio", "datasets"]
 classifiers = [
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Multimedia :: Sound/Audio",
+  "Topic :: Multimedia :: Sound/Audio :: Analysis",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
   "numpy>=2.3.5",

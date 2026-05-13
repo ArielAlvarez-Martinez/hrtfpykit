@@ -3,8 +3,13 @@ __pycache__/
 *.egg-info/
 .eggs/
 .venv/
+.env
 venv/
 .pytest_cache/
 docs/_build/
 hrtf.sofa
 hrtfs/
+build/
+hrtfpykit-wheel/
+wheels/
+dist/
