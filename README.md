@@ -64,7 +64,7 @@ pip install -e ".[test,docs]"
 
 `hrtfpykit` requires Python 3.13 or newer.
 
-## Quick example
+## Quick start
 
 ```python
 from hrtfpykit.hrtf import load_hrtf
