@@ -3,18 +3,12 @@
 </p>
 
 <p align="center">
-  <a href="https://pypi.org/project/hrtfpykit/">
-    <img alt="PyPI package" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/pypi.svg">
-  </a>
+  <a href="https://pypi.org/project/hrtfpykit/"><img alt="PyPI package" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/pypi.svg"></a>
   <img alt="Docs Sphinx Furo" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/docs.svg">
-  <a href="https://github.com/ArielAlvarez-Martinez/hrtfpykit/actions/workflows/ci.yml">
-    <img alt="CI/CD workflow" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/ci-cd.svg">
-  </a>
+  <a href="https://github.com/ArielAlvarez-Martinez/hrtfpykit/actions/workflows/ci.yml"><img alt="CI/CD workflow" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/ci-cd.svg"></a>
   <img alt="Python 3.13+" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/python.svg">
   <img alt="SOFA HRTF HRIR" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/sofa.svg">
-  <a href="https://github.com/ArielAlvarez-Martinez/hrtfpykit/blob/main/LICENSE">
-    <img alt="License GPL 3.0 only" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/license.svg">
-  </a>
+  <a href="https://github.com/ArielAlvarez-Martinez/hrtfpykit/blob/main/LICENSE"><img alt="License GPL 3.0 only" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/license.svg"></a>
 </p>
 
 
