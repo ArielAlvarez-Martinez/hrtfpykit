@@ -1,4 +1,0 @@
-Tutorials
-=========
-
-The tutorials index 
