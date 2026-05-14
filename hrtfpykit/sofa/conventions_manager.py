@@ -8,9 +8,8 @@ class ConventionsManager:
     """Registry manager for SOFA convention specifications.
 
     The manager reads and updates the in-package convention registry used by
-    SOFA validation, dummy-object creation, and convention inspection tools.
-    Specifications are stored as dictionaries keyed by SOFA convention name and
-    version.
+    SOFA validation and convention inspection tools. Specifications are stored
+    as dictionaries keyed by SOFA convention name and version.
     """
 
     Spec = dict[str, dict[str, Any]]

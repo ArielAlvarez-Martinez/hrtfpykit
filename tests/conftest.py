@@ -40,8 +40,14 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--subjects",
         action="store",
-        default=os.getenv("HUTUBS_TEST_SUBJECT_LIMIT", ""),
-        help="Number of subjects to use for HUTUBS tests",
+        default=os.getenv("HUTUBS_TEST_SUBJECT_LIMIT", os.getenv("SONICOM_TEST_SUBJECT_LIMIT", "")),
+        help="Number of subjects to use for HUTUBS and SONICOM tests",
+    )
+    parser.addoption(
+        "--hutubs-download",
+        action="store_true",
+        default=False,
+        help="Run HUTUBS network download tests",
     )
     parser.addoption(
         "--full",
@@ -83,8 +89,12 @@ def pytest_configure(config: pytest.Config) -> None:
             for path in compare_sofa_paths_option
             if str(path).strip() != ""
         )
-    subjects = str(config.getoption("subjects") or os.getenv("HUTUBS_TEST_SUBJECT_LIMIT", "")).strip()
+    subjects = str(
+        config.getoption("subjects")
+        or os.getenv("HUTUBS_TEST_SUBJECT_LIMIT", os.getenv("SONICOM_TEST_SUBJECT_LIMIT", ""))
+    ).strip()
     full = bool(config.getoption("full"))
+    hutubs_download = bool(config.getoption("hutubs_download"))
     sonicom_download = bool(config.getoption("sonicom_download"))
     show = bool(config.getoption("show"))
     visual = bool(config.getoption("visual"))
@@ -119,6 +129,9 @@ def pytest_configure(config: pytest.Config) -> None:
         os.environ.pop("HUTUBS_TEST_FULL", None)
         os.environ.pop("SONICOM_TEST_FULL", None)
 
+    if hutubs_download:
+        os.environ["HUTUBS_TEST_DOWNLOAD"] = "1"
+
     if sonicom_download:
         os.environ["SONICOM_TEST_DOWNLOAD"] = "1"
 
@@ -126,3 +139,21 @@ def pytest_configure(config: pytest.Config) -> None:
         os.environ["HRTFPYKIT_TEST_SHOW_PLOTS"] = "1"
     else:
         os.environ.pop("HRTFPYKIT_TEST_SHOW_PLOTS", None)
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    hutubs_download = bool(config.getoption("hutubs_download"))
+    sonicom_download = bool(config.getoption("sonicom_download"))
+    if not hutubs_download and not sonicom_download:
+        return
+
+    download_items = []
+    other_items = []
+    for item in items:
+        if hutubs_download and item.name == "test_hutubs_download_resources_follow_subject_limit":
+            download_items.append(item)
+        elif sonicom_download and item.name == "test_sonicom_download_resources_follow_subject_limit":
+            download_items.append(item)
+        else:
+            other_items.append(item)
+    items[:] = download_items + other_items

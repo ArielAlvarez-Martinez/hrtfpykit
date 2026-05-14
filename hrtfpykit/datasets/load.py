@@ -4,7 +4,7 @@ import csv
 import io
 import warnings
 from contextlib import redirect_stdout
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from scipy.io import loadmat
@@ -134,7 +134,7 @@ def load_hrtf(
                 f"{state.name}: subject {mapped_subject_id} HRTF file could not be loaded: {path} ({exc})"
             ) from exc
         selected_cache[cache_key] = loaded_hrtf
-    return loaded_hrtf
+    return cast("HRTF", loaded_hrtf)
 
 
 def load_table(
@@ -243,8 +243,6 @@ def load_table(
                     mapped_subject_id = dataset_subject_ids[row_index]
                     converted: dict[str, float | str | None] = {}
                     for key in data_fieldnames:
-                        if key is None:
-                            continue
                         value = row.get(key)
                         text = str("" if value is None else value).strip()
                         if text == "":
@@ -270,7 +268,7 @@ def load_table(
                             )
                 selected_row_keys = set(row_indices)
                 rows: dict[str, dict[str, float | str | None]] = {}
-                for index, subject_id in enumerate(row_keys):
+                for index, row_subject_id in enumerate(row_keys):
                     if index in selected_row_keys:
                         continue
                     row_values = dict(raw_rows[index][1])
@@ -291,7 +289,7 @@ def load_table(
                         for index, key in enumerate(column_keys)
                         if index not in set(column_indices)
                     }
-                    rows[subject_id] = {
+                    rows[row_subject_id] = {
                         key: row_values[key]
                         for key in row_values
                         if key in selected_column_keys
@@ -308,8 +306,8 @@ def load_table(
             if len(recognized_subject_columns) == 0:
                 raise ValueError(f"{resource_name} file {mapped_path} has no recognized subject columns")
 
-            rows: dict[str, dict[str, float | str | None]] = {}
-            raw_rows: list[tuple[str, dict[str, float | str | None]]] = []
+            column_rows: dict[str, dict[str, float | str | None]] = {}
+            column_raw_rows: list[tuple[str, dict[str, float | str | None]]] = []
             for row in reader:
                 if subject_id:
                     row_key = row.get(fieldnames[0], "")
@@ -317,84 +315,84 @@ def load_table(
                     if row_label == "":
                         continue
                 else:
-                    row_label = str(len(raw_rows))
-                row_values: dict[str, float | str | None] = {}
+                    row_label = str(len(column_raw_rows))
+                column_row_values: dict[str, float | str | None] = {}
                 for source_column, mapped_subject_id in recognized_subject_columns:
                     value = row.get(source_column)
                     text = str("" if value is None else value).strip()
                     if text == "":
-                        row_values[mapped_subject_id] = None
+                        column_row_values[mapped_subject_id] = None
                     else:
                         try:
-                            row_values[mapped_subject_id] = float(text)
+                            column_row_values[mapped_subject_id] = float(text)
                         except ValueError:
-                            row_values[mapped_subject_id] = text
-                raw_rows.append((row_label, row_values))
+                            column_row_values[mapped_subject_id] = text
+                column_raw_rows.append((row_label, column_row_values))
 
-            row_indices: list[int] = []
+            column_access_row_indices: list[int] = []
             if exclude_row is not None:
                 if isinstance(exclude_row, int):
-                    row_indices = [int(exclude_row)]
+                    column_access_row_indices = [int(exclude_row)]
                 else:
-                    row_indices = [int(value) for value in exclude_row]
-                for index in row_indices:
-                    if index < 0 or index >= len(raw_rows):
+                    column_access_row_indices = [int(value) for value in exclude_row]
+                for index in column_access_row_indices:
+                    if index < 0 or index >= len(column_raw_rows):
                         raise ValueError(
-                            f"{resource_name} row index {index} is out of range for {len(raw_rows)} rows"
+                            f"{resource_name} row index {index} is out of range for {len(column_raw_rows)} rows"
                         )
-            column_indices: list[int] = []
+            column_access_column_indices: list[int] = []
             if exclude_column is not None:
                 if isinstance(exclude_column, int):
-                    column_indices = [int(exclude_column)]
+                    column_access_column_indices = [int(exclude_column)]
                 else:
-                    column_indices = [int(value) for value in exclude_column]
-                for index in column_indices:
+                    column_access_column_indices = [int(value) for value in exclude_column]
+                for index in column_access_column_indices:
                     if index < 0 or index >= len(recognized_subject_columns):
                         raise ValueError(
                             f"{resource_name} column index {index} is out of range for {len(recognized_subject_columns)} columns"
                         )
-            selected_row_indices = set(row_indices)
-            removed_subject_positions = set(column_indices)
+            selected_row_indices = set(column_access_row_indices)
+            removed_subject_positions = set(column_access_column_indices)
             kept_subject_columns = [
                 (source_column, mapped_subject_id)
                 for position, (source_column, mapped_subject_id) in enumerate(recognized_subject_columns)
                 if position not in removed_subject_positions
             ]
             kept_subject_ids = tuple(subject_id for _, subject_id in kept_subject_columns)
-            for index, (row_label, row_values) in enumerate(raw_rows):
+            for index, (row_label, column_row_values) in enumerate(column_raw_rows):
                 if index in selected_row_indices:
                     continue
                 filtered_row: dict[str, float | str | None] = {}
-                for mapped_subject_id in tuple(row_values):
+                for mapped_subject_id in tuple(column_row_values):
                     if mapped_subject_id in kept_subject_ids:
-                        filtered_row[mapped_subject_id] = row_values[mapped_subject_id]
-                rows[row_label] = filtered_row
-            return rows
+                        filtered_row[mapped_subject_id] = column_row_values[mapped_subject_id]
+                column_rows[row_label] = filtered_row
+            return column_rows
     if mapped_extension == ".mat":
         data = loadmat(mapped_path)
         if not isinstance(exclude_row, type(None)):
-            row_indices = (
+            mat_row_indices = (
                 (int(exclude_row),)
                 if isinstance(exclude_row, int)
                 else tuple(int(value) for value in exclude_row)
             )
             data = {
                 key: (
-                    np.delete(value, row_indices, axis=0)
+                    np.delete(value, mat_row_indices, axis=0)
                     if isinstance(value, np.ndarray) and value.ndim >= 1
                     else value
                 )
                 for key, value in data.items()
             }
         if not isinstance(exclude_column, type(None)):
-            column_indices = (
+            mat_column_indices = (
                 (int(exclude_column),)
                 if isinstance(exclude_column, int)
                 else tuple(int(value) for value in exclude_column)
             )
             data = {
                 key: (
-                    np.delete(value, column_indices, axis=1)
+                    np.delete(value, mat_column_indices, axis=1)
                     if isinstance(value, np.ndarray) and value.ndim >= 2
                     else value
                 )

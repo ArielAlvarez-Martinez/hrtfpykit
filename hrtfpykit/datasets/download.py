@@ -3,6 +3,7 @@ from collections.abc import Mapping
 import gzip
 import hashlib
 import tarfile
+from typing import Any, cast
 import urllib.error
 import urllib.request
 import zipfile
@@ -73,7 +74,10 @@ class BaseDownload:
             exclusion cannot be mapped by
             :class:`~hrtfpykit.datasets.split.DatasetSplitPlanner`.
         """
-        self.config: type[DatasetConfig] | DatasetConfig = config
+        if isinstance(config, type):
+            config = cast(DatasetConfig, cast(Any, config)())
+
+        self.config: DatasetConfig = config
         self.root: Path = self.sanitize_root(Path(root))
         config_excluded_subject_ids = DatasetSplitPlanner.map_subject_ids(
             tuple(config.excluded_subject_ids),
@@ -245,7 +249,7 @@ class BaseDownload:
         if self.config.download is None:
             raise ValueError(f"{self.config.name} does not define downloadable resources")
         if isinstance(requested, str):
-            requested_values = (requested,)
+            requested_values: tuple[str, ...] = (requested,)
         else:
             requested_values = tuple(requested)
         available = tuple(self.config.download.available_resources)
@@ -307,7 +311,7 @@ class BaseDownload:
                 return tuple(str(value) for value in available)
             return (str(default),)
         if isinstance(requested, (str, int)):
-            requested_values = (requested,)
+            requested_values: tuple[str | int, ...] = (requested,)
         else:
             requested_values = tuple(requested)
         normalized_available = {str(value).strip().lower(): value for value in available}
@@ -727,10 +731,10 @@ class BaseDownload:
                 hrtf_subject_ids
             )
             subject_numbers = DatasetSplitPlanner.build_subject_number_map(
-                DatasetSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids))
+                tuple(DatasetSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids)))
             )
             hrtf_types = self.sanitize_download_values(
-                hrtf_variant_type,
+                cast(Any, hrtf_variant_type),
                 tuple(self.config.hrtf.types),
                 None,
                 "download_hrtf_variant['type']",
@@ -738,14 +742,14 @@ class BaseDownload:
             requested_hrtf_types = (
                 (hrtf_variant_type,)
                 if isinstance(hrtf_variant_type, (str, int)) or hrtf_variant_type is None
-                else tuple(hrtf_variant_type)
+                else tuple(cast(Any, hrtf_variant_type))
             )
             hrtf_type_all = any(str(value).strip().lower() == "all" for value in requested_hrtf_types)
             for hrtf_type in hrtf_types:
                 hrtf_type_config = self.config.hrtf.types[hrtf_type]
                 try:
-                    hrtf_sample_rates = self.sanitize_download_values(
-                        hrtf_variant_sample_rate,
+                    hrtf_sample_rates: tuple[str | None, ...] = self.sanitize_download_values(
+                        cast(Any, hrtf_variant_sample_rate),
                         hrtf_type_config.sample_rates,
                         None,
                         "download_hrtf_variant['sample_rate']",
@@ -757,8 +761,8 @@ class BaseDownload:
                 if len(hrtf_sample_rates) == 0:
                     hrtf_sample_rates = (None,)
                 try:
-                    hrtf_versions = self.sanitize_download_values(
-                        hrtf_variant_version,
+                    hrtf_versions: tuple[str | None, ...] = self.sanitize_download_values(
+                        cast(Any, hrtf_variant_version),
                         hrtf_type_config.versions,
                         None,
                         "download_hrtf_variant['version']",
@@ -841,10 +845,10 @@ class BaseDownload:
                 mesh_subject_ids
             )
             subject_numbers = DatasetSplitPlanner.build_subject_number_map(
-                DatasetSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids))
+                tuple(DatasetSplitPlanner.sort_subject_ids(tuple(self.config.subject_ids)))
             )
             mesh_types = self.sanitize_download_values(
-                mesh_variant_type,
+                cast(Any, mesh_variant_type),
                 tuple(self.config.mesh.types),
                 None,
                 "download_mesh_variant['type']",
@@ -852,7 +856,7 @@ class BaseDownload:
             requested_mesh_types = (
                 (mesh_variant_type,)
                 if isinstance(mesh_variant_type, (str, int)) or mesh_variant_type is None
-                else tuple(mesh_variant_type)
+                else tuple(cast(Any, mesh_variant_type))
             )
             mesh_type_all = any(str(value).strip().lower() == "all" for value in requested_mesh_types)
             if len(mesh_types) == 0 and "default" in self.config.mesh.types:
@@ -860,8 +864,8 @@ class BaseDownload:
             for mesh_type in mesh_types:
                 mesh_type_config = self.config.mesh.types[mesh_type]
                 try:
-                    mesh_versions = self.sanitize_download_values(
-                        mesh_variant_version,
+                    mesh_versions: tuple[str | None, ...] = self.sanitize_download_values(
+                        cast(Any, mesh_variant_version),
                         mesh_type_config.versions,
                         None,
                         "download_mesh_variant['version']",
@@ -1020,8 +1024,8 @@ class BaseDownload:
                 try:
                     status = self.download_file(
                         str(job["url"]),
-                        Path(job["destination"]),
-                        checksum=job["checksum"],
+                        Path(cast(Any, job["destination"])),
+                        checksum=str(job["checksum"]),
                     )
                 except ValueError as exc:
                     failures.append(f"{job['relative_path']}: {exc}")

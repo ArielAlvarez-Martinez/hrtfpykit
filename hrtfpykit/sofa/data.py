@@ -6,7 +6,7 @@ from .wraps import DimensionsWrap, VariablesWrap, AttributesWrap
 
 
 class _Data(ABC):
-    def __init__(self, dataset : netCDF4.Dataset = None):
+    def __init__(self, dataset: netCDF4.Dataset | None = None):
         """Define shared behavior for SOFA collection wrappers.
 
         ``_Data`` stores the open netCDF4 storage handle used by a
@@ -147,7 +147,7 @@ class _Data(ABC):
 
 
 class _Dimensions(_Data):
-    def __init__(self, dataset : netCDF4.Dataset = None):
+    def __init__(self, dataset: netCDF4.Dataset | None = None):
         """Expose SOFA dimensions from a netCDF4-backed SOFA storage handle.
 
         ``_Dimensions`` backs :attr:`~hrtfpykit.sofa.SOFA.Dimensions`. It exposes
@@ -283,7 +283,7 @@ class _Dimensions(_Data):
     
 
 class _AttributesBase(_Data):
-    def __init__(self, dataset: netCDF4.Dataset = None, attribute_type: str = "Attribute") -> None:
+    def __init__(self, dataset: netCDF4.Dataset | None = None, attribute_type: str = "Attribute") -> None:
         """Provide lookup, iteration, and wrapping for SOFA attributes.
 
         ``_AttributesBase`` implements the shared lookup, iteration, and wrapping
@@ -424,7 +424,7 @@ class _AttributesBase(_Data):
         None
             The base implementation does not build a summary.
         """
-        pass
+        return ""
 
     def __getitem__(self, key: str) -> Optional[AttributesWrap]:
         """Return a wrapped attribute using indexing syntax.
@@ -470,7 +470,7 @@ class _AttributesBase(_Data):
 
 
 class _GlobalAttributes(_AttributesBase):
-    def __init__(self, dataset: netCDF4.Dataset = None) -> None:
+    def __init__(self, dataset: netCDF4.Dataset | None = None) -> None:
         """Expose file-level SOFA metadata from a netCDF4 storage handle.
 
         ``_GlobalAttributes`` backs
@@ -553,7 +553,7 @@ class _GlobalAttributes(_AttributesBase):
 
 
 class _VariableAttributes(_AttributesBase):
-    def __init__(self, dataset: netCDF4.Dataset = None) -> None:
+    def __init__(self, dataset: netCDF4.Dataset | None = None) -> None:
         """Expose attributes attached to individual SOFA variables.
 
         ``_VariableAttributes`` backs
@@ -643,7 +643,7 @@ class _VariableAttributes(_AttributesBase):
         return "\n".join(lines)
 
 class _Variables(_Data):
-    def __init__(self, dataset : netCDF4.Dataset = None):
+    def __init__(self, dataset: netCDF4.Dataset | None = None):
         """Expose SOFA variable data and metadata from a netCDF4 storage handle.
 
         ``_Variables`` backs :attr:`~hrtfpykit.sofa.SOFA.Variables`. It exposes
@@ -742,6 +742,7 @@ class _Variables(_Data):
         for name, var in self._netCDF4_dataset.variables.items():
             dims = []
             for dim_name in var.dimensions:
+                dim_size: int | str
                 if dim_name in self._netCDF4_dataset.dimensions:
                     dim_size = self._netCDF4_dataset.dimensions[dim_name].size
                 else:

@@ -1,13 +1,13 @@
 from functools import cached_property
 from pathlib import Path
-import datetime
-import importlib.metadata
+from typing import Any, cast
 
 import hrtfpykit.sofa
 import numpy as np
 from ..coordinates import get_position_queries
 from ..dsp import (
     ir_from_tf,
+    prepend_missing_dc,
     tf_from_ir,
 )
 from ..planes import (
@@ -61,7 +61,16 @@ def load_hrtf(
     frequency bins must be non-negative, increasing, and uniformly spaced. DC
     (0 Hz) should be present. If DC is missing and bins start at one-bin step
     (Delta f), hrtfpykit prepends DC with value 1+0j to keep
-    reconstruction consistent.
+    reconstruction consistent. The normalized TF is stored on
+    :attr:`~hrtfpykit.hrtf.HRTF.TF`, so
+    :meth:`~hrtfpykit.hrtf.HRTF.update_sofa` and
+    :meth:`~hrtfpykit.hrtf.HRTF.save` write the DC bin back when the object is
+    synchronized.
+
+    Mesh2HRTF compatible reconstruction options are stored on the returned
+    object. They are reused by :meth:`~hrtfpykit.hrtf.HRTF.reset`, preserved by
+    :meth:`~hrtfpykit.hrtf.HRTF.clone`, and forwarded by TF-domain workflows
+    that rebuild HRIR data from the current HRTF values.
 
     Parameters
     ----------
@@ -79,10 +88,12 @@ def load_hrtf(
         N/frequency bins.
     mesh2hrtf_compatible : bool, default=False
         If True, use Mesh2HRTF-style TF-to-IR reconstruction when loading
-        SimpleFreeFieldHRTF files.
+        SimpleFreeFieldHRTF files. The selected value is stored on the returned
+        object and reused by reset and transform workflows.
     mesh2hrtf_n_shift : int | None, default=30
         Optional circular shift in samples applied after TF-to-IR
-        reconstruction when mesh2hrtf_compatible=True.
+        reconstruction when mesh2hrtf_compatible=True. The selected value is
+        stored on the returned object.
 
     Returns
     -------
@@ -91,7 +102,9 @@ def load_hrtf(
         :class:`~hrtfpykit.hrtf.domain.IR`,
         :class:`~hrtfpykit.hrtf.domain.TF`,
         :attr:`~hrtfpykit.hrtf.HRTF.SOFAConventions`, and
-        :attr:`~hrtfpykit.hrtf.HRTF.fft_length` populated.
+        :attr:`~hrtfpykit.hrtf.HRTF.fft_length` populated. For
+        SimpleFreeFieldHRTF input, Mesh2HRTF compatible load options are also
+        stored on the object.
 
     Raises
     ------
@@ -116,6 +129,20 @@ def load_hrtf(
     (793, 2, 129)
     >>> hrtf.IR.sample_rate
     44100.0
+
+    Load a SimpleFreeFieldHRTF file with Mesh2HRTF compatible reconstruction
+    and keep those reconstruction settings available for reset and later TF
+    workflows:
+
+    >>> hrtf = load_hrtf(
+    ...     "hrtfs/HRTF_ARI_44100.sofa",
+    ...     mesh2hrtf_compatible=True,
+    ...     mesh2hrtf_n_shift=30,
+    ... )
+    >>> hrtf.mesh2hrtf_compatible
+    True
+    >>> hrtf.mesh2hrtf_n_shift
+    30
     """
     Sofa = hrtfpykit.sofa.load_sofa(
         path,
@@ -130,7 +157,7 @@ def load_hrtf(
         raise ValueError("SOFA dataset is not loaded")
 
     try:
-        convention = global_attrs.get("SOFAConventions").value
+        convention = cast(Any, global_attrs.get("SOFAConventions")).value
     except ValueError:
         convention = None
     if convention not in allowed:
@@ -146,7 +173,7 @@ def load_hrtf(
             raise ValueError(
                 "SimpleFreeFieldHRIR requires variable 'Data.IR', but it is missing."
             )
-        ir = np.asarray(variables.get("Data.IR").value)
+        ir = np.asarray(cast(Any, variables.get("Data.IR")).value)
         if ir.size == 0 or np.all(ir == 0):
             raise ValueError("SimpleFreeFieldHRIR requires non empty 'Data.IR'.")
         if "Data.SamplingRate" not in variable_names:
@@ -154,7 +181,7 @@ def load_hrtf(
                 "SimpleFreeFieldHRIR requires variable 'Data.SamplingRate', but it is missing."
             )
         sample_rate_data = np.asarray(
-            variables.get("Data.SamplingRate").value,
+            cast(Any, variables.get("Data.SamplingRate")).value,
             dtype=float,
         )
         if sample_rate_data.size == 0 or np.all(sample_rate_data == 0):
@@ -193,19 +220,20 @@ def load_hrtf(
             f"{required_variables}, but missing: {missing_variables}."
         )
 
-    real = np.asarray(variables.get("Data.Real").value, dtype=float)
+    real = np.asarray(cast(Any, variables.get("Data.Real")).value, dtype=float)
     if real.size == 0 or np.all(real == 0):
         raise ValueError("SimpleFreeFieldHRTF requires non empty 'Data.Real'.")
 
-    imag = np.asarray(variables.get("Data.Imag").value, dtype=float)
+    imag = np.asarray(cast(Any, variables.get("Data.Imag")).value, dtype=float)
     if imag.size == 0 or np.all(imag == 0):
         raise ValueError("SimpleFreeFieldHRTF requires non empty 'Data.Imag'.")
 
-    frequency_bins = np.asarray(variables.get("N").value, dtype=float)
+    frequency_bins = np.asarray(cast(Any, variables.get("N")).value, dtype=float)
     if frequency_bins.size == 0 or np.all(frequency_bins == 0):
         raise ValueError("SimpleFreeFieldHRTF requires non empty 'N'.")
 
     tf = real + 1j * imag
+    tf, frequency_bins = prepend_missing_dc(tf, frequency_bins)
     ir, sample_rate, fft_length_used = ir_from_tf(
         tf,
         frequency_bins=frequency_bins,
@@ -221,6 +249,8 @@ def load_hrtf(
     hrtf.TF.frequency_bins = frequency_bins
     hrtf.fft_length = fft_length_used
     hrtf.SOFAConventions = convention
+    hrtf.mesh2hrtf_compatible = bool(mesh2hrtf_compatible)
+    hrtf.mesh2hrtf_n_shift = mesh2hrtf_n_shift
     return hrtf
 
 
@@ -284,7 +314,9 @@ class HRTF(HRTFPlots):
         :class:`~hrtfpykit.sofa.SOFA` object in
         :attr:`~hrtfpykit.hrtf.HRTF.Sofa`. Transformation state is tracked
         internally; selected source subsets are tracked separately by
-        :class:`~hrtfpykit.hrtf.sources.Sources`.
+        :class:`~hrtfpykit.hrtf.sources.Sources`. Mesh2HRTF compatible loading
+        state is also stored so reset and TF-domain workflows can reconstruct
+        HRIR data with the same convention used at load time.
 
         Parameters
         ----------
@@ -303,6 +335,12 @@ class HRTF(HRTFPlots):
             object.
         fft_length : int or None
             FFT length used when synchronizing between IR and TF representations.
+        mesh2hrtf_compatible : bool
+            Whether SimpleFreeFieldHRTF data should use Mesh2HRTF compatible
+            TF-to-IR reconstruction.
+        mesh2hrtf_n_shift : int or None
+            Circular shift in samples used when
+            :attr:`mesh2hrtf_compatible` is True.
         _transformed : bool
             Internal flag indicating whether the in-memory acoustic data were produced
             by a transform workflow.
@@ -311,6 +349,8 @@ class HRTF(HRTFPlots):
         self.Sofa: SOFA | None = Sofa
         self.SOFAConventions: str | None = None
         self.fft_length: int | None = None
+        self.mesh2hrtf_compatible: bool = False
+        self.mesh2hrtf_n_shift: int | None = None
         self._transformed: bool = False
 
     @cached_property
@@ -459,16 +499,18 @@ class HRTF(HRTFPlots):
         """Create a deep clone of the current :class:`~hrtfpykit.hrtf.HRTF` object.
 
         The clone receives copied IR and TF arrays, sample-rate and
-        frequency-bin metadata, FFT length, transformation state, and source
-        selection state. When the backing :class:`~hrtfpykit.sofa.SOFA`
-        object can be cloned, the clone receives an independent SOFA handle;
-        otherwise the original handle is retained.
+        frequency-bin metadata, FFT length, Mesh2HRTF compatible reconstruction
+        settings, transformation state, and source selection state. When the
+        backing :class:`~hrtfpykit.sofa.SOFA` object can be cloned, the clone
+        receives an independent SOFA handle; otherwise the original handle is
+        retained.
 
         Returns
         -------
         HRTF
             New object with copied acoustic arrays, domain metadata, source
-            selection state, SOFA convention metadata, and transformation flag.
+            selection state, SOFA convention metadata, Mesh2HRTF compatible
+            loading state, and transformation flag.
 
         Examples
         --------
@@ -491,6 +533,8 @@ class HRTF(HRTFPlots):
         hrtf = HRTF(Sofa=sofa_clone)
         hrtf.SOFAConventions = self.SOFAConventions
         hrtf.fft_length = self.fft_length
+        hrtf.mesh2hrtf_compatible = self.mesh2hrtf_compatible
+        hrtf.mesh2hrtf_n_shift = self.mesh2hrtf_n_shift
         hrtf._transformed = self._transformed
         if self.IR.values is not None:
             hrtf.IR.values = np.array(self.IR.values, copy=True)
@@ -518,7 +562,9 @@ class HRTF(HRTFPlots):
         files are restored from ``Data.IR`` and ``Data.SamplingRate`` and then
         converted to TF. HRTF files are restored from ``Data.Real``,
         ``Data.Imag``, and ``N``
-        and then converted to IR. Source selections are cleared when the
+        and then converted to IR. If the object was loaded with
+        Mesh2HRTF compatible reconstruction, reset uses the same compatibility
+        flag and sample shift. Source selections are cleared when the
         :class:`~hrtfpykit.hrtf.sources.Sources` object has already been
         initialized.
 
@@ -526,7 +572,8 @@ class HRTF(HRTFPlots):
         -------
         HRTF
             Current instance after restoring IR/TF, source-state, and metadata
-            from the backed :class:`~hrtfpykit.sofa.SOFA` object.
+            from the backed :class:`~hrtfpykit.sofa.SOFA` object while keeping
+            the stored Mesh2HRTF compatible reconstruction settings.
 
         Raises
         ------
@@ -559,7 +606,7 @@ class HRTF(HRTFPlots):
         variables = self.Sofa.Variables
         allowed = {"SimpleFreeFieldHRIR", "SimpleFreeFieldHRTF"}
         try:
-            convention = global_attrs.get("SOFAConventions").value
+            convention = cast(Any, global_attrs.get("SOFAConventions")).value
         except ValueError:
             convention = None
         if convention not in allowed:
@@ -579,11 +626,11 @@ class HRTF(HRTFPlots):
                     "SimpleFreeFieldHRIR requires variable 'Data.SamplingRate', but it is missing."
                 )
 
-            ir = np.asarray(variables.get("Data.IR").value)
+            ir = np.asarray(cast(Any, variables.get("Data.IR")).value)
             if ir.size == 0 or np.all(ir == 0):
                 raise ValueError("SimpleFreeFieldHRIR requires non empty 'Data.IR'.")
             sample_rate_data = np.asarray(
-                variables.get("Data.SamplingRate").value,
+                cast(Any, variables.get("Data.SamplingRate")).value,
                 dtype=float,
             )
             if sample_rate_data.size == 0 or np.all(sample_rate_data == 0):
@@ -614,20 +661,23 @@ class HRTF(HRTFPlots):
                     "SimpleFreeFieldHRTF requires variables "
                     f"{required_variables}, but missing: {missing_variables}."
                 )
-            real = np.asarray(variables.get("Data.Real").value, dtype=float)
+            real = np.asarray(cast(Any, variables.get("Data.Real")).value, dtype=float)
             if real.size == 0 or np.all(real == 0):
                 raise ValueError("SimpleFreeFieldHRTF requires non empty 'Data.Real'.")
-            imag = np.asarray(variables.get("Data.Imag").value, dtype=float)
+            imag = np.asarray(cast(Any, variables.get("Data.Imag")).value, dtype=float)
             if imag.size == 0 or np.all(imag == 0):
                 raise ValueError("SimpleFreeFieldHRTF requires non empty 'Data.Imag'.")
-            frequency_bins = np.asarray(variables.get("N").value, dtype=float)
+            frequency_bins = np.asarray(cast(Any, variables.get("N")).value, dtype=float)
             if frequency_bins.size == 0 or np.all(frequency_bins == 0):
                 raise ValueError("SimpleFreeFieldHRTF requires non empty 'N'.")
 
             tf = real + 1j * imag
+            tf, frequency_bins = prepend_missing_dc(tf, frequency_bins)
             ir, sample_rate, fft_length_used = ir_from_tf(
                 tf,
                 frequency_bins=frequency_bins,
+                mesh2hrtf_compatible=self.mesh2hrtf_compatible,
+                n_shift=self.mesh2hrtf_n_shift,
             )
             self.IR.values = np.array(ir, copy=True)
             self.IR.sample_rate = float(sample_rate)
@@ -637,7 +687,7 @@ class HRTF(HRTFPlots):
 
         if "Sources" in self.__dict__:
             self.Sources.source_coordinate_system = (
-                self.Sofa.VariableAttributes.get("SourcePosition:Type").value
+                cast(Any, cast(Any, self.Sofa.VariableAttributes).get("SourcePosition:Type")).value
             )
             self.Sources._selected_indices = None
         self.SOFAConventions = convention
@@ -687,6 +737,8 @@ class HRTF(HRTFPlots):
         updates HRIR output through ``Data.IR`` and ``Data.SamplingRate``; HRTF
         output through ``Data.Real``, ``Data.Imag``, and ``N``. Obsolete variables from the
         opposite convention are removed when the output convention changes.
+        If a SimpleFreeFieldHRTF file omitted the DC bin at load time,
+        synchronization writes the normalized TF with the inserted DC bin.
 
         Dimension handling is conservative. If transformed data no longer fit
         existing SOFA dimensions, synchronization raises unless
@@ -698,7 +750,9 @@ class HRTF(HRTFPlots):
         The method updates the in-memory
         :attr:`~hrtfpykit.hrtf.HRTF.Sofa` object only. Use
         :meth:`~hrtfpykit.hrtf.HRTF.save` to persist the synchronized
-        SOFA object to disk.
+        SOFA object to disk. When TF values must be converted back to IR during
+        synchronization, the stored Mesh2HRTF compatible reconstruction
+        settings are reused.
 
         Parameters
         ----------
@@ -742,7 +796,7 @@ class HRTF(HRTFPlots):
         if self.Sofa.GlobalAttributes is None or self.Sofa.Variables is None:
             raise ValueError("SOFA dataset is not loaded")
         try:
-            backed_convention = self.Sofa.GlobalAttributes.get("SOFAConventions").value
+            backed_convention = cast(Any, self.Sofa.GlobalAttributes.get("SOFAConventions")).value
         except ValueError:
             backed_convention = self.SOFAConventions
         if backed_convention not in {"SimpleFreeFieldHRIR", "SimpleFreeFieldHRTF"}:
@@ -761,13 +815,76 @@ class HRTF(HRTFPlots):
         if "Sources" in self.__dict__:
             selected_indices = self.Sources._selected_indices
         has_selected_subset = selected_indices is not None
+        backed_state_matches = True
         if (
             not self._transformed
             and resolved_sofa_convention == backed_convention
             and not has_selected_subset
         ):
-            print("HRTF is not transformed. SOFA-backed object is already up to date.")
-            return
+            dataset = self.Sofa.netCDF4_dataset
+            if dataset is None:
+                raise ValueError("SOFA dataset is not loaded")
+            if resolved_sofa_convention == "SimpleFreeFieldHRIR":
+                if (
+                    self.IR.values is not None
+                    and self.IR.sample_rate is not None
+                    and "Data.IR" in dataset.variables
+                    and "Data.SamplingRate" in dataset.variables
+                ):
+                    backed_ir = np.asarray(dataset.variables["Data.IR"][:])
+                    backed_sample_rate = np.asarray(
+                        dataset.variables["Data.SamplingRate"][:],
+                        dtype=float,
+                    )
+                    backed_state_matches = (
+                        backed_ir.shape == np.asarray(self.IR.values).shape
+                        and np.allclose(backed_ir, np.asarray(self.IR.values))
+                        and np.allclose(
+                            backed_sample_rate,
+                            np.asarray(float(self.IR.sample_rate)),
+                        )
+                    )
+                else:
+                    backed_state_matches = False
+            else:
+                if (
+                    self.TF.values is not None
+                    and self.TF.frequency_bins is not None
+                    and "Data.Real" in dataset.variables
+                    and "Data.Imag" in dataset.variables
+                    and "N" in dataset.variables
+                ):
+                    backed_real = np.asarray(
+                        dataset.variables["Data.Real"][:],
+                        dtype=float,
+                    )
+                    backed_imag = np.asarray(
+                        dataset.variables["Data.Imag"][:],
+                        dtype=float,
+                    )
+                    backed_frequency_bins = np.asarray(
+                        dataset.variables["N"][:],
+                        dtype=float,
+                    )
+                    backed_state_matches = (
+                        backed_real.shape == np.asarray(self.TF.values).shape
+                        and backed_imag.shape == np.asarray(self.TF.values).shape
+                        and backed_frequency_bins.shape
+                        == np.asarray(self.TF.frequency_bins).shape
+                        and np.allclose(backed_real, np.real(np.asarray(self.TF.values)))
+                        and np.allclose(backed_imag, np.imag(np.asarray(self.TF.values)))
+                        and np.allclose(
+                            backed_frequency_bins,
+                            np.asarray(self.TF.frequency_bins, dtype=float),
+                        )
+                    )
+                else:
+                    backed_state_matches = False
+            if backed_state_matches:
+                print(
+                    "HRTF is not transformed. SOFA-backed object is already up to date."
+                )
+                return
 
         if resolved_sofa_convention == "SimpleFreeFieldHRIR":
             if self.IR.values is not None and self.IR.sample_rate is not None:
@@ -781,6 +898,8 @@ class HRTF(HRTFPlots):
                 resolved_ir_values, resolved_sample_rate, _ = ir_from_tf(
                     np.asarray(self.TF.values),
                     frequency_bins=np.asarray(self.TF.frequency_bins, dtype=float),
+                    mesh2hrtf_compatible=self.mesh2hrtf_compatible,
+                    n_shift=self.mesh2hrtf_n_shift,
                 )
             target_variables: dict[str, np.ndarray] = {
                 "Data.IR": np.asarray(resolved_ir_values),
@@ -807,7 +926,7 @@ class HRTF(HRTFPlots):
             }
 
         if resolved_sofa_convention == "SimpleFreeFieldHRIR":
-            obsolete_variables = ("Data.Real", "Data.Imag", "N")
+            obsolete_variables: tuple[str, ...] = ("Data.Real", "Data.Imag", "N")
         else:
             obsolete_variables = ("Data.IR", "Data.SamplingRate")
         if resolved_sofa_convention != backed_convention:
@@ -821,9 +940,36 @@ class HRTF(HRTFPlots):
         else:
             working_sofa = self.Sofa
 
-        dataset = working_sofa.netCDF4_dataset
+        dataset = cast(Any, working_sofa.netCDF4_dataset)
         if dataset is None:
             raise ValueError("SOFA dataset is not loaded")
+        missing_dc_normalization = False
+        if (
+            resolved_sofa_convention == "SimpleFreeFieldHRTF"
+            and backed_convention == "SimpleFreeFieldHRTF"
+            and not self._transformed
+            and "Data.Real" in dataset.variables
+            and "Data.Imag" in dataset.variables
+            and "N" in dataset.variables
+        ):
+            backed_tf = (
+                np.asarray(dataset.variables["Data.Real"][:], dtype=float)
+                + 1j * np.asarray(dataset.variables["Data.Imag"][:], dtype=float)
+            )
+            backed_frequency_bins = np.asarray(dataset.variables["N"][:], dtype=float)
+            normalized_tf, normalized_frequency_bins = prepend_missing_dc(
+                backed_tf,
+                backed_frequency_bins,
+            )
+            missing_dc_normalization = (
+                normalized_tf.shape == np.asarray(target_variables["Data.Real"]).shape
+                and normalized_frequency_bins.shape == np.asarray(target_variables["N"]).shape
+                and normalized_tf.shape[-1] != backed_tf.shape[-1]
+                and np.allclose(np.real(normalized_tf), target_variables["Data.Real"])
+                and np.allclose(np.imag(normalized_tf), target_variables["Data.Imag"])
+                and np.allclose(normalized_frequency_bins, target_variables["N"])
+            )
+        allow_dimension_changes = change_sofa_dimensions or missing_dc_normalization
         existing_target_variables = [
             variable_name
             for variable_name in target_variables
@@ -840,7 +986,7 @@ class HRTF(HRTFPlots):
         for variable_name in missing_target_variables:
             target_values = np.asarray(target_variables[variable_name])
             if variable_name == "N":
-                variable_dimensions = ("N",)
+                    variable_dimensions: tuple[str, ...] = ("N",)
             elif variable_name == "Data.SamplingRate":
                 variable_dimensions = ("I",)
             else:
@@ -893,7 +1039,7 @@ class HRTF(HRTFPlots):
                 np.broadcast_to(target_array, variable_shape)
             except ValueError:
                 mismatched_variables.append(variable_name)
-        if (mismatched_variables or dimension_overrides) and not change_sofa_dimensions:
+        if (mismatched_variables or dimension_overrides) and not allow_dimension_changes:
             mismatch_text = ", ".join(mismatched_variables)
             raise ValueError(
                 "Transformed HRTF dimensions differ from SOFA-backed variables "
@@ -905,7 +1051,15 @@ class HRTF(HRTFPlots):
             updated_sofa = working_sofa.clone()
             for variable_name in existing_target_variables:
                 target_values = target_variables[variable_name]
-                updated_sofa.modify_variable(variable_name, target_values)
+                current_values = np.asarray(dataset.variables[variable_name][:])
+                target_array = np.asarray(target_values)
+                try:
+                    comparable_target = np.broadcast_to(target_array, current_values.shape)
+                except ValueError:
+                    updated_sofa.modify_variable(variable_name, target_values)
+                else:
+                    if not np.allclose(current_values, comparable_target):
+                        updated_sofa.modify_variable(variable_name, target_values)
         else:
             for variable_name in mismatched_variables:
                 variable = dataset.variables[variable_name]
@@ -980,7 +1134,15 @@ class HRTF(HRTFPlots):
                 updated_sofa = working_sofa.clone()
                 for variable_name in existing_target_variables:
                     target_values = target_variables[variable_name]
-                    updated_sofa.modify_variable(variable_name, target_values)
+                    current_values = np.asarray(dataset.variables[variable_name][:])
+                    target_array = np.asarray(target_values)
+                    try:
+                        comparable_target = np.broadcast_to(target_array, current_values.shape)
+                    except ValueError:
+                        updated_sofa.modify_variable(variable_name, target_values)
+                    else:
+                        if not np.allclose(current_values, comparable_target):
+                            updated_sofa.modify_variable(variable_name, target_values)
 
         updated_dataset = updated_sofa.netCDF4_dataset
         if updated_dataset is None:
@@ -999,7 +1161,7 @@ class HRTF(HRTFPlots):
             )
             for axis_index, dimension_name in enumerate(variable_dimensions):
                 if dimension_name not in updated_dataset.dimensions:
-                    if not change_sofa_dimensions:
+                    if not allow_dimension_changes:
                         raise ValueError(
                             f"Dimension '{dimension_name}' is missing in SOFA dataset. "
                             "Set change_sofa_dimensions=True to allow creating missing dimensions."
@@ -1041,18 +1203,6 @@ class HRTF(HRTFPlots):
                 updated_sofa.delete_variable(obsolete_variable)
 
         updated_sofa.path = self.Sofa.path
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        try:
-            hrtfpykit_version = importlib.metadata.version("hrtfpykit")
-        except importlib.metadata.PackageNotFoundError:
-            hrtfpykit_version = "unknown"
-        existing_date_created = None
-        try:
-            existing_date_created = updated_sofa.GlobalAttributes.get("DateCreated").value
-        except ValueError:
-            existing_date_created = None
-        if isinstance(existing_date_created, str) and existing_date_created.strip() == "":
-            existing_date_created = None
         resolved_global_attributes = {
             "SOFAConventions": resolved_sofa_convention,
             "DataType": (
@@ -1060,18 +1210,13 @@ class HRTF(HRTFPlots):
                 if resolved_sofa_convention == "SimpleFreeFieldHRIR"
                 else "TF"
             ),
-            "APIName": "hrtfpykit-sofa",
-            "APIVersion": hrtfpykit.sofa.__version__,
-            "ApplicationName": "hrtfpykit",
-            "ApplicationVersion": hrtfpykit_version,
-            "DateModified": now,
         }
-        if existing_date_created is None:
-            resolved_global_attributes["DateCreated"] = now
         for attribute_name, attribute_value in resolved_global_attributes.items():
-            try:
-                updated_sofa.modify_global_attribute(attribute_name, attribute_value)
-            except ValueError:
+            if attribute_name in updated_dataset.ncattrs():
+                current_value = getattr(updated_dataset, attribute_name)
+                if current_value != attribute_value:
+                    updated_sofa.modify_global_attribute(attribute_name, attribute_value)
+            else:
                 updated_sofa.create_global_attribute(attribute_name, attribute_value)
         self.Sofa = updated_sofa
         self.SOFAConventions = resolved_sofa_convention

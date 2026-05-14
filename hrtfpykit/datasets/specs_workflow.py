@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any, cast
 
 from .specs import (
     AnthropometrySpec,
@@ -13,6 +14,7 @@ from .specs import (
     VideoSpec,
 )
 from .specs_registry import (
+    DatasetSpec,
     SPEC_DESCRIPTORS,
     get_axis_compatibility_hint,
     get_flag_compatibility_hint,
@@ -74,18 +76,9 @@ class DatasetSpecPlan:
         Whether sample or ear context encodings should be added to sample inputs.
     """
 
-    input_specs: tuple[
-        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
-        ...,
-    ]
-    target_specs: tuple[
-        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
-        ...,
-    ]
-    specs: tuple[
-        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
-        ...,
-    ]
+    input_specs: tuple[DatasetSpec, ...]
+    target_specs: tuple[DatasetSpec, ...]
+    specs: tuple[DatasetSpec, ...]
     input_names: tuple[str, ...]
     target_names: tuple[str, ...]
     index_by: tuple[str, ...]
@@ -172,16 +165,19 @@ class DatasetSpecWorkflow:
         input_specs = sanitize_specs(inputs)
         target_specs = sanitize_specs(target)
         specs = input_specs + target_specs
-        indexed_specs = get_specs(specs, indexed=True)
-        grouped_specs = get_specs(specs, grouped=True)
-        position_selectable_specs = get_specs(specs, position_selectable=True)
-        ear_selectable_specs = get_specs(specs, ear_selectable=True)
+        indexed_specs = cast(tuple[Any, ...], get_specs(specs, indexed=True))
+        grouped_specs = cast(tuple[Any, ...], get_specs(specs, grouped=True))
+        position_selectable_specs = cast(
+            tuple[Any, ...],
+            get_specs(specs, position_selectable=True),
+        )
+        ear_selectable_specs = cast(tuple[Any, ...], get_specs(specs, ear_selectable=True))
 
         for descriptor in SPEC_DESCRIPTORS:
             if not descriptor.path_based:
                 continue
             explicit_paths = tuple(
-                str(spec.path)
+                str(getattr(spec, "path"))
                 for spec in specs
                 if isinstance(spec, descriptor.spec_type) and getattr(spec, "path", None) is not None
             )
@@ -292,7 +288,7 @@ class DatasetSpecWorkflow:
                 else:
                     continue
                 if len(selected_ears) == 0:
-                    selected_ears = spec_ears
+                    selected_ears = tuple(spec_ears)
                 elif spec_ears != selected_ears:
                     raise ValueError(
                         "All ear-indexed specs must use the same ear axis. "
@@ -305,7 +301,7 @@ class DatasetSpecWorkflow:
                         continue
                     if "ear" not in sanitize_grouped_by(spec.grouped_by):
                         continue
-                    spec_ears = sanitize_ears(spec.ear if spec.ear is not None else "both")
+                    spec_ears = tuple(sanitize_ears(spec.ear if spec.ear is not None else "both"))
                     if len(selected_ears) == 0:
                         selected_ears = tuple(spec_ears)
                     elif tuple(spec_ears) != selected_ears:
@@ -363,7 +359,7 @@ class DatasetSpecWorkflow:
 
     @staticmethod
     def get_spec_name(
-        spec: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | ImageSpec | VideoSpec,
+        spec: DatasetSpec,
     ) -> str:
         """Resolve the public sample key for a dataset spec.
 

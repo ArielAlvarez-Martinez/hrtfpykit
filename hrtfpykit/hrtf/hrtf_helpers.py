@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 import numpy as np
 
 from ..sofa.sofa import SOFA
-from ..dsp import ir_from_tf, tf_from_ir
+from ..dsp import ir_from_tf, prepend_missing_dc, tf_from_ir
 
 
 @dataclass(frozen=True)
@@ -23,7 +24,7 @@ def _extract_sofa_convention(sofa: SOFA, path: str | Path | None) -> str:
     if global_attrs is None:
         raise ValueError("SOFA dataset is not loaded")
     try:
-        convention = global_attrs.get("SOFAConventions").value
+        convention = cast(Any, global_attrs.get("SOFAConventions")).value
     except ValueError:
         convention = None
     allowed = {"SimpleFreeFieldHRIR", "SimpleFreeFieldHRTF"}
@@ -52,7 +53,7 @@ def _parse_simple_free_field_hrir(
         raise ValueError(
             "SimpleFreeFieldHRIR requires variable 'Data.IR', but it is missing."
         )
-    ir = np.asarray(variables.get("Data.IR").value)
+    ir = np.asarray(cast(Any, variables.get("Data.IR")).value)
     if ir.size == 0 or np.all(ir == 0):
         raise ValueError("SimpleFreeFieldHRIR requires non empty 'Data.IR'.")
     if "Data.SamplingRate" not in variable_names:
@@ -60,7 +61,7 @@ def _parse_simple_free_field_hrir(
             "SimpleFreeFieldHRIR requires variable 'Data.SamplingRate', but it is missing."
         )
     sample_rate_data = np.asarray(
-        variables.get("Data.SamplingRate").value,
+        cast(Any, variables.get("Data.SamplingRate")).value,
         dtype=float,
     )
     if sample_rate_data.size == 0 or np.all(sample_rate_data == 0):
@@ -95,10 +96,10 @@ def _parse_simple_free_field_hrtf(
             f"{required_variables}, but missing: {missing_variables}."
         )
 
-    real = np.asarray(variables.get("Data.Real").value, dtype=float)
+    real = np.asarray(cast(Any, variables.get("Data.Real")).value, dtype=float)
     if real.size == 0:
         raise ValueError("SimpleFreeFieldHRTF requires non empty 'Data.Real'.")
-    imag = np.asarray(variables.get("Data.Imag").value, dtype=float)
+    imag = np.asarray(cast(Any, variables.get("Data.Imag")).value, dtype=float)
     if imag.size == 0 or imag.shape != real.shape:
         raise ValueError(
             "SimpleFreeFieldHRTF requires 'Data.Imag' with the same shape as 'Data.Real'."
@@ -110,10 +111,11 @@ def _parse_simple_free_field_hrtf(
     if tf.size == 0 or not np.any(tf):
         raise ValueError("SimpleFreeFieldHRTF requires non empty complex TF.")
 
-    frequency_bins = np.asarray(variables.get("N").value, dtype=float)
+    frequency_bins = np.asarray(cast(Any, variables.get("N")).value, dtype=float)
     if frequency_bins.size == 0 or np.all(frequency_bins == 0):
         raise ValueError("SimpleFreeFieldHRTF requires non empty 'N'.")
 
+    tf, frequency_bins = prepend_missing_dc(tf, frequency_bins)
     ir, sample_rate, fft_length_used = ir_from_tf(
         tf,
         frequency_bins=frequency_bins,

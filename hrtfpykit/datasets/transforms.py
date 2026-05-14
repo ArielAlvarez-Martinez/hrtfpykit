@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
@@ -109,7 +109,7 @@ class HRTFTransform:
                 )
             return method(*args, **kwargs)
 
-        transform.__hrtf_transform__ = True
+        cast(Any, transform).__hrtf_transform__ = True
         return transform
 
     @staticmethod
@@ -169,7 +169,7 @@ class HRTFTransform:
                 )
             return method(*args, **kwargs)
 
-        transform.__hrtf_transform__ = True
+        cast(Any, transform).__hrtf_transform__ = True
         return transform
 
     @staticmethod

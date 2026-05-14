@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import matplotlib
 
@@ -29,13 +30,18 @@ from hrtfpykit.plots.sh import (
 )
 
 
+FIXTURE_SOFA_PATH = Path(__file__).parent / "pp1_HRIRs_measured.sofa"
 SOFA_PATH = os.getenv("HRTFPYKIT_TEST_SOFA_PATH", "")
+if SOFA_PATH == "" and FIXTURE_SOFA_PATH.exists():
+    SOFA_PATH = str(FIXTURE_SOFA_PATH)
 SHOW_PLOTS = os.getenv("HRTFPYKIT_TEST_SHOW_PLOTS", "") == "1"
 COMPARE_SOFA_PATHS = [
     path
     for path in os.getenv("HRTFPYKIT_TEST_COMPARE_SOFA_PATHS", "").split(os.pathsep)
     if path.strip() != ""
 ]
+if len(COMPARE_SOFA_PATHS) == 0 and SOFA_PATH != "":
+    COMPARE_SOFA_PATHS = [SOFA_PATH, SOFA_PATH]
 
 
 @pytest.fixture(autouse=True)

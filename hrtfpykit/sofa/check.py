@@ -38,10 +38,10 @@ SUSPICIOUS_FILE_PATTERN = re.compile(
 
 
 def check_sofa_against_conventions(
-    target: Union[str, netCDF4.Dataset],
+    target: Union[str, pathlib.Path, netCDF4.Dataset],
     convention_name: Optional[str] = None,
     version: Optional[str] = None,
-) -> dict[str, str]:
+) -> dict[str, dict[str, str | None]]:
     """Validate a SOFA file or open netCDF4 object against a SOFA convention.
 
     The check emits warnings for:
@@ -153,7 +153,7 @@ def check_sofa_against_conventions(
                         SOFAConventionWarning,
                     )
                     continue
-                if exists and "r" in flags and default not in ("", None):
+                if exists and "r" in flags and default not in ("", None) and attr_name != "Version":
                     value = getattr(dataset, attr_name)
                     if not _compare_default(default, value):
                         warn_user(
@@ -208,7 +208,9 @@ def check_sofa_against_conventions(
                         )
 
         extra_global_attrs = sorted(
-            attr for attr in dataset.ncattrs() if attr not in spec_global_attrs
+            attr
+            for attr in dataset.ncattrs()
+            if attr not in spec_global_attrs and attr != "hrtfpykit"
         )
         if extra_global_attrs:
             warn_user(
@@ -500,7 +502,7 @@ def check_sofa_security(
             closer.close()
 
 
-def _resolve_dataset(target: Union[str, netCDF4.Dataset]):
+def _resolve_dataset(target: Union[str, pathlib.Path, netCDF4.Dataset]):
     if hasattr(target, "netCDF4_dataset"):
         dataset = target.netCDF4_dataset
         if dataset is None:
@@ -633,8 +635,8 @@ def _find_url_hits_in_text(text: str) -> list[str]:
             cleaned = _clean_match(match)
             if cleaned and len(cleaned) >= 7:
                 hits.append(cleaned)
-    cleaned = [item for item in hits if item]
-    return sorted(set(cleaned))
+    cleaned_hits = [item for item in hits if item]
+    return sorted(set(cleaned_hits))
 
 
 def _find_extension_hits_in_text(text: str) -> list[str]:

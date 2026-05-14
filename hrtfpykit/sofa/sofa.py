@@ -1,20 +1,16 @@
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, cast
+import datetime
+import importlib.metadata
 import pathlib
 from uuid import uuid4
 import os
 import netCDF4
 import numpy as np
-from .conventions import CONVENTIONS
 from .data import  _Dimensions, _GlobalAttributes, _VariableAttributes, _Variables
 from .sofa_helpers import (
-    complete_global_attributes,
-    dtype_for,
     ensure_broadcastable,
-    first_dim_option,
     open_sofa,
     require_dataset,
-    reshape_for_broadcast,
-    version_key,
     warn_dimension_shape_mismatch,
 )
 
@@ -104,7 +100,7 @@ def load_sofa(
 
 
 class SOFA:
-    def __init__(self):
+    def __init__(self) -> None:
         """Represent a SOFA file and its netCDF4 storage handle.
 
         :class:`~hrtfpykit.sofa.SOFA` is the library abstraction around an
@@ -138,7 +134,7 @@ class SOFA:
             has been loaded or created.
         path : pathlib.Path | None
             Original or most recent disk path associated with the SOFA object. In-memory
-            clones and dummy SOFA objects start with None.
+            clones start with None.
 
         Examples
         --------
@@ -163,7 +159,9 @@ class SOFA:
         (793, 2, 256)
         """
         self.netCDF4_dataset: Optional[netCDF4.Dataset] = None
-        self.path = None
+        self.path: pathlib.Path | None = None
+        self._modified: bool = False
+        self._change_messages: list[str] = []
 
     @property
     def Dimensions(self) -> Optional[_Dimensions]:
@@ -334,6 +332,7 @@ class SOFA:
         if name in dataset.dimensions:
             raise ValueError(f"Dimension attribute already exists: {name}")
         dataset.createDimension(name, value)
+        self._modified = True
         print(f"Dimension: '{name}' created succesfully")
 
     def rename_dimension(self, old_name: str, new_name: str) -> None:
@@ -384,6 +383,7 @@ class SOFA:
             print(f"Dimension: '{old_name}' not found")
             raise ValueError(f"Dimension not found: {old_name}")
         dataset.renameDimension(old_name , new_name)
+        self._modified = True
         print(f"Dimension: '{old_name}' renamed succesfully")
 
     def create_global_attribute(self, name: str, value: Optional[str] = None) -> None:
@@ -439,6 +439,7 @@ class SOFA:
             raise ValueError(f"Global attribute already exists: {name}")
         stored_value = "" if value is None else value
         setattr(dataset, name, stored_value)
+        self._modified = True
         print(f"Global attribute: '{name}' created succesfully")
 
     def modify_global_attribute(self, name: str, value: str) -> None:
@@ -490,6 +491,7 @@ class SOFA:
         if name not in dataset.ncattrs():
             raise ValueError(f"Global attribute not found: {name}")
         setattr(dataset, name, value)
+        self._modified = True
         print(f"Global attribute: '{name}' modified succesfully")
 
     def delete_global_attribute(self, name: str) -> None:
@@ -538,6 +540,7 @@ class SOFA:
         if name not in dataset.ncattrs():
             raise ValueError(f"Global attribute not found: {name}")
         delattr(dataset, name)
+        self._modified = True
         print(f"Global attribute: '{name}' deleted succesfully")
 
     def create_variable_attribute(self, name: str, value: Optional[str] = None) -> None:
@@ -600,6 +603,7 @@ class SOFA:
             raise ValueError(f"Variable attribute already exists: {name}")
         stored_value = "" if value is None else value
         setattr(var, attr_name, stored_value)
+        self._modified = True
         print(f"Variable attribute: '{name}' created succesfully")
 
     def modify_variable_attribute(self, name: str, value: str) -> None:
@@ -657,6 +661,7 @@ class SOFA:
         if attr_name not in var.ncattrs():
             raise ValueError(f"Variable attribute not found: {name}")
         setattr(var, attr_name, value)
+        self._modified = True
         print(f"Variable attribute: '{name}' modified succesfully")
 
     def delete_variable_attribute(self, name: str) -> None:
@@ -713,6 +718,7 @@ class SOFA:
         if attr_name not in var.ncattrs():
             raise ValueError(f"Variable attribute not found: {name}")
         delattr(var, attr_name)
+        self._modified = True
         print(f"Variable attribute: '{name}' deleted succesfully")
 
     def create_variable(
@@ -826,6 +832,7 @@ class SOFA:
             for attr_name, attr_value in attributes.items():
                 setattr(var, attr_name, attr_value)
 
+        self._modified = True
         print(f"Variable: '{name}' created succesfully")
 
     def modify_variable(self, name: str, data: Union[np.ndarray, list]) -> None:
@@ -899,6 +906,7 @@ class SOFA:
                 target_shape.append(var.shape[idx])
         ensure_broadcastable(name, array, tuple(target_shape))
         var[...] = array
+        self._modified = True
         print(f"Variable: '{name}' modified succesfully")
 
     def delete_variable(self, name: str) -> None:
@@ -948,239 +956,8 @@ class SOFA:
         if name not in dataset.variables:
             raise ValueError(f"Variable not found: {name}")
         del dataset.variables[name]
+        self._modified = True
         print(f"Variable: '{name}' deleted succesfully")
-
-    @classmethod
-    def create_dummy(
-        cls,
-        sofa_conventions: str,
-        version: Optional[str] = None,
-        dim_sizes: Optional[Dict[str, int]] = None,
-        custom_global_attributes: Optional[Dict[str, str]] = None,
-        override_default_global_attributes: bool = False,
-    ) -> "SOFA":
-        """Create an in-memory SOFA object from a supported convention.
-
-        The returned object is backed by a diskless netCDF4 Dataset and is
-        useful for synthetic examples, tests, and workflows that construct
-        SOFA content before saving it to disk. Dimensions, variables, global
-        attributes, and variable attributes are derived from hrtfpykit's local
-        SOFA convention specifications.
-
-        Parameters
-        ----------
-        sofa_conventions : str
-            Supported SOFA convention name, such as
-            ``SimpleFreeFieldHRIR`` or ``SimpleFreeFieldHRTF``.
-        version : Optional[str], optional
-            Convention version. If ``version`` is None, the latest version available in
-            the local convention table is used.
-        dim_sizes : Optional[Dict[str, int]], optional
-            Dimension size overrides. Keys are normalized to uppercase.
-            Passing size 0 for a non-reserved dimension creates that
-            dimension as unlimited. The reserved ``S`` dimension must not be
-            supplied and is always created as unlimited.
-        custom_global_attributes : Optional[Dict[str, str]], optional
-            Additional global attributes used to complete or override the
-            default hrtfpykit metadata fields.
-        override_default_global_attributes : bool, optional
-            If ``True``, ``custom_global_attributes`` override existing default
-            values. If ``False``, custom values fill only missing or empty
-            metadata fields.
-
-        Returns
-        -------
-        SOFA
-            In-memory :class:`~hrtfpykit.sofa.SOFA` object backed by a writable diskless netCDF4
-            netCDF4 storage handle. The returned object's :attr:`~hrtfpykit.sofa.SOFA.path` is None until it is
-            saved.
-
-        Raises
-        ------
-        ValueError
-            If the convention name or version is unsupported, or if
-            ``dim_sizes`` tries to override the reserved unlimited ``S``
-            dimension.
-        Exception
-            Propagates errors raised by netCDF4 while creating dimensions,
-            variables, attributes, or assigning default data.
-
-        Notes
-        -----
-        The dummy :class:`~hrtfpykit.sofa.SOFA` object always includes an unlimited ``S`` dimension with
-        initial size 0. Passing ``S`` in ``dim_sizes`` raises an error because
-        ``S`` is reserved by the SOFA conventions. To create other unlimited
-        dimensions, set their size to 0 in ``dim_sizes``.
-
-        Defaults from the convention table are assigned when available. If a
-        non-scalar default cannot be broadcast to the resolved variable shape,
-        the variable is initialized with zeros so that the SOFA object remains
-        structurally usable and can be filled by later calls to
-        :meth:`~hrtfpykit.sofa.SOFA.modify_variable`.
-
-        Examples
-        --------
-        Create a small in-memory SimpleFreeFieldHRIR object, then inspect the
-        convention metadata and the shape of the initialized HRIR variable:
-
-        >>> from hrtfpykit.sofa import SOFA
-        >>> sofa = SOFA.create_dummy(
-        ...     "SimpleFreeFieldHRIR",
-        ...     dim_sizes={"M": 4, "R": 2, "N": 32, "E": 1},
-        ... )
-        >>> sofa.GlobalAttributes.get("SOFAConventions").value
-        'SimpleFreeFieldHRIR'
-        >>> sofa.Variables.get("Data.IR").value.shape
-        (4, 2, 32)
-        """
-        print("Creating in-memory dummy SOFA dataset")
-        print(f"SOFA conventions: {sofa_conventions}")
-        if sofa_conventions not in CONVENTIONS:
-            raise ValueError(
-                f"Unsupported SOFAConventions '{sofa_conventions}'. "
-                f"Supported: {', '.join(sorted(CONVENTIONS.keys()))}"
-            )
-        available_versions = CONVENTIONS[sofa_conventions]
-        if version is None:
-            version = max(available_versions.keys(), key=version_key)
-            print(f"No version provided, using latest available: {version}")
-        else:
-            print(f"Requested conventions version: {version}")
-
-        if version not in available_versions:
-            raise ValueError(
-                f"Unsupported SOFAConventionsVersion '{version}' for {sofa_conventions}. "
-                f"Supported: {', '.join(sorted(available_versions.keys()))}"
-            )
-
-        spec = available_versions[version]
-
-        user_dim_sizes: Dict[str, int] = {}
-
-        if dim_sizes is not None:
-            if any(str(k).upper() == "S" for k in dim_sizes.keys()):
-                raise ValueError(
-                    "dim_sizes must not include 'S' (reserved unlimited dimension). "
-                    "S is always created with size 0 and unlimited. "
-                    "To create other unlimited dimensions, pass size 0 (e.g., {'K': 0})."
-                )
-            user_dim_sizes = {str(k).upper(): int(v) for k, v in dim_sizes.items()}
-        if user_dim_sizes:
-            ordered = ", ".join(f"{k}={v}" for k, v in sorted(user_dim_sizes.items()))
-            print(f"User dimension overrides: {ordered}")
-
-        effective_dim_sizes = dict(user_dim_sizes)
-        effective_dim_sizes["S"] = 0
-
-        unlimited_dims = {name for name, size in effective_dim_sizes.items() if size == 0}
-        unlimited_dims.add("S")
-
-        dim_sizes: Dict[str, int] = {}
-        for name, entry in spec.items():
-            if name.startswith("GLOBAL:") or ":" in name:
-                continue
-            dim_names = first_dim_option(entry.get("dimensions"))
-            if not dim_names:
-                continue
-            default = entry.get("default")
-            shape = None
-            if isinstance(default, (list, tuple, np.ndarray)):
-                try:
-                    shape = np.array(default).shape
-                except Exception:
-                    shape = None
-            if shape is None or len(shape) != len(dim_names):
-                shape = tuple(effective_dim_sizes.get(dim_name, 1) for dim_name in dim_names)
-            for dim_name, size in zip(dim_names, shape):
-                base_size = effective_dim_sizes.get(dim_name, 1)
-                dim_sizes[dim_name] = max(dim_sizes.get(dim_name, base_size), base_size, int(size))
-        for dim_name, size in user_dim_sizes.items():
-            if dim_name not in dim_sizes:
-                dim_sizes[dim_name] = size
-
-        if "S" not in dim_sizes:
-            dim_sizes["S"] = effective_dim_sizes.get("S", 0)
-
-        ordered = ", ".join(f"{k}={v}" for k, v in sorted(dim_sizes.items()))
-        print(f"Final dimension sizes: {ordered}")
-        dataset = netCDF4.Dataset(
-            f"inmemory_{sofa_conventions}_{version}",
-            mode="w",
-            diskless=True,
-            persist=False,
-        )
-        try:
-            for dim_name in sorted(dim_sizes.keys()):
-                size = dim_sizes[dim_name]
-                if dim_name in unlimited_dims:
-                    dataset.createDimension(dim_name, None)
-                else:
-                    dataset.createDimension(dim_name, size)
-
-            for name, entry in spec.items():
-                if not name.startswith("GLOBAL:"):
-                    continue
-                attr_name = name.split("GLOBAL:", 1)[1]
-                default = entry.get("default")
-                if default is None:
-                    continue
-                setattr(dataset, attr_name, default)
-
-            for name, entry in spec.items():
-                if name.startswith("GLOBAL:") or ":" in name:
-                    continue
-                dim_names = first_dim_option(entry.get("dimensions"))
-                dtype = dtype_for(entry.get("type"))
-                var = dataset.createVariable(name, dtype, tuple(dim_names))
-                default = entry.get("default")
-                if default is None:
-                    continue
-                if len(dim_names) == 0:
-                    var[...] = default
-                    continue
-                shape = tuple(dim_sizes.get(dim_name, 1) for dim_name in dim_names)
-                data = np.array(default)
-                if data.shape == shape:
-                    var[:] = data
-                elif data.shape == ():
-                    var[:] = np.full(shape, data)
-                else:
-                    try:
-                        var[:] = np.broadcast_to(data, shape)
-                    except Exception:
-                        try:
-                            reshaped = reshape_for_broadcast(data, shape)
-                            var[:] = np.broadcast_to(reshaped, shape)
-                        except Exception:
-                            var[:] = np.zeros(shape)
-
-            for name, entry in spec.items():
-                if name.startswith("GLOBAL:") or ":" not in name:
-                    continue
-                var_name, attr_name = name.split(":", 1)
-                if var_name not in dataset.variables:
-                    continue
-                default = entry.get("default")
-                if default is None:
-                    continue
-                setattr(dataset.variables[var_name], attr_name, default)
-        except Exception:
-            dataset.close()
-            raise
-
-        dataset.SOFAConventions = sofa_conventions
-        dataset.SOFAConventionsVersion = version
-        complete_global_attributes(
-            dataset,
-            custom_global_attributes,
-            override_default_global_attributes,
-        )
-
-        sofa_object = cls()
-        sofa_object.netCDF4_dataset = dataset
-        sofa_object.path = None
-        print("Dummy SOFA dataset ready")
-        return sofa_object
 
     def save(self, path: Optional[Union[str, pathlib.Path]] = None, overwrite: bool = False) -> pathlib.Path:
         """Save the current SOFA object to disk.
@@ -1255,23 +1032,55 @@ class SOFA:
         if self.netCDF4_dataset is None:
             raise ValueError("Dataset is not loaded")
 
+        target_path: pathlib.Path | None = None
+        original_path: pathlib.Path | None = None
         if path is None:
             print("Saving SOFA file to original path")
-            self.netCDF4_dataset.sync()
             if self.path is None:
                 raise ValueError("No path available to save the dataset")
-            print("SOFA save complete")
-            return pathlib.Path(self.path)
+            original_path = pathlib.Path(self.path)
+        else:
+            target_path = pathlib.Path(path)
+            print(f"Saving SOFA file to: {target_path}")
+            if target_path.exists() and not overwrite:
+                raise FileExistsError(f"SOFA file already exists: {target_path}")
 
-        target_path = pathlib.Path(path)
-        print(f"Saving SOFA file to: {target_path}")
-        if target_path.exists() and not overwrite:
-            raise FileExistsError(f"SOFA file already exists: {target_path}")
+        for message in self._change_messages:
+            print(message)
+        self._change_messages = []
+
+        if self._modified:
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                hrtfpykit_version = importlib.metadata.version("hrtfpykit")
+            except importlib.metadata.PackageNotFoundError:
+                hrtfpykit_version = "unknown"
+            hrtfpykit_stamp = (
+                f"Modified using hrtfpykit v{hrtfpykit_version} on {now}"
+            )
+            if "DateModified" in self.netCDF4_dataset.ncattrs():
+                self.modify_global_attribute("DateModified", now)
+            else:
+                self.create_global_attribute("DateModified", now)
+            if "hrtfpykit" in self.netCDF4_dataset.ncattrs():
+                self.modify_global_attribute("hrtfpykit", hrtfpykit_stamp)
+            else:
+                self.create_global_attribute("hrtfpykit", hrtfpykit_stamp)
+
+        if path is None:
+            self.netCDF4_dataset.sync()
+            self._modified = False
+            print("SOFA save complete")
+            if original_path is None:
+                raise ValueError("No path available to save the dataset")
+            return original_path
 
         src = self.netCDF4_dataset
+        if target_path is None:
+            raise ValueError("No path available to save the dataset")
         file_format = getattr(src, "file_format", "NETCDF4")
         temp_path = target_path.with_name(f".{target_path.name}.{uuid4().hex}.tmp")
-        dst = netCDF4.Dataset(str(temp_path), mode="w", format=file_format)
+        dst = netCDF4.Dataset(str(temp_path), mode="w", format=cast(Any, file_format))
         try:
             for name, dim in src.dimensions.items():
                 size = None if dim.isunlimited() else dim.size
@@ -1293,6 +1102,7 @@ class SOFA:
             os.replace(temp_path, target_path)
 
         self.path = target_path
+        self._modified = False
         print("SOFA save complete")
         return target_path
 
@@ -1351,7 +1161,7 @@ class SOFA:
             mode="w",
             diskless=True,
             persist=False,
-            format=file_format,
+            format=cast(Any, file_format),
         )
         try:
             for name, dim in src.dimensions.items():
@@ -1371,6 +1181,8 @@ class SOFA:
         sofa_object = SOFA()
         sofa_object.netCDF4_dataset = dst
         sofa_object.path = None
+        sofa_object._modified = self._modified
+        sofa_object._change_messages = list(self._change_messages)
         return sofa_object
 
     def copy_with(
@@ -1448,12 +1260,13 @@ class SOFA:
 
         src = self.netCDF4_dataset
         file_format = getattr(src, "file_format", "NETCDF4")
+        change_messages: list[str] = []
         dst = netCDF4.Dataset(
             f"inmemory_{uuid4().hex}",
             mode="w",
             diskless=True,
             persist=False,
-            format=file_format,
+            format=cast(Any, file_format),
         )
         try:
             override_dims = dim_sizes or {}
@@ -1469,11 +1282,24 @@ class SOFA:
                     size = None
                 else:
                     size = override_dims.get(name, dim.size)
+                    if name in override_dims and size != dim.size:
+                        change_messages.append(
+                            f"Dimension: '{name}' modified succesfully"
+                        )
                 dst.createDimension(name, size)
 
             dst.setncatts({name: getattr(src, name) for name in src.ncattrs()})
             if global_attributes:
                 for attr_name, value in global_attributes.items():
+                    if attr_name in src.ncattrs():
+                        if getattr(src, attr_name) != value:
+                            change_messages.append(
+                                f"Global attribute: '{attr_name}' modified succesfully"
+                            )
+                    else:
+                        change_messages.append(
+                            f"Global attribute: '{attr_name}' created succesfully"
+                        )
                     setattr(dst, attr_name, value)
 
             override_vars = variables or {}
@@ -1493,10 +1319,45 @@ class SOFA:
                 dst_var.setncatts({attr: getattr(var, attr) for attr in var.ncattrs()})
                 if name in var_attr_overrides:
                     for attr_name, value in var_attr_overrides[name].items():
+                        attribute_name = f"{name}:{attr_name}"
+                        if attr_name in var.ncattrs():
+                            if getattr(var, attr_name) != value:
+                                change_messages.append(
+                                    f"Variable attribute: '{attribute_name}' modified succesfully"
+                                )
+                        else:
+                            change_messages.append(
+                                f"Variable attribute: '{attribute_name}' created succesfully"
+                            )
                         setattr(dst_var, attr_name, value)
 
                 data = override_vars[name] if name in override_vars else var[:]
                 array = np.array(data)
+                if name in override_vars:
+                    source_array = np.array(var[:])
+                    variable_modified = True
+                    try:
+                        comparable_array = np.broadcast_to(array, source_array.shape)
+                    except ValueError:
+                        variable_modified = True
+                    else:
+                        if (
+                            np.issubdtype(source_array.dtype, np.number)
+                            and np.issubdtype(comparable_array.dtype, np.number)
+                        ):
+                            variable_modified = not np.allclose(
+                                source_array,
+                                comparable_array,
+                            )
+                        else:
+                            variable_modified = not np.array_equal(
+                                source_array,
+                                comparable_array,
+                            )
+                    if variable_modified:
+                        change_messages.append(
+                            f"Variable: '{name}' modified succesfully"
+                        )
                 target_shape: list[int] = []
                 for idx, dim_name in enumerate(var.dimensions):
                     dim = dst.dimensions[dim_name]
@@ -1516,6 +1377,10 @@ class SOFA:
         sofa_object = SOFA()
         sofa_object.netCDF4_dataset = dst
         sofa_object.path = None
+        sofa_object._modified = self._modified or bool(
+            dim_sizes or global_attributes or variable_attributes or variables
+        )
+        sofa_object._change_messages = list(self._change_messages) + change_messages
         return sofa_object
 
     def summary(self) -> str:
@@ -1577,6 +1442,7 @@ class SOFA:
         for name, var in dataset.variables.items():
             dims = []
             for dim_name in var.dimensions:
+                dim_size: int | str
                 if dim_name in dataset.dimensions:
                     dim_size = dataset.dimensions[dim_name].size
                 else:

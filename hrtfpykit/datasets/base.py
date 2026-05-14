@@ -1,6 +1,6 @@
 from pathlib import Path
 from collections.abc import Mapping, Sequence
-from typing import Callable, TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING, cast
 
 import numpy as np
 
@@ -143,7 +143,7 @@ class BaseDataset:
             split_seed=split_seed,
             verbose=verbose,
         )
-        self._state.resources_summary = resources_summary(self)
+        self._state.resources_summary = cast(str, resources_summary(self))
         self._state.dataset_summary = dataset_summary(self)
         if verbose:
             print(self._state.resources_summary)

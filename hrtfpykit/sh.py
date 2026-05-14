@@ -420,6 +420,7 @@ def sht_error(
         raise ValueError("magnitude must be one of: linear, db")
 
     if magnitude_key == "db":
+        resolved_reference: float | str
         if isinstance(reference, str) and str(reference).strip().lower() == "max":
             resolved_reference = float(
                 np.max(

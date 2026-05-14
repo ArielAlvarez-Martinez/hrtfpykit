@@ -1,5 +1,6 @@
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 
@@ -81,9 +82,10 @@ def collate_samples(batch: Sequence[object]) -> object:
             return list(values)
 
         if all(isinstance(value, np.ndarray) for value in values):
-            shapes = {value.shape for value in values}
+            arrays = cast(list[np.ndarray], values)
+            shapes = {value.shape for value in arrays}
             if len(shapes) == 1:
-                return np.stack(values, axis=0)
+                return np.stack(arrays, axis=0)
             return list(values)
 
         if all(isinstance(value, np.generic) for value in values):
@@ -93,11 +95,13 @@ def collate_samples(batch: Sequence[object]) -> object:
             return np.asarray(values)
 
         if all(isinstance(value, Mapping) for value in values):
-            keys = tuple(first_value.keys())
+            mappings = cast(list[Mapping[object, object]], values)
+            first_mapping = cast(Mapping[object, object], first_value)
+            keys = tuple(first_mapping.keys())
             key_set = set(keys)
-            if all(set(value.keys()) == key_set for value in values):
+            if all(set(value.keys()) == key_set for value in mappings):
                 return {
-                    key: collate_values([value[key] for value in values])
+                    key: collate_values([value[key] for value in mappings])
                     for key in keys
                 }
             return list(values)

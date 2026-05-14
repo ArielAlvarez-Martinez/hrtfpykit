@@ -45,6 +45,12 @@ if _SAFE_SUBJECT_LIMIT < 1:
 if _SAFE_SUBJECT_LIMIT > len(ALL_SONICOM_SUBJECT_IDS):
     _SAFE_SUBJECT_LIMIT = len(ALL_SONICOM_SUBJECT_IDS)
 _TEST_SUBJECT_IDS = tuple(ALL_SONICOM_SUBJECT_IDS[:_SAFE_SUBJECT_LIMIT])
+_TEST_SUBJECT_ID_SET = set(_TEST_SUBJECT_IDS)
+_DOWNLOAD_EXCLUDED_SUBJECT_IDS = tuple(
+    subject_id
+    for subject_id in ALL_SONICOM_SUBJECT_IDS
+    if subject_id not in _TEST_SUBJECT_ID_SET
+)
 
 _DEFAULT_HRTF_VARIANT = {
     "type": "measured",
@@ -755,15 +761,55 @@ def test_sonicom_invalid_variant_keys_are_rejected() -> None:
     not RUN_SONICOM_DOWNLOAD_TESTS,
     reason="Set SONICOM_TEST_DOWNLOAD=1 or pass --sonicom-download to run network download tests",
 )
-def test_sonicom_metadata_download(tmp_path: Path) -> None:
-    dataset = SONICOM(
-        root=tmp_path,
-        download=True,
-        download_resources="metadata",
-        inputs=None,
-        target=None,
-        verbose=False,
+def test_sonicom_download_resources_follow_subject_limit(tmp_path: Path) -> None:
+    download_root = Path(SONICOM_ROOT).expanduser() if SONICOM_ROOT else tmp_path
+    download_cases = (
+        ("metadata", None, None, {"metadata"}, 0),
+        ("hrtf", _DEFAULT_HRTF_VARIANT, None, {"hrtf"}, len(_TEST_SUBJECT_IDS)),
+        ("mesh", None, _DEFAULT_MESH_VARIANT, {"mesh"}, len(_TEST_SUBJECT_IDS)),
+        (
+            "all",
+            _DEFAULT_HRTF_VARIANT,
+            _DEFAULT_MESH_VARIANT,
+            {"metadata", "hrtf", "mesh"},
+            len(_TEST_SUBJECT_IDS) * 2,
+        ),
     )
 
-    assert (tmp_path / "metadata_and_readme" / "metadata.csv").is_file()
-    assert len(dataset.available_subjects) == 394
+    for (
+        download_resources,
+        download_hrtf_variant,
+        download_mesh_variant,
+        expected_resources,
+        expected_subject_jobs,
+    ) in download_cases:
+        with redirect_stdout(io.StringIO()):
+            dataset = SONICOM(
+                root=download_root,
+                download=True,
+                download_resources=download_resources,
+                download_hrtf_variant=download_hrtf_variant,
+                download_mesh_variant=download_mesh_variant,
+                exclude_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+                inputs=None,
+                target=None,
+                verbose=False,
+            )
+
+        jobs = BaseDownload(
+            config=SONICOMConfig,
+            root=download_root,
+            excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+        ).build_download_plan(
+            download_resources=download_resources,
+            download_hrtf_variant=download_hrtf_variant,
+            download_mesh_variant=download_mesh_variant,
+        )
+        subject_jobs = [job for job in jobs if job["subject_id"] is not None]
+
+        assert {job["resource"] for job in jobs} == expected_resources
+        assert {job["subject_id"] for job in subject_jobs}.issubset(_TEST_SUBJECT_ID_SET)
+        assert len(subject_jobs) == expected_subject_jobs
+        assert dataset.available_subjects == list(_TEST_SUBJECT_IDS)
+        assert dataset.selected_subjects == list(_TEST_SUBJECT_IDS)
+        assert all(Path(job["destination"]).is_file() for job in jobs)

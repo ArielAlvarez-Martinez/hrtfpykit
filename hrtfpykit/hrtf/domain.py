@@ -79,6 +79,8 @@ class IR:
         AttributeError
             If :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is None.
         """
+        if self.values is None:
+            raise ValueError("IR values are not available")
         return int(self.values.shape[-1])
 
     @property
@@ -224,6 +226,8 @@ class TF:
         AttributeError
             If :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` is None.
         """
+        if self.values is None:
+            raise ValueError("TF values are not available")
         return int(self.values.shape[-1])
 
     @property
@@ -248,6 +252,8 @@ class TF:
             If fewer than two frequency bins are available.
         """
         frequency_bins = self.frequency_bins
+        if frequency_bins is None:
+            raise ValueError("TF frequency_bins are not available")
         diffs = np.diff(frequency_bins)
         first = float(diffs[0])
         if np.allclose(diffs, first, rtol=1e-5, atol=1e-8):
@@ -273,6 +279,8 @@ class TF:
         ValueError
             If :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` is empty.
         """
+        if self.frequency_bins is None:
+            raise ValueError("TF frequency_bins are not available")
         return float(np.min(self.frequency_bins))
 
     @property
@@ -294,6 +302,8 @@ class TF:
         ValueError
             If :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` is empty.
         """
+        if self.frequency_bins is None:
+            raise ValueError("TF frequency_bins are not available")
         return float(np.max(self.frequency_bins))
 
     @property

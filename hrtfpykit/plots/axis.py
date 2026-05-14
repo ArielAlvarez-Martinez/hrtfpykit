@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -169,6 +170,8 @@ class DirectionAxis(Axis, ABC):
             default_label=default_label,
             label=label,
         )
+        set_limits: Any
+        axis_object: Any
         if axis == "x":
             set_limits = ax.set_xlim
             axis_object = ax.xaxis
@@ -214,12 +217,13 @@ class DirectionAxis(Axis, ABC):
         if not np.all(np.isfinite(resolved_values)):
             raise ValueError("direction axis values must be finite")
 
+        tick_values_array: np.ndarray
         if resolved_values.size == 1:
             axis_limits = (
                 float(resolved_values[0]),
                 float(resolved_values[0]),
             )
-            tick_values = np.array([], dtype=float)
+            tick_values_array = np.array([], dtype=float)
         else:
             axis_limits = (
                 float(resolved_values[0]),
@@ -228,25 +232,25 @@ class DirectionAxis(Axis, ABC):
             tick_start = np.floor(axis_limits[0] / resolved_tick_step) + 1.0
             tick_stop = np.ceil(axis_limits[1] / resolved_tick_step) - 1.0
             if tick_start <= tick_stop:
-                tick_values = np.arange(
+                tick_values_array = np.arange(
                     tick_start * resolved_tick_step,
                     (tick_stop + 1.0) * resolved_tick_step,
                     resolved_tick_step,
                     dtype=float,
                 )
             else:
-                tick_values = np.array([], dtype=float)
+                tick_values_array = np.array([], dtype=float)
 
-        if tick_values.size > 0:
+        if tick_values_array.size > 0:
             lower_label = int(np.rint(axis_limits[0]))
             upper_label = int(np.rint(axis_limits[1]))
-            tick_labels_int = np.rint(tick_values).astype(int)
+            tick_labels_int = np.rint(tick_values_array).astype(int)
             keep_mask = (tick_labels_int != lower_label) & (tick_labels_int != upper_label)
-            tick_values = tick_values[keep_mask]
+            tick_values_array = tick_values_array[keep_mask]
 
         set_limits(*axis_limits)
-        tick_positions = tuple(float(value) for value in tick_values)
-        tick_labels = tuple(f"{int(np.rint(value))}" for value in tick_values)
+        tick_positions = tuple(float(value) for value in tick_values_array)
+        tick_labels = tuple(f"{int(np.rint(value))}" for value in tick_positions)
         axis_object.set_major_locator(FixedLocator(tick_positions))
         axis_object.set_major_formatter(FixedFormatter(tick_labels))
 
@@ -382,11 +386,11 @@ class FrequencyLogAxis(Axis):
             ax=ax,
             axis=axis,
             label=label,
-            freq_min=float(config["freq_min"]),
-            freq_max=float(config["freq_max"]),
+            freq_min=float(cast(Any, config["freq_min"])),
+            freq_max=float(cast(Any, config["freq_max"])),
             ticks=tuple(config["ticks"]),  # type: ignore[arg-type]
             labels=tuple(config["labels"]),  # type: ignore[arg-type]
-            margin_ratio=float(config["margin_ratio"]),
+            margin_ratio=float(cast(Any, config["margin_ratio"])),
         )
 
 
@@ -520,11 +524,11 @@ class FrequencyLinearAxis(Axis):
             ax=ax,
             axis=axis,
             label=label,
-            freq_min=float(config["freq_min"]),
-            freq_max=float(config["freq_max"]),
+            freq_min=float(cast(Any, config["freq_min"])),
+            freq_max=float(cast(Any, config["freq_max"])),
             ticks=tuple(config["ticks"]),  # type: ignore[arg-type]
             labels=tuple(config["labels"]),  # type: ignore[arg-type]
-            margin_ratio=float(config["margin_ratio"]),
+            margin_ratio=float(cast(Any, config["margin_ratio"])),
         )
 
 
@@ -1083,7 +1087,7 @@ class AzimuthAnglesAxisPolarProjection(Axis):
         if not np.isfinite(resolved_tick_step) or resolved_tick_step <= 0.0:
             raise ValueError("tick_step must be a finite, positive value")
         theta_ticks = np.arange(0.0, 360.0, resolved_tick_step, dtype=float)
-        ax.set_theta_zero_location("N")
+        cast(Any, ax).set_theta_zero_location("N")
         ax.set_xticks(np.deg2rad(theta_ticks))
         ax.set_xticklabels([f"{int(np.rint(tick))}°" for tick in theta_ticks])
 
@@ -1182,7 +1186,7 @@ class RadialAxisPolarProjection(Axis):
         resolved_label_position = float(label_position)
         if not np.isfinite(resolved_label_position):
             raise ValueError("rlabel_position must be finite")
-        ax.set_rlabel_position(resolved_label_position)
+        cast(Any, ax).set_rlabel_position(resolved_label_position)
         resolved_radial_label = radial_label_default if label is None else str(label)
         ax.set_ylabel(resolved_radial_label, rotation=0)
         ax.yaxis.set_label_coords(0.5, ax.title.get_position()[1], transform=ax.transAxes)

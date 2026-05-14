@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -46,11 +46,6 @@ from ..planes import (
     get_median_plane,
 )
 
-
-if TYPE_CHECKING:
-    from ..hrtf.hrtf import HRTF
-
-
 class HRTFPlots:
     """Visualization methods inherited by :class:`~hrtfpykit.hrtf.HRTF`.
 
@@ -87,7 +82,7 @@ class HRTFPlots:
     """
 
     def plot_magnitude(
-        hrtf: "HRTF",
+        hrtf: Any,
         positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
         x_axis: str = "linear",
         unit: str = "db",
@@ -200,6 +195,7 @@ class HRTFPlots:
         if position_count > 4:
             raise ValueError("plot_magnitude accepts up to 4 positions")
 
+        resolved_layout: Any
         if position_count == 1:
             resolved_layout = Layout_1(
                 figsize=Layout_1().figsize,
@@ -256,8 +252,8 @@ class HRTFPlots:
                 freq_max=freq_max,
                 )
             frequency_mask = (
-                (frequency_bins_hz >= float(resolved_frequency_axis["freq_min"]))
-                & (frequency_bins_hz <= float(resolved_frequency_axis["freq_max"]))
+                (frequency_bins_hz >= float(cast(Any, resolved_frequency_axis["freq_min"])))
+                & (frequency_bins_hz <= float(cast(Any, resolved_frequency_axis["freq_max"])))
             )
             if not np.any(frequency_mask):
                 raise ValueError("Selected frequency range produced no TF bins")
@@ -322,7 +318,7 @@ class HRTFPlots:
         return None
 
     def plot_amplitude(
-        hrtf: "HRTF",
+        hrtf: Any,
         positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
         ear: str = "both",
         x_axis: str = "time",
@@ -414,6 +410,7 @@ class HRTFPlots:
         if position_count > 4:
             raise ValueError("plot_amplitude accepts up to 4 positions")
 
+        resolved_layout: Any
         if position_count == 1:
             resolved_layout = Layout_1(
                 figsize=Layout_1().figsize,
@@ -436,7 +433,7 @@ class HRTFPlots:
             raise ValueError("IR values must contain at least one sample")
         sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
         if x_axis == "time":
-            x_values = sample_indexes / float(hrtf.IR.sample_rate)
+            x_values = sample_indexes / float(cast(Any, hrtf.IR.sample_rate))
         else:
             x_values = sample_indexes
 
@@ -502,7 +499,7 @@ class HRTFPlots:
         return None
 
     def plot_amplitude_and_magnitude(
-        hrtf: "HRTF",
+        hrtf: Any,
         position: str | list | np.ndarray = "front",
         ear: str = "both",
         amplitude_x_axis: str = "time",
@@ -630,7 +627,7 @@ class HRTFPlots:
             raise ValueError("IR values must contain at least one sample")
         sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
         x_values = (
-            sample_indexes / float(hrtf.IR.sample_rate)
+            sample_indexes / float(cast(Any, hrtf.IR.sample_rate))
             if amplitude_x_axis == "time"
             else sample_indexes
         )
@@ -696,8 +693,8 @@ class HRTFPlots:
             frequency_bins=frequency_bins_hz,
             )
         frequency_mask = (
-            (frequency_bins_hz >= float(resolved_frequency_axis["freq_min"]))
-            & (frequency_bins_hz <= float(resolved_frequency_axis["freq_max"]))
+            (frequency_bins_hz >= float(cast(Any, resolved_frequency_axis["freq_min"])))
+            & (frequency_bins_hz <= float(cast(Any, resolved_frequency_axis["freq_max"])))
         )
         if not np.any(frequency_mask):
             raise ValueError("Selected frequency range produced no TF bins")
@@ -787,7 +784,7 @@ class HRTFPlots:
         return None
 
     def plot_spectrum_plane(
-        hrtf: "HRTF",
+        hrtf: Any,
         plane: str = "horizontal",
         elevation_angle: float = 0.0,
         x_axis: str = "linear",
@@ -919,6 +916,7 @@ class HRTFPlots:
             raise ValueError(
                 "elevation_angle only applies when plane='horizontal'"
             )
+        resolved_layout: Any
         if ear == "both":
             resolved_layout = Layout_2Horizontal(
                 figsize=Layout_2Horizontal().figsize,
@@ -975,8 +973,8 @@ class HRTFPlots:
             margin_ratio=heatmap_margin_ratio,
         )
         frequency_mask = (
-            (frequency_bins_hz >= float(resolved_frequency_axis["freq_min"]))
-            & (frequency_bins_hz <= float(resolved_frequency_axis["freq_max"]))
+            (frequency_bins_hz >= float(cast(Any, resolved_frequency_axis["freq_min"])))
+            & (frequency_bins_hz <= float(cast(Any, resolved_frequency_axis["freq_max"])))
         )
         if not np.any(frequency_mask):
             raise ValueError("Selected frequency range produced no TF bins")
@@ -1092,7 +1090,7 @@ class HRTFPlots:
         return None
 
     def plot_elevation_spectrum(
-        hrtf: "HRTF",
+        hrtf: Any,
         azimuth: float | str = 0.0,
         x_axis: str = "linear",
         unit: str = "db",
@@ -1212,6 +1210,7 @@ class HRTFPlots:
             if not np.isfinite(resolved_azimuth):
                 raise ValueError("azimuth must be a finite value")
 
+        resolved_layout: Any
         if ear == "both":
             resolved_layout = Layout_2Horizontal(
                 figsize=Layout_2Horizontal().figsize,
@@ -1262,8 +1261,8 @@ class HRTFPlots:
             margin_ratio=heatmap_margin_ratio,
         )
         frequency_mask = (
-            (frequency_bins_hz >= float(resolved_frequency_axis["freq_min"]))
-            & (frequency_bins_hz <= float(resolved_frequency_axis["freq_max"]))
+            (frequency_bins_hz >= float(cast(Any, resolved_frequency_axis["freq_min"])))
+            & (frequency_bins_hz <= float(cast(Any, resolved_frequency_axis["freq_max"])))
         )
         if not np.any(frequency_mask):
             raise ValueError("Selected frequency range produced no TF bins")
@@ -1359,7 +1358,7 @@ class HRTFPlots:
         return None
 
     def plot_itd_curve(
-        hrtf: "HRTF",
+        hrtf: Any,
         elevation_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
@@ -1495,7 +1494,7 @@ class HRTFPlots:
         return None
 
     def plot_absolute_itd(
-        hrtf: "HRTF",
+        hrtf: Any,
         elevation_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
@@ -1620,7 +1619,7 @@ class HRTFPlots:
         return None
 
     def plot_ild_plane(
-        hrtf: "HRTF",
+        hrtf: Any,
         plane: str = "horizontal",
         elevation_angle: float = 0.0,
         colormap: str = "jet",
@@ -1773,8 +1772,8 @@ class HRTFPlots:
             margin_ratio=heatmap_margin_ratio,
         )
         frequency_mask = (
-            (frequency_bins_hz >= float(resolved_frequency_axis["freq_min"]))
-            & (frequency_bins_hz <= float(resolved_frequency_axis["freq_max"]))
+            (frequency_bins_hz >= float(cast(Any, resolved_frequency_axis["freq_min"])))
+            & (frequency_bins_hz <= float(cast(Any, resolved_frequency_axis["freq_max"])))
         )
         if not np.any(frequency_mask):
             raise ValueError("Selected frequency range produced no TF bins")
@@ -1853,7 +1852,7 @@ class HRTFPlots:
         return None
 
     def plot_ild_curve(
-        hrtf: "HRTF",
+        hrtf: Any,
         elevation_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
@@ -1991,7 +1990,7 @@ class HRTFPlots:
         return None
 
     def plot_absolute_ild(
-        hrtf: "HRTF",
+        hrtf: Any,
         elevation_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
@@ -2117,7 +2116,7 @@ class HRTFPlots:
         return None
 
     def plot_source_grid(
-        hrtf: "HRTF",
+        hrtf: Any,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -2216,7 +2215,7 @@ class HRTFPlots:
             center=z_center,
             half_span=axis_half_span,
             )
-        ax.set_box_aspect((1.0, 1.0, 1.0))
+        cast(Any, ax).set_box_aspect((1.0, 1.0, 1.0))
         create_sources_grid_direction_markers(
             ax=ax,
             sources=hrtf.Sources,
@@ -2236,7 +2235,7 @@ class HRTFPlots:
         return None
 
     def plot_plane_grid(
-        hrtf: "HRTF",
+        hrtf: Any,
         plane: str | list[str] | tuple[str, ...] = "horizontal",
         show: bool = True,
         titles: bool = True,
@@ -2404,7 +2403,7 @@ class HRTFPlots:
             center=z_center,
             half_span=axis_half_span,
             )
-        ax.set_box_aspect((1.0, 1.0, 1.0))
+        cast(Any, ax).set_box_aspect((1.0, 1.0, 1.0))
         create_sources_grid_direction_markers(
             ax=ax,
             sources=hrtf.Sources,

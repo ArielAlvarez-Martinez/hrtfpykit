@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from ..coordinates import get_spherical_positions
 from ..planes import get_frontal_plane, get_horizontal_plane, get_median_plane
@@ -155,12 +155,12 @@ class DatasetAcousticContext:
                     "Plane selection must be ('horizontal'|'median'|'frontal', angle[, angle_unit])"
                 )
             plane_key = str(plane[0]).strip().lower()
-            angle = plane[1]
+            angle = float(cast(Any, plane[1]))
             angle_unit = "degrees" if len(plane) == 2 else str(plane[2]).strip().lower()
         else:
             plane_key = str(plane.get("plane")).strip().lower()
             default_angle = 90.0 if plane_key == "frontal" else 0.0
-            angle = plane.get("angle", plane.get("plane_angle", default_angle))
+            angle = float(cast(Any, plane.get("angle", plane.get("plane_angle", default_angle))))
             angle_unit = str(plane.get("angle_unit", "degrees")).strip().lower()
         if plane_key not in {"horizontal", "median", "frontal"}:
             raise ValueError("plane must be horizontal, median, or frontal")
@@ -272,7 +272,10 @@ class DatasetAcousticContext:
             None if sample_hrtf.TF.frequency_bins is None else np.asarray(sample_hrtf.TF.frequency_bins, dtype=float)
         )
         selected_frequency_indices = () if frequency_bins is None else tuple(range(int(frequency_bins.shape[0])))
-        sample_indices = np.arange(sample_hrtf.IR.values.shape[-1], dtype=int)
+        if sample_hrtf.IR.values is None:
+            raise ValueError("Sample HRTF IR values are not available")
+        sample_ir_values = sample_hrtf.IR.values
+        sample_indices = np.arange(sample_ir_values.shape[-1], dtype=int)
         selected_sample_indices = tuple(range(int(sample_indices.shape[0])))
 
         position_axis: tuple[int, ...] | None = None
@@ -306,19 +309,19 @@ class DatasetAcousticContext:
                     "Pick one position selection for the full dataset."
                 )
 
-        for spec in acoustic_specs:
-            spec_name = DatasetSpecWorkflow.get_spec_name(spec)
-            spec_index_by = sanitize_index_by(spec.index_by)
+        for acoustic_spec in acoustic_specs:
+            spec_name = DatasetSpecWorkflow.get_spec_name(acoustic_spec)
+            spec_index_by = sanitize_index_by(acoustic_spec.index_by)
             if "frequency" in spec_index_by:
-                if isinstance(spec, (HRTFSpec, SHSpec)):
+                if isinstance(acoustic_spec, (HRTFSpec, SHSpec)):
                     if sample_hrtf.TF.frequency_bins is None:
                         raise ValueError("Frequency-indexed specs require available HRTF frequency bins")
                     current_frequency_count = int(np.asarray(sample_hrtf.TF.frequency_bins).reshape(-1).shape[0])
-                elif isinstance(spec, ILDSpec):
+                elif isinstance(acoustic_spec, ILDSpec):
                     fft_length = (
-                        int(spec.fft_length)
-                        if spec.fft_length is not None
-                        else int(sample_hrtf.IR.values.shape[-1])
+                        int(acoustic_spec.fft_length)
+                        if acoustic_spec.fft_length is not None
+                        else int(sample_ir_values.shape[-1])
                     )
                     current_frequency_count = int(fft_length // 2 + 1)
                 else:
@@ -334,7 +337,7 @@ class DatasetAcousticContext:
                         "Pick one frequency selection for the full dataset."
                     )
             if "samples" in spec_index_by:
-                current_sample_count = int(sample_hrtf.IR.values.shape[-1])
+                current_sample_count = int(sample_ir_values.shape[-1])
                 if sample_count is None:
                     sample_count = current_sample_count
                     sample_count_spec = spec_name

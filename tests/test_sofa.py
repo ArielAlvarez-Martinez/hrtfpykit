@@ -1,6 +1,7 @@
 import os
 import warnings
 from collections.abc import Generator
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -11,10 +12,13 @@ from hrtfpykit.sofa.sofa import SOFA
 from hrtfpykit.sofa.sofa import load_sofa
 
 
+FIXTURE_SOFA_PATH = Path(__file__).parent / "pp1_HRIRs_measured.sofa"
 SOFA_PATH = os.getenv("HRTFPYKIT_TEST_SOFA_PATH", "")
+if SOFA_PATH == "" and FIXTURE_SOFA_PATH.exists():
+    SOFA_PATH = str(FIXTURE_SOFA_PATH)
 pytestmark = pytest.mark.skipif(
     SOFA_PATH == "" or not os.path.exists(SOFA_PATH),
-    reason="Required local SOFA file is not available",
+    reason="Required SOFA fixture is not available",
 )
 
 
@@ -67,6 +71,89 @@ def test_real_sofa_variables_are_available(real_sofa: SOFA) -> None:
         data_real = variables.get("Data.Real")
         assert data_real is not None
         assert isinstance(data_real.value, np.ndarray)
+
+
+def test_real_sofa_clone_mutates_variables_attributes_and_saves(real_sofa: SOFA, tmp_path: Path) -> None:
+    editable = real_sofa.clone()
+    try:
+        editable.create_dimension("Q", 3)
+        assert editable.Dimensions.get("Q").value == 3
+
+        editable.create_global_attribute("IntegrationNote", "initial")
+        editable.modify_global_attribute("IntegrationNote", "modified")
+        assert editable.GlobalAttributes.get("IntegrationNote").value == "modified"
+
+        editable.create_global_attribute("TemporaryNote", "delete-me")
+        editable.delete_global_attribute("TemporaryNote")
+        assert "TemporaryNote" not in editable.GlobalAttributes.get_names()
+
+        editable.create_variable(
+            "IntegrationVector",
+            [1.0, 2.0, 3.0],
+            ("Q",),
+            attributes={"Units": "1"},
+        )
+        np.testing.assert_allclose(
+            editable.Variables.get("IntegrationVector").value,
+            np.array([1.0, 2.0, 3.0]),
+        )
+        assert editable.VariableAttributes.get("IntegrationVector:Units").value == "1"
+
+        editable.modify_variable("IntegrationVector", [4.0, 5.0, 6.0])
+        np.testing.assert_allclose(
+            editable.Variables.get("IntegrationVector").value,
+            np.array([4.0, 5.0, 6.0]),
+        )
+
+        editable.create_variable_attribute("IntegrationVector:Description", "initial")
+        editable.modify_variable_attribute("IntegrationVector:Description", "modified")
+        assert editable.VariableAttributes.get("IntegrationVector:Description").value == "modified"
+
+        editable.create_variable_attribute("IntegrationVector:Temporary", "delete-me")
+        editable.delete_variable_attribute("IntegrationVector:Temporary")
+        assert "IntegrationVector:Temporary" not in editable.VariableAttributes.get_names()
+
+        editable.create_variable("TemporaryVector", [0.0, 0.0, 0.0], ("Q",))
+        editable.delete_variable("TemporaryVector")
+        assert "TemporaryVector" not in editable.Variables.get_names()
+
+        destination = tmp_path / "edited.sofa"
+        saved_path = editable.save(destination, overwrite=True)
+    finally:
+        if editable.netCDF4_dataset is not None:
+            editable.netCDF4_dataset.close()
+
+    assert saved_path == destination
+    assert destination.exists()
+
+    saved_sofa = load_sofa(destination, check_sofa_against_conventions=False)
+    try:
+        assert saved_sofa.Dimensions.get("Q").value == 3
+        assert saved_sofa.GlobalAttributes.get("IntegrationNote").value == "modified"
+        assert "TemporaryNote" not in saved_sofa.GlobalAttributes.get_names()
+        np.testing.assert_allclose(
+            saved_sofa.Variables.get("IntegrationVector").value,
+            np.array([4.0, 5.0, 6.0]),
+        )
+        assert saved_sofa.VariableAttributes.get("IntegrationVector:Units").value == "1"
+        assert saved_sofa.VariableAttributes.get("IntegrationVector:Description").value == "modified"
+        assert "IntegrationVector:Temporary" not in saved_sofa.VariableAttributes.get_names()
+        assert "TemporaryVector" not in saved_sofa.Variables.get_names()
+    finally:
+        saved_sofa.netCDF4_dataset.close()
+
+
+def test_real_sofa_save_refuses_overwrite_unless_requested(real_sofa: SOFA, tmp_path: Path) -> None:
+    editable = real_sofa.clone()
+    destination = tmp_path / "copy.sofa"
+    try:
+        assert editable.save(destination) == destination
+        with pytest.raises(FileExistsError, match="SOFA file already exists"):
+            editable.save(destination)
+        assert editable.save(destination, overwrite=True) == destination
+    finally:
+        if editable.netCDF4_dataset is not None:
+            editable.netCDF4_dataset.close()
 
 
 def test_real_sofa_convention_check_reports_file_context() -> None:

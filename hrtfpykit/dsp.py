@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fractions import Fraction
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast, overload
 
 import numpy as np
 from scipy import signal
@@ -50,7 +50,7 @@ def signal_duration(
     else:
         if not hasattr(signal, "values") or not hasattr(signal, "sample_rate"):
             raise ValueError("signal must be a NumPy array or an IR instance")
-        signal_values = signal.values
+        signal_values = cast(Any, signal).values
         resolved_sample_rate = sample_rate if sample_rate is not None else signal.sample_rate
 
     if signal_values is None:
@@ -104,7 +104,7 @@ def magnitude(tf: np.ndarray | "TF") -> np.ndarray:
     else:
         if not hasattr(tf, "values"):
             raise ValueError("tf must be a NumPy array or a TF instance")
-        tf_values = tf.values
+        tf_values = cast(Any, tf).values
     if tf_values is None:
         raise ValueError("TF data is not available")
     if not isinstance(tf_values, np.ndarray):
@@ -270,7 +270,7 @@ def phase(tf: np.ndarray | "TF", unit: str = "degrees") -> np.ndarray:
     else:
         if not hasattr(tf, "values"):
             raise ValueError("tf must be a NumPy array or a TF instance")
-        tf_values = tf.values
+        tf_values = cast(Any, tf).values
     if tf_values is None:
         raise ValueError("TF data is not available")
     if not isinstance(tf_values, np.ndarray):
@@ -323,7 +323,7 @@ def modify_phase(
     else:
         if not hasattr(tf, "values"):
             raise ValueError("tf must be a NumPy array or a TF instance")
-        tf_values = tf.values
+        tf_values = cast(Any, tf).values
     if tf_values is None:
         raise ValueError("TF data is not available")
     if not isinstance(tf_values, np.ndarray):
@@ -384,7 +384,7 @@ def modify_magnitude(
     else:
         if not hasattr(tf, "values"):
             raise ValueError("tf must be a NumPy array or a TF instance")
-        tf_values = tf.values
+        tf_values = cast(Any, tf).values
     if tf_values is None:
         raise ValueError("TF data is not available")
     if not isinstance(tf_values, np.ndarray):
@@ -460,7 +460,7 @@ def tf_gain(
     else:
         if not hasattr(tf, "values"):
             raise ValueError("tf must be a NumPy array or a TF instance")
-        tf_values = tf.values
+        tf_values = cast(Any, tf).values
     if tf_values is None:
         raise ValueError("TF data is not available")
     if not isinstance(tf_values, np.ndarray):
@@ -517,7 +517,7 @@ def real(tf: np.ndarray | "TF") -> np.ndarray:
     else:
         if not hasattr(tf, "values"):
             raise ValueError("tf must be a NumPy array or a TF instance")
-        tf_values = tf.values
+        tf_values = cast(Any, tf).values
     if tf_values is None:
         raise ValueError("TF data is not available")
     if not isinstance(tf_values, np.ndarray):
@@ -552,7 +552,7 @@ def imag(tf: np.ndarray | "TF") -> np.ndarray:
     else:
         if not hasattr(tf, "values"):
             raise ValueError("tf must be a NumPy array or a TF instance")
-        tf_values = tf.values
+        tf_values = cast(Any, tf).values
     if tf_values is None:
         raise ValueError("TF data is not available")
     if not isinstance(tf_values, np.ndarray):
@@ -607,7 +607,7 @@ def upsampling(
     else:
         if not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
             raise ValueError("ir must be a NumPy array or an IR instance")
-        ir_values = ir.values
+        ir_values = cast(Any, ir).values
         resolved_sample_rate = sample_rate if sample_rate is not None else ir.sample_rate
 
     if ir_values is None:
@@ -698,7 +698,7 @@ def downsampling(
     else:
         if not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
             raise ValueError("ir must be a NumPy array or an IR instance")
-        ir_values = ir.values
+        ir_values = cast(Any, ir).values
         resolved_sample_rate = sample_rate if sample_rate is not None else ir.sample_rate
 
     if ir_values is None:
@@ -774,7 +774,7 @@ def window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
     else:
         if not hasattr(ir, "values"):
             raise ValueError("ir must be a NumPy array or an IR instance")
-        ir_values = ir.values
+        ir_values = cast(Any, ir).values
     if ir_values is None:
         raise ValueError("IR data is not available")
     if not isinstance(ir_values, np.ndarray):
@@ -839,7 +839,7 @@ def padding(
     if isinstance(ir, np.ndarray):
         ir_values = ir
     elif hasattr(ir, "values") and hasattr(ir, "sample_rate"):
-        ir_values = ir.values
+        ir_values = cast(Any, ir).values
     else:
         ir_values = None
     if ir_values is None:
@@ -924,12 +924,13 @@ def fir_filter(
         unsupported, or cutoff frequencies do not satisfy the required
         relation to Nyquist.
     """
-    if not isinstance(ir, np.ndarray):
-        if hasattr(ir, "values"):
-            ir = ir.values
-        else:
-            ir = None
-    if ir is None:
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+    elif hasattr(ir, "values"):
+        ir_values = cast(Any, ir).values
+    else:
+        raise ValueError("IR data is not available")
+    if ir_values is None:
         raise ValueError("IR data is not available")
 
     filter_type = str(filter).strip().lower()
@@ -961,6 +962,8 @@ def fir_filter(
             raise ValueError("window must be one of: hann, hamming, blackman, rectangular")
     nyquist = 0.5 * sample_rate
     if filter_type in {"lowpass", "low-pass", "lp"}:
+        if isinstance(cutoff, tuple):
+            raise ValueError("cutoff must be a scalar for lowpass")
         cutoff_value = float(cutoff)
         if cutoff_value <= 0.0 or cutoff_value >= nyquist:
             raise ValueError("cutoff must be between 0 and Nyquist for lowpass")
@@ -972,6 +975,8 @@ def fir_filter(
             fs=sample_rate,
         )
     elif filter_type in {"highpass", "high-pass", "hp"}:
+        if isinstance(cutoff, tuple):
+            raise ValueError("cutoff must be a scalar for highpass")
         cutoff_value = float(cutoff)
         if cutoff_value <= 0.0 or cutoff_value >= nyquist:
             raise ValueError("cutoff must be between 0 and Nyquist for highpass")
@@ -1002,7 +1007,7 @@ def fir_filter(
     return np.apply_along_axis(
         lambda x: np.convolve(x, kernel_values, mode="same"),
         axis=-1,
-        arr=ir,
+        arr=ir_values,
     )
 
 
@@ -1049,12 +1054,13 @@ def iir_filter(
         order is not a positive integer, filter is unsupported, or
         cutoff frequencies do not satisfy the required relation to Nyquist.
     """
-    if not isinstance(ir, np.ndarray):
-        if hasattr(ir, "values"):
-            ir = ir.values
-        else:
-            ir = None
-    if ir is None:
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+    elif hasattr(ir, "values"):
+        ir_values = cast(Any, ir).values
+    else:
+        raise ValueError("IR data is not available")
+    if ir_values is None:
         raise ValueError("IR data is not available")
 
     filter_type = str(filter).strip().lower()
@@ -1069,11 +1075,15 @@ def iir_filter(
 
     nyquist = 0.5 * sample_rate
     if filter_type in {"lowpass", "low-pass", "lp"}:
+        if isinstance(cutoff, tuple):
+            raise ValueError("cutoff must be a scalar for lowpass")
         cutoff_value = float(cutoff)
         if cutoff_value <= 0.0 or cutoff_value >= nyquist:
             raise ValueError("cutoff must be between 0 and Nyquist for lowpass")
         b, a = signal.butter(order, cutoff_value, btype="lowpass", fs=sample_rate)
     elif filter_type in {"highpass", "high-pass", "hp"}:
+        if isinstance(cutoff, tuple):
+            raise ValueError("cutoff must be a scalar for highpass")
         cutoff_value = float(cutoff)
         if cutoff_value <= 0.0 or cutoff_value >= nyquist:
             raise ValueError("cutoff must be between 0 and Nyquist for highpass")
@@ -1094,7 +1104,7 @@ def iir_filter(
     else:
         raise ValueError("filter must be one of: lowpass, highpass, bandpass")
 
-    return signal.lfilter(b, a, ir, axis=-1)
+    return signal.lfilter(b, a, ir_values, axis=-1)
 
 
 def convolve(
@@ -1162,7 +1172,7 @@ def convolve(
     else:
         if not hasattr(ir_1, "values") or not hasattr(ir_1, "sample_rate"):
             raise ValueError("ir_1 must be a NumPy array or an IR instance")
-        ir_values = ir_1.values
+        ir_values = cast(Any, ir_1).values
         ir_sample_rate = ir_1.sample_rate
 
     kernel_sample_rate = None
@@ -1171,7 +1181,7 @@ def convolve(
     else:
         if not hasattr(ir_2, "values") or not hasattr(ir_2, "sample_rate"):
             raise ValueError("ir_2 must be a NumPy array or an IR instance")
-        kernel_values = ir_2.values
+        kernel_values = cast(Any, ir_2).values
         kernel_sample_rate = ir_2.sample_rate
 
     if ir_values is None:
@@ -1333,7 +1343,7 @@ def deconvolve(
     else:
         if not hasattr(ir_1, "values") or not hasattr(ir_1, "sample_rate"):
             raise ValueError("ir_1 must be a NumPy array or an IR instance")
-        ir_1_values = ir_1.values
+        ir_1_values = cast(Any, ir_1).values
         ir_1_sample_rate = ir_1.sample_rate
 
     ir_2_sample_rate = None
@@ -1342,7 +1352,7 @@ def deconvolve(
     else:
         if not hasattr(ir_2, "values") or not hasattr(ir_2, "sample_rate"):
             raise ValueError("ir_2 must be a NumPy array or an IR instance")
-        ir_2_values = ir_2.values
+        ir_2_values = cast(Any, ir_2).values
         ir_2_sample_rate = ir_2.sample_rate
 
     if ir_1_values is None:
@@ -1491,7 +1501,7 @@ def minimum_phase(
         ir_values = data
     else:
         if hasattr(data, "sample_rate"):
-            ir_values = data.values
+            ir_values = cast(Any, data).values
         else:
             raise ValueError("data must be a NumPy array or an IR instance")
 
@@ -1562,27 +1572,48 @@ def minimum_phase(
             magnitude_values = np.maximum(np.abs(spectrum_values), epsilon)
             unwrapped_phase = np.unwrap(np.angle(spectrum_values))
             complex_log_spectrum = np.log(magnitude_values) + 1j * unwrapped_phase
-            cepstrum = np.fft.ifft(complex_log_spectrum, n=fft_length_used)
+            complex_cepstrum = np.fft.ifft(complex_log_spectrum, n=fft_length_used)
 
-            minimum_cepstrum = np.zeros(fft_length_used, dtype=complex)
-            minimum_cepstrum[0] = cepstrum[0]
+            complex_minimum_cepstrum = np.zeros(fft_length_used, dtype=complex)
+            complex_minimum_cepstrum[0] = complex_cepstrum[0]
             if fft_length_used % 2 == 0:
                 half_index = fft_length_used // 2
-                minimum_cepstrum[1:half_index] = 2.0 * cepstrum[1:half_index]
-                minimum_cepstrum[half_index] = cepstrum[half_index]
+                complex_minimum_cepstrum[1:half_index] = 2.0 * complex_cepstrum[1:half_index]
+                complex_minimum_cepstrum[half_index] = complex_cepstrum[half_index]
             else:
                 half_index = (fft_length_used + 1) // 2
-                minimum_cepstrum[1:half_index] = 2.0 * cepstrum[1:half_index]
+                complex_minimum_cepstrum[1:half_index] = 2.0 * complex_cepstrum[1:half_index]
 
-            minimum_spectrum = np.exp(np.fft.fft(minimum_cepstrum, n=fft_length_used))
-            minimum_ir = np.fft.ifft(minimum_spectrum, n=fft_length_used)
-            minimum_ir = np.real_if_close(minimum_ir, tol=1000)
-            if np.iscomplexobj(minimum_ir):
-                minimum_ir = np.real(minimum_ir)
+            complex_minimum_spectrum = np.exp(np.fft.fft(complex_minimum_cepstrum, n=fft_length_used))
+            complex_minimum_ir = np.fft.ifft(complex_minimum_spectrum, n=fft_length_used)
+            minimum_ir_checked = np.real_if_close(complex_minimum_ir, tol=1000)
+            if np.iscomplexobj(minimum_ir_checked):
+                minimum_ir_checked = np.real(minimum_ir_checked)
+            minimum_ir = np.asarray(minimum_ir_checked, dtype=float)
 
         minimum_phase_reshaped[index] = np.asarray(minimum_ir[:ir_length], dtype=float)
 
     return minimum_phase_values
+
+
+@overload
+def tf_from_ir(
+    ir: np.ndarray,
+    sample_rate: float | None = None,
+    fft_length: int | None = None,
+    window_name: str | None = None,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    ...
+
+
+@overload
+def tf_from_ir(
+    ir: "IR",
+    sample_rate: float | None = None,
+    fft_length: int | None = None,
+    window_name: str | None = None,
+) -> "TF":
+    ...
 
 
 def tf_from_ir(
@@ -1647,7 +1678,7 @@ def tf_from_ir(
         if not hasattr(ir, "_hrtf") or not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
             raise ValueError("ir must be a NumPy array or an IR instance")
         ir_object = ir
-        ir_values = ir.values
+        ir_values = cast(Any, ir).values
         if ir_values is None:
             raise ValueError("IR data is not available; cannot compute TF.")
         if not isinstance(ir_values, np.ndarray):
@@ -1694,6 +1725,91 @@ def tf_from_ir(
     return tf_values, frequency_bins, fft_length_used
 
 
+def prepend_missing_dc(
+    tf: np.ndarray,
+    frequency_bins: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Prepend a neutral DC bin when a one-sided TF starts at one frequency step.
+
+    Some SimpleFreeFieldHRTF files store one-sided transfer functions whose
+    frequency axis starts at ``Delta f`` instead of 0 Hz. In that case, the
+    missing DC bin is treated as 0 dB attenuation and zero phase, represented
+    as ``1+0j``. Files that already start at 0 Hz are returned unchanged.
+
+    Parameters
+    ----------
+    tf : numpy.ndarray
+        One-sided complex TF values. The final axis is interpreted as
+        frequency bins.
+    frequency_bins : numpy.ndarray
+        One-dimensional frequency-bin vector in hertz.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray]
+        TF values and frequency bins. If DC was missing and the first
+        frequency was exactly one bin step, both arrays include the prepended
+        DC entry. Otherwise the input values are returned as arrays.
+
+    Notes
+    -----
+    This function only performs the missing-DC normalization. Validation of
+    empty arrays, monotonicity, negative frequencies, and exact shape
+    requirements is handled by :func:`~hrtfpykit.dsp.ir_from_tf`.
+    """
+    tf_values = np.asarray(tf)
+    frequency_bins_array = np.asarray(frequency_bins, dtype=float)
+    if (
+        frequency_bins_array.ndim != 1
+        or frequency_bins_array.size != tf_values.shape[-1]
+        or frequency_bins_array.size < 2
+    ):
+        return tf_values, frequency_bins_array
+
+    diffs = np.diff(frequency_bins_array)
+    step = float(diffs[0])
+    if (
+        step > 0.0
+        and np.allclose(diffs, step, rtol=1e-5, atol=1e-8)
+        and float(np.min(frequency_bins_array)) >= 0.0
+        and not np.isclose(frequency_bins_array[0], 0.0)
+        and np.isclose(frequency_bins_array[0], step, rtol=1e-5, atol=1e-8)
+    ):
+        frequency_bins_array = np.concatenate(
+            [np.array([0.0], dtype=float), frequency_bins_array]
+        )
+        tf_values = np.concatenate(
+            [
+                np.ones((*tf_values.shape[:-1], 1), dtype=tf_values.dtype),
+                tf_values,
+            ],
+            axis=-1,
+        )
+    return tf_values, frequency_bins_array
+
+
+@overload
+def ir_from_tf(
+    tf: np.ndarray,
+    frequency_bins: np.ndarray | None = None,
+    sample_rate: float | None = None,
+    mesh2hrtf_compatible: bool = False,
+    n_shift: int | None = None,
+) -> tuple[np.ndarray, float, int]:
+    ...
+
+
+@overload
+def ir_from_tf(
+    tf: "TF",
+    frequency_bins: np.ndarray | None = None,
+    sample_rate: float | None = None,
+    mesh2hrtf_compatible: bool = False,
+    n_shift: int | None = None,
+) -> "IR":
+    ...
+
+
 def ir_from_tf(
     tf: np.ndarray | "TF",
     frequency_bins: np.ndarray | None = None,
@@ -1712,7 +1828,9 @@ def ir_from_tf(
     When tf is a :class:`~hrtfpykit.hrtf.domain.TF` object, the function also acts as the main
     synchronization bridge from :class:`~hrtfpykit.hrtf.domain.TF` back to :class:`~hrtfpykit.hrtf.domain.IR` inside an :class:`~hrtfpykit.hrtf.HRTF`
     instance. In that mode it updates the linked :attr:`~hrtfpykit.hrtf.HRTF.IR` object in place,
-    restores :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` from the frequency-bin spacing, and stores the
+    restores :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` from the frequency-bin spacing, normalizes
+    missing DC on :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` and
+    :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`, and stores the
     resolved fft_length on the parent :class:`~hrtfpykit.hrtf.HRTF`. That is the expected
     recalculation step after editing :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`, changing
     :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`, or applying magnitude or phase operations that must
@@ -1743,7 +1861,8 @@ def ir_from_tf(
     tuple[np.ndarray, float, int] | IR
         For NumPy input, returns (ir_values, sample_rate, fft_length_used).
         For :class:`~hrtfpykit.hrtf.domain.TF` input, returns the updated :class:`~hrtfpykit.hrtf.domain.IR` object linked to the same
-        :class:`~hrtfpykit.hrtf.HRTF` instance.
+        :class:`~hrtfpykit.hrtf.HRTF` instance and also updates the TF object
+        if a missing DC bin was inserted.
 
     Raises
     ------
@@ -1772,7 +1891,7 @@ def ir_from_tf(
         if not hasattr(tf, "_hrtf") or not hasattr(tf, "values"):
             raise ValueError("tf must be a NumPy array or a TF instance")
         tf_object = tf
-        tf_values = tf.values
+        tf_values = cast(Any, tf).values
         if tf_values is None:
             raise ValueError("TF data is not available; cannot compute IR.")
         if not isinstance(tf_values, np.ndarray):
@@ -1787,19 +1906,17 @@ def ir_from_tf(
 
     if frequency_bins is None:
         if tf_object is not None:
-            frequency_bins_array = tf_object.frequency_bins
-            if frequency_bins_array is None:
+            frequency_bins_source = cast(Any, tf_object).frequency_bins
+            if frequency_bins_source is None:
                 raise ValueError(
                     "TF.frequency_bins is required when frequency_bins is not provided."
                 )
-        if sample_rate is None:
-            if tf_object is not None:
-                frequency_bins_array = np.asarray(frequency_bins_array, dtype=float)
-            else:
+            frequency_bins_array = np.asarray(frequency_bins_source, dtype=float)
+        else:
+            if sample_rate is None:
                 raise ValueError(
                     "sample_rate is required when frequency_bins is not provided for NumPy TF."
                 )
-        if tf_object is None:
             try:
                 resolved_sample_rate = float(sample_rate)
             except (TypeError, ValueError):
@@ -1829,23 +1946,11 @@ def ir_from_tf(
     if float(np.min(frequency_bins_array)) < 0.0:
         raise ValueError("Only one-sided non-negative frequency_bins are supported")
 
+    tf_used, frequency_bins_array = prepend_missing_dc(tf_used, frequency_bins_array)
     if not np.isclose(frequency_bins_array[0], 0.0):
-        # Compatibility path for one-sided TFs that omit DC (e.g., bins start at Δf).
-        if np.isclose(frequency_bins_array[0], step, rtol=1e-5, atol=1e-8):
-            frequency_bins_array = np.concatenate(
-                [np.array([0.0], dtype=float), frequency_bins_array]
-            )
-            tf_used = np.concatenate(
-                [
-                    np.ones((*tf_used.shape[:-1], 1), dtype=tf_used.dtype),
-                    tf_used,
-                ],
-                axis=-1,
-            )
-        else:
-            raise ValueError(
-                "One-sided frequency_bins must start at 0 Hz or at one-bin step (missing DC case)"
-            )
+        raise ValueError(
+            "One-sided frequency_bins must start at 0 Hz or at one-bin step (missing DC case)"
+        )
 
     expected_n_fft = 2 * (frequency_bins_array.size - 1)
     fft_length_used = expected_n_fft
@@ -1863,6 +1968,8 @@ def ir_from_tf(
 
     sample_rate = step * expected_n_fft
     if tf_object is not None:
+        tf_object.values = tf_used
+        tf_object.frequency_bins = frequency_bins_array
         ir_object = tf_object._hrtf.IR
         ir_object.values = ir_values
         ir_object.sample_rate = sample_rate

@@ -76,6 +76,7 @@ def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
 
     """
     allowed_axes = {"position", "ear", "frequency", "samples"}
+    normalized: tuple[str, ...]
     if isinstance(index_by, str):
         value = str(index_by).strip().lower()
         if value == "subject":
@@ -131,6 +132,7 @@ def sanitize_grouped_by(grouped_by: str | Sequence[str]) -> tuple[str, ...]:
         If the requested grouping is not subject-only or subject-ear.
 
     """
+    normalized: tuple[str, ...]
     if isinstance(grouped_by, str):
         value = str(grouped_by).strip().lower()
         if value == "subject":
@@ -310,10 +312,10 @@ def sanitize_positions(
     result = [int(value) for value in values]
     if len(set(result)) != len(result):
         raise ValueError("positions must not contain duplicates")
-    for value in result:
-        if value < 0 or value >= position_count:
+    for position_index in result:
+        if position_index < 0 or position_index >= position_count:
             raise ValueError(
-                f"Position index {value} is out of range for {position_count} positions"
+                f"Position index {position_index} is out of range for {position_count} positions"
             )
     return result
 
@@ -422,6 +424,10 @@ def sanitize_specs(
         return tuple()
     if isinstance(specs, str):
         raise TypeError("inputs and target must use dataset spec objects, not strings")
+    values: tuple[
+        HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec,
+        ...,
+    ]
     if isinstance(
         specs,
         (

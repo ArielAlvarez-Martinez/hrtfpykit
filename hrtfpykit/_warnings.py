@@ -7,6 +7,7 @@ import linecache
 import pathlib
 import sys
 import warnings
+from typing import Any, TextIO, cast
 
 
 PACKAGE_ROOT = pathlib.Path(__file__).resolve().parent
@@ -45,7 +46,7 @@ ORIGINAL_PRINT = getattr(
     "_hrtfpykit_original",
     builtins.print,
 )
-PENDING_WARNING_CONTEXT: tuple[object, str | None, int | None, str | None] | None = None
+PENDING_WARNING_CONTEXT: tuple[TextIO, str | None, int | None, str | None] | None = None
 
 
 def flush_pending_warning_context() -> None:
@@ -73,7 +74,7 @@ def showwarning(message, category, filename, lineno, file=None, line=None):
             display_filename = str(resolved_filename.relative_to(pathlib.Path.cwd().resolve()))
         except ValueError:
             display_filename = str(resolved_filename)
-    stream = sys.stderr if file is None else file
+    stream = sys.stderr if file is None else cast(TextIO, file)
     warning_context = (
         stream,
         display_filename,
@@ -86,7 +87,7 @@ def showwarning(message, category, filename, lineno, file=None, line=None):
     PENDING_WARNING_CONTEXT = warning_context
 
 
-showwarning._hrtfpykit_original = ORIGINAL_SHOWWARNING
+cast(Any, showwarning)._hrtfpykit_original = ORIGINAL_SHOWWARNING
 warnings.showwarning = showwarning
 
 
@@ -96,7 +97,7 @@ def print(*args, **kwargs):
     return ORIGINAL_PRINT(*args, **kwargs)
 
 
-print._hrtfpykit_original = ORIGINAL_PRINT
+cast(Any, print)._hrtfpykit_original = ORIGINAL_PRINT
 builtins.print = print
 
 

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from ..coordinates import (
@@ -75,7 +75,12 @@ class Sources:
             selection.
         """
         self._hrtf = hrtf
-        self.source_coordinate_system = self._hrtf.Sofa.VariableAttributes.get("SourcePosition:Type").value
+        if self._hrtf is None or self._hrtf.Sofa is None:
+            raise ValueError("Sources requires an HRTF with a loaded SOFA dataset")
+        self.source_coordinate_system = cast(
+            Any,
+            cast(Any, self._hrtf.Sofa.VariableAttributes).get("SourcePosition:Type"),
+        ).value
         self._selected_indices: np.ndarray | None = None
 
     def get_positions(
@@ -118,9 +123,20 @@ class Sources:
         attribute. Angular source data stored in radians are converted through
         cartesian coordinates when degree/radian conversion is required.
         """
-        source_positions = self._hrtf.Sofa.Variables.get("SourcePosition").value
-        source_system = self._hrtf.Sofa.VariableAttributes.get("SourcePosition:Type").value
-        source_units = self._hrtf.Sofa.VariableAttributes.get("SourcePosition:Units").value
+        if self._hrtf is None or self._hrtf.Sofa is None:
+            raise ValueError("Sources requires an HRTF with a loaded SOFA dataset")
+        source_positions = cast(
+            Any,
+            cast(Any, self._hrtf.Sofa.Variables).get("SourcePosition"),
+        ).value
+        source_system = cast(
+            Any,
+            cast(Any, self._hrtf.Sofa.VariableAttributes).get("SourcePosition:Type"),
+        ).value
+        source_units = cast(
+            Any,
+            cast(Any, self._hrtf.Sofa.VariableAttributes).get("SourcePosition:Units"),
+        ).value
         target_system = self.source_coordinate_system
 
         requested_angle_unit = str(angle_unit).strip().lower()

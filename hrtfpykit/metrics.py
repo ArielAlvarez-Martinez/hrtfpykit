@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from scipy import signal
@@ -90,8 +90,8 @@ def itd(
     else:
         if not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
             raise ValueError("ir must be a NumPy array or an IR instance")
-        ir_values = ir.values
-        resolved_sample_rate = sample_rate if sample_rate is not None else ir.sample_rate
+        ir_values = cast(Any, ir).values
+        resolved_sample_rate = sample_rate if sample_rate is not None else cast(Any, ir).sample_rate
 
     if ir_values is None:
         raise ValueError("IR data is not available")
@@ -268,8 +268,8 @@ def ild(
     if isinstance(ir, np.ndarray):
         ir_values = ir
     elif hasattr(ir, "values"):
-        ir_object = ir
-        ir_values = ir.values
+        ir_object = cast(Any, ir)
+        ir_values = cast(Any, ir).values
     else:
         raise ValueError("ir must be a NumPy array or an IR instance")
 
@@ -330,6 +330,8 @@ def ild(
             return ild_linear
         return magnitude_to_db(ild_linear)
 
+    if tf_values is None:
+        raise ValueError("TF data is not available")
     left_magnitude = np.abs(tf_values[..., 0, :])
     right_magnitude = np.abs(tf_values[..., 1, :])
     ild_linear = (left_magnitude + epsilon) / (right_magnitude + epsilon)
@@ -427,8 +429,8 @@ def itd_difference(
     if output_key not in {"seconds", "samples"}:
         raise ValueError("output must be one of: seconds, samples")
     if output_key == "samples" and not np.isclose(
-        float(hrtf_a.IR.sample_rate),
-        float(hrtf_b.IR.sample_rate),
+        float(cast(Any, hrtf_a.IR.sample_rate)),
+        float(cast(Any, hrtf_b.IR.sample_rate)),
         atol=1e-12,
         rtol=0.0,
     ):
@@ -574,8 +576,8 @@ def ild_difference(
         raise ValueError("HRTFs must share the same source positions for ILD difference")
 
     if mode_key == "frequency-dependent" and not np.isclose(
-        float(hrtf_a.IR.sample_rate),
-        float(hrtf_b.IR.sample_rate),
+        float(cast(Any, hrtf_a.IR.sample_rate)),
+        float(cast(Any, hrtf_b.IR.sample_rate)),
         atol=1e-12,
         rtol=0.0,
     ):
@@ -586,7 +588,7 @@ def ild_difference(
     ild_a = np.asarray(
         ild(
             hrtf_a.IR,
-            sample_rate=float(hrtf_a.IR.sample_rate),
+            sample_rate=float(cast(Any, hrtf_a.IR.sample_rate)),
             fft_length=fft_length,
             mode=mode_key,
             output=output_key,
@@ -597,7 +599,7 @@ def ild_difference(
     ild_b = np.asarray(
         ild(
             hrtf_b.IR,
-            sample_rate=float(hrtf_b.IR.sample_rate),
+            sample_rate=float(cast(Any, hrtf_b.IR.sample_rate)),
             fft_length=fft_length,
             mode=mode_key,
             output=output_key,

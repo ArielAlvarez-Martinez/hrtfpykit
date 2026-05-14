@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
+from typing import Any, cast
 
 from .default import FigureSize, RC
 from .layouts import Layout
@@ -163,7 +164,7 @@ class Figure:
         subplot_kwargs: dict[str, object] = {}
         if projection is not None:
             subplot_kwargs["subplot_kw"] = {"projection": projection}
-        fig, axes = plt.subplots(
+        fig, axes = cast(Any, plt.subplots)(
             layout.rows,
             layout.cols,
             figsize=resolved_figsize,

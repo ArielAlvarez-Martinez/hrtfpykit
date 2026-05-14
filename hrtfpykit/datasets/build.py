@@ -1,6 +1,6 @@
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 from .config import DatasetConfig
 from .specs import (
@@ -149,6 +149,9 @@ class DatasetBuilder:
         dataset = self._dataset
         state = DatasetState()
         dataset._state = state
+
+        if isinstance(config, type):
+            config = cast(DatasetConfig, cast(Any, config)())
 
         state.config = config
         state.name = str(config.name)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+from typing import Any, cast
 from matplotlib.axes import Axes
 from matplotlib.collections import QuadMesh
 from matplotlib.lines import Line2D
@@ -299,14 +300,15 @@ class ThreeDimension:
         """
         if getattr(ax, "name", "") != "3d":
             raise ValueError("ThreeDimension requires a 3d projection")
-        return ax.scatter(
+        scatter_kwargs: dict[str, object] = dict(kwargs)
+        scatter_kwargs["s"] = s
+        scatter_kwargs["color"] = color
+        scatter_kwargs["edgecolors"] = edgecolors
+        scatter_kwargs["linewidths"] = linewidths
+        scatter_kwargs["depthshade"] = depthshade
+        return cast(Any, ax).scatter(
             x,
             y,
             z,
-            s=s,
-            color=color,
-            edgecolors=edgecolors,
-            linewidths=linewidths,
-            depthshade=depthshade,
-            **kwargs,
+            **scatter_kwargs,
         )

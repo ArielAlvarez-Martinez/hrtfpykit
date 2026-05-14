@@ -103,7 +103,7 @@ class Titles:
             if title_name is None
             else Titles.spherical_alias
         )
-        title_values = {
+        title_values: dict[str, object] = {
             "az": float(selected_positions[0]),
             "el": float(selected_positions[1]),
         }

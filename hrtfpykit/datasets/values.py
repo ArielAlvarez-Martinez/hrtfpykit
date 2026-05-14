@@ -1,5 +1,5 @@
 import numpy as np
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from .sanitize import sanitize_ears, sanitize_grouped_by, sanitize_index_by
 from .specs import (
@@ -355,7 +355,7 @@ class DatasetSampleValueSelector:
                 transformed_hrtf = spec.transform(hrtf)
                 state.cache[transform_cache_key] = transformed_hrtf
 
-        selected_hrtf = hrtf if transformed_hrtf is None else transformed_hrtf
+        selected_hrtf = cast(Any, hrtf if transformed_hrtf is None else transformed_hrtf)
         if domain == "time":
             values = np.asarray(selected_hrtf.IR.values, dtype=float)
             sample_axis_name = "samples"
@@ -398,7 +398,7 @@ class DatasetSampleValueSelector:
                     )
         else:
             position_axis = axis_names.index("position")
-            position_index = int(row["position_index"])
+            position_index = int(cast(Any, row["position_index"]))
             values = np.take(values, [position_index], axis=position_axis)
             values = np.squeeze(values, axis=position_axis)
             axis_names.pop(position_axis)
@@ -426,12 +426,12 @@ class DatasetSampleValueSelector:
 
         if "frequency" in spec_index_by:
             frequency_axis = axis_names.index("frequency")
-            frequency_index = int(row["frequency_index"])
+            frequency_index = int(cast(Any, row["frequency_index"]))
             values = np.take(values, [frequency_index], axis=frequency_axis)
             values = np.squeeze(values, axis=frequency_axis)
         if "samples" in spec_index_by:
             sample_axis = axis_names.index("samples")
-            sample_index = int(row["sample_index"])
+            sample_index = int(cast(Any, row["sample_index"]))
             values = np.take(values, [sample_index], axis=sample_axis)
             values = np.squeeze(values, axis=sample_axis)
         return np.asarray(values)
@@ -501,13 +501,14 @@ class DatasetSampleValueSelector:
                 )
             )
             state.cache[metric_cache_key] = value
+        value = cast(np.ndarray, value)
         spec_index_by = sanitize_index_by(spec.index_by)
         selected_position_indices = state.spec_position_indices.get(id(spec), state.selected_position_indices)
         if "position" not in spec_index_by:
             if len(selected_position_indices) != value.shape[0]:
                 value = np.take(value, selected_position_indices, axis=0)
         else:
-            value = np.asarray(value[int(row["position_index"])])
+            value = np.asarray(value[int(cast(Any, row["position_index"]))])
         if spec.transform is not None:
             value = spec.transform(value)
         return value
@@ -579,6 +580,7 @@ class DatasetSampleValueSelector:
                 )
             )
             state.cache[metric_cache_key] = value
+        value = cast(np.ndarray, value)
         spec_index_by = sanitize_index_by(spec.index_by)
         selected_position_indices = state.spec_position_indices.get(id(spec), state.selected_position_indices)
         if "position" not in spec_index_by:
@@ -587,9 +589,9 @@ class DatasetSampleValueSelector:
                     value = np.take(value, selected_position_indices, axis=0)
         else:
             if state.positions is not None and value.shape[0] == state.positions.shape[0]:
-                value = np.asarray(value[int(row["position_index"])])
+                value = np.asarray(value[int(cast(Any, row["position_index"]))])
         if "frequency" in spec_index_by:
-            value = np.asarray(value[..., int(row["frequency_index"])])
+            value = np.asarray(value[..., int(cast(Any, row["frequency_index"]))])
         if spec.transform is not None:
             value = spec.transform(value)
         return value
@@ -661,6 +663,7 @@ class DatasetSampleValueSelector:
                 ).C
             )
             state.cache[sh_cache_key] = value
+        value = cast(np.ndarray, value)
         spec_index_by = sanitize_index_by(spec.index_by)
         spec_ears = sanitize_ears(spec.ears)
         axis_names = ["coefficient", "frequency"]
@@ -688,7 +691,7 @@ class DatasetSampleValueSelector:
                 axis_names.pop(ear_axis)
         if "frequency" in spec_index_by:
             frequency_axis = axis_names.index("frequency")
-            value = np.take(value, [int(row["frequency_index"])], axis=frequency_axis)
+            value = np.take(value, [int(cast(Any, row["frequency_index"]))], axis=frequency_axis)
             value = np.squeeze(value, axis=frequency_axis)
         if spec.transform is not None:
             value = spec.transform(value)
@@ -747,6 +750,8 @@ class DatasetSampleValueSelector:
         """
 
         state = dataset._state
+        if state.config is None:
+            raise ValueError("Dataset config is not initialized")
         rows = state.anthropometry_rows
         mapped_subject_id = DatasetSplitPlanner.map_subject_id(
             subject_id,
@@ -810,7 +815,7 @@ class DatasetSampleValueSelector:
                         f"Anthropometry subject {subject_id!r} was not found"
                     )
             else:
-                row_values = dict(rows[mapped_subject_id])
+                row_values = dict(cast(dict[str, object], rows[mapped_subject_id]))
                 if spec.accessed_by == "row":
                     raw_value = row_values
                 else:
@@ -823,7 +828,7 @@ class DatasetSampleValueSelector:
                         )
                     column_key = column_keys[subject_position]
                     raw_value = {
-                        column_subject_id: row_values_by_subject[column_key]
+                        column_subject_id: cast(dict[str, object], row_values_by_subject)[column_key]
                         for column_subject_id, row_values_by_subject in rows.items()
                     }
 
@@ -892,6 +897,8 @@ class DatasetSampleValueSelector:
         """
 
         state = dataset._state
+        if state.config is None:
+            raise ValueError("Dataset config is not initialized")
         rows = state.metadata_rows
         mapped_subject_id = DatasetSplitPlanner.map_subject_id(
             subject_id,
@@ -955,7 +962,7 @@ class DatasetSampleValueSelector:
                         f"Metadata subject {subject_id!r} was not found"
                     )
             else:
-                row_values = dict(rows[mapped_subject_id])
+                row_values = dict(cast(dict[str, object], rows[mapped_subject_id]))
                 if spec.accessed_by == "row":
                     raw_value = row_values
                 else:
@@ -968,7 +975,7 @@ class DatasetSampleValueSelector:
                         )
                     column_key = column_keys[subject_position]
                     raw_value = {
-                        column_subject_id: row_values_by_subject[column_key]
+                        column_subject_id: cast(dict[str, object], row_values_by_subject)[column_key]
                         for column_subject_id, row_values_by_subject in rows.items()
                     }
 

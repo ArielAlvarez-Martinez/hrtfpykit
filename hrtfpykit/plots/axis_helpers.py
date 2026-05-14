@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
@@ -237,10 +237,10 @@ def apply_frequency_axis(
     resolved_margin_ratio = float(margin_ratio)
 
     if axis == "x":
-        axis_object = ax.xaxis
-        set_scale = ax.set_xscale
-        set_limits = ax.set_xlim
-        set_label = ax.set_xlabel
+        axis_object: Any = ax.xaxis
+        set_scale: Any = ax.set_xscale
+        set_limits: Any = ax.set_xlim
+        set_label: Any = ax.set_xlabel
     elif axis == "y":
         axis_object = ax.yaxis
         set_scale = ax.set_yscale
@@ -429,7 +429,7 @@ def create_sources_grid_direction_markers(
         linewidth=arrow_linewidth,
         arrow_length_ratio=arrow_length_ratio,
     )
-    ax.text(
+    cast(Any, ax).text(
         *(
             front_tail
             + front_direction
@@ -458,7 +458,7 @@ def create_sources_grid_direction_markers(
         arrow_delta_radius + arrow_label_offset_ratio * resolved_axis_half_span
     )
     right_label_position[2] += right_label_vertical_offset_ratio * resolved_axis_half_span
-    ax.text(
+    cast(Any, ax).text(
         *right_label_position,
         "Right",
         color=arrow_color,
@@ -476,7 +476,7 @@ def create_sources_grid_direction_markers(
         linewidth=arrow_linewidth,
         arrow_length_ratio=arrow_length_ratio,
     )
-    ax.text(
+    cast(Any, ax).text(
         *(
             up_tail
             + up_direction

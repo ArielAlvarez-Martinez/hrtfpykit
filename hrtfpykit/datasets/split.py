@@ -3,7 +3,7 @@ from collections.abc import Sequence
 import re
 
 import numpy as np
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from .specs_registry import has_specs
 from .sanitize import sanitize_subject_id
@@ -481,6 +481,7 @@ class DatasetSplitPlanner:
             else:
                 resource_lines = ["Resource summary:"]
                 for resource_name, summary in state.resource_summary.items():
+                    summary = cast(dict[str, Any], summary)
                     parts = [str(resource_name)]
                     for key in (
                         "pattern",

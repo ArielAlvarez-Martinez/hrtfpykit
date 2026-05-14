@@ -202,6 +202,8 @@ def ctf_from_hrtf(
     ir_from_tf(
         ctf_hrtf.TF,
         frequency_bins=ctf_hrtf.TF.frequency_bins,
+        mesh2hrtf_compatible=ctf_hrtf.mesh2hrtf_compatible,
+        n_shift=ctf_hrtf.mesh2hrtf_n_shift,
     )
 
     if np.min(np.asarray(ctf_hrtf.TF.frequency_bins, dtype=float)) < 0.0:
@@ -371,20 +373,25 @@ def dtf_from_hrtf(
     ir_from_tf(
         dtf_hrtf.TF,
         frequency_bins=dtf_hrtf.TF.frequency_bins,
+        mesh2hrtf_compatible=dtf_hrtf.mesh2hrtf_compatible,
+        n_shift=dtf_hrtf.mesh2hrtf_n_shift,
     )
     if target_ir_length is not None:
-        current_ir_length = int(dtf_hrtf.IR.values.shape[-1])
+        if dtf_hrtf.IR.values is None:
+            raise ValueError("DTF IR values are not available")
+        dtf_ir_values = dtf_hrtf.IR.values
+        current_ir_length = int(dtf_ir_values.shape[-1])
         if current_ir_length > target_ir_length:
             dtf_hrtf.IR.values = np.asarray(
-                dtf_hrtf.IR.values[..., :target_ir_length],
+                dtf_ir_values[..., :target_ir_length],
                 dtype=float,
             )
         elif current_ir_length < target_ir_length:
-            pad_width = [(0, 0)] * (dtf_hrtf.IR.values.ndim - 1) + [
+            pad_width = [(0, 0)] * (dtf_ir_values.ndim - 1) + [
                 (0, target_ir_length - current_ir_length)
             ]
             dtf_hrtf.IR.values = np.pad(
-                np.asarray(dtf_hrtf.IR.values, dtype=float),
+                np.asarray(dtf_ir_values, dtype=float),
                 pad_width,
                 mode="constant",
                 constant_values=0.0,
@@ -528,20 +535,25 @@ def hrtf_from_dtf_and_ctf(
     ir_from_tf(
         hrtf.TF,
         frequency_bins=hrtf.TF.frequency_bins,
+        mesh2hrtf_compatible=hrtf.mesh2hrtf_compatible,
+        n_shift=hrtf.mesh2hrtf_n_shift,
     )
     if target_ir_length is not None:
-        current_ir_length = int(hrtf.IR.values.shape[-1])
+        if hrtf.IR.values is None:
+            raise ValueError("HRTF IR values are not available")
+        hrtf_ir_values = hrtf.IR.values
+        current_ir_length = int(hrtf_ir_values.shape[-1])
         if current_ir_length > target_ir_length:
             hrtf.IR.values = np.asarray(
-                hrtf.IR.values[..., :target_ir_length],
+                hrtf_ir_values[..., :target_ir_length],
                 dtype=float,
             )
         elif current_ir_length < target_ir_length:
-            pad_width = [(0, 0)] * (hrtf.IR.values.ndim - 1) + [
+            pad_width = [(0, 0)] * (hrtf_ir_values.ndim - 1) + [
                 (0, target_ir_length - current_ir_length)
             ]
             hrtf.IR.values = np.pad(
-                np.asarray(hrtf.IR.values, dtype=float),
+                np.asarray(hrtf_ir_values, dtype=float),
                 pad_width,
                 mode="constant",
                 constant_values=0.0,

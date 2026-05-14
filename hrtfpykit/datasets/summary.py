@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from .specs_registry import has_specs
 
 
@@ -101,7 +103,7 @@ def resources_summary(
         }
         return summary
 
-    state = dataset._state
+    state = cast(Any, dataset)._state
     used_resource_specs = {
         "hrtf": has_specs(state.specs, resource_name="hrtf"),
         "mesh": has_specs(state.specs, resource_name="mesh"),
@@ -158,7 +160,7 @@ def dataset_summary(dataset: object) -> str:
 
     """
 
-    state = dataset._state
+    state = cast(Any, dataset)._state
     uses_hrtf = has_specs(state.specs, resource_name="hrtf")
     uses_mesh = has_specs(state.specs, resource_name="mesh")
     lines: list[str] = [_summary_title(f"{str(state.name).upper()} DATASET SUMMARY")]
@@ -288,7 +290,7 @@ def download_summary(
         f"  planned_files: {planned_files}",
     ]
     if planned_files == 0:
-        lines.append(f"  status: nothing to download")
+        lines.append("  status: nothing to download")
     else:
         lines.extend(
             [

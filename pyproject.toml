@@ -57,6 +57,10 @@ docs = [
   "furo>=2025.7.19",
   "myst-nb>=1.4.0",
 ]
+dev = [
+  "mypy>=1.20.2",
+  "ruff>=0.15.12",
+]
 
 [project.urls]
 Homepage = "https://github.com/ArielAlvarez-Martinez/hrtfpykit"
@@ -66,3 +70,25 @@ Issues = "https://github.com/ArielAlvarez-Martinez/hrtfpykit/issues"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["hrtfpykit*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = [
+  "build",
+  "dist",
+  "docs/_build",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.13"
+files = ["hrtfpykit"]
+ignore_missing_imports = true
+show_error_codes = true
+pretty = true
+warn_redundant_casts = true
+warn_unreachable = true
+warn_unused_ignores = true

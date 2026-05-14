@@ -1,4 +1,5 @@
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 import io
 import os
 import re
@@ -10,7 +11,9 @@ import numpy as np
 import pytest
 
 from hrtfpykit.datasets import HUTUBS
+from hrtfpykit.datasets.checksums import HUTUBS_CHECKSUMS
 from hrtfpykit.datasets.config import HUTUBSConfig
+from hrtfpykit.datasets.download import BaseDownload
 from hrtfpykit.datasets.specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -30,6 +33,7 @@ IMAGE_ROOT = (
     or os.getenv("HUTUBS_IMAGE_PATH")
     or os.getenv("HUTUBS_IMAGE_ROOT")
 )
+RUN_HUTUBS_DOWNLOAD_TESTS = os.getenv("HUTUBS_TEST_DOWNLOAD", "").strip() == "1"
 ALL_HUTUBS_SUBJECT_IDS = tuple(HUTUBSConfig.subject_ids)
 _RUN_FULL_HUTUBS_TESTS = (
     os.getenv("HUTUBS_TEST_FULL", "").strip() == "1"
@@ -45,6 +49,12 @@ if _SAFE_SUBJECT_LIMIT < 1:
 if _SAFE_SUBJECT_LIMIT > len(ALL_HUTUBS_SUBJECT_IDS):
     _SAFE_SUBJECT_LIMIT = len(ALL_HUTUBS_SUBJECT_IDS)
 _TEST_SUBJECT_IDS = tuple(ALL_HUTUBS_SUBJECT_IDS[:_SAFE_SUBJECT_LIMIT])
+_TEST_SUBJECT_ID_SET = set(_TEST_SUBJECT_IDS)
+_DOWNLOAD_EXCLUDED_SUBJECT_IDS = tuple(
+    subject_id
+    for subject_id in ALL_HUTUBS_SUBJECT_IDS
+    if subject_id not in _TEST_SUBJECT_ID_SET
+)
 
 
 def _sort_subject_ids(subject_ids: Sequence[str]) -> list[str]:
@@ -937,3 +947,143 @@ def test_spec_workflow_does_not_mutate_grouped_spec_objects() -> None:
     assert anthropometry_spec.accessed_by == "ROW"
     assert anthropometry_spec.grouped_by == "subject-ear"
     assert anthropometry_spec.ear == "LEFT"
+
+
+def test_hutubs_anthropometry_download_plan(tmp_path: Path) -> None:
+    jobs = BaseDownload(config=HUTUBSConfig, root=tmp_path).build_download_plan(
+        download_resources="anthropometry",
+    )
+
+    assert len(jobs) == 1
+    assert jobs[0]["resource"] == "anthropometry"
+    assert jobs[0]["relative_path"] == "AntrhopometricMeasures.csv"
+    assert jobs[0]["checksum"] == HUTUBS_CHECKSUMS["anthropometry"]["AntrhopometricMeasures.csv"]
+
+
+@pytest.mark.parametrize(
+    ("download_hrtf_variant", "expected_relative_path"),
+    [
+        ("measured", "pp1_HRIRs_measured.sofa"),
+        ("simulated", "pp1_HRIRs_simulated.sofa"),
+    ],
+)
+def test_hutubs_hrtf_download_plan_variants(
+    tmp_path: Path,
+    download_hrtf_variant: str,
+    expected_relative_path: str,
+) -> None:
+    jobs = BaseDownload(config=HUTUBSConfig, root=tmp_path).build_download_plan(
+        download_resources="hrtf",
+        download_hrtf_variant=download_hrtf_variant,
+    )
+
+    relative_paths = {str(job["relative_path"]) for job in jobs}
+    assert len(jobs) == len(ALL_HUTUBS_SUBJECT_IDS)
+    assert expected_relative_path in relative_paths
+    assert all(job["resource"] == "hrtf" for job in jobs)
+    assert all(job["checksum"] is not None for job in jobs)
+
+
+def test_hutubs_download_plan_follows_subject_limit(tmp_path: Path) -> None:
+    jobs = BaseDownload(
+        config=HUTUBSConfig,
+        root=tmp_path,
+        excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+    ).build_download_plan(
+        download_resources="all",
+        download_hrtf_variant="measured",
+        download_mesh_variant=None,
+    )
+    subject_jobs = [job for job in jobs if job["subject_id"] is not None]
+
+    assert {job["resource"] for job in jobs} == {"anthropometry", "hrtf", "mesh"}
+    assert {job["subject_id"] for job in subject_jobs}.issubset(_TEST_SUBJECT_ID_SET)
+    assert len(subject_jobs) == len(_TEST_SUBJECT_IDS) * 2
+    assert all(job["checksum"] is not None for job in jobs)
+
+
+def test_hutubs_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
+    config = replace(
+        HUTUBSConfig(),
+        download=replace(
+            HUTUBSConfig.download,
+            checksums={"anthropometry": {}},
+        ),
+    )
+
+    with pytest.raises(ValueError, match="missing a checksum"):
+        BaseDownload(config=config, root=tmp_path).build_download_plan(
+            download_resources="anthropometry",
+        )
+
+
+def test_hutubs_checksum_mismatch_fails(tmp_path: Path) -> None:
+    path = tmp_path / "AntrhopometricMeasures.csv"
+    path.write_text("bad-data")
+    downloader = BaseDownload(config=HUTUBSConfig, root=tmp_path)
+
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        downloader.verify_checksum(path, "0" * 64)
+
+
+def test_hutubs_invalid_variant_keys_are_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Unsupported dataset_hrtf_variant keys"):
+        HUTUBS(
+            root=tmp_path,
+            dataset_hrtf_variant={"type": "measured", "bad": "value"},
+            inputs=None,
+            target=None,
+        )
+
+    with pytest.raises(ValueError, match="Unsupported dataset_hrtf_variant"):
+        HUTUBS(
+            root=tmp_path,
+            dataset_hrtf_variant={"type": "bad"},
+            inputs=None,
+            target=None,
+        )
+
+
+@pytest.mark.skipif(
+    not RUN_HUTUBS_DOWNLOAD_TESTS,
+    reason="Set HUTUBS_TEST_DOWNLOAD=1 or pass --hutubs-download to run network download tests",
+)
+def test_hutubs_download_resources_follow_subject_limit(tmp_path: Path) -> None:
+    download_root = Path(HUTUBS_ROOT).expanduser() if HUTUBS_ROOT else tmp_path
+    download_cases = (
+        ("anthropometry", {"anthropometry"}, 0),
+        ("hrtf", {"hrtf"}, len(_TEST_SUBJECT_IDS)),
+        ("mesh", {"mesh"}, len(_TEST_SUBJECT_IDS)),
+        ("all", {"anthropometry", "hrtf", "mesh"}, len(_TEST_SUBJECT_IDS) * 2),
+    )
+
+    for download_resources, expected_resources, expected_subject_jobs in download_cases:
+        with redirect_stdout(io.StringIO()):
+            dataset = HUTUBS(
+                root=download_root,
+                download=True,
+                download_resources=download_resources,
+                download_hrtf_variant="measured",
+                exclude_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+                inputs=None,
+                target=None,
+                verbose=False,
+            )
+
+        jobs = BaseDownload(
+            config=HUTUBSConfig,
+            root=download_root,
+            excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+        ).build_download_plan(
+            download_resources=download_resources,
+            download_hrtf_variant="measured",
+            download_mesh_variant=None,
+        )
+        subject_jobs = [job for job in jobs if job["subject_id"] is not None]
+
+        assert {job["resource"] for job in jobs} == expected_resources
+        assert {job["subject_id"] for job in subject_jobs}.issubset(_TEST_SUBJECT_ID_SET)
+        assert len(subject_jobs) == expected_subject_jobs
+        assert dataset.available_subjects == list(_TEST_SUBJECT_IDS)
+        assert dataset.selected_subjects == list(_TEST_SUBJECT_IDS)
+        assert all(Path(job["destination"]).is_file() for job in jobs)

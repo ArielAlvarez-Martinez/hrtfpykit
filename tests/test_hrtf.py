@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -9,10 +10,13 @@ from hrtfpykit.metrics import itd
 from hrtfpykit.sofa import load_sofa
 
 
+FIXTURE_SOFA_PATH = Path(__file__).parent / "pp1_HRIRs_measured.sofa"
 SOFA_PATH = os.getenv("HRTFPYKIT_TEST_SOFA_PATH", "")
+if SOFA_PATH == "" and FIXTURE_SOFA_PATH.exists():
+    SOFA_PATH = str(FIXTURE_SOFA_PATH)
 pytestmark = pytest.mark.skipif(
     SOFA_PATH == "" or not os.path.exists(SOFA_PATH),
-    reason="Required local SOFA file is not available",
+    reason="Required SOFA fixture is not available",
 )
 
 
@@ -119,6 +123,116 @@ def real_hrtf() -> HRTF:
     return load_hrtf(SOFA_PATH)
 
 
+def backed_sofa_convention(hrtf: HRTF) -> str:
+    return hrtf.Sofa.GlobalAttributes.get("SOFAConventions").value
+
+
+def can_update_without_dimension_changes(hrtf: HRTF, default_expected: bool) -> bool:
+    if not default_expected:
+        return False
+    if backed_sofa_convention(hrtf) != "SimpleFreeFieldHRTF":
+        return True
+    dataset = hrtf.Sofa.netCDF4_dataset
+    if dataset is None:
+        raise ValueError("SOFA dataset is not loaded")
+    if hrtf.TF.values is None or hrtf.TF.frequency_bins is None:
+        return False
+    required_variables = ("Data.Real", "Data.Imag", "N")
+    if any(variable_name not in dataset.variables for variable_name in required_variables):
+        return False
+    tf_shape = np.asarray(hrtf.TF.values).shape
+    frequency_shape = np.asarray(hrtf.TF.frequency_bins).shape
+    return (
+        tuple(dataset.variables["Data.Real"].shape) == tf_shape
+        and tuple(dataset.variables["Data.Imag"].shape) == tf_shape
+        and tuple(dataset.variables["N"].shape) == frequency_shape
+    )
+
+
+def test_real_hrtf_load_populates_domains_and_sources(real_hrtf: HRTF) -> None:
+    assert real_hrtf.SOFAConventions in {
+        "SimpleFreeFieldHRIR",
+        "SimpleFreeFieldHRTF",
+    }
+    assert real_hrtf.Sofa is not None
+    assert real_hrtf.Sofa.netCDF4_dataset is not None
+    assert real_hrtf.is_transformed() is False
+
+    ir_values = np.asarray(real_hrtf.IR.values)
+    tf_values = np.asarray(real_hrtf.TF.values)
+    frequency_bins = np.asarray(real_hrtf.TF.frequency_bins, dtype=float)
+    source_positions = real_hrtf.Sources.get_positions()
+    sample_rate = float(real_hrtf.IR.sample_rate)
+
+    assert ir_values.ndim == 3
+    assert tf_values.ndim == 3
+    assert ir_values.shape[:-1] == tf_values.shape[:-1]
+    assert tf_values.shape[-1] == frequency_bins.size
+    assert source_positions.shape == (ir_values.shape[0], 3)
+    assert np.isfinite(ir_values).all()
+    assert np.isfinite(np.real(tf_values)).all()
+    assert np.isfinite(np.imag(tf_values)).all()
+    assert np.isfinite(sample_rate)
+    assert sample_rate > 0.0
+    assert frequency_bins.ndim == 1
+    assert frequency_bins[0] == pytest.approx(0.0)
+    assert np.all(np.diff(frequency_bins) > 0.0)
+    assert real_hrtf.fft_length is not None
+    assert np.allclose(
+        frequency_bins,
+        np.fft.rfftfreq(int(real_hrtf.fft_length), 1.0 / sample_rate),
+    )
+
+
+def test_transform_returns_independent_hrtf_without_mutating_source(
+    real_hrtf: HRTF,
+) -> None:
+    original_ir = np.array(real_hrtf.IR.values, copy=True)
+    original_tf = np.array(real_hrtf.TF.values, copy=True)
+
+    transformed_hrtf = real_hrtf.transform.apply_gain(-3.0, scale="db")
+
+    assert transformed_hrtf is not real_hrtf
+    assert transformed_hrtf.is_transformed() is True
+    assert real_hrtf.is_transformed() is False
+    assert transformed_hrtf.IR.values.shape == original_ir.shape
+    assert transformed_hrtf.TF.values.shape == original_tf.shape
+    assert not np.shares_memory(transformed_hrtf.IR.values, real_hrtf.IR.values)
+    assert not np.shares_memory(transformed_hrtf.TF.values, real_hrtf.TF.values)
+    assert not np.allclose(transformed_hrtf.TF.values, original_tf)
+    assert np.allclose(real_hrtf.IR.values, original_ir)
+    assert np.allclose(real_hrtf.TF.values, original_tf)
+
+
+def test_reset_restores_selected_transformed_hrtf_to_backed_state(
+    real_hrtf: HRTF,
+) -> None:
+    source_positions = real_hrtf.Sources.get_positions()
+    selected_count = min(2, source_positions.shape[0])
+    selected_hrtf = real_hrtf.select(
+        positions=source_positions[:selected_count],
+        position_coordinate_system=real_hrtf.Sources.source_coordinate_system,
+    )
+    transformed_hrtf = selected_hrtf.transform.apply_gain(-3.0, scale="db")
+
+    assert transformed_hrtf.IR.values.shape[0] == selected_count
+    assert transformed_hrtf.Sources.get_positions().shape[0] == selected_count
+    assert transformed_hrtf.is_transformed() is True
+
+    restored_hrtf = transformed_hrtf.reset()
+
+    assert restored_hrtf is transformed_hrtf
+    assert restored_hrtf.is_transformed() is False
+    assert restored_hrtf.IR.values.shape == real_hrtf.IR.values.shape
+    assert restored_hrtf.TF.values.shape == real_hrtf.TF.values.shape
+    assert (
+        restored_hrtf.Sources.get_positions().shape
+        == real_hrtf.Sources.get_positions().shape
+    )
+    assert np.allclose(restored_hrtf.IR.values, real_hrtf.IR.values)
+    assert np.allclose(restored_hrtf.TF.values, real_hrtf.TF.values)
+
+
 @pytest.mark.parametrize(
     ("name", "transform_fn", "expect_update_without_resize"),
     TRANSFORM_CASES,
@@ -134,7 +248,10 @@ def test_update_sofa_all_transform_methods(
 
     assert transformed_hrtf.is_transformed() is True
 
-    if expect_update_without_resize:
+    if can_update_without_dimension_changes(
+        transformed_hrtf,
+        expect_update_without_resize,
+    ):
         transformed_hrtf.update_sofa(change_sofa_dimensions=False)
     else:
         with pytest.raises(
@@ -148,11 +265,19 @@ def test_update_sofa_all_transform_methods(
 
 def test_update_sofa_no_transform_prints_message(real_hrtf: HRTF, capsys) -> None:
     assert real_hrtf.is_transformed() is False
+    expect_noop = can_update_without_dimension_changes(real_hrtf, True)
 
     real_hrtf.update_sofa()
     captured = capsys.readouterr()
 
-    assert "already up to date" in captured.out
+    if expect_noop:
+        assert "already up to date" in captured.out
+    else:
+        dataset = real_hrtf.Sofa.netCDF4_dataset
+        assert dataset is not None
+        assert tuple(dataset.variables["Data.Real"].shape) == np.asarray(real_hrtf.TF.values).shape
+        assert tuple(dataset.variables["Data.Imag"].shape) == np.asarray(real_hrtf.TF.values).shape
+        assert tuple(dataset.variables["N"].shape) == np.asarray(real_hrtf.TF.frequency_bins).shape
     assert real_hrtf.is_transformed() is False
 
 
@@ -163,7 +288,7 @@ def test_save_runs_after_update_sofa(real_hrtf: HRTF, tmp_path) -> None:
     saved_path = transformed_hrtf.save(
         path=destination,
         overwrite=True,
-        change_sofa_dimensions=False,
+        change_sofa_dimensions=not can_update_without_dimension_changes(transformed_hrtf, True),
     )
 
     assert saved_path == destination
@@ -171,35 +296,17 @@ def test_save_runs_after_update_sofa(real_hrtf: HRTF, tmp_path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("sofa_convention", "expected_data_type", "present_variables", "absent_variables"),
+    "sofa_convention",
     [
-        (
-            "same",
-            "FIR",
-            ("Data.IR", "Data.SamplingRate"),
-            ("Data.Real", "Data.Imag", "N"),
-        ),
-        (
-            "SimpleFreeFieldHRIR",
-            "FIR",
-            ("Data.IR", "Data.SamplingRate"),
-            ("Data.Real", "Data.Imag", "N"),
-        ),
-        (
-            "SimpleFreeFieldHRTF",
-            "TF",
-            ("Data.Real", "Data.Imag", "N"),
-            ("Data.IR", "Data.SamplingRate"),
-        ),
+        "same",
+        "SimpleFreeFieldHRIR",
+        "SimpleFreeFieldHRTF",
     ],
 )
 def test_save_sofa_convention_with_selected_positions(
     real_hrtf: HRTF,
     tmp_path,
     sofa_convention: str,
-    expected_data_type: str,
-    present_variables: tuple[str, ...],
-    absent_variables: tuple[str, ...],
 ) -> None:
     selected_hrtf = real_hrtf.select(positions=["front", "left", "right"])
     destination = tmp_path / f"selected_{sofa_convention}.sofa"
@@ -217,8 +324,16 @@ def test_save_sofa_convention_with_selected_positions(
     saved_variables = set(saved_sofa.Variables.get_names())
 
     resolved_expected_convention = (
-        "SimpleFreeFieldHRIR" if sofa_convention == "same" else sofa_convention
+        backed_sofa_convention(real_hrtf) if sofa_convention == "same" else sofa_convention
     )
+    if resolved_expected_convention == "SimpleFreeFieldHRIR":
+        expected_data_type = "FIR"
+        present_variables = ("Data.IR", "Data.SamplingRate")
+        absent_variables = ("Data.Real", "Data.Imag", "N")
+    else:
+        expected_data_type = "TF"
+        present_variables = ("Data.Real", "Data.Imag", "N")
+        absent_variables = ("Data.IR", "Data.SamplingRate")
     assert (
         saved_sofa.GlobalAttributes.get("SOFAConventions").value
         == resolved_expected_convention
@@ -254,8 +369,104 @@ def test_real_hrtf_selects_positions_and_ears(real_hrtf: HRTF) -> None:
     assert selected_hrtf.TF.values is not None
 
 
+def test_real_hrtf_selects_numeric_positions_crop_and_right_ear(
+    real_hrtf: HRTF,
+) -> None:
+    source_positions = real_hrtf.Sources.get_positions()
+    selected_count = min(2, source_positions.shape[0])
+    crop_start = 1
+    crop_end = min(17, real_hrtf.IR.values.shape[-1])
+    original_ir = np.array(real_hrtf.IR.values, copy=True)
+    original_tf = np.array(real_hrtf.TF.values, copy=True)
+
+    selected_hrtf = real_hrtf.select(
+        positions=source_positions[:selected_count],
+        position_coordinate_system=real_hrtf.Sources.source_coordinate_system,
+        ear="right",
+        start=crop_start,
+        end=crop_end,
+    )
+
+    assert crop_end > crop_start
+    assert selected_hrtf.IR.values.shape == (selected_count, crop_end - crop_start)
+    assert selected_hrtf.TF.values.shape[0] == selected_count
+    assert selected_hrtf.TF.values.ndim == 2
+    assert selected_hrtf.TF.values.shape[-1] == real_hrtf.TF.values.shape[-1]
+    assert selected_hrtf.Sources.get_positions().shape == (selected_count, 3)
+    assert np.allclose(real_hrtf.IR.values, original_ir)
+    assert np.allclose(real_hrtf.TF.values, original_tf)
+
+
 def test_real_hrtf_metric_itd_runs_on_loaded_file(real_hrtf: HRTF) -> None:
     values = itd(real_hrtf.IR, sample_rate=real_hrtf.IR.sample_rate)
 
     assert np.asarray(values).shape[0] == real_hrtf.IR.values.shape[0]
     assert np.all(np.isfinite(values))
+
+
+@pytest.mark.parametrize(
+    ("select_kwargs", "error_match"),
+    [
+        ({"ear": "center"}, "ear must be one of"),
+        ({"plane": "diagonal"}, "plane must be one of"),
+        ({"start": 4, "end": 4}, "Crop end must be greater than crop start"),
+        ({"start": True}, "start must be an integer"),
+        (
+            {"start": 0, "start_seconds": 0.0},
+            "Use either sample indices",
+        ),
+        ({"positions": ["not-a-direction"]}, "named position accepts"),
+    ],
+)
+def test_real_hrtf_select_rejects_invalid_arguments(
+    real_hrtf: HRTF,
+    select_kwargs: dict,
+    error_match: str,
+) -> None:
+    with pytest.raises(ValueError, match=error_match):
+        real_hrtf.select(**select_kwargs)
+
+
+def test_save_refuses_overwrite_and_reloads_selected_hrtf(
+    real_hrtf: HRTF,
+    tmp_path,
+) -> None:
+    source_positions = real_hrtf.Sources.get_positions()
+    selected_count = min(2, source_positions.shape[0])
+    selected_hrtf = real_hrtf.select(
+        positions=source_positions[:selected_count],
+        position_coordinate_system=real_hrtf.Sources.source_coordinate_system,
+    )
+    destination = tmp_path / "selected_saved.sofa"
+
+    saved_path = selected_hrtf.save(
+        path=destination,
+        overwrite=True,
+        change_sofa_dimensions=True,
+    )
+
+    assert saved_path == destination
+    assert destination.exists()
+    with pytest.raises(FileExistsError):
+        selected_hrtf.save(
+            path=destination,
+            change_sofa_dimensions=True,
+        )
+
+    overwritten_path = selected_hrtf.save(
+        path=destination,
+        overwrite=True,
+        change_sofa_dimensions=True,
+    )
+    reloaded_hrtf = load_hrtf(overwritten_path)
+    try:
+        assert overwritten_path == destination
+        assert reloaded_hrtf.SOFAConventions == backed_sofa_convention(real_hrtf)
+        assert reloaded_hrtf.IR.values.shape[0] == selected_count
+        assert reloaded_hrtf.TF.values.shape[0] == selected_count
+        assert reloaded_hrtf.Sources.get_positions().shape == (selected_count, 3)
+        assert np.isfinite(reloaded_hrtf.IR.values).all()
+        assert np.isfinite(np.real(reloaded_hrtf.TF.values)).all()
+        assert np.isfinite(np.imag(reloaded_hrtf.TF.values)).all()
+    finally:
+        reloaded_hrtf.Sofa.netCDF4_dataset.close()

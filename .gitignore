@@ -5,7 +5,9 @@ __pycache__/
 .venv/
 .env
 venv/
+.mypy_cache/
 .pytest_cache/
+.ruff_cache/
 docs/_build/
 hrtf.sofa
 hrtfs/
@@ -14,3 +16,4 @@ hrtfpykit-wheel/
 wheels/
 dist/
 tmp/
+.github/workflows/cd.yml

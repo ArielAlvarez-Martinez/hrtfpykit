@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -332,6 +332,7 @@ def compare_magnitude(
     else:
         tf_values_by_subject = [np.asarray(values, dtype=float) for values in tf_magnitudes_by_subject]
 
+    resolved_layout: Any
     if ear == "both":
         resolved_layout = Layout_2Horizontal(
             figsize=Layout_2Horizontal().figsize,
@@ -656,7 +657,7 @@ def compare_amplitude(
 
         subject_sample_indexes = np.arange(subject_ir_values.shape[-1], dtype=float)
         if x_axis == "time":
-            x_values_by_subject.append(subject_sample_indexes / float(hrtf.IR.sample_rate))
+            x_values_by_subject.append(subject_sample_indexes / float(cast(Any, hrtf.IR.sample_rate)))
         else:
             x_values_by_subject.append(subject_sample_indexes)
 
@@ -675,6 +676,7 @@ def compare_amplitude(
                     category=HRTFPyKitWarning,
                 )
 
+    resolved_layout: Any
     if ear == "both":
         resolved_layout = Layout_2Horizontal(
             figsize=Layout_2Horizontal().figsize,
@@ -1859,8 +1861,8 @@ def compare_itd_difference(
     if output_key not in {"seconds", "samples"}:
         raise ValueError("output must be one of: seconds, samples")
     if output_key == "samples" and not np.isclose(
-        float(hrtf_a.IR.sample_rate),
-        float(hrtf_b.IR.sample_rate),
+        float(cast(Any, hrtf_a.IR.sample_rate)),
+        float(cast(Any, hrtf_b.IR.sample_rate)),
         atol=1e-12,
         rtol=0.0,
     ):
@@ -2416,6 +2418,7 @@ def compare_lsd_plane(
     if hrtf_a.TF.frequency_bins is None:
         raise ValueError("hrtf_a TF frequency_bins are required")
 
+    direction_axis_class: Any
     if plane_key == "horizontal":
         selected_positions, _ = get_horizontal_plane(
             hrtf=hrtf_a,

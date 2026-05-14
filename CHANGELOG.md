@@ -5,6 +5,35 @@ This file tracks released tags and upcoming release work for `hrtfpykit`.
 Historical baseline tags keep their original names. Future release tags should
 use the `v0.0.x` format.
 
+## []
+
+### Added
+
+- Added separate GitHub Actions CI and CD workflows: CI runs linting, type
+  checking, core SOFA/HRTF/plots/integration tests, and non-skipped HUTUBS and
+  SONICOM configuration/download-plan tests, while CD handles package builds and
+  PyPI publishing from published GitHub Releases tagged with `v*`.
+
+### Changed
+
+- Removed `SOFA.create_dummy()` and the unused SOFA helper functions that only
+  supported dummy SOFA object construction.
+- Added project metadata for `ruff` and `mypy` quality checks.
+- Cleaned the package typing baseline so `mypy hrtfpykit` can run as a required
+  CI check.
+- Normalized missing DC handling for `SimpleFreeFieldHRTF` files so loaded TF
+  data, `reset()`, `update_sofa()`, and `save()` share the same inserted 0 Hz
+  bin.
+- Preserved Mesh2HRTF compatible reconstruction options on `HRTF` objects across
+  `clone()`, `reset()`, transforms, and directivity workflows.
+
+### Fixed
+
+- Fixed `SimpleFreeFieldHRTF` files without DC so `HRTF.TF` no longer exposes
+  one fewer frequency bin than the reconstructed IR implies.
+- Fixed `HRTF.reset()` for Mesh2HRTF compatible loads so it does not silently
+  reload with the normal inverse reconstruction path.
+
 ## [v0.0.5] - 2026-05-13
 
 ### Added

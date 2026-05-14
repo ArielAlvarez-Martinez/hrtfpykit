@@ -672,6 +672,7 @@ class Transform:
         ir = transformed_hrtf.IR
 
         resolved_sample_rate = ir.sample_rate
+        new_ir_values: np.ndarray | None
         if isinstance(new_ir, np.ndarray):
             new_ir_values = new_ir
         elif isinstance(new_ir, self._hrtf.__class__):
@@ -771,6 +772,8 @@ class Transform:
         ir_from_tf(
             tf,
             frequency_bins=tf.frequency_bins,
+            mesh2hrtf_compatible=transformed_hrtf.mesh2hrtf_compatible,
+            n_shift=transformed_hrtf.mesh2hrtf_n_shift,
         )
         transformed_hrtf._transformed = True
         return transformed_hrtf
@@ -832,6 +835,8 @@ class Transform:
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
 
+        new_tf_values: np.ndarray | None
+        new_frequency_bins: np.ndarray | None
         if isinstance(new_tf, np.ndarray):
             new_tf_values = new_tf
             new_frequency_bins = None
@@ -888,27 +893,29 @@ class Transform:
                     d=1.0 / sample_rate,
                 )
             else:
-                sample_rate = transformed_hrtf.IR.sample_rate
-                if sample_rate is None:
+                resolved_tf_sample_rate = transformed_hrtf.IR.sample_rate
+                if resolved_tf_sample_rate is None:
                     raise ValueError(
                         "sample_rate is required to infer frequency_bins when TF length changes"
                     )
-                if isinstance(sample_rate, bool):
+                if isinstance(resolved_tf_sample_rate, bool):
                     raise ValueError("sample_rate must be a finite, positive value.")
                 try:
-                    sample_rate = float(sample_rate)
+                    resolved_tf_sample_rate = float(resolved_tf_sample_rate)
                 except (TypeError, ValueError):
                     raise ValueError("sample_rate must be a finite, positive value.") from None
-                if not np.isfinite(sample_rate) or sample_rate <= 0.0:
+                if not np.isfinite(resolved_tf_sample_rate) or resolved_tf_sample_rate <= 0.0:
                     raise ValueError("sample_rate must be a finite, positive value.")
                 tf.frequency_bins = np.fft.rfftfreq(
                     2 * (tf.values.shape[-1] - 1),
-                    d=1.0 / sample_rate,
+                    d=1.0 / resolved_tf_sample_rate,
                 )
 
         ir_from_tf(
             tf,
             frequency_bins=tf.frequency_bins,
+            mesh2hrtf_compatible=transformed_hrtf.mesh2hrtf_compatible,
+            n_shift=transformed_hrtf.mesh2hrtf_n_shift,
         )
         transformed_hrtf._transformed = True
         return transformed_hrtf
@@ -971,6 +978,8 @@ class Transform:
         ir_from_tf(
             tf,
             frequency_bins=tf.frequency_bins,
+            mesh2hrtf_compatible=transformed_hrtf.mesh2hrtf_compatible,
+            n_shift=transformed_hrtf.mesh2hrtf_n_shift,
         )
         transformed_hrtf._transformed = True
         return transformed_hrtf
@@ -1035,6 +1044,8 @@ class Transform:
         ir_from_tf(
             tf,
             frequency_bins=tf.frequency_bins,
+            mesh2hrtf_compatible=transformed_hrtf.mesh2hrtf_compatible,
+            n_shift=transformed_hrtf.mesh2hrtf_n_shift,
         )
         transformed_hrtf._transformed = True
         return transformed_hrtf

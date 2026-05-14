@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from .axis import Axis, FrequencyLinearAxis, FrequencyLogAxis, MagnitudeAxis
 from .figure import Figure
@@ -217,8 +217,8 @@ def plot_sht_reconstruction_comparison(
         freq_max=freq_max,
     )
     selected_frequency_indices = np.where(
-        (frequency_bins >= float(frequency_axis_config["freq_min"]))
-        & (frequency_bins <= float(frequency_axis_config["freq_max"]))
+        (frequency_bins >= float(cast(Any, frequency_axis_config["freq_min"])))
+        & (frequency_bins <= float(cast(Any, frequency_axis_config["freq_max"])))
     )[0]
     if selected_frequency_indices.size == 0:
         raise ValueError("No frequency bins fall inside the selected frequency range")
@@ -228,6 +228,7 @@ def plot_sht_reconstruction_comparison(
     frequency_khz = frequency_bins / 1000.0
 
     if resolved_unit == "db":
+        resolved_reference: float | str
         if isinstance(reference, str) and str(reference).strip().lower() == "max":
             resolved_reference = float(
                 np.max(
@@ -494,8 +495,8 @@ def plot_sht_reconstruction_error(
         freq_max=freq_max,
     )
     selected_frequency_indices = np.where(
-        (frequency_bins >= float(frequency_axis_config["freq_min"]))
-        & (frequency_bins <= float(frequency_axis_config["freq_max"]))
+        (frequency_bins >= float(cast(Any, frequency_axis_config["freq_min"])))
+        & (frequency_bins <= float(cast(Any, frequency_axis_config["freq_max"])))
     )[0]
     if selected_frequency_indices.size == 0:
         raise ValueError("No frequency bins fall inside the selected frequency range")
@@ -505,6 +506,7 @@ def plot_sht_reconstruction_error(
     frequency_khz = frequency_bins / 1000.0
 
     if resolved_magnitude == "db":
+        resolved_reference: float | str
         if isinstance(reference, str) and str(reference).strip().lower() == "max":
             resolved_reference = float(
                 np.max(

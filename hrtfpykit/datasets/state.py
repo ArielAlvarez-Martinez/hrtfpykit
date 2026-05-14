@@ -50,7 +50,7 @@ class DatasetState:
 
     Attributes
     ----------
-    config : type[DatasetConfig], DatasetConfig, or None
+    config : DatasetConfig or None
         Dataset configuration class or instance used to define subjects, variants,
         resource templates, and dataset-specific selectors.
     name : str
@@ -187,7 +187,7 @@ class DatasetState:
         Whether dataset construction and loading helpers should print progress
         information.
     """
-    config: type[DatasetConfig] | DatasetConfig | None = None
+    config: DatasetConfig | None = None
     name: str = ""
     root: Path = field(default_factory=Path)
     dataset_hrtf_transform: Callable[[object], object] | None = None
