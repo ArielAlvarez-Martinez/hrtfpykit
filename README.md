@@ -1,17 +1,22 @@
 <p align="center">
-  <img src="docs/assets/images/hrtfpykit.png" alt="hrtfpykit" width="720">
+  <img src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/images/hrtfpykit.png" alt="hrtfpykit" width="720">
 </p>
 
 <p align="center">
-  <strong>SOFA files, HRTF objects, scientific plots, and dataset pipelines in one Python toolkit.</strong>
+  <a href="https://pypi.org/project/hrtfpykit/">
+    <img alt="PyPI package" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/pypi.svg">
+  </a>
+  <img alt="Docs Sphinx Furo" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/docs.svg">
+  <a href="https://github.com/ArielAlvarez-Martinez/hrtfpykit/actions/workflows/ci.yml">
+    <img alt="CI/CD workflow" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/ci-cd.svg">
+  </a>
+  <img alt="Python 3.13+" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/python.svg">
+  <img alt="SOFA HRTF HRIR" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/sofa.svg">
+  <a href="https://github.com/ArielAlvarez-Martinez/hrtfpykit/blob/main/LICENSE">
+    <img alt="License GPL 3.0 only" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/license.svg">
+  </a>
 </p>
 
-<p align="center">
-  <img alt="Python 3.13+" src="https://img.shields.io/badge/python-3.13%2B-3776AB?logo=python&logoColor=white">
-  <img alt="License GPL 3.0 only" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
-  <img alt="SOFA HRTF HRIR" src="https://img.shields.io/badge/SOFA-HRTF%20%7C%20HRIR-0a9396">
-  <img alt="Docs Sphinx Furo" src="https://img.shields.io/badge/docs-Sphinx%20%2B%20Furo-872ee0">
-</p>
 
 ## What is hrtfpykit?
 

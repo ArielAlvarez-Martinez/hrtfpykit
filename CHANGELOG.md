@@ -5,7 +5,7 @@ This file tracks released tags and upcoming release work for `hrtfpykit`.
 Historical baseline tags keep their original names. Future release tags should
 use the `v0.0.x` format.
 
-## []
+## [Unreleased]
 
 ### Added
 
@@ -13,6 +13,18 @@ use the `v0.0.x` format.
   checking, core SOFA/HRTF/plots/integration tests, and non-skipped HUTUBS and
   SONICOM configuration/download-plan tests, while CD handles package builds and
   PyPI publishing from published GitHub Releases tagged with `v*`.
+- Added `tests/pp1_HRIRs_measured.sofa` as the small committed SOFA fixture for
+  CI-friendly SOFA, HRTF, plotting, and integration tests.
+- Added `tests/test_integration.py` coverage for the full SOFA-backed workflow:
+  HRTF load/select/transform, metrics, plotting, SOFA save/reload, convention
+  conversion, and dataset spec resolution across acoustic and non-acoustic spec
+  families.
+- Added a detailed Tests documentation page covering CI smoke tests, local deep
+  dataset tests, SOFA fixture discovery, plot options, dataset download flags,
+  pytest options, and troubleshooting.
+- Added Furo sidebar project links with local GitHub and PyPI SVG assets.
+- Added a `Changelog` project URL so the PyPI project page links back to
+  `CHANGELOG.md`.
 
 ### Changed
 
@@ -21,6 +33,12 @@ use the `v0.0.x` format.
 - Added project metadata for `ruff` and `mypy` quality checks.
 - Cleaned the package typing baseline so `mypy hrtfpykit` can run as a required
   CI check.
+- Reworked SOFA, HRTF, and plot tests to auto-detect the committed test SOFA
+  fixture while still allowing explicit `--sofa-path` and
+  `--compare-sofa-paths` overrides.
+- Updated HUTUBS and SONICOM dataset tests so `--subjects` controls the
+  subject-scoped download checks and the opt-in download tests run before later
+  dataset assertions in the same pytest run.
 - Normalized missing DC handling for `SimpleFreeFieldHRTF` files so loaded TF
   data, `reset()`, `update_sofa()`, and `save()` share the same inserted 0 Hz
   bin.
@@ -33,6 +51,8 @@ use the `v0.0.x` format.
   one fewer frequency bin than the reconstructed IR implies.
 - Fixed `HRTF.reset()` for Mesh2HRTF compatible loads so it does not silently
   reload with the normal inverse reconstruction path.
+- Fixed generated SOFA metadata paths to avoid relying on the removed
+  `hrtfpykit.sofa.__version__` attribute.
 
 ## [v0.0.5] - 2026-05-13
 
