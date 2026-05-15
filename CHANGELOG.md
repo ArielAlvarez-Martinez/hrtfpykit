@@ -5,7 +5,7 @@ This file tracks released tags and upcoming release work for `hrtfpykit`.
 Historical baseline tags keep their original names. Future release tags should
 use the `v0.0.x` format.
 
-## [Unreleased]
+## [v0.0.6] - 2026-05-15
 
 ### Added
 
