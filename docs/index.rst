@@ -53,8 +53,8 @@ tasks.
 - **Create** map-style dataset pipelines for training multimodal deep learning models.
 - **Build** deep learning experiments for HRTF individualization and related tasks.
 
-What is the hrtfpykit architecture?
------------------------------------
+Architecture
+------------
 
 **hrtfpykit** is organized around a modular workflow architecture built on four main APIs. The
 SOFA layer handles file structure, the HRTF layer builds the acoustic object,

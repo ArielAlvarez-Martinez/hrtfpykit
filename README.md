@@ -55,15 +55,19 @@ between the file, the acoustic representation, and the experiment.
 pip install hrtfpykit
 ```
 
-For local installation from the project root:
+For local installation from source:
 
 ```bash
+git clone https://github.com/ArielAlvarez-Martinez/hrtfpykit.git
+cd hrtfpykit
 pip install .
 ```
 
-For local development from the project root:
+For local development from source:
 
 ```bash
+git clone https://github.com/ArielAlvarez-Martinez/hrtfpykit.git
+cd hrtfpykit
 pip install -e ".[test,docs]"
 ```
 

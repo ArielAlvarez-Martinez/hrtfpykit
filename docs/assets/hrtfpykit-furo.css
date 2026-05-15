@@ -194,10 +194,6 @@ body[data-theme="dark"] {
     }
 }
 
-readthedocs-flyout {
-    filter: drop-shadow(0 0.85rem 1.8rem rgba(0, 0, 0, 0.18));
-}
-
 .content a,
 .content a:visited,
 .content a.reference,

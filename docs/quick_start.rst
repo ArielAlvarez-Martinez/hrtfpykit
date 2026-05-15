@@ -10,16 +10,20 @@ The recommended and straightforward installation is:
 
    pip install hrtfpykit
 
-For local installation from the project root:
+For local installation from source:
 
 .. code-block:: bash
 
+   git clone https://github.com/ArielAlvarez-Martinez/hrtfpykit.git
+   cd hrtfpykit
    pip install .
 
-For local development from the project root:
+For local development from source:
 
 .. code-block:: bash
 
+   git clone https://github.com/ArielAlvarez-Martinez/hrtfpykit.git
+   cd hrtfpykit
    pip install -e ".[test,docs]"
 
 ``hrtfpykit`` requires Python 3.13 or newer.
@@ -44,15 +48,14 @@ dataset specs, and batching utilities.
    from hrtfpykit.datasets import HUTUBS, SONICOM
    from hrtfpykit.datasets import HRTFSpec, ITDSpec, ImageSpec, collate_samples
 
-Start with a SOFA file
-----------------------
+sofa API: Work with SOFA files
+------------------------------
 
-Use the :doc:`sofa API</api/sofa/index>` when you want to handle the file structure directly:
-dimensions, variables, metadata, conventions, and raw stored values. It is the
-base hrtfpykit layer for working with SOFA files and is used by the hrtf, plots,
-and datasets layers. It can also be used as a standalone API for the stable
-SOFA conventions registered in hrtfpykit, while the HRTF API focuses on SimpleFreeFieldHRIR
-and SimpleFreeFieldHRTF conventions.
+The :doc:`sofa API</api/sofa/index>` is the file structure layer of hrtfpykit. It
+represents dimensions, variables, metadata, conventions, and raw stored values as
+structured Python objects. HRTF objects, plots, and dataset pipelines build on
+this layer when they need SOFA-backed data, while the same layer can inspect and
+edit the stable SOFA conventions registered in hrtfpykit.
 
 .. code-block:: python
 
@@ -92,16 +95,15 @@ and SimpleFreeFieldHRTF conventions.
    saved_path = editable.save("subject_001_edited.sofa", overwrite=True)
    print(saved_path)
 
-Load, inspect, modify and save an HRTF
---------------------------------------
+hrtf API: Handle HRTF objects
+-----------------------------
 
-Use the :doc:`hrtf API </api/hrtf/index>` when you want to work with SOFA files that follow the
-``SimpleFreeFieldHRIR`` or ``SimpleFreeFieldHRTF`` conventions. It loads those
-files through the SOFA API and represents them as :class:`~hrtfpykit.hrtf.HRTF`
-objects, keeping IR and TF representations synchronized with source positions,
-selection, transformation, plotting, metrics, and save workflows. Selection and
-transform methods return new HRTF objects, leaving the original object available
-for comparison or reset.
+The :doc:`hrtf API </api/hrtf/index>` is the HRTF object layer for SOFA files
+that follow the ``SimpleFreeFieldHRIR`` or ``SimpleFreeFieldHRTF`` conventions.
+It loads those files through the SOFA API and keeps IR data, TF data, source
+positions, and the backed SOFA object synchronized. Selection and transform
+methods return new HRTF objects, leaving the original state available for
+inspection, comparison, reset, plotting, metrics, and save workflows.
 
 .. code-block:: python
 
@@ -167,13 +169,15 @@ for comparison or reset.
 
    print(saved_path)
 
-Plots
------
+plots API: Visualize HRTF data
+------------------------------
 
-The plotting API helps inspect an HRTF before and after selection, transforms,
-metrics, or model evaluation. It provides direct views of source grids, HRIR
-amplitude, HRTF magnitude, spectral cues, ITD and ILD cues, spatial planes, and
-differences between HRTFs.
+The :doc:`plots API </api/plots/index>` is the visualization layer of hrtfpykit.
+It turns HRTF object states and comparison data into figures for source grids,
+HRIR amplitude, HRTF magnitude, spectral cues, ITD and ILD cues, spatial planes,
+and differences between HRTFs. Plots sit after loading, selection, transforms,
+metrics, or model evaluation, so each figure reflects the exact HRTF state being
+inspected.
 
 There are two plotting surfaces: built in methods of the
 :class:`hrtfpykit.hrtf.HRTF` object for visualizing one loaded HRTF state, and
@@ -420,16 +424,16 @@ acoustic view where they appear.
 
 |
 
-Build a dataset
----------------
+datasets API: Build dataset pipelines
+-------------------------------------
 
-Use the :doc:`datasets API </api/datasets/index>` to build map style dataset
-pipelines from public HRTF datasets. Dataset objects are configured with
-:doc:`specs </api/datasets/specs>`, which declare which acoustic values, cue
-metrics, and subject resources each sample exposes as inputs and targets. The
-same pipeline can align HRTFs with anthropometry, metadata, meshes, images,
-videos, or other available resources, then read one sample directly or batch
-samples for PyTorch with :func:`hrtfpykit.datasets.collate_samples`.
+The :doc:`datasets API </api/datasets/index>` is the dataset construction layer
+for public HRTF resources. Dataset objects are configured with
+:doc:`specs </api/datasets/specs>`, which declare the acoustic values, cue
+metrics, and subject resources exposed as sample inputs and targets. The same
+pattern can align HRTFs with anthropometry, metadata, meshes, images, videos, or
+other available resources, then read one sample directly or batch samples for
+PyTorch with :func:`hrtfpykit.datasets.collate_samples`.
 
 .. code-block:: python
 
