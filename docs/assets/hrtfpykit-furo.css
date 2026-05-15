@@ -152,7 +152,7 @@
     --hrtfpykit-content-link-hover: #6d23b6;
     --hrtfpykit-sidebar-link: #5f8f8e;
     --hrtfpykit-sidebar-link-active: #005f73;
-    --readthedocs-flyout-background-color: var(--color-background-secondary);
+    --readthedocs-flyout-background-color: #f8f9fb;
     --readthedocs-flyout-color: var(--color-foreground-primary);
     --readthedocs-flyout-current-version-color: var(--hrtfpykit-sidebar-link-active);
     --readthedocs-flyout-divider-color: var(--color-background-border);
@@ -182,6 +182,7 @@ body[data-theme="dark"] {
     --hrtfpykit-content-link-hover: #d8b4fe;
     --hrtfpykit-sidebar-link: #8fb8ad;
     --hrtfpykit-sidebar-link-active: #2dd4bf;
+    --readthedocs-flyout-background-color: #1a1c1e;
     --readthedocs-search-backdrop-color: rgba(0, 0, 0, 0.68);
 }
 
@@ -191,7 +192,22 @@ body[data-theme="dark"] {
         --hrtfpykit-content-link-hover: #d8b4fe;
         --hrtfpykit-sidebar-link: #8fb8ad;
         --hrtfpykit-sidebar-link-active: #2dd4bf;
+        --readthedocs-flyout-background-color: #1a1c1e;
         --readthedocs-search-backdrop-color: rgba(0, 0, 0, 0.68);
+    }
+}
+
+readthedocs-flyout {
+    --readthedocs-flyout-background-color: #f8f9fb;
+}
+
+body[data-theme="dark"] readthedocs-flyout {
+    --readthedocs-flyout-background-color: #1a1c1e;
+}
+
+@media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) readthedocs-flyout {
+        --readthedocs-flyout-background-color: #1a1c1e;
     }
 }
 
