@@ -429,11 +429,13 @@ hrtfpykit.datasets: Building dataset pipelines
 
 The :doc:`datasets API </datasets/index>` is the dataset construction layer
 for public HRTF resources. Dataset objects are configured with
-:doc:`specs </datasets/specs>`, which declare the acoustic values, cue
-metrics, and subject resources exposed as sample inputs and targets. The same
-pattern can align HRTFs with anthropometry, metadata, meshes, images, videos, or
-other available resources, then read one sample directly or batch samples for
-PyTorch with :func:`hrtfpykit.datasets.collate_samples`.
+spec objects such as :doc:`HRTFSpec </datasets/HRTFSpec>`,
+:doc:`ITDSpec </datasets/ITDSpec>`, and :doc:`ILDSpec </datasets/ILDSpec>`,
+which declare the acoustic values, cue metrics, and subject resources exposed
+as sample inputs and targets. The same pattern can align HRTFs with
+anthropometry, metadata, meshes, images, videos, or other available resources,
+then read one sample directly or batch samples for PyTorch with
+:func:`collate_samples() <hrtfpykit.datasets.collate_samples>`.
 
 .. code-block:: python
 

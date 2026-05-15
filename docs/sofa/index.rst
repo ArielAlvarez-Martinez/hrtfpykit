@@ -34,7 +34,7 @@ Content:
 --------
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 1
 
    load_sofa <loading>
    SOFA <class>

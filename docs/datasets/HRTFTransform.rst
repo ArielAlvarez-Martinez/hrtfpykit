@@ -1,5 +1,5 @@
-Dataset HRTF transforms
-=======================
+HRTFTransform
+=============
 
 .. autoclass:: hrtfpykit.datasets.HRTFTransform
    :members:

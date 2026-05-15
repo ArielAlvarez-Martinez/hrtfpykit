@@ -48,7 +48,7 @@ Content:
 --------
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 1
 
    load_hrtf <loading>
    HRTF <class>

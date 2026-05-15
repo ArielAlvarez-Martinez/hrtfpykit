@@ -40,7 +40,7 @@ Content:
 --------
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 1
 
    compare_magnitude
    compare_amplitude
