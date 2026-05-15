@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
 
 
-def plot_sht_reconstruction_comparison(
+def sht_reconstruction_comparison(
     hrtf: "HRTF",
     reconstructed_magnitude: np.ndarray,
     position: np.ndarray | list | tuple | str = "front",
@@ -117,7 +117,7 @@ def plot_sht_reconstruction_comparison(
     at the front direction:
 
     >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
-    >>> from hrtfpykit.plots import plot_sht_reconstruction_comparison
+    >>> from hrtfpykit.plots import sht_reconstruction_comparison
     >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
     >>> sh_representation = sht(hrtf, sh_order=8, ear="both")
     >>> sh_representation.C.shape
@@ -125,7 +125,7 @@ def plot_sht_reconstruction_comparison(
     >>> reconstructed = sht_inverse(sh_representation)
     >>> reconstructed.shape
     (793, 2, 129)
-    >>> plot_sht_reconstruction_comparison(
+    >>> sht_reconstruction_comparison(
     ...     hrtf=hrtf,
     ...     reconstructed_magnitude=reconstructed,
     ...     position="front",
@@ -299,7 +299,7 @@ def plot_sht_reconstruction_comparison(
         plt.show()
 
 
-def plot_sht_reconstruction_error(
+def sht_reconstruction_error(
     hrtf: "HRTF",
     reconstructed_magnitude: np.ndarray,
     position: np.ndarray | list | tuple | str = "front",
@@ -323,7 +323,7 @@ def plot_sht_reconstruction_error(
     Use this function after :func:`~hrtfpykit.hrtf.sht_inverse` to inspect
     where a selected spherical-harmonic order loses spectral detail for a specific
     direction. Unlike
-    :func:`~hrtfpykit.plots.plot_sht_reconstruction_comparison`, this function
+    :func:`~hrtfpykit.plots.sht_reconstruction_comparison`, this function
     plots the error directly instead of overlaying original and reconstructed
     spectra.
 
@@ -403,7 +403,7 @@ def plot_sht_reconstruction_error(
     Plot the reconstruction error for the right ear at the left direction:
 
     >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
-    >>> from hrtfpykit.plots import plot_sht_reconstruction_error
+    >>> from hrtfpykit.plots import sht_reconstruction_error
     >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
     >>> sh_representation = sht(hrtf, sh_order=8, ear="both")
     >>> sh_representation.C.shape
@@ -411,7 +411,7 @@ def plot_sht_reconstruction_error(
     >>> reconstructed = sht_inverse(sh_representation)
     >>> reconstructed.shape
     (793, 2, 129)
-    >>> plot_sht_reconstruction_error(
+    >>> sht_reconstruction_error(
     ...     hrtf=hrtf,
     ...     reconstructed_magnitude=reconstructed,
     ...     position="left",

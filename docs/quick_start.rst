@@ -43,7 +43,7 @@ dataset specs, and batching utilities.
    from hrtfpykit.hrtf import SH, sht, sht_inverse, sht_error
    
    from hrtfpykit.plots import compare_amplitude, compare_magnitude, compare_absolute_itd, compare_lsd_plane
-   from hrtfpykit.plots import plot_sht_reconstruction_comparison, plot_sht_reconstruction_error
+   from hrtfpykit.plots import sht_reconstruction_comparison, sht_reconstruction_error
    
    from hrtfpykit.datasets import HUTUBS, SONICOM
    from hrtfpykit.datasets import HRTFSpec, ITDSpec, ImageSpec, collate_samples

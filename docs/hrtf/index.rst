@@ -50,7 +50,12 @@ Content:
 .. toctree::
    :maxdepth: 3
 
-   Loading HRTF files <loading>
-   HRTF Class <class>
-   Metrics <metrics>
-   Spherical harmonics <spherical_harmonics>
+   load_hrtf <loading>
+   HRTF <class>
+   itd_difference
+   ild_difference
+   lsd
+   SH
+   sht
+   sht_inverse
+   sht_error

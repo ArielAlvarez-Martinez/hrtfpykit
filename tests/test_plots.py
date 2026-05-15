@@ -25,8 +25,8 @@ from hrtfpykit.plots.compare import (
     compare_magnitude,
 )
 from hrtfpykit.plots.sh import (
-    plot_sht_reconstruction_comparison,
-    plot_sht_reconstruction_error,
+    sht_reconstruction_comparison,
+    sht_reconstruction_error,
 )
 
 
@@ -334,8 +334,8 @@ def test_real_hrtf_compare_plot_functions_create_matplotlib_figures(
     ("name", "plot_call"),
     [
         (
-            "plot_sht_reconstruction_comparison",
-            lambda hrtf, reconstructed_magnitude: plot_sht_reconstruction_comparison(
+            "sht_reconstruction_comparison",
+            lambda hrtf, reconstructed_magnitude: sht_reconstruction_comparison(
                 hrtf=hrtf,
                 reconstructed_magnitude=reconstructed_magnitude,
                 position="front",
@@ -344,8 +344,8 @@ def test_real_hrtf_compare_plot_functions_create_matplotlib_figures(
             ),
         ),
         (
-            "plot_sht_reconstruction_error",
-            lambda hrtf, reconstructed_magnitude: plot_sht_reconstruction_error(
+            "sht_reconstruction_error",
+            lambda hrtf, reconstructed_magnitude: sht_reconstruction_error(
                 hrtf=hrtf,
                 reconstructed_magnitude=reconstructed_magnitude,
                 position="front",
@@ -355,8 +355,8 @@ def test_real_hrtf_compare_plot_functions_create_matplotlib_figures(
         ),
     ],
     ids=[
-        "plot_sht_reconstruction_comparison",
-        "plot_sht_reconstruction_error",
+        "sht_reconstruction_comparison",
+        "sht_reconstruction_error",
     ],
 )
 def test_real_hrtf_sh_plot_functions_create_matplotlib_figures(

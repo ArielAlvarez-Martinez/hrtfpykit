@@ -10,7 +10,7 @@ from .compare import (
     compare_lsd_plane,
     compare_magnitude,
 )
-from .sh import plot_sht_reconstruction_comparison, plot_sht_reconstruction_error
+from .sh import sht_reconstruction_comparison, sht_reconstruction_error
 
 
 __all__ = [
@@ -24,6 +24,6 @@ __all__ = [
     "compare_lsd",
     "compare_lsd_plane",
     "compare_magnitude",
-    "plot_sht_reconstruction_comparison",
-    "plot_sht_reconstruction_error",
+    "sht_reconstruction_comparison",
+    "sht_reconstruction_error",
 ]
