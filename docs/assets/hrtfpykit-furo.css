@@ -152,19 +152,6 @@
     --hrtfpykit-content-link-hover: #6d23b6;
     --hrtfpykit-sidebar-link: #5f8f8e;
     --hrtfpykit-sidebar-link-active: #005f73;
-    --readthedocs-notification-background-color: var(--color-background-secondary);
-    --readthedocs-notification-color: var(--color-foreground-primary);
-    --readthedocs-notification-font-family: var(--font-stack);
-    --readthedocs-notification-link-color: var(--hrtfpykit-content-link);
-    --readthedocs-notification-title-background-color: var(--color-background-secondary);
-    --readthedocs-notification-title-color: var(--hrtfpykit-sidebar-link-active);
-    --readthedocs-search-backdrop-color: rgba(0, 0, 0, 0.55);
-    --readthedocs-search-color: var(--color-foreground-primary);
-    --readthedocs-search-content-background-color: var(--color-background-primary);
-    --readthedocs-search-content-border-color: var(--color-background-border);
-    --readthedocs-search-font-family: var(--font-stack);
-    --readthedocs-search-input-background-color: var(--color-background-secondary);
-    --readthedocs-search-result-section-highlight-color: var(--hrtfpykit-content-link);
 }
 
 body[data-theme="dark"] {
@@ -172,7 +159,6 @@ body[data-theme="dark"] {
     --hrtfpykit-content-link-hover: #d8b4fe;
     --hrtfpykit-sidebar-link: #8fb8ad;
     --hrtfpykit-sidebar-link-active: #2dd4bf;
-    --readthedocs-search-backdrop-color: rgba(0, 0, 0, 0.68);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -181,7 +167,6 @@ body[data-theme="dark"] {
         --hrtfpykit-content-link-hover: #d8b4fe;
         --hrtfpykit-sidebar-link: #8fb8ad;
         --hrtfpykit-sidebar-link-active: #2dd4bf;
-        --readthedocs-search-backdrop-color: rgba(0, 0, 0, 0.68);
     }
 }
 
