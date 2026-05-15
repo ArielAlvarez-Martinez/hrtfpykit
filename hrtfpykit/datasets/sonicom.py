@@ -28,6 +28,7 @@ class SONICOM(BaseDataset):
         download_resources: str | tuple[str, ...] | list[str] = "hrtf",
         download_hrtf_variant: str | Mapping[str, object] | None = {"type": "measured", "sample_rate": 44100, "version": "FreeFieldComp"},
         download_mesh_variant: str | Mapping[str, object] | None =  {"type": "scanned", "version": "watertight"},
+        verify_checksum: bool = True,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
@@ -84,6 +85,12 @@ class SONICOM(BaseDataset):
         download_mesh_variant : dict, str, or None
             Mesh variant values requested for download. This value is independent
             from dataset_mesh_variant.
+        verify_checksum : bool, default=True
+            Whether official SHA-256 checksums are verified during resource
+            download. Keeping this enabled is the recommended behavior. Set it to
+            False only when you intentionally want to skip checksum verification;
+            file existence, non-empty checks, and archive integrity checks still
+            run.
         exclude_subject_ids : str, int, sequence, or None, default=None
             SONICOM subjects excluded before scanning and splitting.
         inputs : spec, sequence of specs, or None, default=None
@@ -148,6 +155,7 @@ class SONICOM(BaseDataset):
                 config=SONICOMConfig,
                 root=root,
                 excluded_subject_ids=exclude_subject_ids,
+                verify_checksum=verify_checksum,
             ).download(
                 download_resources=download_resources,
                 download_hrtf_variant=download_hrtf_variant,

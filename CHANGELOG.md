@@ -25,6 +25,10 @@ use the `v0.0.x` format.
 - Added Furo sidebar project links with local GitHub and PyPI SVG assets.
 - Added a `Changelog` project URL so the PyPI project page links back to
   `CHANGELOG.md`.
+- Added `verify_checksum` to HUTUBS and SONICOM downloads. The default remains
+  checksum verification enabled, while `verify_checksum=False` skips official
+  SHA-256 checks and still keeps file existence, non-empty, and archive
+  integrity checks.
 
 ### Changed
 

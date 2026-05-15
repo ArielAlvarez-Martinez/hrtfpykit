@@ -25,6 +25,7 @@ class BaseDownload:
         config: type[DatasetConfig] | DatasetConfig,
         root: str | Path,
         excluded_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
+        verify_checksum: bool = True,
     ) -> None:
         """Manage secure official downloads for one dataset configuration.
 
@@ -34,7 +35,8 @@ class BaseDownload:
         :class:`~hrtfpykit.datasets.config.DatasetConfig` into file-level jobs,
         composes HTTPS URLs, resolves local destinations below the dataset root,
         verifies existing files, downloads missing or invalid files, checks
-        archive integrity, and validates every accepted file with SHA-256.
+        archive integrity, and validates accepted files with SHA-256 when checksum
+        verification is enabled.
 
         The downloader separates download selection from dataset construction. Dataset
         classes pass explicit download variants and resource groups to this object,
@@ -58,6 +60,12 @@ class BaseDownload:
             Subject identifiers or one-based subject numbers to exclude from
             subject-specific download jobs. These exclusions are combined with
             exclusions declared by the dataset configuration.
+        verify_checksum : bool, default=True
+            Whether downloaded and existing files are verified against the official
+            SHA-256 checksums declared by the dataset configuration. The recommended
+            behavior is to keep this enabled. Set it to False only when you
+            intentionally want to skip checksum verification; file existence,
+            non-empty checks, and archive integrity checks still run.
 
         Attributes
         ----------
@@ -66,6 +74,8 @@ class BaseDownload:
         excluded_subject_ids : tuple of str
             Normalized union of configuration-level and user-requested subject
             exclusions.
+        verify_checksum_enabled : bool
+            Whether official checksum verification is applied to planned downloads.
 
         Raises
         ------
@@ -79,6 +89,7 @@ class BaseDownload:
 
         self.config: DatasetConfig = config
         self.root: Path = self.sanitize_root(Path(root))
+        self.verify_checksum_enabled = verify_checksum
         config_excluded_subject_ids = DatasetSplitPlanner.map_subject_ids(
             tuple(config.excluded_subject_ids),
             tuple(config.subject_ids),
@@ -427,9 +438,8 @@ class BaseDownload:
         Checksum maps can be flat or hierarchical by HRTF type/version/sample-rate or
         mesh type/version. This method hides that structure from plan builders and
         returns the checksum relevant to one concrete relative path and variant
-        context. Missing checksum metadata is treated as a hard error because
-        :meth:`~hrtfpykit.datasets.download.BaseDownload.download_file` never
-        accepts unchecked files.
+        context. Missing checksum metadata is treated as a hard error whenever
+        checksum verification is enabled.
 
         Parameters
         ----------
@@ -552,7 +562,7 @@ class BaseDownload:
         self,
         url: str,
         destination: Path,
-        checksum: str,
+        checksum: str | None,
     ) -> str:
         """Download one planned file or verify an existing destination.
 
@@ -568,8 +578,10 @@ class BaseDownload:
             HTTPS source URL.
         destination : Path
             Local destination path.
-        checksum : str
-            Required SHA-256 checksum.
+        checksum : str or None
+            Expected SHA-256 checksum. When None, checksum verification is skipped
+            but file existence, non-empty checks, and archive integrity checks still
+            run.
 
         Returns
         -------
@@ -581,7 +593,8 @@ class BaseDownload:
         ------
         ValueError
             If the URL is invalid, the transfer fails, the response is incomplete,
-            the downloaded file is empty or corrupt, or checksum verification fails.
+            the downloaded file is empty or corrupt, or checksum verification fails
+            when a checksum is provided.
         """
         validated_url = self.validate_download_url(url)
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -646,8 +659,9 @@ class BaseDownload:
 
         The plan expands resource groups, subject scopes, HRTF variants, mesh
         variants, path templates, URLs, destinations, and checksums into concrete
-        jobs. It performs planning without writing files, which lets constructors and
-        tests inspect download intent separately from execution.
+        jobs. Checksum fields are None when checksum verification is disabled. It
+        performs planning without writing files, which lets constructors and tests
+        inspect download intent separately from execution.
 
         This planner only uses download arguments. It does not inspect dataset specs,
         dataset construction variants, or any future
@@ -677,9 +691,9 @@ class BaseDownload:
         list of dict
             Planned download jobs. Each job contains ``resource``,
             ``relative_path``, ``url``, ``destination``, and
-            ``checksum``. Subject-specific jobs also contain ``subject_id``;
-            HRTF and mesh jobs additionally include ``hrtf_variant`` or
-            ``mesh_variant``.
+            ``checksum``. ``checksum`` is None when checksum verification is
+            disabled. Subject-specific jobs also contain ``subject_id``; HRTF and
+            mesh jobs additionally include ``hrtf_variant`` or ``mesh_variant``.
 
         Raises
         ------
@@ -808,12 +822,16 @@ class BaseDownload:
                                 variant=hrtf_type,
                             )
                             destination = self.compose_download_path(relative_path)
-                            checksum = self.get_checksum(
-                                "hrtf",
-                                relative_path,
-                                hrtf_type=hrtf_type,
-                                hrtf_version=None if hrtf_version is None else str(hrtf_version),
-                                hrtf_sample_rate=sample_rate_value,
+                            checksum = (
+                                self.get_checksum(
+                                    "hrtf",
+                                    relative_path,
+                                    hrtf_type=hrtf_type,
+                                    hrtf_version=None if hrtf_version is None else str(hrtf_version),
+                                    hrtf_sample_rate=sample_rate_value,
+                                )
+                                if self.verify_checksum_enabled
+                                else None
                             )
                             download_jobs.append(
                                 {
@@ -895,11 +913,15 @@ class BaseDownload:
                             mesh_version_label=mesh_version_label,
                         )
                         destination = self.compose_download_path(relative_path)
-                        checksum = self.get_checksum(
-                            "mesh",
-                            relative_path,
-                            mesh_type=mesh_type,
-                            mesh_version=None if mesh_version is None else str(mesh_version),
+                        checksum = (
+                            self.get_checksum(
+                                "mesh",
+                                relative_path,
+                                mesh_type=mesh_type,
+                                mesh_version=None if mesh_version is None else str(mesh_version),
+                            )
+                            if self.verify_checksum_enabled
+                            else None
                         )
                         download_jobs.append(
                             {
@@ -930,7 +952,9 @@ class BaseDownload:
                     "relative_path": relative_path,
                     "url": self.build_download_url(relative_path),
                     "destination": destination,
-                    "checksum": self.get_checksum("anthropometry", relative_path),
+                    "checksum": self.get_checksum("anthropometry", relative_path)
+                    if self.verify_checksum_enabled
+                    else None,
                 }
             )
 
@@ -946,7 +970,9 @@ class BaseDownload:
                     "relative_path": relative_path,
                     "url": self.build_download_url(relative_path),
                     "destination": destination,
-                    "checksum": self.get_checksum("metadata", relative_path),
+                    "checksum": self.get_checksum("metadata", relative_path)
+                    if self.verify_checksum_enabled
+                    else None,
                 }
             )
 
@@ -968,8 +994,8 @@ class BaseDownload:
         Download execution follows the explicit download plan. It does not fall back
         to specs, dataset HRTF variants, or dataset mesh variants when a resource or
         variant is missing from the download arguments. Existing files are accepted
-        only after the same integrity and checksum checks used for newly downloaded
-        files.
+        only after the same integrity checks used for newly downloaded files. Checksum
+        checks are applied when checksum verification is enabled.
 
         Parameters
         ----------
@@ -1025,7 +1051,7 @@ class BaseDownload:
                     status = self.download_file(
                         str(job["url"]),
                         Path(cast(Any, job["destination"])),
-                        checksum=str(job["checksum"]),
+                        checksum=cast(str | None, job["checksum"]),
                     )
                 except ValueError as exc:
                     failures.append(f"{job['relative_path']}: {exc}")
@@ -1101,7 +1127,7 @@ class BaseDownload:
         structurally corrupt. This method performs format-specific integrity checks for
         ZIP, TAR, and GZIP files before a download is accepted. Non-archive files
         return without additional structural checks and are still covered by size and
-        checksum validation in
+        optional checksum validation in
         :meth:`~hrtfpykit.datasets.download.BaseDownload.verify_downloaded_file`.
 
         Parameters
@@ -1144,10 +1170,10 @@ class BaseDownload:
                     if len(chunk) == 0:
                         break
 
-    def verify_downloaded_file(self, path: Path, checksum: str) -> None:
+    def verify_downloaded_file(self, path: Path, checksum: str | None) -> None:
         """Verify that a local download candidate is complete and trusted.
 
-        This method combines basic file checks, archive integrity checks, and required
+        This method combines basic file checks, archive integrity checks, and optional
         SHA-256 validation. It is used for both existing files and temporary downloads
         before dataset construction uses them.
 
@@ -1155,19 +1181,20 @@ class BaseDownload:
         ----------
         path : Path
             Downloaded file path.
-        checksum : str
-            Expected SHA-256 checksum.
+        checksum : str or None
+            Expected SHA-256 checksum. When None, checksum verification is skipped.
 
         Returns
         -------
         None
-            Raises when the file is missing, empty, corrupt, or checksum-invalid.
+            Raises when the file is missing, empty, corrupt, or checksum-invalid
+            when a checksum is provided.
 
         Raises
         ------
         ValueError
             If path is missing, not a file, empty, archive-corrupt, or has a
-            checksum mismatch.
+            checksum mismatch when a checksum is provided.
         OSError
             If the file cannot be inspected or read.
         """
@@ -1178,4 +1205,5 @@ class BaseDownload:
         if path.stat().st_size <= 0:
             raise ValueError(f"Downloaded file is empty: {path}")
         self.verify_archive_integrity(path)
-        self.verify_checksum(path, checksum)
+        if checksum is not None:
+            self.verify_checksum(path, checksum)

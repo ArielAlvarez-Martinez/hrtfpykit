@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
+  <a href="https://www.python.org/"><img alt="Python 3.13+" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/python.svg"></a>
   <a href="https://pypi.org/project/hrtfpykit/"><img alt="PyPI package" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/pypi.svg"></a>
   <a href="https://hrtfpykit.readthedocs.io/en/latest/"><img alt="Docs Sphinx Furo" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/docs.svg"></a>
   <a href="https://github.com/ArielAlvarez-Martinez/hrtfpykit/actions/workflows/ci.yml"><img alt="CI/CD workflow" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/ci-cd.svg"></a>
-  <img alt="Python 3.13+" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/python.svg">
   <a href="https://www.sofaconventions.org/mediawiki/index.php/SOFA_conventions"><img alt="SOFA HRTF HRIR" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/sofa.svg"></a>
   <a href="https://github.com/ArielAlvarez-Martinez/hrtfpykit/blob/main/LICENSE"><img alt="License GPL 3.0 only" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/license.svg"></a>
 </p>
@@ -37,13 +37,17 @@ between the file, the acoustic representation, and the experiment.
 ## What you can do
 
 - **Open**, inspect, validate, edit, clone, and save SOFA files.
-- **Load** HRTFs as objects with synchronized IR and TF representations.
+- **Load** HRTFs as acoustic objects with time domain and frequency domain views.
 - **Select** source positions, ears, samples, and frequency bins.
-- **Modify** HRTFs with transformations and acoustic processing steps.
-- **Create** plots for amplitude, magnitude, spectral cues, ITD, ILD, LSD, source
-  grids, spatial planes, and HRTF comparisons.
-- **Build** map style dataset pipelines from public HRTF datasets.
-- **Align** HRTFs with subject resources for analysis and deep learning workflows.
+- **Modify** HRTFs through transformations, domain conversions, and acoustic
+  processing steps.
+- **Generate** plots to inspect spectral cues, magnitude, amplitude, ITD, LSD,
+  and differences between HRTFs with comparison plots, which is especially
+  useful for HRTF individualization.
+- **Combine** HRTFs with subject data such as anthropometry, metadata, meshes,
+  and images.
+- **Create** map-style dataset pipelines for training multimodal deep learning models.
+- **Build** deep learning experiments for HRTF individualization and related tasks.
 
 ## Installation
 
