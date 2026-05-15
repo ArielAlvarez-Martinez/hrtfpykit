@@ -48,6 +48,13 @@ use the `v0.0.x` format.
   bin.
 - Preserved Mesh2HRTF compatible reconstruction options on `HRTF` objects across
   `clone()`, `reset()`, transforms, and directivity workflows.
+- Reworked the documentation API reference around direct public entry points:
+  `hrtfpykit.sofa`, `hrtfpykit.hrtf`, `hrtfpykit.plots`, and
+  `hrtfpykit.datasets`, with separate pages for SOFA validation helpers, HRTF
+  metrics, spherical harmonic utilities, plot functions, dataset specs, and
+  `HRTFTransform`.
+- Updated the Quick Start to describe the integrated SOFA, HRTF, plots, and
+  datasets workflow, including flatter plot examples and dataset spec links.
 
 ### Fixed
 

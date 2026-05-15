@@ -1,6 +1,8 @@
 hrtfpykit.plots
 ===============
 
+.. py:module:: hrtfpykit.plots
+
 Description:
 ------------
 

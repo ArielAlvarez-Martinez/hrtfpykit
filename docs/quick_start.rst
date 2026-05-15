@@ -173,22 +173,21 @@ hrtfpykit.plots: Visualizing HRTF data
 --------------------------------------
 
 The :doc:`plots API </plots/index>` is the visualization layer of hrtfpykit.
-It turns HRTF object states and comparison data into figures for source grids,
+It turns loaded HRTF states and comparison data into figures for source grids,
 HRIR amplitude, HRTF magnitude, spectral cues, ITD and ILD cues, spatial planes,
-and differences between HRTFs. Plots sit after loading, selection, transforms,
-metrics, or model evaluation, so each figure reflects the exact HRTF state being
-inspected.
+LSD maps, and differences between HRTFs. Plots sit after loading, selection,
+transforms, metrics, or model evaluation, so each figure reflects the HRTF state
+or group of HRTFs being inspected.
 
-There are two plotting surfaces: built in methods of the
-:class:`hrtfpykit.hrtf.HRTF` object for visualizing one loaded HRTF state, and
-comparison functions for working with multiple HRTFs.
-
-HRTF plots
-~~~~~~~~~~
-
-HRTF plots are built in methods of the :class:`hrtfpykit.hrtf.HRTF` object.
-They use the current IR, TF, and source position state, so selections and
-transforms are reflected in the generated figures.
+The plotting layer has three public surfaces. Built in methods of the
+:class:`HRTF <hrtfpykit.hrtf.HRTF>` object visualize one loaded HRTF state and use its
+current IR, TF, and source position data, so selections and transforms are
+reflected in the generated figures. Comparison functions in
+:mod:`hrtfpykit.plots` place multiple HRTFs in the same visual frame for
+amplitude, magnitude, ITD, ILD, and LSD inspection. Spherical harmonic plot
+functions visualize SHT reconstruction quality and reconstruction error for
+workflows based on :class:`~hrtfpykit.hrtf.SH`,
+:func:`~hrtfpykit.hrtf.sht`, and related harmonic representations.
 
 :meth:`~hrtfpykit.plots.hrtf.HRTFPlots.plot_amplitude`
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -307,15 +306,6 @@ transforms are reflected in the generated figures.
    :align: center
 
 |
-
-Comparison plots
-~~~~~~~~~~~~~~~~
-
-Comparison plots put multiple HRTFs into the same visual frame. They can overlay
-HRIR waveforms, HRTF magnitude responses, ITD and ILD cue curves, and LSD maps
-over a source grid or spatial plane. The comparison stays tied to the selected
-position, ear, frequency range, or plane, so differences are shown in the
-acoustic view where they appear.
 
 :func:`~hrtfpykit.plots.compare_amplitude`
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
