@@ -88,20 +88,12 @@
     margin: 0.15rem 0 0.4rem;
 }
 
-.sidebar-author-link,
-.sidebar-author-link:visited {
+.sidebar-version-label {
     color: var(--hrtfpykit-sidebar-link) !important;
-    font-size: 0.78rem;
+    font-size: 0.94rem;
     font-weight: 500;
     letter-spacing: 0.03em;
-    opacity: 0.82;
-    text-decoration: none;
-}
-
-.sidebar-author-link:hover,
-.sidebar-author-link:focus {
-    color: var(--hrtfpykit-sidebar-link-active) !important;
-    opacity: 1;
+    opacity: 0.9;
     text-decoration: none;
 }
 

@@ -10,6 +10,7 @@ copyright = "Ariel Alvarez-Martinez"
 version = tomllib.loads(
     (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
 )["project"]["version"]
+release = version
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -35,7 +36,7 @@ html_static_path = ["assets"]
 html_css_files = ["hrtfpykit-furo.css"]
 
 html_theme = "furo"
-html_title = "hrtfpykit documentation"
+html_title = f"hrtfpykit documentation v{release}"
 html_logo = "assets/images/hrtfpykit-logo.png"
 html_favicon = "assets/images/hrtfpykit-icon.png"
 html_show_sourcelink = False
