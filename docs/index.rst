@@ -56,18 +56,18 @@ tasks.
 Architecture
 ------------
 
-**hrtfpykit** is organized around a modular workflow architecture built on four main APIs. The
-SOFA layer handles file structure, the HRTF layer builds the acoustic object,
-the plots layer visualizes HRTF data, and the datasets layer turns public HRTF
-resources into training and analysis samples.
+**hrtfpykit** is organized around four public API entry points. The SOFA layer
+handles file structure, the HRTF layer builds the acoustic object, the plots
+layer visualizes HRTF data, and the datasets layer turns public HRTF resources
+into training and analysis samples.
 
-- :doc:`sofa API </api/sofa/index>`: open, inspect, validate, edit, clone, and save SOFA files as
+- :doc:`hrtfpykit.sofa </sofa/index>`: open, inspect, validate, edit, clone, and save SOFA files as
   structured Python objects.
-- :doc:`hrtf API </api/hrtf/index>`: load SOFA files as HRTF objects with IR data, TF data, source
+- :doc:`hrtfpykit.hrtf </hrtf/index>`: load SOFA files as HRTF objects with IR data, TF data, source
   positions, transforms, metrics, and spherical harmonics.
-- :doc:`plots API </api/plots/index>`: visualize HRTF objects through spectral cues, source grids,
+- :doc:`hrtfpykit.plots </plots/index>`: visualize HRTF objects through spectral cues, source grids,
   binaural cues, spherical harmonic reconstructions, and comparison plots.
-- :doc:`datasets API </api/datasets/index>`: build public HRTF dataset pipelines with explicit inputs,
+- :doc:`hrtfpykit.datasets </datasets/index>`: build public HRTF dataset pipelines with explicit inputs,
   targets, variants, splits, subject resources, and batching utilities.
 
 Content:
@@ -78,7 +78,15 @@ Content:
 
    self
    quick_start
-   api/index
+
+.. toctree::
+   :maxdepth: 1
+   :caption: hrtfpykit API
+
+   sofa/index
+   hrtf/index
+   plots/index
+   datasets/index
 
 .. toctree::
    :maxdepth: 1

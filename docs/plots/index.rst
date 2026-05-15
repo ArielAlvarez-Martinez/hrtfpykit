@@ -1,10 +1,10 @@
-plots
-=====
+hrtfpykit.plots
+===============
 
 Description:
 ------------
 
-The plots layer is hrtfpykit's visualization layer for HRTF and HRIR analysis.
+``hrtfpykit.plots`` is hrtfpykit's visualization layer for HRTF and HRIR analysis.
 It turns :class:`~hrtfpykit.hrtf.HRTF` objects, comparisons between HRTF
 objects, and spherical-harmonic reconstruction results into Matplotlib figures
 configured with hrtfpykit layouts, axes, labels, legends, and titles.  Its role
@@ -12,7 +12,7 @@ is to make the acoustic state of the library visible: source positions, ear
 channels, time samples, frequency bins, magnitude and amplitude responses,
 interaural cues, spectral differences, and spherical-harmonic errors.
 
-This layer is closely tied to :doc:`hrtf <../hrtf/index>`.
+This layer is closely tied to :doc:`hrtfpykit.hrtf <../hrtf/index>`.
 Single-object plotting methods are grouped in
 :class:`~hrtfpykit.plots.hrtf.HRTFPlots` and inherited by
 :class:`~hrtfpykit.hrtf.HRTF`, so figures are created from the same object

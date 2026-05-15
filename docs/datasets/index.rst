@@ -1,10 +1,10 @@
-datasets
-========
+hrtfpykit.datasets
+==================
 
 Description:
 ------------
 
-The datasets layer is hrtfpykit's spec driven construction layer for HRTF
+``hrtfpykit.datasets`` is hrtfpykit's spec driven construction layer for HRTF
 datasets.  It turns dataset-specific resource layouts into indexed dataset
 objects whose samples are defined explicitly by ``inputs`` and ``target`` specs.
 These objects follow the map style dataset pattern: they provide ``len(dataset)``
@@ -36,7 +36,7 @@ Resource specs such as :class:`~hrtfpykit.datasets.MeshSpec`,
 :class:`~hrtfpykit.datasets.VideoSpec` request non-acoustic resources aligned
 with the same subject and row context.
 
-The datasets layer builds on :doc:`hrtf <../hrtf/index>` for acoustic
+The datasets layer builds on :doc:`hrtfpykit.hrtf <../hrtf/index>` for acoustic
 resources.  Subject HRTF files are loaded as
 :class:`~hrtfpykit.hrtf.HRTF` objects, optional dataset-level HRTF transforms can
 be applied, and specs then extract arrays, binaural cues, or

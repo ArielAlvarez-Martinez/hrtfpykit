@@ -1,10 +1,10 @@
-sofa
-====
+hrtfpykit.sofa
+==============
 
 Description:
 ------------
 
-The sofa layer is hrtfpykit's direct interface for ``.sofa`` files.  SOFA
+``hrtfpykit.sofa`` is hrtfpykit's direct interface for ``.sofa`` files.  SOFA
 (``Spatially Oriented Format for Acoustics``) files organize spatial-acoustic
 measurements together with declared conventions, named dimensions, data
 variables, global attributes, variable attributes, source positions, receiver
@@ -18,7 +18,7 @@ limited to ``SimpleFreeFieldHRIR`` and ``SimpleFreeFieldHRTF`` files; it works
 with the stable SOFA conventions registered in hrtfpykit, following the stable
 convention families listed by the `SOFA project <https://www.sofaconventions.org/mediawiki/index.php/SOFA_conventions>`__.
 
-The :doc:`hrtf <../hrtf/index>` layer relies on sofa when it loads
+The :doc:`hrtfpykit.hrtf <../hrtf/index>` layer relies on ``hrtfpykit.sofa`` when it loads
 ``SimpleFreeFieldHRIR`` and ``SimpleFreeFieldHRTF`` files.  A loaded
 :class:`~hrtfpykit.hrtf.HRTF` object keeps its backing
 :class:`~hrtfpykit.sofa.SOFA` object available through
@@ -36,6 +36,7 @@ Content:
 .. toctree::
    :maxdepth: 3
 
-   Loading SOFA files <loading>
-   SOFA Class <class>
-   SOFA files validation <validation>
+   load_sofa <loading>
+   SOFA <class>
+   check_sofa_against_conventions <check_sofa_against_conventions>
+   check_sofa_security <check_sofa_security>

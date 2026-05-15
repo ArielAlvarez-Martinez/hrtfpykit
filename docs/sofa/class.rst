@@ -1,5 +1,5 @@
-SOFA Class
-==========
+SOFA
+====
 
 .. autoclass:: hrtfpykit.sofa.SOFA
    :members:
