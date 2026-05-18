@@ -394,16 +394,24 @@ class BaseDownload:
             raise ValueError(f"Resolved download path escapes root: {destination}") from exc
         return destination
 
-    def build_download_url(self, filename: str) -> str:
+    def build_download_url(self, resource: str, filename: str) -> str:
         """Compose the official HTTPS URL for one relative resource path.
 
-        The method combines the dataset download base URL with one planned relative
-        path, then validates the resulting URL through the shared HTTPS rules. This
-        keeps URL generation deterministic for
-        :meth:`~hrtfpykit.datasets.download.BaseDownload.build_download_plan`.
+        The method combines the selected resource base URL with one planned
+        relative path, then validates the resulting URL through the shared HTTPS
+        rules. Dataset-level
+        :class:`~hrtfpykit.datasets.config.DownloadConfig` metadata may provide
+        resource-specific base URLs for datasets whose HRTF, mesh, anthropometry,
+        or metadata resources are hosted on different servers. When no
+        resource-specific base URL is configured, the dataset default base URL is
+        used. The relative resource path remains the same path used for local
+        destinations and checksum lookup.
 
         Parameters
         ----------
+        resource : str
+            Resource group name for the planned download, such as ``hrtf``,
+            ``mesh``, ``anthropometry``, or ``metadata``.
         filename : str
             Relative resource path.
 
@@ -420,7 +428,13 @@ class BaseDownload:
         """
         if self.config.download is None:
             raise ValueError(f"{self.config.name} does not define an official download base URL")
-        validated_base_url = self.validate_download_url(self.config.download.base_url.rstrip("/"))
+        resource_name = str(resource).strip().lower()
+        resource_base_urls = self.config.download.resource_base_urls or {}
+        resource_base_url = resource_base_urls.get(
+            resource_name,
+            self.config.download.base_url,
+        )
+        validated_base_url = self.validate_download_url(str(resource_base_url).rstrip("/"))
         return f"{validated_base_url}/{filename}"
 
     def get_checksum(
@@ -845,7 +859,7 @@ class BaseDownload:
                                     if sample_rate_value is not None or hrtf_version is not None
                                     else hrtf_type,
                                     "relative_path": relative_path,
-                                    "url": self.build_download_url(relative_path),
+                                    "url": self.build_download_url("hrtf", relative_path),
                                     "destination": destination,
                                     "checksum": checksum,
                                 }
@@ -934,7 +948,7 @@ class BaseDownload:
                                 if mesh_version is not None
                                 else mesh_type,
                                 "relative_path": relative_path,
-                                "url": self.build_download_url(relative_path),
+                                "url": self.build_download_url("mesh", relative_path),
                                 "destination": destination,
                                 "checksum": checksum,
                             }
@@ -950,7 +964,7 @@ class BaseDownload:
                     "resource": "anthropometry",
                     "subject_id": None,
                     "relative_path": relative_path,
-                    "url": self.build_download_url(relative_path),
+                    "url": self.build_download_url("anthropometry", relative_path),
                     "destination": destination,
                     "checksum": self.get_checksum("anthropometry", relative_path)
                     if self.verify_checksum_enabled
@@ -968,7 +982,7 @@ class BaseDownload:
                     "resource": "metadata",
                     "subject_id": None,
                     "relative_path": relative_path,
-                    "url": self.build_download_url(relative_path),
+                    "url": self.build_download_url("metadata", relative_path),
                     "destination": destination,
                     "checksum": self.get_checksum("metadata", relative_path)
                     if self.verify_checksum_enabled

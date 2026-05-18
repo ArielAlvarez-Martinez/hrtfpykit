@@ -52,8 +52,11 @@ class HUTUBS(BaseDataset):
         exclusions and split selection, and builds row contexts for subject-,
         position-, ear-, frequency-, or sample-indexed data. At access time, the
         selected subject HRTF is loaded through
-        :func:`~hrtfpykit.hrtf.load_hrtf`, and the requested spec values are
-        extracted into sample inputs and sample targets.
+        :func:`~hrtfpykit.hrtf.load_hrtf`. If ``dataset_hrtf_transform`` is
+        provided, it is applied to that loaded HRTF first. Acoustic specs then
+        operate on the dataset-level HRTF version, optionally apply their own
+        HRTF transform, and finally extract IR/TF values or calculate derived
+        values such as ITD, ILD, or spherical-harmonic coefficients.
 
         Download selection is independent from dataset construction selection.
         download_resources and download_hrtf_variant control which official
@@ -69,7 +72,10 @@ class HUTUBS(BaseDataset):
         dataset_hrtf_variant : {``measured``, ``simulated``} or dict, default=``measured``
             HUTUBS HRTF resource variant used for dataset construction.
         dataset_hrtf_transform : callable or None, default=None
-            Optional transform applied to loaded HRTFs before spec extraction.
+            Optional transform applied to every loaded HRTF before any acoustic
+            spec is evaluated. Spec-level HRTF transforms are applied after this
+            dataset-level transform and before value extraction or derived cue
+            calculation.
         download : bool, default=False
             If True, downloads selected official HUTUBS resources before dataset
             construction.

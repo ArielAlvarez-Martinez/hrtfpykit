@@ -216,7 +216,18 @@ class DatasetSampleValueSelector:
                 value = spec.transform(value)
             values.append(value)
         if spec.concatenate:
+            if spec.transform is None:
+                raise ValueError(
+                    "ImageSpec(concatenate=True) cannot concatenate raw image paths. "
+                    "Pass transform=... to load each image into an array before "
+                    "concatenation."
+                )
             arrays = [np.asarray(value) for value in values]
+            if any(array.ndim == 0 for array in arrays):
+                raise ValueError(
+                    "ImageSpec(concatenate=True) requires transform to return "
+                    "array-like image values with at least one dimension."
+                )
             return np.concatenate(arrays, axis=0)
         if len(values) == 1:
             return values[0]
@@ -445,10 +456,11 @@ class DatasetSampleValueSelector:
     ) -> np.ndarray:
         """Resolve an :class:`~hrtfpykit.datasets.ITDSpec` value for one dataset row.
 
-        The selector computes interaural time difference once per subject and spec,
-        stores the metric result in the dataset cache, applies selected-position
-        filtering or row-level position indexing, and finally applies the optional
-        spec transform. It turns the loaded subject HRIR into an ITD feature.
+        The selector loads the subject HRTF, applies the optional spec transform
+        to that HRTF, computes interaural time difference once per subject and
+        spec, stores the metric result in the dataset cache, and applies
+        selected-position filtering or row-level position indexing. It turns the
+        selected HRTF version into an ITD feature.
 
         Parameters
         ----------
@@ -490,9 +502,17 @@ class DatasetSampleValueSelector:
         value = state.cache.get(metric_cache_key)
         if value is None:
             hrtf = dataset.get_subject_hrtf(subject_id)
+            transformed_hrtf = None
+            if spec.transform is not None:
+                transform_cache_key = ("hrtf_transform", subject_id, id(spec.transform))
+                transformed_hrtf = state.cache.get(transform_cache_key)
+                if transformed_hrtf is None:
+                    transformed_hrtf = spec.transform(hrtf)
+                    state.cache[transform_cache_key] = transformed_hrtf
+            selected_hrtf = cast(Any, hrtf if transformed_hrtf is None else transformed_hrtf)
             value = np.asarray(
                 itd(
-                    hrtf.IR,
+                    selected_hrtf.IR,
                     method=spec.method,
                     output=spec.output,
                     thresh_level=spec.thresh_level,
@@ -509,8 +529,6 @@ class DatasetSampleValueSelector:
                 value = np.take(value, selected_position_indices, axis=0)
         else:
             value = np.asarray(value[int(cast(Any, row["position_index"]))])
-        if spec.transform is not None:
-            value = spec.transform(value)
         return value
 
     @staticmethod
@@ -522,11 +540,12 @@ class DatasetSampleValueSelector:
     ) -> np.ndarray:
         """Resolve an :class:`~hrtfpykit.datasets.ILDSpec` value for one dataset row.
 
-        The selector computes interaural level difference once per subject and spec,
-        stores the metric result in the dataset cache, applies selected-position
-        filtering, applies row-level position or frequency indexing when requested,
-        and then applies the optional spec transform. It supports both broadband and
-        frequency-dependent ILD workflows.
+        The selector loads the subject HRTF, applies the optional spec transform
+        to that HRTF, computes interaural level difference once per subject and
+        spec, stores the metric result in the dataset cache, applies
+        selected-position filtering, and applies row-level position or frequency
+        indexing when requested. It supports both broadband and frequency-dependent
+        ILD workflows.
 
         Parameters
         ----------
@@ -569,9 +588,17 @@ class DatasetSampleValueSelector:
         value = state.cache.get(metric_cache_key)
         if value is None:
             hrtf = dataset.get_subject_hrtf(subject_id)
+            transformed_hrtf = None
+            if spec.transform is not None:
+                transform_cache_key = ("hrtf_transform", subject_id, id(spec.transform))
+                transformed_hrtf = state.cache.get(transform_cache_key)
+                if transformed_hrtf is None:
+                    transformed_hrtf = spec.transform(hrtf)
+                    state.cache[transform_cache_key] = transformed_hrtf
+            selected_hrtf = cast(Any, hrtf if transformed_hrtf is None else transformed_hrtf)
             value = np.asarray(
                 ild(
-                    hrtf.IR,
+                    selected_hrtf.IR,
                     sample_rate=state.sample_rate,
                     fft_length=spec.fft_length,
                     mode=spec.mode,
@@ -592,8 +619,6 @@ class DatasetSampleValueSelector:
                 value = np.asarray(value[int(cast(Any, row["position_index"]))])
         if "frequency" in spec_index_by:
             value = np.asarray(value[..., int(cast(Any, row["frequency_index"]))])
-        if spec.transform is not None:
-            value = spec.transform(value)
         return value
 
     @staticmethod
@@ -605,12 +630,12 @@ class DatasetSampleValueSelector:
     ) -> np.ndarray:
         """Resolve an :class:`~hrtfpykit.datasets.SHSpec` value for one dataset row.
 
-        The selector computes spherical-harmonic coefficients once per subject and
-        spec, stores the coefficient array in the dataset cache, applies ear
-        selection or row-level ear indexing, applies frequency indexing when
-        requested, and finally applies the optional spec transform. It gives datasets
-        an SH-domain representation of HRTF magnitude data without changing source
-        resources.
+        The selector loads the subject HRTF, applies the optional spec transform
+        to that HRTF, computes spherical-harmonic coefficients once per subject
+        and spec, stores the coefficient array in the dataset cache, applies ear
+        selection or row-level ear indexing, and applies frequency indexing when
+        requested. It gives datasets an SH-domain representation of the selected
+        HRTF version.
 
         Parameters
         ----------
@@ -652,11 +677,19 @@ class DatasetSampleValueSelector:
         value = state.cache.get(sh_cache_key)
         if value is None:
             hrtf = dataset.get_subject_hrtf(subject_id)
+            transformed_hrtf = None
+            if spec.transform is not None:
+                transform_cache_key = ("hrtf_transform", subject_id, id(spec.transform))
+                transformed_hrtf = state.cache.get(transform_cache_key)
+                if transformed_hrtf is None:
+                    transformed_hrtf = spec.transform(hrtf)
+                    state.cache[transform_cache_key] = transformed_hrtf
+            selected_hrtf = cast(Any, hrtf if transformed_hrtf is None else transformed_hrtf)
             spec_ears = sanitize_ears(spec.ears)
             sh_ear = "both" if len(spec_ears) == 2 else spec_ears[0][0]
             value = np.asarray(
                 sht(
-                    hrtf,
+                    selected_hrtf,
                     sh_order=spec.sh_order,
                     ear=sh_ear,
                     epsilon=spec.epsilon,
@@ -693,8 +726,6 @@ class DatasetSampleValueSelector:
             frequency_axis = axis_names.index("frequency")
             value = np.take(value, [int(cast(Any, row["frequency_index"]))], axis=frequency_axis)
             value = np.squeeze(value, axis=frequency_axis)
-        if spec.transform is not None:
-            value = spec.transform(value)
         return value
 
     @staticmethod

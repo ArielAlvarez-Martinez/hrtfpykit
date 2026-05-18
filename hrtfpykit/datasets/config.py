@@ -238,13 +238,19 @@ class DownloadConfig:
     Attributes
     ----------
     base_url : str
-        HTTPS base URL used to compose resource download URLs.
+        Default HTTPS base URL used to compose resource download URLs.
+        Resource-specific base URLs override this value when declared in
+        ``resource_base_urls``.
     available_resources : tuple of str
         Resource group names accepted by the downloader, such as ``hrtf``,
         ``mesh``, ``metadata``, or ``anthropometry``.
     checksums : dict[str, object] or None
         Optional SHA-256 checksum map used for secure verification. The nested
         shape depends on the resource family and variant axes.
+    resource_base_urls : dict[str, str] or None
+        Optional mapping from resource group names to HTTPS base URLs. Use this
+        when one dataset hosts different official resource families on different
+        servers or URL roots while preserving the same resource-relative paths.
 
     Notes
     -----
@@ -257,6 +263,7 @@ class DownloadConfig:
     base_url: str
     available_resources: tuple[str, ...]
     checksums: dict[str, object] | None = None
+    resource_base_urls: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)

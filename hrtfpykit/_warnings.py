@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import atexit
-import builtins
 import inspect
-import linecache
 import pathlib
 import sys
 import warnings
@@ -41,67 +38,16 @@ ORIGINAL_SHOWWARNING = getattr(
     "_hrtfpykit_original",
     warnings.showwarning,
 )
-ORIGINAL_PRINT = getattr(
-    builtins.print,
-    "_hrtfpykit_original",
-    builtins.print,
-)
-PENDING_WARNING_CONTEXT: tuple[TextIO, str | None, int | None, str | None] | None = None
-
-
-def flush_pending_warning_context() -> None:
-    global PENDING_WARNING_CONTEXT
-    if PENDING_WARNING_CONTEXT is None:
-        return
-    stream, display_filename, lineno, rendered_line = PENDING_WARNING_CONTEXT
-    if display_filename and lineno:
-        stream.write(f"  {display_filename}, line {lineno}\n")
-    if rendered_line:
-        stream.write(f"  {rendered_line.strip()}\n")
-    PENDING_WARNING_CONTEXT = None
 
 
 def showwarning(message, category, filename, lineno, file=None, line=None):
-    """Render warnings with message, location, and source line."""
-    global PENDING_WARNING_CONTEXT
-    rendered_line = line
-    if rendered_line is None and filename and lineno:
-        rendered_line = linecache.getline(filename, lineno)
-    display_filename = filename
-    if filename and not filename.startswith("<"):
-        resolved_filename = pathlib.Path(filename).resolve()
-        try:
-            display_filename = str(resolved_filename.relative_to(pathlib.Path.cwd().resolve()))
-        except ValueError:
-            display_filename = str(resolved_filename)
+    """Render hrtfpykit warnings as concise message lines."""
     stream = sys.stderr if file is None else cast(TextIO, file)
-    warning_context = (
-        stream,
-        display_filename,
-        lineno,
-        rendered_line,
-    )
-    if PENDING_WARNING_CONTEXT is not None and PENDING_WARNING_CONTEXT != warning_context:
-        flush_pending_warning_context()
     stream.write(f"{category.__name__}: {message}\n")
-    PENDING_WARNING_CONTEXT = warning_context
 
 
 cast(Any, showwarning)._hrtfpykit_original = ORIGINAL_SHOWWARNING
 warnings.showwarning = showwarning
-
-
-def print(*args, **kwargs):
-    """Flush pending warning context before normal printed output."""
-    flush_pending_warning_context()
-    return ORIGINAL_PRINT(*args, **kwargs)
-
-
-cast(Any, print)._hrtfpykit_original = ORIGINAL_PRINT
-builtins.print = print
-
-
-atexit.register(flush_pending_warning_context)
 
 
 def warn_user(

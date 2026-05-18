@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
-authors = [{ name = "Ariel Alvarez-Martinez", email = "aalvmarprojects@gmail.com"}]
+authors = [{ name = "Ariel Alvarez-Martinez", email = "aalvmarprojects@gmail.com"}, { name = "Jose J. Lopez", email = "jjlopez@dcom.upv.es"}]
 maintainers = [{name = "Ariel Alvarez-Martinez", email = "aalvmarprojects@gmail.com"}]
 keywords = [
   "audio",
@@ -57,6 +57,7 @@ docs = [
   "sphinx>=9.1.0",
   "furo>=2025.7.19",
   "myst-nb>=1.4.0",
+  "sphinx-copybutton>=0.5.2",
 ]
 dev = [
   "mypy>=1.20.2",
@@ -64,7 +65,7 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ArielAlvarez-Martinez/hrtfpykit"
+Documentation = "https://hrtfpykit.readthedocs.io/"
 Repository = "https://github.com/ArielAlvarez-Martinez/hrtfpykit.git"
 Issues = "https://github.com/ArielAlvarez-Martinez/hrtfpykit/issues"
 Changelog = "https://github.com/ArielAlvarez-Martinez/hrtfpykit/blob/main/CHANGELOG.md"

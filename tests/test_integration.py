@@ -11,10 +11,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
+from hrtfpykit.datasets import collate_samples
 from hrtfpykit.datasets.base import BaseDataset
 from hrtfpykit.datasets.config import (
     AnthropometryConfig,
     DatasetConfig,
+    DownloadConfig,
     HRTFConfig,
     ImageConfig,
     MeshConfig,
@@ -22,6 +24,7 @@ from hrtfpykit.datasets.config import (
     ResourceTypeConfig,
     VideoConfig,
 )
+from hrtfpykit.datasets.download import BaseDownload
 from hrtfpykit.datasets.specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -467,3 +470,120 @@ def test_dataset_pipeline_loads_hrtf_and_derived_acoustic_specs(
     assert np.asarray(sample["target"]["ild"]).shape == ()
     assert np.isfinite(sample["target"]["itd"])
     assert np.isfinite(sample["target"]["ild"])
+
+
+def test_download_plan_supports_resource_specific_base_urls(tmp_path: Path) -> None:
+    subject_ids = ("S001",)
+    config = DatasetConfig(
+        name="MultiServerIntegrationDataset",
+        subject_ids=subject_ids,
+        hrtf=HRTFConfig(
+            types={
+                "measured": ResourceTypeConfig(
+                    path_pattern="hrtf/{subject_id}.sofa",
+                ),
+            },
+        ),
+        mesh=MeshConfig(
+            types={
+                "default": ResourceTypeConfig(
+                    path_pattern="mesh/{subject_id}.ply",
+                ),
+            },
+            extensions=(".ply",),
+        ),
+        anthropometry=AnthropometryConfig(
+            path="tables/anthropometry.csv",
+            left_prefix="left_",
+            right_prefix="right_",
+        ),
+        metadata=MetadataConfig(path="tables/metadata.csv"),
+        download=DownloadConfig(
+            base_url="https://default.example.org/dataset",
+            available_resources=("hrtf", "mesh", "anthropometry", "metadata"),
+            resource_base_urls={
+                "hrtf": "https://hrtf.example.org/files",
+                "mesh": "https://mesh.example.org/releases/v1",
+                "anthropometry": "https://tables.example.org/resources",
+            },
+        ),
+    )
+
+    jobs = BaseDownload(
+        config=config,
+        root=tmp_path,
+        verify_checksum=False,
+    ).build_download_plan(
+        download_resources="all",
+        download_hrtf_variant="measured",
+        download_mesh_variant="default",
+    )
+
+    jobs_by_resource = {str(job["resource"]): job for job in jobs}
+
+    assert set(jobs_by_resource) == {"hrtf", "mesh", "anthropometry", "metadata"}
+    assert jobs_by_resource["hrtf"]["relative_path"] == "hrtf/S001.sofa"
+    assert jobs_by_resource["hrtf"]["url"] == "https://hrtf.example.org/files/hrtf/S001.sofa"
+    assert jobs_by_resource["hrtf"]["destination"] == tmp_path / "hrtf" / "S001.sofa"
+
+    assert jobs_by_resource["mesh"]["relative_path"] == "mesh/S001.ply"
+    assert jobs_by_resource["mesh"]["url"] == "https://mesh.example.org/releases/v1/mesh/S001.ply"
+    assert jobs_by_resource["mesh"]["destination"] == tmp_path / "mesh" / "S001.ply"
+
+    assert jobs_by_resource["anthropometry"]["relative_path"] == "tables/anthropometry.csv"
+    assert (
+        jobs_by_resource["anthropometry"]["url"]
+        == "https://tables.example.org/resources/tables/anthropometry.csv"
+    )
+    assert (
+        jobs_by_resource["anthropometry"]["destination"]
+        == tmp_path / "tables" / "anthropometry.csv"
+    )
+
+    assert jobs_by_resource["metadata"]["relative_path"] == "tables/metadata.csv"
+    assert (
+        jobs_by_resource["metadata"]["url"]
+        == "https://default.example.org/dataset/tables/metadata.csv"
+    )
+    assert jobs_by_resource["metadata"]["destination"] == tmp_path / "tables" / "metadata.csv"
+    assert all(job["checksum"] is None for job in jobs)
+
+
+def test_collate_samples_returns_training_ready_tensor_dtypes() -> None:
+    torch = pytest.importorskip("torch")
+    batch = [
+        {
+            "inputs": {
+                "magnitude": np.array([1.0, 2.0], dtype=np.float64),
+                "position_index": 0,
+                "anthropometry": {"head_width": 1.0, "head_height": 2.0},
+                "mesh": Path("S001.ply"),
+            },
+            "target": {
+                "sh": np.array([[1.0, 2.0]], dtype=np.float64),
+            },
+        },
+        {
+            "inputs": {
+                "magnitude": np.array([3.0, 4.0], dtype=np.float64),
+                "position_index": 1,
+                "anthropometry": {"head_width": 3.0, "head_height": 4.0},
+                "mesh": Path("S002.ply"),
+            },
+            "target": {
+                "sh": np.array([[3.0, 4.0]], dtype=np.float64),
+            },
+        },
+    ]
+
+    collated = collate_samples(batch)
+
+    assert collated["inputs"]["magnitude"].dtype == torch.float32
+    assert collated["inputs"]["magnitude"].shape == (2, 2)
+    assert collated["target"]["sh"].dtype == torch.float32
+    assert collated["target"]["sh"].shape == (2, 1, 2)
+    assert collated["inputs"]["anthropometry"].dtype == torch.float32
+    assert collated["inputs"]["anthropometry"].shape == (2, 2)
+    assert collated["inputs"]["position_index"].dtype == torch.int64
+    assert collated["inputs"]["position_index"].tolist() == [0, 1]
+    assert collated["inputs"]["mesh"] == [Path("S001.ply"), Path("S002.ply")]

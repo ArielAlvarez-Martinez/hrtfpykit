@@ -5,14 +5,37 @@ This file tracks released tags and upcoming release work for `hrtfpykit`.
 Historical baseline tags keep their original names. Future release tags should
 use the `v0.0.x` format.
 
+## [0.0.7.dev0] - Unreleased
+
+### Added
+
+- Added integration coverage for `collate_samples()` tensor dtype behavior,
+  including floating acoustic values, numeric feature dictionaries, integer
+  indices, and path resources.
+- Added dataset download support for resource-specific base URLs so future
+  dataset configs can fetch HRTF, mesh, anthropometry, or metadata resources
+  from different servers while preserving the same resource-relative paths.
+
+### Changed
+
+- Updated `collate_samples()` as the PyTorch batching path for hrtfpykit
+  datasets: homogeneous numeric arrays, tensors, scalars, and numeric feature
+  dictionaries are returned as tensors, floating values are converted to
+  `torch.float32`, integer and boolean values keep their natural tensor dtypes,
+  and paths, strings, ragged values, mixed `None` values, and heterogeneous
+  resources remain Python lists.
+
+### Fixed
+
+- 
+
 ## [v0.0.6] - 2026-05-15
 
 ### Added
 
-- Added separate GitHub Actions CI and CD workflows: CI runs linting, type
-  checking, core SOFA/HRTF/plots/integration tests, and non-skipped HUTUBS and
-  SONICOM configuration/download-plan tests, while CD handles package builds and
-  PyPI publishing from published GitHub Releases tagged with `v*`.
+- Added a GitHub Actions CI workflow that runs linting, type checking, core
+  SOFA/HRTF/plots/integration tests, and non-skipped HUTUBS and SONICOM
+  configuration/download-plan tests.
 - Added `tests/pp1_HRIRs_measured.sofa` as the small committed SOFA fixture for
   CI-friendly SOFA, HRTF, plotting, and integration tests.
 - Added `tests/test_integration.py` coverage for the full SOFA-backed workflow:

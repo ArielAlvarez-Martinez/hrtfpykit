@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 project = "hrtfpykit"
 author = "Ariel Alvarez-Martinez"
-copyright = "Ariel Alvarez-Martinez"
+copyright = "Ariel Alvarez-Martinez, Jose J. Lopez"
 version = tomllib.loads(
     (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
 )["project"]["version"]
@@ -17,6 +17,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "myst_nb",
+    "sphinx_copybutton",
 ]
 
 autosummary_generate = True
@@ -29,6 +30,9 @@ toc_object_entries_show_parents = "hide"
 napoleon_google_docstring = False
 napoleon_numpy_docstring = True
 nb_execution_mode = "off"
+copybutton_prompt_text = r">>> |\.\.\. "
+copybutton_prompt_is_regexp = True
+copybutton_remove_prompts = True
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "*.ipynb_checkpoints"]

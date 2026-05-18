@@ -46,12 +46,15 @@ class SONICOM(BaseDataset):
         metadata, subject exclusions, and split selection before exposing samples
         through the shared integer-indexed dataset interface.
 
-        Samples are driven by input and target specs. Acoustic specs
-        load a subject HRTF with :func:`~hrtfpykit.hrtf.load_hrtf` and extract
-        time-domain, frequency-domain, ITD, ILD, or spherical-harmonic values.
-        Resource specs can add mesh and metadata values to the same sample.
-        Subjects missing any required resource family are removed before row
-        construction.
+        Samples are driven by input and target specs. Acoustic specs load a
+        subject HRTF with :func:`~hrtfpykit.hrtf.load_hrtf`. If
+        ``dataset_hrtf_transform`` is provided, it is applied to that loaded HRTF
+        first. Acoustic specs then operate on the dataset-level HRTF version,
+        optionally apply their own HRTF transform, and finally extract
+        time-domain values, frequency-domain values, ITD, ILD, or
+        spherical-harmonic coefficients. Resource specs can add mesh and metadata
+        values to the same sample. Subjects missing any required resource family
+        are removed before row construction.
 
         Download selection is independent from dataset construction selection.
         download_resources, download_hrtf_variant, and download_mesh_variant
@@ -72,7 +75,10 @@ class SONICOM(BaseDataset):
             SONICOM mesh variant used for dataset construction. Full SONICOM mesh
             variants use type and version keys.
         dataset_hrtf_transform : callable or None, default=None
-            Optional transform applied to loaded HRTFs before spec extraction.
+            Optional transform applied to every loaded HRTF before any acoustic
+            spec is evaluated. Spec-level HRTF transforms are applied after this
+            dataset-level transform and before value extraction or derived cue
+            calculation.
         download : bool, default=False
             If True, downloads selected official SONICOM resources before dataset
             construction.

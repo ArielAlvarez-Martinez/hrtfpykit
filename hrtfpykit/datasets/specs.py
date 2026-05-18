@@ -24,41 +24,50 @@ class HRTFSpec:
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
-        """Define how a dataset should expose HRTF or HRIR values.
+        """Define one HRTF or HRIR array returned by a dataset sample.
 
-        :class:`~hrtfpykit.datasets.HRTFSpec` is the main acoustic dataset
-        specification used by dataset classes such as
-        :class:`~hrtfpykit.datasets.HUTUBS` and
+        :class:`~hrtfpykit.datasets.HRTFSpec` is the main acoustic value spec for
+        dataset classes such as :class:`~hrtfpykit.datasets.HUTUBS` and
         :class:`~hrtfpykit.datasets.SONICOM`. It tells a dataset which HRTF
-        representation to read, which source positions or plane to keep,
-        which ears to use, which axes create dataset rows, and which optional
-        encodings should be added to sample inputs. The spec does not load
-        files by itself; it is consumed during dataset construction and by
-        dataset indexing when sample values are extracted from the loaded
-        subject :class:`~hrtfpykit.hrtf.HRTF` object.
+        representation should be extracted, which source positions and ears should
+        be kept, which axes should create dataset rows, and which row encodings
+        should be added to sample inputs. The spec is a configuration object; it
+        does not load files by itself.
 
-        The spec controls three independent concerns: the acoustic representation
-        selected by ``domain`` and ``signal``; the source and ear subset selected
-        by ``positions``, ``plane``, and ``ears``; and the row axes plus optional
-        context encodings selected by ``index_by`` and the matching index or
-        one-hot flags.
+        During dataset construction, the spec makes the HRTF resource family
+        required and contributes to the row layout. During indexing, the dataset
+        loads the subject :class:`~hrtfpykit.hrtf.HRTF` object, applies the
+        optional dataset level HRTF transform, applies this spec transform when
+        provided, and extracts the requested IR or TF value.
 
-        Returned arrays keep the natural HRTF axis order from the library object.
-        Source-position and ear axes appear before the final signal axis, where the
-        final axis is either time samples for the ``time`` domain or frequency bins
-        for the ``frequency`` domain. When ``index_by`` includes an axis such as
-        ``position``, ``ear``, ``frequency``, or ``samples``, the current
-        dataset row selects that axis before the value is returned.
+        The ``transform`` callable is used when this spec should read a modified
+        HRTF version before extracting values. It receives the loaded
+        :class:`~hrtfpykit.hrtf.HRTF` object and must return the HRTF object that
+        should be used by this spec. It does not receive the final NumPy array.
+
+        If the spec is passed to ``inputs``, its value appears under
+        ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
+        appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
+        default key is ``"hrtf"``. The returned value is a
+        :class:`numpy.ndarray`.
+
+        The output axes follow the selected HRTF state. Axes named in
+        ``index_by`` are selected from the current dataset row and removed from the
+        returned value. Axes not named in ``index_by`` remain in the output. The
+        natural acoustic order is source positions, ears, and then samples for
+        ``domain="time"`` or frequency bins for ``domain="frequency"``. Selecting
+        one ear with ``ears="left"`` or ``ears="right"`` squeezes the ear axis
+        unless ``ear`` is part of ``index_by``.
 
         Parameters
         ----------
         domain : {``time``, ``frequency``}, default=``time``
-            Acoustic domain to return. ``time`` returns HRIR-style sample data;
-            ``frequency`` returns HRTF-style frequency data.
+            Acoustic domain to return. ``time`` returns HRIR sample data;
+            ``frequency`` returns HRTF frequency data.
         signal : str, default=``ir``
             Signal component to extract from the loaded :class:`~hrtfpykit.hrtf.HRTF` object.
         positions : {``all``} or sequence of int, default=``all``
-            Source-position indices to include.
+            Source position indices to include.
         plane : str, tuple, dict, or None, default=None
             Optional horizontal, median, or frontal plane selector.
         ears : {``both``, ``left``, ``right``} or sequence of str, default=``both``
@@ -71,7 +80,8 @@ class HRTFSpec:
             Whether frequency/sample context encodings are exposed in the sample
             inputs.
         transform : callable or None, default=None
-            Optional value transform applied after dataset-level HRTF loading.
+            Optional HRTF transform applied after the dataset level
+            ``dataset_hrtf_transform`` and before IR or TF values are extracted.
         name : str or None, default=None
             Optional public key used in sample inputs or sample targets.
 
@@ -82,10 +92,26 @@ class HRTFSpec:
 
         Examples
         --------
-        >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets import HRTFSpec
-        >>> dataset = HUTUBS(root="datasets/hutubs", inputs=HRTFSpec(index_by=("subject", "position")))
+        >>> import numpy as np
+        >>> from hrtfpykit.datasets import HRTFSpec, HUTUBS
+        >>> dataset = HUTUBS(
+        ...     root="datasets/hutubs",
+        ...     inputs=HRTFSpec(
+        ...         domain="frequency",
+        ...         signal="tf_magnitude_db",
+        ...         ears="left",
+        ...         index_by=("subject",),
+        ...         name="hrtf",
+        ...     ),
+        ... )
         >>> sample = dataset[0]
+        >>> hrtf = sample["inputs"]["hrtf"]
+        >>> print(type(hrtf).__name__)
+        ndarray
+        >>> print(hrtf.shape)
+        (440, 129)
+        >>> print(np.round(hrtf[:2, :3], 2))  # doctest: +ELLIPSIS
+        [[...]]
         """
         self.domain = domain
         self.signal = signal
@@ -120,31 +146,40 @@ class ITDSpec:
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
-        """Define how a dataset should expose interaural time difference values.
+        """Define interaural time difference values returned by a sample.
 
-        :class:`~hrtfpykit.datasets.ITDSpec` asks a dataset to derive binaural
-        timing cues from the HRTF files selected by the dataset instead of
-        returning full HRIR/HRTF arrays. The dataset loads the subject
-        :class:`~hrtfpykit.hrtf.HRTF` object, optionally restricts the
-        source grid with ``positions`` or ``plane``, computes ITD using the
-        configured estimator, and returns either a whole ITD vector or the
-        value selected by the current row context.
+        :class:`~hrtfpykit.datasets.ITDSpec` derives ITD values from the HRTF
+        resource selected by the dataset. It does not store ITDs itself. During
+        indexing, the dataset loads the subject :class:`~hrtfpykit.hrtf.HRTF`,
+        applies the optional dataset level HRTF transform, applies this spec
+        transform when provided, computes ITD from the resulting HRIR data, and
+        returns the selected value.
 
-        ITD values are aligned with the selected source positions. Subject-only rows
-        return all selected positions, while ``index_by`` set to
-        (``subject``, ``position``)
-        returns one position value per row. Position index and one-hot flags expose
-        the same row context that was used for selection. The spec is evaluated
-        through the dataset sample pipeline, not as a standalone object.
+        The ``transform`` callable is used when ITD should be calculated from a
+        modified HRTF version. It receives the loaded
+        :class:`~hrtfpykit.hrtf.HRTF` object before ITD calculation and must
+        return the HRTF object that should be used for the metric. It does not
+        receive the calculated ITD array.
+
+        If the spec is passed to ``inputs``, its value appears under
+        ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
+        appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
+        default key is ``"itd"``. The returned value is a :class:`numpy.ndarray`.
+
+        With ``index_by=("subject",)``, the output is a vector with one ITD value
+        per selected source position. With ``index_by=("subject", "position")``,
+        each dataset row selects one source position and the output is a 0D array.
+        ``position_index`` and ``position_one_hot`` add the
+        same row context to sample inputs when requested.
 
         Parameters
         ----------
         positions : {``all``} or sequence of int, default=``all``
-            Source-position indices used before ITD calculation.
+            Source position indices used before ITD calculation.
         plane : str, tuple, dict, or None, default=None
             Optional plane selector used instead of explicit position indices.
         index_by : str or tuple of str, default=(``subject``,)
-            Dataset row axes. ITD supports subject-only and position-indexed rows.
+            Dataset row axes. ITD supports subject only and position indexed rows.
         position_one_hot, position_index : bool, default=False
             Whether position context encodings are exposed in sample inputs.
         method : str, default=``threshold``
@@ -152,13 +187,14 @@ class ITDSpec:
         output : str, default=``samples``
             Output unit or representation requested from the ITD metric.
         thresh_level : float, default=-10.0
-            Threshold level used by threshold-based ITD methods.
+            Threshold level used by threshold based ITD methods.
         upper_cut_freq : float, default=3000.0
             Upper cutoff frequency used by filtered ITD methods.
         filter_order : int, default=10
             Filter order used by filtered ITD methods.
         transform : callable or None, default=None
-            Optional transform applied to the calculated ITD value.
+            Optional HRTF transform applied before ITD calculation. This transform
+            receives the loaded HRTF object, not the calculated ITD value.
         name : str or None, default=None
             Optional public key used in sample dictionaries.
 
@@ -169,10 +205,27 @@ class ITDSpec:
 
         Examples
         --------
-        >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets import ITDSpec
-        >>> dataset = HUTUBS(root="datasets/hutubs", inputs=ITDSpec(index_by=("subject", "position")))
-        >>> itd_value = dataset[0]["inputs"]["itd"]
+        >>> import numpy as np
+        >>> from hrtfpykit.datasets import HUTUBS, ITDSpec
+        >>> dataset = HUTUBS(
+        ...     root="datasets/hutubs",
+        ...     inputs=ITDSpec(
+        ...         index_by=("subject", "position"),
+        ...         position_index=True,
+        ...         output="samples",
+        ...         name="itd",
+        ...     ),
+        ... )
+        >>> sample = dataset[0]
+        >>> itd_value = sample["inputs"]["itd"]
+        >>> print(type(itd_value).__name__)
+        ndarray
+        >>> print(itd_value.shape)
+        ()
+        >>> print(sample["inputs"]["position_index"])
+        0
+        >>> np.asarray(np.round(itd_value, 3))  # doctest: +ELLIPSIS
+        array(...)
         """
         self.positions = positions
         self.plane = plane
@@ -204,27 +257,35 @@ class ILDSpec:
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
-        """Define how a dataset should expose interaural level difference values.
+        """Define interaural level difference values returned by a sample.
 
-        :class:`~hrtfpykit.datasets.ILDSpec` asks a dataset to compute binaural
-        level cues from the loaded subject
-        :class:`~hrtfpykit.hrtf.HRTF` object instead of returning full
-        acoustic arrays. The spec controls the position subset, optional plane
-        selection, broad-band or frequency-dependent output, row indexing, and
-        numerical parameters used by the ILD calculation. It becomes active only
-        when passed into a dataset inputs or target argument.
+        :class:`~hrtfpykit.datasets.ILDSpec` derives ILD values from the HRTF
+        resource selected by the dataset. It does not store ILDs itself. During
+        indexing, the dataset loads the subject :class:`~hrtfpykit.hrtf.HRTF`,
+        applies the optional dataset level HRTF transform, applies this spec
+        transform when provided, computes ILD from the resulting HRIR data, and
+        returns the selected value.
 
-        In ``broad-band`` mode, the returned value is one ILD value per selected
-        source position. In ``frequency-dependent`` mode, the value keeps a
-        frequency axis, and frequency-indexed rows can select one bin at a time. The
-        spec participates in the same subject intersection, split selection, plane
-        selection, row indexing, and optional value-transform pipeline as
-        :class:`~hrtfpykit.datasets.HRTFSpec`.
+        The ``transform`` callable is used when ILD should be calculated from a
+        modified HRTF version. It receives the loaded
+        :class:`~hrtfpykit.hrtf.HRTF` object before ILD calculation and must
+        return the HRTF object that should be used for the metric. It does not
+        receive the calculated ILD array.
+
+        If the spec is passed to ``inputs``, its value appears under
+        ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
+        appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
+        default key is ``"ild"``. The returned value is a :class:`numpy.ndarray`.
+
+        In ``mode="broad-band"``, subject only rows return one value per selected
+        source position, while position indexed rows return one 0D array. In
+        ``mode="frequency-dependent"``, a frequency axis
+        is kept unless ``frequency`` is included in ``index_by``.
 
         Parameters
         ----------
         positions : {``all``} or sequence of int, default=``all``
-            Source-position indices used before ILD calculation.
+            Source position indices used before ILD calculation.
         plane : str, tuple, dict, or None, default=None
             Optional plane selector used instead of explicit position indices.
         index_by : str or tuple of str, default=(``subject``,)
@@ -239,11 +300,12 @@ class ILDSpec:
         output : str, default=``db``
             Output scale or representation requested from the ILD metric.
         fft_length : int or None, default=None
-            FFT length used for frequency-dependent ILD calculation.
+            FFT length used for frequency dependent ILD calculation.
         epsilon : float, default=1e-12
-            Numerical floor used by level-ratio calculations.
+            Numerical floor used by level ratio calculations.
         transform : callable or None, default=None
-            Optional transform applied to the calculated ILD value.
+            Optional HRTF transform applied before ILD calculation. This transform
+            receives the loaded HRTF object, not the calculated ILD value.
         name : str or None, default=None
             Optional public key used in sample dictionaries.
 
@@ -254,13 +316,27 @@ class ILDSpec:
 
         Examples
         --------
-        >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets import ILDSpec
+        >>> import numpy as np
+        >>> from hrtfpykit.datasets import HUTUBS, ILDSpec
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
-        ...     inputs=ILDSpec(mode="frequency-dependent", index_by=("subject", "frequency")),
+        ...     inputs=ILDSpec(
+        ...         mode="broad-band",
+        ...         index_by=("subject", "position"),
+        ...         position_index=True,
+        ...         name="ild",
+        ...     ),
         ... )
-        >>> ild_value = dataset[0]["inputs"]["ild"]
+        >>> sample = dataset[0]
+        >>> ild_value = sample["inputs"]["ild"]
+        >>> print(type(ild_value).__name__)
+        ndarray
+        >>> print(ild_value.shape)
+        ()
+        >>> print(sample["inputs"]["position_index"])
+        0
+        >>> np.asarray(np.round(ild_value, 3))  # doctest: +ELLIPSIS
+        array(...)
         """
         self.positions = positions
         self.plane = plane
@@ -290,22 +366,32 @@ class SHSpec:
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
-        """Define how a dataset should expose spherical-harmonic HRTF features.
+        """Define spherical harmonic HRTF coefficients returned by a sample.
 
-        :class:`~hrtfpykit.datasets.SHSpec` converts the dataset-selected HRTF
-        data into spherical-harmonic coefficients. The spec lets a model or
-        processing pipeline work in a spherical-harmonic basis instead of raw
-        position-indexed HRTFs. It is evaluated by the dataset sample pipeline,
-        so the result can be indexed by subject, ear, or frequency and can be
-        combined with other acoustic or metadata specs in the same sample.
+        :class:`~hrtfpykit.datasets.SHSpec` derives spherical harmonic
+        coefficients from the HRTF resource selected by the dataset. During
+        indexing, the dataset loads the subject :class:`~hrtfpykit.hrtf.HRTF`,
+        applies the optional dataset level HRTF transform, applies this spec
+        transform when provided, and runs the spherical harmonic transform on the
+        resulting HRTF state.
 
-        The ``sh_order`` parameter controls the number of spherical-harmonic
-        coefficients.
-        Higher orders can represent finer spatial detail but require enough source
-        positions for a stable least-squares fit. The ``epsilon`` value is forwarded
-        to the SH calculation as numerical regularization. The spec also controls ear
-        selection, frequency indexing, optional row encodings, and an optional value
-        transform.
+        The ``transform`` callable is used when SH coefficients should be
+        calculated from a modified HRTF version. It receives the loaded
+        :class:`~hrtfpykit.hrtf.HRTF` object before the spherical harmonic
+        transform and must return the HRTF object that should be used. It does not
+        receive the calculated coefficient array.
+
+        If the spec is passed to ``inputs``, its value appears under
+        ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
+        appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
+        default key is ``"sh"``. The returned value is a :class:`numpy.ndarray`.
+
+        The first output axis is always the coefficient axis and has
+        ``(sh_order + 1) ** 2`` values. With ``ears="both"``, the output keeps an
+        ear axis between coefficients and frequency bins. With ``ears="left"`` or
+        ``ears="right"``, the ear axis is squeezed unless ``ear`` is included in
+        ``index_by``. Including ``frequency`` in ``index_by`` selects one frequency
+        bin per row.
 
         Parameters
         ----------
@@ -322,7 +408,9 @@ class SHSpec:
         epsilon : float, default=1e-6
             Numerical regularization used by the SH transform.
         transform : callable or None, default=None
-            Optional transform applied to the SH value.
+            Optional HRTF transform applied before spherical harmonic
+            decomposition. This transform receives the loaded HRTF object, not the
+            calculated coefficient array.
         name : str or None, default=None
             Optional public key used in sample dictionaries.
 
@@ -333,13 +421,24 @@ class SHSpec:
 
         Examples
         --------
-        >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets import SHSpec
+        >>> import numpy as np
+        >>> from hrtfpykit.datasets import HUTUBS, SHSpec
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
-        ...     inputs=SHSpec(sh_order=4, index_by=("subject", "ear", "frequency")),
+        ...     inputs=SHSpec(
+        ...         sh_order=9,
+        ...         ears="left",
+        ...         index_by=("subject",),
+        ...         name="sh",
+        ...     ),
         ... )
         >>> sh_value = dataset[0]["inputs"]["sh"]
+        >>> print(type(sh_value).__name__)
+        ndarray
+        >>> print(sh_value.shape)
+        (100, 129)
+        >>> print(np.round(sh_value[:2, :3], 3))  # doctest: +ELLIPSIS
+        [[...]]
         """
         self.sh_order = sh_order
         self.ears = ears
@@ -360,19 +459,28 @@ class MeshSpec:
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
-        """Define how a dataset should expose subject mesh resources.
+        """Define subject mesh paths returned by a dataset sample.
 
         :class:`~hrtfpykit.datasets.MeshSpec` asks a dataset to include the mesh
-        resource associated with each selected subject. The dataset resolves
-        configured mesh variants, optional local override paths, extensions,
+        resource associated with each selected subject. The dataset resolves the
+        configured mesh variant, optional path override, allowed extensions,
         excluded subjects, and split selection before sample extraction.
-        Concrete datasets resolve the path from their configured mesh variants
-        unless ``path`` overrides the location.
 
-        The returned sample value is normally a mesh path unless a transform is
-        provided. Mesh specs affect subject availability: when a dataset includes a
-        mesh spec, subjects without a matching mesh resource are removed before split
-        rows are built.
+        If the spec is passed to ``inputs``, its value appears under
+        ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
+        appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
+        default key is ``"mesh"``. By default, the returned value is a ``str``
+        path. The mesh file is not parsed by hrtfpykit unless ``transform`` is
+        provided, in which case the returned type is whatever the transform returns.
+
+        This path first behavior is intentional. hrtfpykit organizes the mesh
+        resources and keeps the subject alignment, while the user decides how the
+        mesh should be opened, parsed, preprocessed, or converted for a particular
+        experiment. The ``transform`` callable is the hook for that user defined
+        mesh pipeline.
+
+        Mesh specs affect subject availability. When a mesh spec is requested,
+        subjects without a matching mesh file are removed before rows are built.
 
         Parameters
         ----------
@@ -381,7 +489,9 @@ class MeshSpec:
         extensions : tuple of str or None, default=None
             Optional mesh extensions to search.
         transform : callable or None, default=None
-            Optional transform applied to the selected mesh path.
+            Optional transform applied to the selected mesh path string. Use it to
+            define how the mesh resource should be opened, preprocessed, or
+            converted before it is returned in the sample.
         name : str or None, default=None
             Optional public key used in sample dictionaries.
 
@@ -392,10 +502,14 @@ class MeshSpec:
 
         Examples
         --------
-        >>> from hrtfpykit.datasets import SONICOM
-        >>> from hrtfpykit.datasets import MeshSpec
-        >>> dataset = SONICOM(root="datasets/sonicom", inputs=MeshSpec())
+        >>> from pathlib import Path
+        >>> from hrtfpykit.datasets import HUTUBS, MeshSpec
+        >>> dataset = HUTUBS(root="datasets/hutubs", inputs=MeshSpec(name="mesh"))
         >>> mesh_path = dataset[0]["inputs"]["mesh"]
+        >>> print(type(mesh_path).__name__)
+        str
+        >>> print(Path(mesh_path).suffix)
+        .ply
         """
         self.path = path
         self.extensions = extensions
@@ -418,21 +532,30 @@ class AnthropometrySpec:
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
-        """Define how a dataset should expose anthropometric table values.
+        """Define subject anthropometry values returned by a sample.
 
         :class:`~hrtfpykit.datasets.AnthropometrySpec` asks a dataset to load
-        physical measurement tables such as head, pinna, or ear measurements and
-        align those rows or columns to the dataset subject identifiers. It is
-        separate from :class:`~hrtfpykit.datasets.MetadataSpec` because
-        anthropometry describes physical measurements, while metadata describes
-        general annotations. The spec controls table access direction, subject-id
-        handling, ear grouping, row/column exclusion, and optional value transforms.
+        physical measurement data such as head, pinna, or ear measurements and
+        align those values to the selected subject IDs. The spec controls table
+        access direction, subject-id handling, ear grouping, row or column
+        exclusion, and optional value transforms.
 
-        The loader can read row-oriented or column-oriented tables, remove configured
-        rows or columns, and select ear-specific fields when the dataset row or spec
-        carries an ear context. HUTUBS provides additional handling for
-        left/right-prefixed anthropometry fields. Other datasets use the generic table
-        resolver unless they install their own selector.
+        If the spec is passed to ``inputs``, its value appears under
+        ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
+        appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
+        default key is ``"anthropometry"``.
+
+        The default output type depends on the loaded anthropometry layout. For
+        HUTUBS, the default anthropometry resource returns a ``dict`` mapping
+        measurement names to values. If the source is a matrix style file, the
+        output can be a :class:`numpy.ndarray`. If ``transform`` is provided, the
+        returned type is whatever the transform returns. HUTUBS also filters
+        left and right prefixed fields when the spec or row carries an ear context.
+
+        The ``transform`` callable receives the selected anthropometry value after
+        subject and optional ear selection. Use it when the selected value should
+        be reshaped, filtered, normalized, or converted into the structure expected
+        by the user pipeline.
 
         Parameters
         ----------
@@ -453,7 +576,8 @@ class AnthropometrySpec:
         ear_one_hot, ear_index : bool, default=False
             Whether ear context encodings are exposed in sample inputs.
         transform : callable or None, default=None
-            Optional transform applied to the selected table value.
+            Optional transform applied to the selected table value after subject
+            and optional ear selection.
         name : str or None, default=None
             Optional public key used in sample dictionaries.
 
@@ -464,13 +588,18 @@ class AnthropometrySpec:
 
         Examples
         --------
-        >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets import AnthropometrySpec, HRTFSpec
+        >>> from hrtfpykit.datasets import AnthropometrySpec, HUTUBS
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
-        ...     inputs=[HRTFSpec(), AnthropometrySpec(grouped_by=("subject", "ear"))],
+        ...     inputs=AnthropometrySpec(name="anthropometry"),
         ... )
         >>> anthropometry = dataset[0]["inputs"]["anthropometry"]
+        >>> print(type(anthropometry).__name__)
+        dict
+        >>> print(list(anthropometry)[:3])  # doctest: +ELLIPSIS
+        [...]
+        >>> print({key: anthropometry[key] for key in list(anthropometry)[:2]})  # doctest: +ELLIPSIS
+        {...}
         """
         self.exclude_row = exclude_row
         self.extensions = extensions
@@ -501,20 +630,31 @@ class MetadataSpec:
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
-        """Define how a dataset should expose general metadata table values.
+        """Define subject metadata values returned by a sample.
 
-        :class:`~hrtfpykit.datasets.MetadataSpec` asks a dataset to load subject
-        or sample annotations and align them to the dataset subject identifiers.
-        It shares table-style behavior with
-        :class:`~hrtfpykit.datasets.AnthropometrySpec` but keeps a separate
-        resource identity, state field, split intersection, and sample key. This
-        separation allows a dataset to expose both physical measurements and
-        general metadata at the same time without path or value collisions.
+        :class:`~hrtfpykit.datasets.MetadataSpec` asks a dataset to load general
+        subject annotations and align them to the selected subject IDs. Metadata
+        is kept separate from :class:`~hrtfpykit.datasets.AnthropometrySpec` so a
+        dataset can expose physical measurements and general annotations under
+        different resource families and sample keys.
 
-        Metadata values can be returned as dictionaries, scalar fields, arrays, or
-        any transformed object depending on the table layout and transform. Use
-        ``name`` when multiple metadata-like values should be exposed under distinct
-        sample keys.
+        If the spec is passed to ``inputs``, its value appears under
+        ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
+        appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
+        default key is ``"metadata"``.
+
+        The default output type depends on the loaded metadata layout. A row based
+        CSV usually returns a ``dict`` mapping metadata field names to values. A
+        matrix style file can return a :class:`numpy.ndarray` or scalar value. If
+        ``transform`` is provided, the returned type is whatever the transform
+        returns. HUTUBS does not declare an official metadata resource in its
+        hrtfpykit config; use a dataset that declares metadata, such as SONICOM, or
+        provide a custom metadata path.
+
+        The ``transform`` callable receives the selected metadata value after
+        subject and optional ear selection. Use it when the selected value should
+        be reshaped, filtered, normalized, or converted into the structure expected by
+        the user pipeline.
 
         Parameters
         ----------
@@ -535,7 +675,8 @@ class MetadataSpec:
         ear_one_hot, ear_index : bool, default=False
             Whether ear context encodings are exposed in sample inputs.
         transform : callable or None, default=None
-            Optional transform applied to the selected table value.
+            Optional transform applied to the selected metadata value after subject
+            and optional ear selection.
         name : str or None, default=None
             Optional public key used in sample dictionaries.
 
@@ -546,10 +687,18 @@ class MetadataSpec:
 
         Examples
         --------
-        >>> from hrtfpykit.datasets import SONICOM
-        >>> from hrtfpykit.datasets import HRTFSpec, MetadataSpec
-        >>> dataset = SONICOM(root="datasets/sonicom", inputs=[HRTFSpec(), MetadataSpec()])
+        >>> from hrtfpykit.datasets import MetadataSpec, SONICOM
+        >>> dataset = SONICOM(
+        ...     root="datasets/sonicom",
+        ...     inputs=MetadataSpec(name="metadata"),
+        ... )
         >>> metadata = dataset[0]["inputs"]["metadata"]
+        >>> print(type(metadata).__name__)
+        dict
+        >>> print(list(metadata)[:3])  # doctest: +ELLIPSIS
+        [...]
+        >>> print({key: metadata[key] for key in list(metadata)[:2]})  # doctest: +ELLIPSIS
+        {...}
         """
         self.exclude_row = exclude_row
         self.extensions = extensions
@@ -576,17 +725,33 @@ class ImageSpec:
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
-        """Define how a dataset should expose subject image resources.
+        """Define subject image paths or transformed image values.
 
-        :class:`~hrtfpykit.datasets.ImageSpec` asks a dataset to index image
-        files by subject, or by subject and ear when images are stored in
-        left/right groups. The dataset scans the image root, intersects available
-        subjects with the other requested resources, and returns the selected
-        image paths or transformed image values in each sample.
+        :class:`~hrtfpykit.datasets.ImageSpec` asks a dataset to index image files
+        by subject, or by subject and ear when images are stored in left and right
+        groups. The dataset scans the image root, intersects available subjects
+        with the other requested resources, and returns the selected image value in
+        each sample. HUTUBS declares image scanning support, but hrtfpykit does not
+        ship official HUTUBS image files; ``path`` should point to the local image
+        folder you want to align with the dataset subjects.
 
-        When concatenate is true, the value selector may concatenate transformed
-        image values for grouped resources. The exact object returned depends on the
-        optional transform callable.
+        If the spec is passed to ``inputs``, its value appears under
+        ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
+        appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
+        default key is ``"image"``.
+
+        By default, the returned value is a ``str`` path when one file matches the
+        subject key, or a ``list[str]`` when multiple files match. The image is not
+        opened by hrtfpykit unless ``transform`` is provided. A transform receives
+        each image path and returns the image representation chosen by the user.
+        When ``concatenate=True``, a transform is required and the transformed
+        values are concatenated with :func:`numpy.concatenate` along axis 0.
+
+        This path first behavior is intentional. hrtfpykit organizes image files
+        by subject or by subject and ear, while the user decides how images should
+        be opened, resized, normalized, augmented, or converted for a particular
+        experiment. The ``transform`` callable is the hook for that user defined
+        image pipeline.
 
         Parameters
         ----------
@@ -599,9 +764,11 @@ class ImageSpec:
         ear_one_hot, ear_index : bool, default=False
             Whether ear context encodings are exposed in sample inputs.
         concatenate : bool, default=False
-            Whether loaded image values should be concatenated by the value selector.
+            Whether transformed image values should be concatenated by the value selector.
         transform : callable or None, default=None
-            Optional transform applied to image values.
+            Optional transform applied to each image path string. Use it to define
+            how each image should be opened, preprocessed, augmented, or converted
+            before it is returned in the sample.
         name : str or None, default=None
             Optional public key used in sample dictionaries.
 
@@ -612,16 +779,22 @@ class ImageSpec:
 
         Examples
         --------
-        >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets import HRTFSpec, ImageSpec
+        >>> from pathlib import Path
+        >>> from hrtfpykit.datasets import HUTUBS, ImageSpec
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
-        ...     inputs=[
-        ...         HRTFSpec(index_by=("subject", "ear")),
-        ...         ImageSpec(path="ear_images", grouped_by=("subject", "ear")),
-        ...     ],
+        ...     inputs=ImageSpec(
+        ...         path="ear_images",
+        ...         grouped_by="subject",
+        ...         name="image",
+        ...     ),
         ... )
-        >>> image_paths = dataset[0]["inputs"]["image"]
+        >>> image_value = dataset[0]["inputs"]["image"]
+        >>> first_image_path = image_value[0] if isinstance(image_value, list) else image_value
+        >>> print(type(first_image_path).__name__)
+        str
+        >>> print(Path(first_image_path).suffix)
+        .png
         """
         self.path = path
         self.grouped_by = grouped_by
@@ -643,17 +816,31 @@ class VideoSpec:
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
-        """Define how a dataset should expose subject video resources.
+        """Define subject video paths or transformed video values.
 
-        :class:`~hrtfpykit.datasets.VideoSpec` asks a dataset to index video
-        files by subject, or by subject and ear when videos are stored in
-        left/right groups. The dataset scans the video root, intersects available
-        subjects with the other requested resources, and returns the selected
-        video paths or transformed video values in each sample.
+        :class:`~hrtfpykit.datasets.VideoSpec` asks a dataset to index video files
+        by subject, or by subject and ear when videos are stored in left and right
+        groups. The dataset scans the video root, intersects available subjects
+        with the other requested resources, and returns the selected video value in
+        each sample. HUTUBS declares video scanning support, but hrtfpykit does not
+        ship official HUTUBS video files; ``path`` should point to the local video
+        folder you want to align with the dataset subjects.
 
-        Use a transform when the dataset should return decoded frames, embeddings,
-        metadata, or another application-specific representation instead of file
-        paths.
+        If the spec is passed to ``inputs``, its value appears under
+        ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
+        appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
+        default key is ``"video"``.
+
+        By default, the returned value is a ``str`` path when one file matches the
+        subject key, or a ``list[str]`` when multiple files match. The video is not
+        decoded by hrtfpykit unless ``transform`` is provided. A transform receives
+        each video path and returns the video representation chosen by the user.
+
+        This path first behavior is intentional. hrtfpykit organizes video files
+        by subject or by subject and ear, while the user decides how videos should
+        be opened, sampled, preprocessed, augmented, or converted for a particular
+        experiment. The ``transform`` callable is the hook for that user defined
+        video pipeline.
 
         Parameters
         ----------
@@ -666,7 +853,9 @@ class VideoSpec:
         ear_one_hot, ear_index : bool, default=False
             Whether ear context encodings are exposed in sample inputs.
         transform : callable or None, default=None
-            Optional transform applied to video values.
+            Optional transform applied to each video path string. Use it to define
+            how each video should be opened, sampled, preprocessed, or converted
+            before it is returned in the sample.
         name : str or None, default=None
             Optional public key used in sample dictionaries.
 
@@ -677,16 +866,22 @@ class VideoSpec:
 
         Examples
         --------
-        >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets import HRTFSpec, VideoSpec
+        >>> from pathlib import Path
+        >>> from hrtfpykit.datasets import HUTUBS, VideoSpec
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
-        ...     inputs=[
-        ...         HRTFSpec(index_by=("subject", "ear")),
-        ...         VideoSpec(path="ear_videos", grouped_by=("subject", "ear")),
-        ...     ],
+        ...     inputs=VideoSpec(
+        ...         path="ear_videos",
+        ...         grouped_by="subject",
+        ...         name="video",
+        ...     ),
         ... )
-        >>> video_paths = dataset[0]["inputs"]["video"]
+        >>> video_value = dataset[0]["inputs"]["video"]
+        >>> first_video_path = video_value[0] if isinstance(video_value, list) else video_value
+        >>> print(type(first_video_path).__name__)
+        str
+        >>> print(Path(first_video_path).suffix)
+        .mp4
         """
         self.path = path
         self.grouped_by = grouped_by
