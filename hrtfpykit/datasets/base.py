@@ -220,6 +220,21 @@ class BaseDataset:
         return self._state.dataset_summary
 
     @property
+    def name(self) -> str:
+        """Return the dataset configuration name.
+
+        The value is copied from the active dataset configuration during
+        construction and can be used to identify the dataset source without
+        reading private state.
+
+        Returns
+        -------
+        str
+            Dataset name stored in the dataset state.
+        """
+        return self._state.name
+
+    @property
     def root(self) -> Path:
         """Return the local dataset root.
 
@@ -601,9 +616,10 @@ class BaseDataset:
         encodings. It is the runtime path that turns dataset state into sample
         dictionaries for training, evaluation, or direct inspection.
 
-        Returned samples always contain ``inputs`` and ``target`` keys.
+        Returned samples always contain ``inputs``, ``target``, and ``meta`` keys.
         ``inputs`` is None when no input specs and no context encodings were
         requested. ``target`` is None when no target specs were requested.
+        ``meta`` contains dataset and row-provenance fields.
         When context encodings are requested by specs, keys such as
         ``position_one_hot``, ``position_index``, ``ear_one_hot``,
         ``frequency_index``, or ``sample_index`` are added to
@@ -618,7 +634,7 @@ class BaseDataset:
         Returns
         -------
         dict[str, object]
-            Sample dictionary with ``inputs`` and ``target`` entries.
+            Sample dictionary with ``inputs``, ``target``, and ``meta`` entries.
 
         Raises
         ------
@@ -694,6 +710,15 @@ class BaseDataset:
         sample: dict[str, object] = {
             "inputs": inputs,
             "target": None,
+            "meta": {
+                "dataset": state.name,
+                "subject_id": subject_id,
+                "position_index": row["selected_position_index"],
+                "ear": row["ear"],
+                "ear_index": row["selected_ear_index"],
+                "frequency_index": row["selected_frequency_index"],
+                "sample_index": row["selected_sample_index"],
+            },
         }
         if len(state.target_specs) > 0:
             target_values: dict[str, object] = {}

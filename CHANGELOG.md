@@ -15,6 +15,10 @@ use the `v0.0.x` format.
 - Added dataset download support for resource-specific base URLs so future
   dataset configs can fetch HRTF, mesh, anthropometry, or metadata resources
   from different servers while preserving the same resource-relative paths.
+- Added `BaseDataset.name` as a public read-only accessor for the active dataset
+  configuration name.
+- Added `meta` to dataset samples with dataset name, subject ID, and active row
+  context for mixed-dataset provenance.
 
 ### Changed
 

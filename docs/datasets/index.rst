@@ -4,70 +4,97 @@ hrtfpykit.datasets
 Description:
 ------------
 
-``hrtfpykit.datasets`` is hrtfpykit's construction layer for public HRTF
-datasets. It turns dataset-specific resource layouts into indexed dataset
-objects whose samples are declared with ``inputs`` and ``target`` specs. These
-objects follow the map style dataset pattern: they provide ``len(dataset)`` and
-integer ``dataset[index]`` access, so constructed datasets can be passed directly
-to PyTorch data loaders and similar batching pipelines. This layer is designed
-for workflows where acoustic data, subject resources, and derived values need to
-be selected, aligned, split, and reused reproducibly.
+``hrtfpykit.datasets`` builds map-style datasets from public HRTF datasets and
+aligned custom resources. It turns dataset-specific file layouts into objects
+with ``len(dataset)`` and ``dataset[index]`` access, so the same dataset can be
+inspected directly, preprocessed in scripts, or passed to PyTorch-style data
+loaders.
 
-Each integer access returns a sample dictionary ready for batching.  The
-``sample["inputs"]`` entry contains the values requested by the ``inputs``
-specs, together with any requested context encodings such as position, ear,
-frequency, or sample indices.  The ``sample["target"]`` entry contains the
-value or values requested by the ``target`` specs.  This keeps the same dataset
-object usable for direct inspection, preprocessing scripts, and PyTorch
-``DataLoader`` workflows.
+Dataset integrations such as :class:`~hrtfpykit.datasets.HUTUBS` and
+:class:`~hrtfpykit.datasets.SONICOM` keep dataset-specific rules outside user
+code. They handle subject identifiers, folder layouts, downloadable resource
+groups, local and download variants, excluded subjects, deterministic splits,
+and resource summaries.
 
-Concrete dataset classes such as :class:`~hrtfpykit.datasets.HUTUBS` and
-:class:`~hrtfpykit.datasets.SONICOM` handle dataset-specific subject identifiers,
-folder layouts, downloadable resource groups, resource variants, subject
-exclusions, train/validation/test splits, and construction summaries.
-
-Specs describe what a dataset sample should contain. They are small
-configuration objects passed to dataset constructors through the ``inputs`` and
-``target`` arguments. A spec does not load files by itself. Instead, the dataset
-reads the specs during construction and uses them to decide which resource
-families are required, which subjects can be included, how rows should be
-indexed, and which values should be returned when a sample is requested.
-
-Each spec defines one requested value. Acoustic specs such as
-:class:`~hrtfpykit.datasets.HRTFSpec`, :class:`~hrtfpykit.datasets.ITDSpec`,
-:class:`~hrtfpykit.datasets.ILDSpec`, and
-:class:`~hrtfpykit.datasets.SHSpec` select HRTF-derived data, source subsets,
-ears, frequency bins, samples, or derived cues. Resource specs such as
+Samples are declared with specs passed through ``inputs`` and ``target``. Each
+spec names one value to return and the context used to index it. Acoustic specs
+such as :class:`~hrtfpykit.datasets.HRTFSpec`,
+:class:`~hrtfpykit.datasets.ITDSpec`, :class:`~hrtfpykit.datasets.ILDSpec`, and
+:class:`~hrtfpykit.datasets.SHSpec` request HRTF-derived arrays, cues, or
+spherical-harmonic values. Resource specs such as
 :class:`~hrtfpykit.datasets.MeshSpec`,
 :class:`~hrtfpykit.datasets.AnthropometrySpec`,
 :class:`~hrtfpykit.datasets.MetadataSpec`,
 :class:`~hrtfpykit.datasets.ImageSpec`, and
-:class:`~hrtfpykit.datasets.VideoSpec` request non-acoustic resources aligned
-with the same subject and row context.
+:class:`~hrtfpykit.datasets.VideoSpec` align non-acoustic subject resources with
+the same sample rows.
 
-Specs make dataset construction explicit and reproducible. They separate the
-dataset storage layout from the values a model, analysis script, or preprocessing
-pipeline actually needs. The same local HUTUBS or SONICOM root can produce
-different datasets by changing the spec list: one dataset can expose full HRIR
-arrays, another can expose position-indexed ITD values, and another can combine
-HRTF data with anthropometry, mesh, image, or metadata resources. During
-indexing, the dataset uses the specs to populate ``sample["inputs"]`` and
-``sample["target"]`` with consistent keys, selected axes, optional one-hot or
-index encodings, and any per-value transforms requested by the spec.
+Resource specs can use official resources when a dataset provides them, such as
+SONICOM meshes or metadata, but they are not limited to those files. They can
+also point to custom resources prepared for an experiment. ``AnthropometrySpec``
+and ``MetadataSpec`` can read custom tables aligned with the dataset subject
+IDs. ``MeshSpec`` can use a custom mesh root while preserving the mesh naming
+pattern declared by the dataset configuration. ``ImageSpec`` and ``VideoSpec``
+scan explicit media roots organized by subject, which makes them useful for
+visual pipelines such as ear images rendered from meshes or collected by another
+acquisition process.
 
-The datasets layer builds on :doc:`hrtfpykit.hrtf <../hrtf/index>` for acoustic
-resources.  Subject HRTF files are loaded as
-:class:`~hrtfpykit.hrtf.HRTF` objects, optional dataset-level HRTF transforms can
-be applied, and specs then extract arrays, binaural cues, or
-spherical-harmonic values from the loaded object.  This keeps dataset samples
-consistent with the same HRTF loading, selection, transformation, and
-synchronization logic used elsewhere in hrtfpykit.
+For image and video resources, the media root must contain one folder per
+dataset subject. Subject folders can use the canonical dataset subject ID, or the
+aliases ``subjectN`` and ``subject_N`` based on the dataset subject number. When
+the resource is grouped by ``("subject", "ear")``, each subject folder must
+contain ear folders such as ``left`` and ``right``:
 
-With these tools, users can choose a concrete dataset integration, select local and
-download variants, define inputs and targets with specs, exclude subjects,
-construct deterministic subject splits, inspect resource and dataset summaries,
-load individual subject HRTFs, and retrieve indexed samples for analysis,
-preprocessing, or model training with map-style data loading.
+.. code-block:: text
+
+   ear_images/
+      pp2/
+         left/
+            image_001.png
+         right/
+            image_001.png
+      subject3/
+         left/
+            image_001.png
+         right/
+            image_001.png
+
+Transforms on resource specs define how selected paths or table values become
+the values returned by ``dataset[index]``. Without a transform, mesh, image, and
+video specs return organized paths, while anthropometry and metadata specs
+return the selected table values. With a transform, hrtfpykit still handles
+subject alignment, resource inspection, split selection, and sample construction;
+the transform defines how the selected resource is loaded and prepared.
+
+For example, ``ImageSpec`` can locate custom ear render images for each subject,
+then a transform can open those images with PIL, apply a torchvision ``Compose``
+pipeline, resize, normalize, augment, and return the array or tensor expected by
+a model. In an HRTF individualization workflow, those image values can be used as
+inputs while ``HRTFSpec`` or ``SHSpec`` provides the acoustic target. The same
+pattern applies to videos, meshes, anthropometry, and metadata: hrtfpykit
+resolves the aligned resource, and the transform turns that resource into the
+sample value.
+
+When ``dataset[index]`` is called, the dataset returns a dictionary with
+``sample["inputs"]``, ``sample["target"]``, and ``sample["meta"]`` entries.
+``inputs`` and ``target`` contain the values requested by the selected specs.
+``meta`` keeps row provenance separate from model values: it records the dataset
+name, native subject ID, and the active row context such as position, ear,
+frequency, or sample index when those axes are part of ``index_by``. This is
+especially useful when datasets are combined with PyTorch ``ConcatDataset`` or
+when one subject expands into many indexed rows. Acoustic values are resolved
+through :doc:`hrtfpykit.hrtf <../hrtf/index>`: subject SOFA files are loaded as
+:class:`~hrtfpykit.hrtf.HRTF` objects, optional dataset-level transforms are
+applied, and specs extract the requested values from the loaded object. As a
+result, dataset samples use the same HRTF loading and transformation path as the
+rest of hrtfpykit.
+
+This design is useful for HRTF individualization and related research tasks,
+where acoustic targets often need to be paired with subject information. By
+combining custom or official image, video, mesh, anthropometry, metadata, and
+acoustic specs in one dataset definition, users can build reproducible
+multimodal pipelines for deep learning experiments without maintaining separate
+subject matching code for each resource family.
 
 Content:
 --------

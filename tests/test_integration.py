@@ -353,6 +353,15 @@ def test_dataset_pipeline_resolves_all_spec_families(
 
     sample = dataset[0]
     assert sample["target"] is None
+    assert sample["meta"] == {
+        "dataset": "AllSpecIntegrationDataset",
+        "subject_id": "S001",
+        "position_index": None,
+        "ear": None,
+        "ear_index": None,
+        "frequency_index": None,
+        "sample_index": None,
+    }
     assert set(sample["inputs"]) == {
         "hrtf",
         "itd",
@@ -459,7 +468,25 @@ def test_dataset_pipeline_loads_hrtf_and_derived_acoustic_specs(
     sample = dataset[0]
     next_position_sample = dataset[1]
 
-    assert set(sample) == {"inputs", "target"}
+    assert set(sample) == {"inputs", "target", "meta"}
+    assert sample["meta"] == {
+        "dataset": "IntegrationDataset",
+        "subject_id": "S001",
+        "position_index": 0,
+        "ear": None,
+        "ear_index": None,
+        "frequency_index": None,
+        "sample_index": None,
+    }
+    assert next_position_sample["meta"] == {
+        "dataset": "IntegrationDataset",
+        "subject_id": "S001",
+        "position_index": 1,
+        "ear": None,
+        "ear_index": None,
+        "frequency_index": None,
+        "sample_index": None,
+    }
     assert set(sample["inputs"]) == {"magnitude_db", "position_index"}
     assert set(sample["target"]) == {"itd", "ild"}
     assert np.asarray(sample["inputs"]["magnitude_db"]).shape == (frequency_count,)
@@ -562,6 +589,15 @@ def test_collate_samples_returns_training_ready_tensor_dtypes() -> None:
             "target": {
                 "sh": np.array([[1.0, 2.0]], dtype=np.float64),
             },
+            "meta": {
+                "dataset": "integration",
+                "subject_id": "S001",
+                "position_index": 0,
+                "ear": None,
+                "ear_index": None,
+                "frequency_index": None,
+                "sample_index": None,
+            },
         },
         {
             "inputs": {
@@ -572,6 +608,15 @@ def test_collate_samples_returns_training_ready_tensor_dtypes() -> None:
             },
             "target": {
                 "sh": np.array([[3.0, 4.0]], dtype=np.float64),
+            },
+            "meta": {
+                "dataset": "integration",
+                "subject_id": "S002",
+                "position_index": 1,
+                "ear": None,
+                "ear_index": None,
+                "frequency_index": None,
+                "sample_index": None,
             },
         },
     ]
@@ -587,3 +632,11 @@ def test_collate_samples_returns_training_ready_tensor_dtypes() -> None:
     assert collated["inputs"]["position_index"].dtype == torch.int64
     assert collated["inputs"]["position_index"].tolist() == [0, 1]
     assert collated["inputs"]["mesh"] == [Path("S001.ply"), Path("S002.ply")]
+    assert collated["meta"]["dataset"] == ["integration", "integration"]
+    assert collated["meta"]["subject_id"] == ["S001", "S002"]
+    assert collated["meta"]["position_index"].dtype == torch.int64
+    assert collated["meta"]["position_index"].tolist() == [0, 1]
+    assert collated["meta"]["ear"] is None
+    assert collated["meta"]["ear_index"] is None
+    assert collated["meta"]["frequency_index"] is None
+    assert collated["meta"]["sample_index"] is None
