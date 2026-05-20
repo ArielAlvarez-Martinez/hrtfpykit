@@ -34,18 +34,22 @@ quickly.
 gives **researchers** a way to work with HRTFs without losing the connection
 between the file, the acoustic representation, and the experiment.
 
-## What you can do
+## What does hrtfpykit enable?
+
+**hrtfpykit** can enable complete HRTF workflows, from file inspection to dataset
+construction. It is designed for users who need to understand, process,
+visualize, compare, and reuse HRTF data across research and deep learning tasks.
 
 - **Open**, inspect, validate, edit, clone, and save SOFA files.
 - **Load** HRTFs as acoustic objects with time domain and frequency domain views.
 - **Select** source positions, ears, samples, and frequency bins.
 - **Modify** HRTFs through transformations, domain conversions, and acoustic
   processing steps.
-- **Generate** plots to inspect spectral cues, magnitude, amplitude, ITD, LSD,
-  and differences between HRTFs with comparison plots, which is especially
-  useful for HRTF individualization.
-- **Combine** HRTFs with subject data such as anthropometry, metadata, meshes,
-  and images.
+- **Generate** plots to inspect spectral cues, magnitude, amplitude, ITD, LSD, and
+  differences between HRTFs with comparison plots, which is especially useful for
+  HRTF individualization.
+- **Combine** HRTFs with subject data such as anthropometry, metadata, meshes, and
+  images.
 - **Create** map-style dataset pipelines for training multimodal deep learning models.
 - **Build** deep learning experiments for HRTF individualization and related tasks.
 
