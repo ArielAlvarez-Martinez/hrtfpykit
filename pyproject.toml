@@ -65,6 +65,7 @@ dev = [
 
 [project.urls]
 Documentation = "https://hrtfpykit.readthedocs.io/"
+Repository = "https://github.com/ArielAlvarez-Martinez/hrtfpykit.git"
 Issues = "https://github.com/ArielAlvarez-Martinez/hrtfpykit/issues"
 Changelog = "https://github.com/ArielAlvarez-Martinez/hrtfpykit/blob/main/CHANGELOG.md"
 
