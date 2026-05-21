@@ -16,4 +16,3 @@ hrtfpykit-wheel/
 wheels/
 dist/
 tmp/
-.github/workflows/cd.yml

@@ -9,7 +9,8 @@ use the `v0.0.x` format.
 
 ### Added
 
-- 
+- Added a GitHub Actions CD workflow that publishes tagged GitHub Releases to
+  PyPI through Trusted Publishing.
 
 ### Changed
 
