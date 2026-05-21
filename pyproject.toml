@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hrtfpykit"
 version = "0.0.7.dev0"
-description = "hrtfpykit is a Python toolkit for working with Head Related Transfer Functions (HRTFs) stored in SOFA files. Around that core, it creates an ecosystem of tools for HRTF research and dataset pipelines creation"
+description = "A Python toolkit for complete HRTF workflows, from SOFA file inspection and acoustic processing to visualization, comparison, and reproducible data pipelines construction."
 readme = "README.md"
 requires-python = ">=3.13"
 license = "GPL-3.0-only"

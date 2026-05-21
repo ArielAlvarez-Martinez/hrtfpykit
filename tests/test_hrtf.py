@@ -388,10 +388,15 @@ def test_real_hrtf_selects_numeric_positions_crop_and_right_ear(
     )
 
     assert crop_end > crop_start
+    crop_length = crop_end - crop_start
     assert selected_hrtf.IR.values.shape == (selected_count, crop_end - crop_start)
     assert selected_hrtf.TF.values.shape[0] == selected_count
     assert selected_hrtf.TF.values.ndim == 2
-    assert selected_hrtf.TF.values.shape[-1] == real_hrtf.TF.values.shape[-1]
+    assert selected_hrtf.TF.values.shape[-1] == np.fft.rfftfreq(
+        crop_length,
+        d=1.0 / selected_hrtf.IR.sample_rate,
+    ).shape[0]
+    assert selected_hrtf.fft_length == crop_length
     assert selected_hrtf.Sources.get_positions().shape == (selected_count, 3)
     assert np.allclose(real_hrtf.IR.values, original_ir)
     assert np.allclose(real_hrtf.TF.values, original_tf)

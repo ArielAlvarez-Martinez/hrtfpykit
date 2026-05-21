@@ -19,9 +19,20 @@ use the `v0.0.x` format.
   configuration name.
 - Added `meta` to dataset samples with dataset name, subject ID, and active row
   context for mixed-dataset provenance.
+- Added `azimuth_angles` and `elevation_angles` filters to `HRTF.select()` for
+  source-grid selection by nearest available spherical angles.
+- Added the `Starting with hrtfpykit.sofa` tutorial notebook covering SOFA file
+  download, security and convention checks, inspection, editing, structured
+  copies, save, and reload workflows.
+- Added the `Starting with hrtfpykit.hrtf` tutorial notebook covering
+  `load_hrtf()`, HRTF composed interfaces, source selection, transforms,
+  metrics, plots, SOFA synchronization, save, and reload workflows.
 
 ### Changed
 
+- Changed `HRTF.select()` IR cropping so the recomputed TF uses the cropped IR
+  length as the FFT length. Higher frequency resolution can still be requested
+  afterward with `HRTF.transform.modify_fft_length()`.
 - Updated `collate_samples()` as the PyTorch batching path for hrtfpykit
   datasets: homogeneous numeric arrays, tensors, scalars, and numeric feature
   dictionaries are returned as tensors, floating values are converted to

@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import hrtfpykit.sofa
 import numpy as np
-from ..coordinates import get_position_queries
+from ..coordinates import get_position_queries, get_spherical_positions
 from ..dsp import (
     ir_from_tf,
     prepend_missing_dc,
@@ -1292,6 +1292,8 @@ class HRTF(HRTFPlots):
         position_coordinate_system: str = "spherical",
         plane: str | None = None,
         plane_angle: float = 0.0,
+        azimuth_angles: float | list[float] | tuple[float, ...] | np.ndarray | None = None,
+        elevation_angles: float | list[float] | tuple[float, ...] | np.ndarray | None = None,
         ear: str = "both",
         angle_unit: str = "degrees",
         start: int | None = None,
@@ -1302,19 +1304,24 @@ class HRTF(HRTFPlots):
         """Select a spatial subset, ear subset, and/or IR crop from the HRTF.
 
         Selection returns a cloned :class:`~hrtfpykit.hrtf.HRTF` object
-        and leaves the original object unchanged. Spatial selection can be expressed with explicit positions,
-        named positions, a geometric plane, or the intersection of positions
-        and a plane. Source selections are applied along the leading source
-        axis of both :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` and
+        and leaves the original object unchanged. Spatial selection can be
+        expressed with explicit positions, named positions, a geometric plane,
+        or azimuth/elevation angle filters. These source-selection modes are
+        mutually exclusive: ``positions`` cannot be combined with ``plane`` or
+        angle filters, and ``plane`` cannot be combined with angle filters.
+        ``azimuth_angles`` and ``elevation_angles`` may be used together; when
+        both are provided, selected sources must satisfy both filters. Source
+        selections are applied along the leading source axis of both
+        :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` and
         :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` when those domains are
         available.
 
         Ear selection keeps both ears by default. Selecting ``left`` or
         ``right`` removes the ear axis entry from available IR and TF arrays.
         IR cropping is applied along the final sample axis and automatically
-        recomputes the TF representation from the cropped IR. Crop boundaries
-        can be provided either as sample indices or as seconds, but not both in
-        the same call.
+        recomputes the TF representation from the cropped IR using the cropped
+        IR length as the FFT length. Crop boundaries can be provided either as
+        sample indices or as seconds, but not both in the same call.
 
         Parameters
         ----------
@@ -1332,6 +1339,16 @@ class HRTF(HRTFPlots):
             Plane angle used to resolve the nearest available plane. For the
             horizontal plane this is elevation; for median and frontal planes
             this is azimuth.
+        azimuth_angles : float, sequence of float, numpy.ndarray, or None, default=None
+            Azimuth angle or angles used to keep matching source positions.
+            Requested values resolve to the nearest available source-grid
+            azimuth in spherical coordinates and may be combined only with
+            elevation_angles.
+        elevation_angles : float, sequence of float, numpy.ndarray, or None, default=None
+            Elevation angle or angles used to keep matching source positions.
+            Requested values resolve to the nearest available source-grid
+            elevation in spherical coordinates and may be combined only with
+            azimuth_angles.
         ear : {``both``, ``left``, ``right``}, default=``both``
             Ear selection.
         angle_unit : {``degrees``, ``radians``}, default=``degrees``
@@ -1354,9 +1371,10 @@ class HRTF(HRTFPlots):
         ------
         ValueError
             If the requested selection is invalid, no positions remain after
-            filtering, the requested ear is unavailable, crop boundaries are
-            invalid, seconds-based cropping is requested without a sample rate,
-            or IR data are unavailable for cropping.
+            filtering, more than one source-selection mode is requested, the
+            requested ear is unavailable, crop boundaries are invalid,
+            seconds-based cropping is requested without a sample rate, or IR
+            data are unavailable for cropping.
 
         Examples
         --------
@@ -1376,7 +1394,9 @@ class HRTF(HRTFPlots):
         >>> selected.IR.values.shape
         (3, 128)
         >>> selected.TF.values.shape
-        (3, 129)
+        (3, 65)
+        >>> selected.fft_length
+        128
         """
         transformed_hrtf = self.clone()
         selected_indices: np.ndarray | None = None
@@ -1384,7 +1404,15 @@ class HRTF(HRTFPlots):
         if ear_key not in {"both", "left", "right"}:
             raise ValueError("ear must be one of: both, left, right")
 
-        selecting_spatial = positions is not None or plane is not None
+        selecting_positions = positions is not None
+        selecting_plane = plane is not None
+        selecting_angles = azimuth_angles is not None or elevation_angles is not None
+        if sum((selecting_positions, selecting_plane, selecting_angles)) > 1:
+            raise ValueError(
+                "Use only one source selection mode: positions, plane, or azimuth_angles/elevation_angles"
+            )
+
+        selecting_spatial = selecting_positions or selecting_plane or selecting_angles
         if selecting_spatial:
             if transformed_hrtf.Sofa is None:
                 raise ValueError("Spatial selection requires a loaded SOFA dataset")
@@ -1438,6 +1466,83 @@ class HRTF(HRTFPlots):
                 selected_indices = np.arange(source_count, dtype=int)
             if selected_indices.size == 0:
                 raise ValueError("Selection produced no source positions")
+
+            if selecting_angles:
+                spherical_positions = get_spherical_positions(
+                    transformed_hrtf.Sources,
+                    angle_unit=angle_unit,
+                )
+                if spherical_positions.ndim != 2 or spherical_positions.shape[-1] != 3:
+                    raise ValueError("Source positions grid must have shape (N, 3)")
+                selected_mask = np.ones(source_count, dtype=bool)
+                angle_unit_key = str(angle_unit).strip().lower()
+                if angle_unit_key == "degrees":
+                    full_azimuth = 360.0
+                elif angle_unit_key == "radians":
+                    full_azimuth = float(2.0 * np.pi)
+                else:
+                    raise ValueError("angle_unit must be 'degrees' or 'radians'")
+                angle_filters = (
+                    ("azimuth_angles", "azimuth", azimuth_angles, 0, True),
+                    ("elevation_angles", "elevation", elevation_angles, 1, False),
+                )
+                for angle_name, angle_label, angle_values, column_index, wrap_angle in angle_filters:
+                    if angle_values is None:
+                        continue
+                    raw_angles = np.asarray(angle_values, dtype=object)
+                    if raw_angles.ndim == 0:
+                        raw_values = np.asarray([raw_angles.item()], dtype=object)
+                    elif raw_angles.ndim == 1:
+                        raw_values = raw_angles
+                    else:
+                        raise ValueError(
+                            f"{angle_name} must be a finite scalar or one-dimensional sequence"
+                        )
+                    if raw_values.size == 0:
+                        raise ValueError(f"At least one {angle_label} angle is required")
+                    if any(isinstance(value, bool | np.bool_) for value in raw_values.tolist()):
+                        raise ValueError(f"{angle_name} must contain finite numeric values")
+                    try:
+                        requested_angles = np.asarray(raw_values, dtype=float)
+                    except (TypeError, ValueError):
+                        raise ValueError(f"{angle_name} must contain finite numeric values") from None
+                    if not np.all(np.isfinite(requested_angles)):
+                        raise ValueError(f"{angle_name} must contain finite numeric values")
+                    resolved_angles: list[float] = []
+                    for requested_angle in requested_angles:
+                        if wrap_angle:
+                            _, resolved_angle = (
+                                transformed_hrtf.Sources.get_elevation_angles_for_azimuth(
+                                    float(requested_angle),
+                                    angle_unit=angle_unit,
+                                )
+                            )
+                        else:
+                            _, resolved_angle = (
+                                transformed_hrtf.Sources.get_azimuth_angles_for_elevation(
+                                    float(requested_angle),
+                                    angle_unit=angle_unit,
+                                )
+                            )
+                        if resolved_angle not in resolved_angles:
+                            resolved_angles.append(float(resolved_angle))
+                    source_angles = np.asarray(
+                        spherical_positions[:, int(column_index)],
+                        dtype=float,
+                    )
+                    requested_angles = np.asarray(resolved_angles, dtype=float)
+                    if wrap_angle:
+                        requested_angles = np.mod(requested_angles, full_azimuth)
+                        source_angles = np.mod(source_angles, full_azimuth)
+                    selected_mask &= np.isin(
+                        np.round(source_angles, 2),
+                        np.round(requested_angles, 2),
+                    )
+                selected_indices = np.flatnonzero(selected_mask).astype(int)
+                if selected_indices.size == 0:
+                    raise ValueError(
+                        "Selection produced no source positions for the requested azimuth/elevation angles"
+                    )
 
             if current_source_indices is None:
                 source_selected_indices = np.asarray(selected_indices, dtype=int)
@@ -1540,7 +1645,7 @@ class HRTF(HRTFPlots):
             transformed_hrtf.IR.values = ir_values[..., slice(start_index, end_index)]
             tf_from_ir(
                 transformed_hrtf.IR,
-                fft_length=transformed_hrtf.fft_length,
+                fft_length=None,
             )
 
         if ear_key != "both":

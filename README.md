@@ -14,9 +14,12 @@
 
 ## What is hrtfpykit?
 
-**hrtfpykit** is a **Python toolkit** for working with **Head Related Transfer
-Functions (HRTFs)** stored in SOFA files. Around that core, it creates an
-ecosystem of tools for **HRTF research** and **dataset pipelines** creation.
+**hrtfpykit** is a **Python toolkit** for complete **Head Related Transfer
+Function (HRTF)** workflows, from SOFA file inspection and acoustic processing
+to visualization, comparison, and reproducible data pipelines construction. It
+brings time/frequency domain handling, transformations, metrics, plots, and
+dataset pipelines into one workflow for research, HRTF individualization, and
+deep learning experiments.
 
 ## Why hrtfpykit?
 
