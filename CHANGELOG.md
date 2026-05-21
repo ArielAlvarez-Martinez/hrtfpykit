@@ -5,6 +5,31 @@ This file tracks released tags and upcoming release work for `hrtfpykit`.
 Historical baseline tags keep their original names. Future release tags should
 use the `v0.0.x` format.
 
+## [v0.0.9.dev0] - Unreleased
+
+### Added
+
+- Added the "Starting with hrtfpykit.plots" tutorial notebook covering direct
+  comparison plots, figure display controls, amplitude and magnitude
+  comparisons, ITD and ILD cue curves, spatial difference maps, LSD plots, and
+  spherical-harmonic reconstruction diagnostics.
+- Added a spherical-harmonic workflow section to the "Starting with hrtfpykit.hrtf"
+  tutorial, covering `sht()`, `sht_inverse()`, `sht_error()`,
+  SH coefficient shapes, basis shapes, and magnitude-only reconstruction.
+
+### Changed
+
+- Restructured the plotting tutorial into smaller runnable sections and code
+  cells so each plot family can be inspected and modified independently.
+- Reordered the plotting tutorial imports so shared plotting functions are
+  imported once before the figure-control example.
+
+### Fixed
+
+- Fixed the SOFA tutorial reload example so it explicitly disables convention
+  checking when confirming the saved tutorial file, matching the surrounding
+  explanation.
+
 ## [v0.0.8] - 2026-05-21
 
 ### Added

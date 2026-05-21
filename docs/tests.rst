@@ -9,8 +9,8 @@ The hrtfpykit tests are split into two layers:
   runs.
 
 The suite is intentionally behavioral. It does not try to benchmark runtime.
-Instead, it checks whether the main SOFA, HRTF, plotting, and dataset APIs keep
-working together with realistic SOFA-backed data.
+Instead, it checks whether the main SOFA, HRTF, plotting, and dataset
+workflows keep working together with realistic SOFA-backed data.
 
 Test Files
 ----------
@@ -162,7 +162,7 @@ Dataset Tests
 -------------
 
 HUTUBS and SONICOM tests are different from the fixture-based tests. They are
-designed to validate the dataset APIs against real dataset layouts, so they
+designed to validate the dataset classes against real dataset layouts, so they
 skip when the required local roots are missing. Skips are expected when you run
 these files without dataset resources.
 
