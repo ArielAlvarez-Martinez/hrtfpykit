@@ -64,7 +64,7 @@ edit the stable SOFA conventions registered in hrtfpykit.
    from hrtfpykit.sofa import load_sofa
 
    # Load SOFA file
-   sofa = load_sofa("subject_001.sofa")
+   sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
 
    # SOFA file summary
    print(sofa.summary())
@@ -92,7 +92,7 @@ edit the stable SOFA conventions registered in hrtfpykit.
        editable.modify_variable("Data.IR", edited_ir)
 
    # Save SOFA file
-   saved_path = editable.save("subject_001_edited.sofa", overwrite=True)
+   saved_path = editable.save("P0001_FreeFieldComp_44kHz_edited.sofa", overwrite=True)
    print(saved_path)
 
 hrtfpykit.hrtf: Handling HRTF objects
@@ -105,12 +105,21 @@ positions, and the backed SOFA object synchronized. Selection and transform
 methods return new HRTF objects, leaving the original state available for
 inspection, comparison, reset, plotting, metrics, and save workflows.
 
+Built-in plots for one loaded HRTF state are also part of this object surface.
+They are called as methods on :class:`~hrtfpykit.hrtf.HRTF` objects, for
+example :meth:`plot_magnitude() <hrtfpykit.plots.hrtf.HRTFPlots.plot_magnitude>`
+or :meth:`plot_source_grid() <hrtfpykit.plots.hrtf.HRTFPlots.plot_source_grid>`.
+Those methods use the current :attr:`IR <hrtfpykit.hrtf.HRTF.IR>`,
+:attr:`TF <hrtfpykit.hrtf.HRTF.TF>`, and
+:attr:`Sources <hrtfpykit.hrtf.HRTF.Sources>` state of the object, so selections
+and transforms are reflected directly in the generated figures.
+
 .. code-block:: python
 
    from hrtfpykit.hrtf import load_hrtf
 
    # Load HRTF file
-   hrtf = load_hrtf("subject_001.sofa")
+   hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
 
    # Access SOFA backed object
    sofa = hrtf.Sofa
@@ -161,7 +170,7 @@ inspection, comparison, reset, plotting, metrics, and save workflows.
 
    # Save HRTF file
    saved_path = restored.save(
-       "subject_001_selected_windowed.sofa",
+       "P0001_FreeFieldComp_44kHz_selected_windowed.sofa",
        overwrite=True,
        change_sofa_dimensions=True,
        sofa_convention="SimpleFreeFieldHRIR",
@@ -169,28 +178,7 @@ inspection, comparison, reset, plotting, metrics, and save workflows.
 
    print(saved_path)
 
-hrtfpykit.plots: Visualizing HRTF data
---------------------------------------
-
-The :doc:`plots API </plots/index>` is the visualization layer of hrtfpykit.
-It turns loaded HRTF states and comparison data into figures for source grids,
-HRIR amplitude, HRTF magnitude, spectral cues, ITD and ILD cues, spatial planes,
-LSD maps, and differences between HRTFs. Plots sit after loading, selection,
-transforms, metrics, or model evaluation, so each figure reflects the HRTF state
-or group of HRTFs being inspected.
-
-The plotting layer has three public surfaces. Built in methods of the
-:class:`HRTF <hrtfpykit.hrtf.HRTF>` object visualize one loaded HRTF state and use its
-current IR, TF, and source position data, so selections and transforms are
-reflected in the generated figures. Comparison functions in
-:mod:`hrtfpykit.plots` place multiple HRTFs in the same visual frame for
-amplitude, magnitude, ITD, ILD, and LSD inspection. Spherical harmonic plot
-functions visualize SHT reconstruction quality and reconstruction error for
-workflows based on :class:`~hrtfpykit.hrtf.SH`,
-:func:`~hrtfpykit.hrtf.sht`, and related harmonic representations.
-
-:meth:`~hrtfpykit.plots.hrtf.HRTFPlots.plot_amplitude`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+|
 
 .. code-block:: python
 
@@ -209,9 +197,6 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
    :align: center
 
 |
-
-:meth:`~hrtfpykit.plots.hrtf.HRTFPlots.plot_magnitude`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
 
@@ -233,9 +218,6 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 
 |
 
-:meth:`~hrtfpykit.plots.hrtf.HRTFPlots.plot_absolute_itd`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
 .. code-block:: python
 
    from hrtfpykit.hrtf import load_hrtf
@@ -249,9 +231,6 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
    :align: center
 
 |
-
-:meth:`~hrtfpykit.plots.hrtf.HRTFPlots.plot_ild_curve`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
 
@@ -267,9 +246,6 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 
 |
 
-:meth:`~hrtfpykit.plots.hrtf.HRTFPlots.plot_source_grid`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
 .. code-block:: python
 
    from hrtfpykit.hrtf import load_hrtf
@@ -283,9 +259,6 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
    :align: center
 
 |
-
-:meth:`~hrtfpykit.plots.hrtf.HRTFPlots.plot_spectrum_plane`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
 
@@ -307,8 +280,21 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 
 |
 
-:func:`~hrtfpykit.plots.compare_amplitude`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+hrtfpykit.plots: Visualizing HRTF data
+--------------------------------------
+
+The :doc:`plots API </plots/index>` is the visualization layer of hrtfpykit.
+In the Quick Start, this section focuses on functions imported from
+:mod:`hrtfpykit.plots`: comparison plots for multiple HRTFs and
+spherical-harmonic reconstruction plots. Built-in plots for one loaded HRTF
+state are accessed as methods on :class:`~hrtfpykit.hrtf.HRTF` objects and are
+shown in the :doc:`hrtf API </hrtf/index>` section above.
+
+Comparison functions place multiple HRTFs in the same visual frame for
+amplitude, magnitude, ITD, ILD, and LSD inspection. Spherical harmonic plot
+functions visualize SHT reconstruction quality and reconstruction error for
+workflows based on :class:`~hrtfpykit.hrtf.SH`,
+:func:`~hrtfpykit.hrtf.sht`, and related harmonic representations.
 
 .. code-block:: python
 
@@ -332,9 +318,6 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
    :align: center
 
 |
-
-:func:`~hrtfpykit.plots.compare_magnitude`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
 
@@ -362,9 +345,6 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 
 |
 
-:func:`~hrtfpykit.plots.compare_absolute_itd`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
 .. code-block:: python
 
    from hrtfpykit.hrtf import load_hrtf
@@ -385,9 +365,6 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
    :align: center
 
 |
-
-:func:`~hrtfpykit.plots.compare_lsd_plane`
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
 
