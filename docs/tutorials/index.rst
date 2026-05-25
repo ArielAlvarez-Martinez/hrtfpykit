@@ -1,26 +1,57 @@
 Tutorials
 =========
 
-Tutorials are guided, notebook-based workflows for learning hrtfpykit by running
-real examples. They are longer than the Quick Start and more practical than the
-API reference: each tutorial introduces one public surface, prepares the data it
-needs, explains the purpose of each step, and then shows the code that performs
-the operation.
+Guided notebooks teach hrtfpykit through real workflows. They sit between the
+Quick Start and the API reference: each notebook introduces one public surface,
+prepares the data it needs, explains the purpose of each step, and shows the
+code that performs the operation.
 
-The tutorials are best followed interactively in JupyterLab, Jupyter Notebook,
-or VS Code with Microsoft's official Jupyter extension. Running the notebooks
-cell by cell makes it easier to inspect objects, check intermediate variables,
-and keep plots next to the code that generated them. A basic familiarity with
-Python, NumPy arrays, and notebook execution is enough for the first tutorials;
-later tutorials may assume more knowledge of HRTF processing, PyTorch data
-loading, or model training.
+Run them interactively in JupyterLab, Jupyter Notebook, or VS Code with
+Microsoft's official Jupyter extension. Cell-by-cell execution keeps objects,
+intermediate values, and generated figures close to the code that produced
+them.
 
-Before starting, install hrtfpykit and the notebook tools in the Python
-environment you want to use. If you are not familiar with notebooks, start with
-the official `Jupyter Notebook installation documentation
-<https://docs.jupyter.org/en/stable/install/notebook-classic.html>`_. If you
-need to understand IPython kernels or manage notebook kernels across multiple
-Python environments, see the official `IPython and IPykernel installation
+The first workflows are introductory, but they are still HRTF workflows. It
+helps to be comfortable running Python notebooks, reading NumPy array shapes,
+and following core SOFA/HRTF terms such as SOFA files, HRIR, HRTF, source
+positions, ear channels, samples, frequency bins, and sample rate. Later
+material builds on that foundation with HRTF transforms, comparison metrics,
+map-style dataset construction, PyTorch data loaders, batched tensors, model
+architectures, training loops, validation loops, and HRTF individualization
+experiments.
+
+.. _tutorials-setup:
+
+Set Up
+------
+
+Use a Python environment where ``hrtfpykit`` and the notebook tools are
+installed. A normal Python environment is enough:
+
+.. code-block:: bash
+
+   pip install hrtfpykit jupyterlab ipykernel
+
+We recommend using an isolated `conda environment
+<https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html>`_.
+Create the environment first, activate it, and install ``hrtfpykit`` and the
+notebook tools inside it:
+
+.. code-block:: bash
+
+   conda create --name hrtfpykit python
+   conda activate hrtfpykit
+   pip install hrtfpykit jupyterlab ipykernel
+
+After installation, open the notebooks with JupyterLab, Jupyter Notebook, or VS
+Code. In VS Code, install Microsoft's official Jupyter extension and select the
+environment where ``hrtfpykit`` is installed.
+
+If notebooks are new to you, start with the official `Jupyter Notebook
+installation documentation
+<https://docs.jupyter.org/en/stable/install/notebook-classic.html>`_. For
+details about IPython kernels and managing notebook kernels across Python
+environments, see the official `IPython and IPykernel installation
 documentation <https://ipython.readthedocs.io/en/stable/install/index.html>`_.
 
 Content:

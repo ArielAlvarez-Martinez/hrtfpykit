@@ -19,6 +19,8 @@ use the `v0.0.x` format.
 
 ### Changed
 
+- Moved the importable package into a `src/hrtfpykit` layout and updated
+  packaging, CI, type-checking, and documentation import paths.
 - Restructured the plotting tutorial into smaller runnable sections and code
   cells so each plot family can be inspected and modified independently.
 - Reordered the plotting tutorial imports so shared plotting functions are

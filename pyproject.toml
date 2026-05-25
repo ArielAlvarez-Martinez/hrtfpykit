@@ -70,8 +70,11 @@ Repository = "https://github.com/ArielAlvarez-Martinez/hrtfpykit.git"
 Issues = "https://github.com/ArielAlvarez-Martinez/hrtfpykit/issues"
 Changelog = "https://github.com/ArielAlvarez-Martinez/hrtfpykit/blob/main/CHANGELOG.md"
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["hrtfpykit*"]
 
 [tool.ruff]
@@ -88,7 +91,7 @@ extend-exclude = [
 
 [tool.mypy]
 python_version = "3.13"
-files = ["hrtfpykit"]
+files = ["src/hrtfpykit"]
 ignore_missing_imports = true
 show_error_codes = true
 pretty = true

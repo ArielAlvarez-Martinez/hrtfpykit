@@ -35,10 +35,10 @@ jobs:
           python -m pip install -e ".[dev]"
 
       - name: Lint with ruff
-        run: ruff check hrtfpykit tests
+        run: ruff check src/hrtfpykit tests
 
       - name: Type check with mypy
-        run: mypy hrtfpykit
+        run: mypy src/hrtfpykit
 
   tests:
     name: Tests (Python ${{ matrix.python-version }})
