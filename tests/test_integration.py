@@ -302,8 +302,8 @@ def test_dataset_pipeline_resolves_all_spec_families(
             right_prefix="right_",
         ),
         metadata=MetadataConfig(path="metadata.csv"),
-        image=ImageConfig(extensions=(".png",)),
-        video=VideoConfig(extensions=(".mp4",)),
+        image=ImageConfig(path="images", extensions=(".png",)),
+        video=VideoConfig(path="videos", extensions=(".mp4",)),
     )
     dataset = BaseDataset(
         root=tmp_path,
@@ -340,8 +340,8 @@ def test_dataset_pipeline_resolves_all_spec_families(
             MeshSpec(name="mesh"),
             AnthropometrySpec(name="anthropometry"),
             MetadataSpec(name="metadata"),
-            ImageSpec(path="images", grouped_by="subject", name="image"),
-            VideoSpec(path="videos", grouped_by="subject", name="video"),
+            ImageSpec(grouped_by="subject", name="image"),
+            VideoSpec(grouped_by="subject", name="video"),
         ),
     )
 

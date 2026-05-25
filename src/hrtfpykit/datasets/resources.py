@@ -1437,11 +1437,14 @@ class DatasetResources:
         if has_image_specs:
             image_specs = cast(tuple[Any, ...], get_specs(state.specs, resource_name="image"))
             first_image_spec = image_specs[0]
-            if first_image_spec.path is None:
-                raise ValueError("ImageSpec requires a path")
-            requested_image_path = DatasetResources._resolve_optional_path(first_image_spec.path, root)
+            requested_image_path = DatasetResources._resolve_optional_path(
+                first_image_spec.path,
+                root,
+            )
+            if requested_image_path is None and config.image is not None and config.image.path is not None:
+                requested_image_path = (root / config.image.path).expanduser()
             if requested_image_path is None:
-                raise ValueError("ImageSpec requires a path")
+                raise ValueError("ImageSpec requires a path because no dataset image path is configured")
             image_path = requested_image_path
             image_grouped_by: tuple[str, ...] = ("subject",)
             ears = tuple(ear for ear, _ in state.selected_ears) if len(state.selected_ears) > 0 else ("left", "right")
@@ -1482,11 +1485,14 @@ class DatasetResources:
         if has_video_specs:
             video_specs = cast(tuple[Any, ...], get_specs(state.specs, resource_name="video"))
             first_video_spec = video_specs[0]
-            if first_video_spec.path is None:
-                raise ValueError("VideoSpec requires a path")
-            requested_video_path = DatasetResources._resolve_optional_path(first_video_spec.path, root)
+            requested_video_path = DatasetResources._resolve_optional_path(
+                first_video_spec.path,
+                root,
+            )
+            if requested_video_path is None and config.video is not None and config.video.path is not None:
+                requested_video_path = (root / config.video.path).expanduser()
             if requested_video_path is None:
-                raise ValueError("VideoSpec requires a path")
+                raise ValueError("VideoSpec requires a path because no dataset video path is configured")
             video_path = requested_video_path
             video_grouped_by: tuple[str, ...] = ("subject",)
             ears = tuple(ear for ear, _ in state.selected_ears) if len(state.selected_ears) > 0 else ("left", "right")

@@ -5,26 +5,30 @@ This file tracks released tags and upcoming release work for `hrtfpykit`.
 Historical baseline tags keep their original names. Future release tags should
 use the `v0.0.x` format.
 
-## [v0.0.9.dev0] - Unreleased
+## [v1.dev0] - Unreleased
 
 ### Added
 
 - Added the "Starting with hrtfpykit.plots" tutorial notebook covering direct
   comparison plots, figure display controls, amplitude and magnitude
   comparisons, ITD and ILD cue curves, spatial difference maps, LSD plots, and
-  spherical-harmonic reconstruction diagnostics.
-- Added a spherical-harmonic workflow section to the "Starting with hrtfpykit.hrtf"
+  spherical harmonic reconstruction diagnostics.
+- Added a spherical harmonic workflow section to the "Starting with hrtfpykit.hrtf"
   tutorial, covering `sht()`, `sht_inverse()`, `sht_error()`,
-  SH coefficient shapes, basis shapes, and magnitude-only reconstruction.
+  SH coefficient shapes, basis shapes, and reconstruction from magnitude values.
+- Added ARI HRTF SHA-256 checksums for the `hrtf b`, `hrtf c`, and `hrtf d`
+  SOFA files, excluding the duplicate legacy files.
 
 ### Changed
 
 - Moved the importable package into a `src/hrtfpykit` layout and updated
-  packaging, CI, type-checking, and documentation import paths.
+  packaging, CI, type checking, and documentation import paths.
 - Restructured the plotting tutorial into smaller runnable sections and code
   cells so each plot family can be inspected and modified independently.
 - Reordered the plotting tutorial imports so shared plotting functions are
-  imported once before the figure-control example.
+  imported once before the example that explains figure controls.
+- Changed HRTF download checksum lookup to support flat checksum maps keyed by
+  file name, in addition to the existing grouped type/version/sample rate maps.
 
 ### Fixed
 

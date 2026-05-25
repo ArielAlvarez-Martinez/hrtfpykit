@@ -192,18 +192,22 @@ class MetadataConfig:
 class ImageConfig:
     """Describe subject image resources available in a dataset family.
 
-    :class:`~hrtfpykit.datasets.config.ImageConfig` declares the extensions
-    accepted by image resource scanning. Image specs use it when indexing
-    subject-level or subject-ear image files under the dataset root.
+    :class:`~hrtfpykit.datasets.config.ImageConfig` declares the default image
+    path and accepted extensions used by image resource scanning. Image specs use
+    it when indexing subject-level or subject-ear image files under the dataset
+    root.
 
     Attributes
     ----------
+    path : str or None
+        Relative path from the dataset root to the default image resource folder.
     extensions : tuple of str
         Supported image file extensions. Extensions should include the leading
         dot.
 
     """
 
+    path: str | None = None
     extensions: tuple[str, ...] = (".png",)
 
 
@@ -211,18 +215,22 @@ class ImageConfig:
 class VideoConfig:
     """Describe subject video resources available in a dataset family.
 
-    :class:`~hrtfpykit.datasets.config.VideoConfig` declares the extensions
-    accepted by video resource scanning. Video specs use it when indexing
-    subject-level or subject-ear video files under the dataset root.
+    :class:`~hrtfpykit.datasets.config.VideoConfig` declares the default video
+    path and accepted extensions used by video resource scanning. Video specs use
+    it when indexing subject-level or subject-ear video files under the dataset
+    root.
 
     Attributes
     ----------
+    path : str or None
+        Relative path from the dataset root to the default video resource folder.
     extensions : tuple of str
         Supported video file extensions. Extensions should include the leading
         dot.
 
     """
 
+    path: str | None = None
     extensions: tuple[str, ...] = (".mp4",)
 
 

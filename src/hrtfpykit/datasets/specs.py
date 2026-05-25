@@ -26,13 +26,12 @@ class HRTFSpec:
     ) -> None:
         """Define one HRTF or HRIR array returned by a dataset sample.
 
-        :class:`~hrtfpykit.datasets.HRTFSpec` is the main acoustic value spec for
-        dataset classes such as :class:`~hrtfpykit.datasets.HUTUBS` and
-        :class:`~hrtfpykit.datasets.SONICOM`. It tells a dataset which HRTF
-        representation should be extracted, which source positions and ears should
-        be kept, which axes should create dataset rows, and which row encodings
-        should be added to sample inputs. The spec is a configuration object; it
-        does not load files by itself.
+        :class:`~hrtfpykit.datasets.HRTFSpec` is the primary acoustic value spec
+        for dataset construction. It tells a dataset which HRTF representation
+        should be extracted, which source positions and ears should be kept, which
+        axes should create dataset rows, and which row encodings should be added
+        to sample inputs. The spec is a declarative configuration object; it does
+        not scan resources or load files by itself.
 
         During dataset construction, the spec makes the HRTF resource family
         required and contributes to the row layout. During indexing, the dataset
@@ -148,8 +147,8 @@ class ITDSpec:
     ) -> None:
         """Define interaural time difference values returned by a sample.
 
-        :class:`~hrtfpykit.datasets.ITDSpec` derives ITD values from the HRTF
-        resource selected by the dataset. It does not store ITDs itself. During
+        :class:`~hrtfpykit.datasets.ITDSpec` defines an ITD feature derived from
+        each selected subject HRTF. It does not store ITD arrays itself. During
         indexing, the dataset loads the subject :class:`~hrtfpykit.hrtf.HRTF`,
         applies the optional dataset level HRTF transform, applies this spec
         transform when provided, computes ITD from the resulting HRIR data, and
@@ -259,8 +258,8 @@ class ILDSpec:
     ) -> None:
         """Define interaural level difference values returned by a sample.
 
-        :class:`~hrtfpykit.datasets.ILDSpec` derives ILD values from the HRTF
-        resource selected by the dataset. It does not store ILDs itself. During
+        :class:`~hrtfpykit.datasets.ILDSpec` defines an ILD feature derived from
+        each selected subject HRTF. It does not store ILD arrays itself. During
         indexing, the dataset loads the subject :class:`~hrtfpykit.hrtf.HRTF`,
         applies the optional dataset level HRTF transform, applies this spec
         transform when provided, computes ILD from the resulting HRIR data, and
@@ -368,12 +367,12 @@ class SHSpec:
     ) -> None:
         """Define spherical harmonic HRTF coefficients returned by a sample.
 
-        :class:`~hrtfpykit.datasets.SHSpec` derives spherical harmonic
-        coefficients from the HRTF resource selected by the dataset. During
-        indexing, the dataset loads the subject :class:`~hrtfpykit.hrtf.HRTF`,
-        applies the optional dataset level HRTF transform, applies this spec
-        transform when provided, and runs the spherical harmonic transform on the
-        resulting HRTF state.
+        :class:`~hrtfpykit.datasets.SHSpec` defines a spherical-harmonic HRTF
+        representation derived from each selected subject HRTF. During indexing,
+        the dataset loads the subject :class:`~hrtfpykit.hrtf.HRTF`, applies the
+        optional dataset level HRTF transform, applies this spec transform when
+        provided, and runs the spherical harmonic transform on the resulting HRTF
+        state.
 
         The ``transform`` callable is used when SH coefficients should be
         calculated from a modified HRTF version. It receives the loaded
@@ -462,14 +461,22 @@ class MeshSpec:
         """Define subject mesh paths returned by a dataset sample.
 
         :class:`~hrtfpykit.datasets.MeshSpec` asks a dataset to include the mesh
-        resource associated with each selected subject. The dataset can use mesh
-        resources declared by a public dataset, such as SONICOM meshes, or a
-        custom mesh root passed through ``path``. Custom mesh roots still use the
-        mesh filename pattern declared by the dataset configuration, so subject
-        IDs and subject numbers remain aligned with the HRTF resources. The
-        dataset resolves the configured mesh variant, optional path override,
-        allowed extensions, excluded subjects, and split selection before sample
-        extraction.
+        resource associated with each selected subject. Mesh files require the
+        active dataset configuration to declare a mesh resource pattern. The
+        optional ``path`` argument only changes the root where that pattern is
+        searched. It does not define mesh filenames by itself. The dataset formats
+        mesh filenames from the configured mesh pattern, subject IDs, subject
+        numbers, and selected mesh variant, so mesh values remain aligned with the
+        other resource families.
+
+        ``path`` is a mesh root override. When ``path`` is None, mesh files are
+        searched from the dataset root using the active mesh configuration. When
+        ``path`` is provided, absolute paths are used directly and relative paths
+        are resolved from the dataset root. The configured mesh pattern is then
+        applied below that root. If the dataset does not declare mesh resources,
+        ``MeshSpec`` cannot resolve meshes from ``path`` alone. If several mesh
+        specs are requested, the first mesh spec controls the mesh root and
+        extension scan used for the resource family.
 
         If the spec is passed to ``inputs``, its value appears under
         ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
@@ -478,7 +485,7 @@ class MeshSpec:
         path. The mesh file is not parsed by hrtfpykit unless ``transform`` is
         provided, in which case the returned type is whatever the transform returns.
 
-        This path first behavior is intentional. hrtfpykit organizes the mesh
+        Returning paths by default is intentional. hrtfpykit organizes the mesh
         resources and keeps the subject alignment, while the user decides how the
         mesh should be opened, parsed, preprocessed, or converted for a particular
         experiment. The ``transform`` callable is the hook for that custom mesh
@@ -487,11 +494,20 @@ class MeshSpec:
         Mesh specs affect subject availability. When a mesh spec is requested,
         subjects without a matching mesh file are removed before rows are built.
 
+        Notes
+        -----
+        Dataset-specific mesh variants, default folders, and file naming rules
+        are documented by the concrete dataset integration. This spec only
+        declares that a mesh value is required and how the selected path or
+        transformed value should be returned.
+
         Parameters
         ----------
         path : str, Path, or None, default=None
-            Optional root path overriding the dataset mesh location. Relative
-            paths are resolved from the dataset root.
+            Optional mesh root override. ``None`` uses the active dataset mesh
+            configuration. Absolute paths are used directly. Relative paths are
+            resolved from the dataset root. The selected dataset mesh filename
+            pattern is still required and is applied below the selected root.
         extensions : tuple of str or None, default=None
             Optional mesh extensions to search.
         transform : callable or None, default=None
@@ -541,37 +557,52 @@ class AnthropometrySpec:
         """Define subject anthropometry values returned by a sample.
 
         :class:`~hrtfpykit.datasets.AnthropometrySpec` asks a dataset to load
-        physical measurement data such as head, pinna, or ear measurements and
-        align those values to the selected subject IDs. The table can be the
-        anthropometry resource declared by the dataset, or a custom table passed
-        through ``path``. This makes the spec useful both for official HUTUBS or
-        SONICOM measurements and for experiment-specific measurements extracted
-        from another source. The spec controls table access direction,
-        subject-id handling, ear grouping, row or column exclusion, and optional
-        value transforms.
+        physical measurement data, such as head, pinna, or ear measurements, and
+        align those values to the selected subject IDs. Values can come from the
+        anthropometry table declared by the active dataset configuration or from a
+        custom table supplied through ``path``. The spec controls table access
+        direction, subject ID handling, ear grouping, row or column exclusion, and
+        optional value transforms.
+
+        ``path`` selects the anthropometry table used by this resource family.
+        When ``path`` is provided, it overrides the table declared by the active
+        dataset configuration for this spec. Absolute paths are used directly and
+        relative paths are resolved from the dataset root. When ``path`` is None,
+        the configured anthropometry path is used if the dataset declares one. If
+        neither location is available and an anthropometry spec is requested,
+        dataset construction raises an error. If several anthropometry specs are
+        requested, the first one controls the table path, accepted extensions, and
+        table loading options used for the resource family.
 
         If the spec is passed to ``inputs``, its value appears under
         ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
         appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
         default key is ``"anthropometry"``.
 
-        The default output type depends on the loaded anthropometry layout. For
-        HUTUBS, the default anthropometry resource returns a ``dict`` mapping
-        measurement names to values. If the source is a matrix style file, the
-        output can be a :class:`numpy.ndarray`. If ``transform`` is provided, the
-        returned type is whatever the transform returns. HUTUBS also filters
-        left and right prefixed fields when the spec or row carries an ear context.
+        The default output type depends on the loaded anthropometry layout. A
+        mapping-style table usually returns a ``dict`` mapping measurement names
+        to values. A matrix-style file can return a :class:`numpy.ndarray` or a
+        scalar-like value. If ``transform`` is provided, the returned type is
+        whatever the transform returns.
 
         The ``transform`` callable receives the selected anthropometry value after
         subject and optional ear selection. Use it when the selected value should
         be reshaped, filtered, normalized, or converted into the structure expected
         by the custom pipeline.
 
+        Notes
+        -----
+        Measurement names, units, table schemas, and ear-specific field naming are
+        dataset-specific. Concrete dataset integrations or value selectors handle
+        those details; this spec only describes how anthropometry resources are
+        requested, indexed, and returned.
+
         Parameters
         ----------
         path : str, Path, or None, default=None
-            Optional table path overriding the dataset configuration. Relative
-            paths are resolved from the dataset root.
+            Optional anthropometry table path. ``None`` uses the active dataset
+            anthropometry configuration when available. Absolute paths are used
+            directly. Relative paths are resolved from the dataset root.
         extensions : tuple of str or None, default=None
             Optional table extensions to allow.
         exclude_row, exclude_column : int, sequence of int, or None, default=None
@@ -645,35 +676,51 @@ class MetadataSpec:
 
         :class:`~hrtfpykit.datasets.MetadataSpec` asks a dataset to load general
         subject annotations and align them to the selected subject IDs. Metadata
-        can come from a public dataset configuration, such as SONICOM metadata, or
-        from a custom table passed through ``path``. Metadata is kept separate
-        from :class:`~hrtfpykit.datasets.AnthropometrySpec` so a dataset can
-        expose physical measurements and general annotations under different
+        can come from the table declared by the active dataset configuration or
+        from a custom table supplied through ``path``. Metadata is kept separate
+        from :class:`~hrtfpykit.datasets.AnthropometrySpec` so physical
+        measurements and general annotations can be requested under different
         resource families and sample keys.
+
+        ``path`` selects the metadata table used by this resource family. When
+        ``path`` is provided, it overrides the table declared by the active
+        dataset configuration for this spec. Absolute paths are used directly and
+        relative paths are resolved from the dataset root. When ``path`` is None,
+        the configured metadata path is used if the dataset declares one. If
+        neither location is available and a metadata spec is requested, dataset
+        construction raises an error. If several metadata specs are requested, the
+        first one controls the table path, accepted extensions, and table loading
+        options used for the resource family.
 
         If the spec is passed to ``inputs``, its value appears under
         ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
         appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
         default key is ``"metadata"``.
 
-        The default output type depends on the loaded metadata layout. A row based
-        CSV usually returns a ``dict`` mapping metadata field names to values. A
-        matrix style file can return a :class:`numpy.ndarray` or scalar value. If
-        ``transform`` is provided, the returned type is whatever the transform
-        returns. HUTUBS does not declare an official metadata resource in its
-        hrtfpykit config; use a dataset that declares metadata, such as SONICOM, or
-        provide a custom metadata path.
+        The default output type depends on the loaded metadata layout. A
+        mapping-style table usually returns a ``dict`` mapping metadata field
+        names to values. A matrix-style file can return a
+        :class:`numpy.ndarray` or scalar-like value. If ``transform`` is provided,
+        the returned type is whatever the transform returns.
 
         The ``transform`` callable receives the selected metadata value after
         subject and optional ear selection. Use it when the selected value should
         be reshaped, filtered, normalized, or converted into the structure expected
         by the custom pipeline.
 
+        Notes
+        -----
+        Metadata availability, field names, and semantic meaning are
+        dataset-specific. If the active dataset configuration does not declare a
+        metadata table, provide ``path`` to a compatible custom table or use a
+        dataset integration that declares metadata resources.
+
         Parameters
         ----------
         path : str, Path, or None, default=None
-            Optional table path overriding the dataset configuration. Relative
-            paths are resolved from the dataset root.
+            Optional metadata table path. ``None`` uses the active dataset
+            metadata configuration when available. Absolute paths are used
+            directly. Relative paths are resolved from the dataset root.
         extensions : tuple of str or None, default=None
             Optional table extensions to allow.
         exclude_row, exclude_column : int, sequence of int, or None, default=None
@@ -743,13 +790,21 @@ class ImageSpec:
 
         :class:`~hrtfpykit.datasets.ImageSpec` asks a dataset to index image files
         by subject, or by subject and ear when images are stored in left and right
-        groups. The image files can be custom resources prepared for an experiment,
-        for example ear images rendered from 3D meshes and used as inputs for HRTF
-        individualization. The dataset scans the image root, intersects available
-        subjects with the other requested resources, and returns the selected
-        image value in each sample. HUTUBS declares image scanning support, but
-        hrtfpykit does not ship official HUTUBS image files; ``path`` should point
-        to the local image folder you want to align with the dataset subjects.
+        groups. Image resources can come from a dataset configuration or from a
+        custom folder aligned with the dataset subject IDs, such as photographs,
+        rendered ear views, or other visual information used alongside acoustic
+        targets. The dataset scans the image root, intersects available subjects
+        with the other requested resources, and returns the selected image value
+        in each sample.
+
+        ``path`` selects the image root used by this resource family. When
+        ``path`` is provided, it overrides the image root declared by the active
+        dataset configuration for this spec. Absolute paths are used directly and
+        relative paths are resolved from the dataset root. When ``path`` is None,
+        the configured image path is used if the dataset declares one. If neither
+        location is available and an image spec is requested, dataset construction
+        raises an error. If several image specs are requested, the first one
+        controls the image root and extension scan used for the resource family.
 
         If the spec is passed to ``inputs``, its value appears under
         ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
@@ -763,11 +818,11 @@ class ImageSpec:
         When ``concatenate=True``, a transform is required and the transformed
         values are concatenated with :func:`numpy.concatenate` along axis 0.
 
-        This path first behavior is intentional. hrtfpykit organizes image files
-        by subject or by subject and ear, while the user decides how images should
-        be opened, resized, normalized, augmented, or converted for a particular
-        experiment. The ``transform`` callable is the hook for that custom image
-        pipeline.
+        Returning paths by default is intentional. hrtfpykit organizes image
+        files by subject or by subject and ear, while the user decides how images
+        should be opened, resized, normalized, augmented, or converted for a
+        particular experiment. The ``transform`` callable is the hook for that
+        custom image pipeline.
 
         Image roots must contain one folder per dataset subject. Subject folders
         can be named with the canonical dataset subject ID, ``subjectN``, or
@@ -775,11 +830,19 @@ class ImageSpec:
         folder must contain ear folders such as ``left`` and ``right``. Files are
         discovered recursively inside the matched subject or ear folder.
 
+        Notes
+        -----
+        Image availability and semantic meaning are defined by the dataset or the
+        user-provided resource folder. ``ImageSpec`` does not assume a particular
+        imaging protocol; it only defines how files are aligned, grouped, and
+        returned.
+
         Parameters
         ----------
         path : str, Path, or None, default=None
-            Root path containing custom image resources. Relative paths are
-            resolved from the dataset root.
+            Optional image root path. ``None`` uses the active dataset image
+            configuration when available. Absolute paths are used directly.
+            Relative paths are resolved from the dataset root.
         grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
             Whether images are grouped only by subject or by subject and ear.
         extensions : tuple of str or None, default=None
@@ -843,14 +906,21 @@ class VideoSpec:
 
         :class:`~hrtfpykit.datasets.VideoSpec` asks a dataset to index video files
         by subject, or by subject and ear when videos are stored in left and right
-        groups. The video files can be custom resources prepared for an experiment,
-        for example turntable renders, measurement recordings, or other visual
-        captures aligned with the HRTF subject IDs. The dataset scans the video
-        root, intersects available subjects with the other requested resources,
-        and returns the selected video value in each sample. HUTUBS declares video
-        scanning support, but hrtfpykit does not ship official HUTUBS video files;
-        ``path`` should point to the local video folder you want to align with the
-        dataset subjects.
+        groups. Video resources can come from a dataset configuration or from a
+        custom folder aligned with the dataset subject IDs, such as turntable
+        captures, rendered sequences, or measurement recordings used alongside
+        acoustic targets. The dataset scans the video root, intersects available
+        subjects with the other requested resources, and returns the selected
+        video value in each sample.
+
+        ``path`` selects the video root used by this resource family. When
+        ``path`` is provided, it overrides the video root declared by the active
+        dataset configuration for this spec. Absolute paths are used directly and
+        relative paths are resolved from the dataset root. When ``path`` is None,
+        the configured video path is used if the dataset declares one. If neither
+        location is available and a video spec is requested, dataset construction
+        raises an error. If several video specs are requested, the first one
+        controls the video root and extension scan used for the resource family.
 
         If the spec is passed to ``inputs``, its value appears under
         ``dataset[0]["inputs"][name]``. If it is passed to ``target``, its value
@@ -862,11 +932,11 @@ class VideoSpec:
         decoded by hrtfpykit unless ``transform`` is provided. A transform receives
         each video path and returns the video representation chosen by the user.
 
-        This path first behavior is intentional. hrtfpykit organizes video files
-        by subject or by subject and ear, while the user decides how videos should
-        be opened, sampled, preprocessed, augmented, or converted for a particular
-        experiment. The ``transform`` callable is the hook for that custom video
-        pipeline.
+        Returning paths by default is intentional. hrtfpykit organizes video
+        files by subject or by subject and ear, while the user decides how videos
+        should be opened, sampled, preprocessed, augmented, or converted for a
+        particular experiment. The ``transform`` callable is the hook for that
+        custom video pipeline.
 
         Video roots must contain one folder per dataset subject. Subject folders
         can be named with the canonical dataset subject ID, ``subjectN``, or
@@ -874,11 +944,19 @@ class VideoSpec:
         folder must contain ear folders such as ``left`` and ``right``. Files are
         discovered recursively inside the matched subject or ear folder.
 
+        Notes
+        -----
+        Video availability and semantic meaning are defined by the dataset or the
+        user-provided resource folder. ``VideoSpec`` does not assume a particular
+        capture protocol; it only defines how files are aligned, grouped, and
+        returned.
+
         Parameters
         ----------
         path : str, Path, or None, default=None
-            Root path containing custom video resources. Relative paths are
-            resolved from the dataset root.
+            Optional video root path. ``None`` uses the active dataset video
+            configuration when available. Absolute paths are used directly.
+            Relative paths are resolved from the dataset root.
         grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
             Whether videos are grouped only by subject or by subject and ear.
         extensions : tuple of str or None, default=None

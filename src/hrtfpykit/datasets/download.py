@@ -491,35 +491,40 @@ class BaseDownload:
             raise ValueError(
                 f"{self.config.name} cannot download {resource!r} resources because no checksums are configured for that resource"
             )
+        checksum: object | None = None
         if resource == "hrtf":
-            if hrtf_type is None:
-                raise ValueError("HRTF checksum lookup requires a type")
             if not isinstance(resource_checksums, dict):
-                raise ValueError("HRTF checksums must be grouped by type")
-            type_checksums = resource_checksums.get(hrtf_type)
-            if type_checksums is None:
-                raise ValueError(
-                    f"{self.config.name} is missing HRTF checksums for type={hrtf_type!r}"
-                )
-            if isinstance(type_checksums, dict) and hrtf_version is not None and hrtf_version in type_checksums:
-                version_checksums = type_checksums.get(hrtf_version)
-                if not isinstance(version_checksums, dict):
-                    raise ValueError("HRTF version checksums must be a filename dictionary")
-                sample_rate_checksums = None
-                if hrtf_sample_rate is not None:
-                    sample_rate_checksums = version_checksums.get(hrtf_sample_rate)
-                    if sample_rate_checksums is None:
-                        sample_rate_checksums = version_checksums.get(str(hrtf_sample_rate))
-                if sample_rate_checksums is not None:
-                    if not isinstance(sample_rate_checksums, dict):
-                        raise ValueError("HRTF sample-rate checksums must be a filename dictionary")
-                    checksum = sample_rate_checksums.get(relative_path)
-                else:
-                    checksum = version_checksums.get(relative_path)
+                raise ValueError("HRTF checksums must be grouped by filename or type")
+            direct_checksum = resource_checksums.get(relative_path)
+            if isinstance(direct_checksum, str):
+                checksum = direct_checksum
+            elif hrtf_type is None:
+                raise ValueError("HRTF checksum lookup requires a type when checksums are grouped by type")
             else:
-                if not isinstance(type_checksums, dict):
-                    raise ValueError("HRTF type checksums must be a filename dictionary")
-                checksum = type_checksums.get(relative_path)
+                type_checksums = resource_checksums.get(hrtf_type)
+                if type_checksums is None:
+                    raise ValueError(
+                        f"{self.config.name} is missing HRTF checksums for type={hrtf_type!r}"
+                    )
+                if isinstance(type_checksums, dict) and hrtf_version is not None and hrtf_version in type_checksums:
+                    version_checksums = type_checksums.get(hrtf_version)
+                    if not isinstance(version_checksums, dict):
+                        raise ValueError("HRTF version checksums must be a filename dictionary")
+                    sample_rate_checksums = None
+                    if hrtf_sample_rate is not None:
+                        sample_rate_checksums = version_checksums.get(hrtf_sample_rate)
+                        if sample_rate_checksums is None:
+                            sample_rate_checksums = version_checksums.get(str(hrtf_sample_rate))
+                    if sample_rate_checksums is not None:
+                        if not isinstance(sample_rate_checksums, dict):
+                            raise ValueError("HRTF sample-rate checksums must be a filename dictionary")
+                        checksum = sample_rate_checksums.get(relative_path)
+                    else:
+                        checksum = version_checksums.get(relative_path)
+                else:
+                    if not isinstance(type_checksums, dict):
+                        raise ValueError("HRTF type checksums must be a filename dictionary")
+                    checksum = type_checksums.get(relative_path)
         elif resource == "mesh":
             if not isinstance(resource_checksums, dict):
                 raise ValueError("Mesh checksums must be grouped by type or filename")
