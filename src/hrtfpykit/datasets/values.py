@@ -737,16 +737,17 @@ class DatasetSampleValueSelector:
     ) -> object:
         """Resolve an :class:`~hrtfpykit.datasets.AnthropometrySpec` value for one dataset row.
 
-        The selector maps the row subject to the loaded anthropometry resource,
-        supports mapping-style tables, column-oriented lookups, and MAT matrix-like
-        values, applies the dataset-specific anthropometry selector when one is
-        installed, and finally applies the optional spec transform. It is the shared
-        table extraction path for physical-measurement data.
+        The selector maps the row subject to the normalized anthropometry table
+        values stored on the dataset state, applies the dataset specific anthropometry
+        selector when one is installed, and finally applies the optional spec
+        transform. CSV and MAT parsing, row or column layout, subject matching,
+        exclusions, and complete-row filtering are handled by table loading before
+        sample selection reaches this method.
 
         Parameters
         ----------
         dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
-            Dataset instance that owns loaded anthropometry rows.
+            Dataset instance that owns loaded anthropometry table values.
         spec : AnthropometrySpec
             Anthropometry spec to resolve.
         subject_id : str
@@ -757,26 +758,12 @@ class DatasetSampleValueSelector:
         Returns
         -------
         object
-            Anthropometry row, column, matrix slice, or transformed value.
+            Selected anthropometry table value or transformed value.
 
         Raises
         ------
         KeyError
             If subject_id cannot be resolved to loaded anthropometry data.
-        ValueError
-            If MAT-style access contains multiple candidate variables, matrix access
-            receives a value with fewer than two dimensions, or subject mapping
-            fails.
-        IndexError
-            If row-oriented or column-oriented matrix access requests a subject
-            position outside the loaded table shape.
-
-        Notes
-        -----
-        For mapping-style rows, spec.accessed_by set to ``row`` returns the subject
-        row. When accessed_by is ``column``, the selector either gathers the subject
-        column from all row dictionaries or selects a column based on the subject
-        position among selected subjects.
 
         """
 
@@ -788,80 +775,9 @@ class DatasetSampleValueSelector:
             subject_id,
             tuple(state.config.subject_ids),
         )
-        try:
-            subject_position = list(state.selected_subjects).index(mapped_subject_id)
-        except ValueError as exc:
-            raise KeyError(f"Anthropometry subject {subject_id!r} was not found") from exc
-
-        if not isinstance(rows, dict) or not all(
-            isinstance(value, dict) for value in rows.values()
-        ):
-            matrix_values: object = rows
-            if isinstance(rows, dict):
-                matrix_candidates = {
-                    key: value
-                    for key, value in rows.items()
-                    if not str(key).startswith("__")
-                }
-                if len(matrix_candidates) != 1:
-                    raise ValueError(
-                        "MAT anthropometry access requires exactly one data matrix variable"
-                    )
-                matrix_values = next(iter(matrix_candidates.values()))
-            matrix = np.asarray(matrix_values)
-            if matrix.ndim < 2:
-                raise ValueError(
-                    "Anthropometry matrix access requires a two-dimensional value"
-                )
-            if spec.accessed_by == "row":
-                if subject_position < 0 or subject_position >= matrix.shape[0]:
-                    raise IndexError(
-                        f"Anthropometry row index {subject_position} is out of range for "
-                        f"{matrix.shape[0]} rows"
-                    )
-                raw_value = matrix[subject_position]
-            else:
-                if subject_position < 0 or subject_position >= matrix.shape[1]:
-                    raise IndexError(
-                        f"Anthropometry column index {subject_position} is out of range for "
-                        f"{matrix.shape[1]} columns"
-                    )
-                raw_value = matrix[:, subject_position]
-        else:
-            if mapped_subject_id not in rows:
-                if spec.accessed_by == "column":
-                    column_values: dict[str, float | str | None] = {}
-                    for row_key, row_values in rows.items():
-                        if not isinstance(row_values, dict):
-                            continue
-                        if mapped_subject_id in row_values:
-                            column_values[row_key] = row_values[mapped_subject_id]
-                    if len(column_values) == 0:
-                        raise KeyError(
-                            f"Anthropometry subject {subject_id!r} was not found"
-                        )
-                    raw_value = column_values
-                else:
-                    raise KeyError(
-                        f"Anthropometry subject {subject_id!r} was not found"
-                    )
-            else:
-                row_values = dict(cast(dict[str, object], rows[mapped_subject_id]))
-                if spec.accessed_by == "row":
-                    raw_value = row_values
-                else:
-                    subject_position = list(state.selected_subjects).index(mapped_subject_id)
-                    column_keys = tuple(row_values)
-                    if subject_position < 0 or subject_position >= len(column_keys):
-                        raise IndexError(
-                            f"Anthropometry column index {subject_position} is out of range for "
-                            f"{len(column_keys)} columns"
-                        )
-                    column_key = column_keys[subject_position]
-                    raw_value = {
-                        column_subject_id: cast(dict[str, object], row_values_by_subject)[column_key]
-                        for column_subject_id, row_values_by_subject in rows.items()
-                    }
+        if mapped_subject_id not in rows:
+            raise KeyError(f"Anthropometry subject {subject_id!r} was not found")
+        raw_value: object = dict(cast(dict[str, object], rows[mapped_subject_id]))
 
         selector = state.anthropometry_value_selector
         if selector is not None and callable(selector):
@@ -883,17 +799,18 @@ class DatasetSampleValueSelector:
     ) -> object:
         """Resolve a :class:`~hrtfpykit.datasets.MetadataSpec` value for one dataset row.
 
-        The selector maps the row subject to the loaded metadata resource, supports
-        mapping-style tables, column-oriented lookups, and MAT matrix-like values,
-        applies the dataset-specific metadata selector when one is installed, and
-        finally applies the optional spec transform. It mirrors anthropometry
-        extraction while keeping general annotations separate from physical
-        measurements.
+        The selector maps the row subject to the normalized metadata table values
+        stored on the dataset state, applies the dataset specific metadata selector when
+        one is installed, and finally applies the optional spec transform. It
+        mirrors anthropometry extraction while keeping general annotations separate
+        from physical measurements. CSV and MAT parsing, row or column layout,
+        subject matching, exclusions, and complete-row filtering are handled by
+        table loading before sample selection reaches this method.
 
         Parameters
         ----------
         dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
-            Dataset instance that owns loaded metadata rows.
+            Dataset instance that owns loaded metadata table values.
         spec : MetadataSpec
             Metadata spec to resolve.
         subject_id : str
@@ -904,26 +821,12 @@ class DatasetSampleValueSelector:
         Returns
         -------
         object
-            Metadata row, column, matrix slice, or transformed value.
+            Selected metadata table value or transformed value.
 
         Raises
         ------
         KeyError
             If subject_id cannot be resolved to loaded metadata data.
-        ValueError
-            If MAT-style access contains multiple candidate variables, matrix access
-            receives a value with fewer than two dimensions, or subject mapping
-            fails.
-        IndexError
-            If row-oriented or column-oriented matrix access requests a subject
-            position outside the loaded table shape.
-
-        Notes
-        -----
-        For mapping-style rows, spec.accessed_by set to ``row`` returns the subject
-        row. When accessed_by is ``column``, the selector either gathers the subject
-        column from all row dictionaries or selects a column based on the subject
-        position among selected subjects.
 
         """
 
@@ -935,80 +838,9 @@ class DatasetSampleValueSelector:
             subject_id,
             tuple(state.config.subject_ids),
         )
-        try:
-            subject_position = list(state.selected_subjects).index(mapped_subject_id)
-        except ValueError as exc:
-            raise KeyError(f"Metadata subject {subject_id!r} was not found") from exc
-
-        if not isinstance(rows, dict) or not all(
-            isinstance(value, dict) for value in rows.values()
-        ):
-            matrix_values: object = rows
-            if isinstance(rows, dict):
-                matrix_candidates = {
-                    key: value
-                    for key, value in rows.items()
-                    if not str(key).startswith("__")
-                }
-                if len(matrix_candidates) != 1:
-                    raise ValueError(
-                        "MAT metadata access requires exactly one data matrix variable"
-                    )
-                matrix_values = next(iter(matrix_candidates.values()))
-            matrix = np.asarray(matrix_values)
-            if matrix.ndim < 2:
-                raise ValueError(
-                    "Metadata matrix access requires a two-dimensional value"
-                )
-            if spec.accessed_by == "row":
-                if subject_position < 0 or subject_position >= matrix.shape[0]:
-                    raise IndexError(
-                        f"Metadata row index {subject_position} is out of range for "
-                        f"{matrix.shape[0]} rows"
-                    )
-                raw_value = matrix[subject_position]
-            else:
-                if subject_position < 0 or subject_position >= matrix.shape[1]:
-                    raise IndexError(
-                        f"Metadata column index {subject_position} is out of range for "
-                        f"{matrix.shape[1]} columns"
-                    )
-                raw_value = matrix[:, subject_position]
-        else:
-            if mapped_subject_id not in rows:
-                if spec.accessed_by == "column":
-                    column_values: dict[str, float | str | None] = {}
-                    for row_key, row_values in rows.items():
-                        if not isinstance(row_values, dict):
-                            continue
-                        if mapped_subject_id in row_values:
-                            column_values[row_key] = row_values[mapped_subject_id]
-                    if len(column_values) == 0:
-                        raise KeyError(
-                            f"Metadata subject {subject_id!r} was not found"
-                        )
-                    raw_value = column_values
-                else:
-                    raise KeyError(
-                        f"Metadata subject {subject_id!r} was not found"
-                    )
-            else:
-                row_values = dict(cast(dict[str, object], rows[mapped_subject_id]))
-                if spec.accessed_by == "row":
-                    raw_value = row_values
-                else:
-                    subject_position = list(state.selected_subjects).index(mapped_subject_id)
-                    column_keys = tuple(row_values)
-                    if subject_position < 0 or subject_position >= len(column_keys):
-                        raise IndexError(
-                            f"Metadata column index {subject_position} is out of range for "
-                            f"{len(column_keys)} columns"
-                        )
-                    column_key = column_keys[subject_position]
-                    raw_value = {
-                        column_subject_id: cast(dict[str, object], row_values_by_subject)[column_key]
-                        for column_subject_id, row_values_by_subject in rows.items()
-                    }
+        if mapped_subject_id not in rows:
+            raise KeyError(f"Metadata subject {subject_id!r} was not found")
+        raw_value: object = dict(cast(dict[str, object], rows[mapped_subject_id]))
 
         selector = state.metadata_value_selector
         if selector is not None and callable(selector):

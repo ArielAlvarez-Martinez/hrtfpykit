@@ -482,23 +482,39 @@ class DatasetSplitPlanner:
                 resource_lines = ["Resource summary:"]
                 for resource_name, summary in state.resource_summary.items():
                     summary = cast(dict[str, Any], summary)
-                    parts = [str(resource_name)]
-                    for key in (
-                        "pattern",
-                        "path",
-                        "hrtf_variant",
-                        "mesh_variant",
-                        "extensions",
-                        "checked",
-                        "found",
-                        "valid",
-                        "invalid",
-                        "missing",
-                        "subjects",
-                        "rows",
-                    ):
-                        if key in summary:
-                            parts.append(f"{key}={summary[key]!r}")
+                    if "subjects_checked" in summary:
+                        resource_lines.append(f"  {resource_name}:")
+                        subject_parts = [f"checked={summary['subjects_checked']!r}"]
+                        if "subjects_available" in summary:
+                            subject_parts.append(f"available={summary['subjects_available']!r}")
+                        if "subjects_missing" in summary:
+                            subject_parts.append(f"missing={summary['subjects_missing']!r}")
+                        resource_lines.append(f"    subjects: {', '.join(subject_parts)}")
+                        if "files" in summary:
+                            resource_lines.append(f"    files: {summary['files']!r}")
+                    else:
+                        parts = [str(resource_name)]
+                        for key in (
+                            "checked",
+                            "found",
+                            "missing",
+                        ):
+                            if key in summary:
+                                parts.append(f"{key}={summary[key]!r}")
+                        for key in (
+                            "pattern",
+                            "path",
+                            "hrtf_variant",
+                            "mesh_variant",
+                            "extensions",
+                            "valid",
+                            "invalid",
+                            "subjects",
+                            "rows",
+                        ):
+                            if key in summary:
+                                parts.append(f"{key}={summary[key]!r}")
+                        resource_lines.append("  " + parts[0] + ": " + ", ".join(parts[1:]))
                     if "missing_subject_ids" in summary:
                         missing_subject_ids = tuple(summary["missing_subject_ids"])
                         if len(missing_subject_ids) > 0:
@@ -507,7 +523,7 @@ class DatasetSplitPlanner:
                             )
                             if len(missing_subject_ids) > 5:
                                 preview = f"{preview}, ..."
-                            parts.append(f"missing_subject_ids={preview}")
+                            resource_lines.append(f"    missing_subject_ids: {preview}")
                     if "invalid_subject_ids" in summary:
                         invalid_subject_ids = tuple(summary["invalid_subject_ids"])
                         if len(invalid_subject_ids) > 0:
@@ -516,8 +532,7 @@ class DatasetSplitPlanner:
                             )
                             if len(invalid_subject_ids) > 5:
                                 preview = f"{preview}, ..."
-                            parts.append(f"invalid_subject_ids={preview}")
-                    resource_lines.append("  " + parts[0] + ": " + ", ".join(parts[1:]))
+                            resource_lines.append(f"    invalid_subject_ids: {preview}")
             resource_summary_text = "\n".join(resource_lines)
             raise ValueError(
                 "No subjects match the selected dataset configuration. "

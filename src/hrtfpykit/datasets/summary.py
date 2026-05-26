@@ -59,10 +59,11 @@ def resources_summary(
 
     This function has two modes. Scanner mode is used by resource discovery code
     and returns a compact dictionary containing checked, found, missing, and
-    missing-subject counts. Dataset mode reads the constructed
+    missing subject counts. Dataset mode reads the constructed
     :class:`~hrtfpykit.datasets.state.DatasetState`, filters stored resource
     summaries to the resource families required by active specs, and returns a
-    plain-text report.
+    plain text report. Dataset reports show subject coverage first for every
+    resource family and physical file counts at the end when available.
 
     Parameters
     ----------
@@ -88,9 +89,9 @@ def resources_summary(
     Notes
     -----
     Dataset mode uses :func:`~hrtfpykit.datasets.specs_registry.has_specs` to decide
-    whether ``hrtf``, ``mesh``, ``anthropometry``, ``metadata``, ``image``, or ``video`` should
-    appear in the formatted output. If the constructed state contains no applicable
-    resource records, the summary reports ``none``.
+    whether ``hrtf``, ``mesh``, ``anthropometry``, ``metadata``, ``image``, or
+    ``video`` should appear in the formatted output. If the constructed state
+    contains no applicable resource records, the summary reports ``none``.
 
     """
 
@@ -118,14 +119,25 @@ def resources_summary(
     for resource_name, summary in state.resource_summary.items():
         if not used_resource_specs.get(resource_name, False):
             continue
-        parts = [str(resource_name)]
-        for key in ("checked", "found", "missing"):
-            if key in summary:
-                value = summary[key]
-                if value is None:
-                    continue
-                parts.append(f"{key}={value!r}")
-        resource_lines.append("  " + parts[0] + ": " + ", ".join(parts[1:]))
+        if "subjects_checked" in summary:
+            resource_lines.append(f"  {resource_name}:")
+            subject_parts = [f"checked={summary['subjects_checked']!r}"]
+            if "subjects_available" in summary:
+                subject_parts.append(f"available={summary['subjects_available']!r}")
+            if "subjects_missing" in summary:
+                subject_parts.append(f"missing={summary['subjects_missing']!r}")
+            resource_lines.append(f"    subjects: {', '.join(subject_parts)}")
+            if "files" in summary:
+                resource_lines.append(f"    files: {summary['files']!r}")
+        else:
+            parts = [str(resource_name)]
+            for key in ("checked", "found", "missing"):
+                if key in summary:
+                    value = summary[key]
+                    if value is None:
+                        continue
+                    parts.append(f"{key}={value!r}")
+            resource_lines.append("  " + parts[0] + ": " + ", ".join(parts[1:]))
     if len(resource_lines) == 0:
         return f"{_summary_title('DATASET RESOURCES SUMMARY')}\n  none"
     return "\n".join([_summary_title("DATASET RESOURCES SUMMARY:")] + resource_lines)

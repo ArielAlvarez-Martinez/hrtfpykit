@@ -1,6 +1,20 @@
 from dataclasses import dataclass
+from typing import cast
 
-from .checksums import HUTUBS_CHECKSUMS, SONICOM_CHECKSUMS
+from .checksums import ARI_CHECKSUMS, HUTUBS_CHECKSUMS, SONICOM_CHECKSUMS
+
+
+ARI_HRTF_PATHS = dict(
+    sorted(
+        (
+            (filename.split("_", 1)[1][:-len(".sofa")], filename)
+            for filename in ARI_CHECKSUMS["hrtf"]
+            if filename.startswith("hrtf ") and filename.endswith(".sofa")
+        ),
+        key=lambda item: int(item[0][2:]),
+    )
+)
+ARI_SUBJECT_IDS = tuple(ARI_HRTF_PATHS)
 
 
 @dataclass(frozen=True)
@@ -9,9 +23,9 @@ class ResourceTypeConfig:
 
     :class:`~hrtfpykit.datasets.config.ResourceTypeConfig` is the low-level
     schema used by HRTF and mesh resource configurations. It defines the
-    relative path template for one resource type, plus optional version and
-    sample-rate axes that expand the template into concrete subject files during
-    local scanning or download planning.
+    relative path rule for one resource type, plus optional version and sample
+    rate axes that expand the rule into concrete subject files during local
+    scanning or download planning.
 
     Path templates are formatted by the dataset resource scanners and
     downloader. HRTF templates can use placeholders such as subject_id,
@@ -24,9 +38,11 @@ class ResourceTypeConfig:
 
     Attributes
     ----------
-    path_pattern : str
+    path_pattern : str or dict[str, str]
         Relative path template used to locate local files and build official
-        download URLs.
+        download URLs, or a mapping from subject ID to relative resource path
+        for datasets whose official files do not share one filename template.
+        Mapping keys must use the canonical dataset subject IDs.
     versions : tuple of str
         Supported processing, compensation, or geometry versions for this
         resource type. An empty tuple means the type has no version selector.
@@ -50,7 +66,7 @@ class ResourceTypeConfig:
 
     """
 
-    path_pattern: str
+    path_pattern: str | dict[str, str]
     versions: tuple[str, ...] = ()
     version_labels: dict[str, str] | None = None
     sample_rates: tuple[int | str, ...] = ()
@@ -330,6 +346,56 @@ class DatasetConfig:
     image: ImageConfig | None = None
     video: VideoConfig | None = None
     download: DownloadConfig | None = None
+
+
+@dataclass(frozen=True)
+class ARIConfig(DatasetConfig):
+    """Built-in configuration for the ARI HRTF database.
+
+    :class:`~hrtfpykit.datasets.config.ARIConfig` declares the ARI subject IDs,
+    official HRTF SOFA paths, download base URL, and SHA-256 checksums used by
+    :class:`~hrtfpykit.datasets.ARI`. ARI filenames do not follow one shared
+    subject template, so the HRTF configuration stores a subject path map from
+    canonical IDs such as ``nh2`` or ``nh720`` to the corresponding official
+    SOFA filename.
+
+    Attributes
+    ----------
+    name : str
+        Dataset family name.
+    subject_ids : tuple of str
+        ARI subject IDs available through the current official HRTF checksum
+        map.
+    hrtf : HRTFConfig or None
+        HRTF resource configuration. ARI currently exposes one combined HRTF
+        resource family backed by subject-specific SOFA paths.
+    download : DownloadConfig or None
+        Official ARI download configuration for HRTF resources.
+
+    Notes
+    -----
+    The official ARI HRTF files are distributed in b, c, and d filename groups.
+    The files included in this configuration are treated as one compatible ARI
+    HRTF collection because they share the same source grid, IR shape, and
+    sample rate. Workflows that need a narrower subset can exclude subject IDs
+    when constructing :class:`~hrtfpykit.datasets.ARI`.
+
+    """
+
+    name: str = "ARI"
+    subject_ids: tuple[str, ...] = ARI_SUBJECT_IDS
+    hrtf: HRTFConfig | None = HRTFConfig(
+        types={
+            "hrtf": ResourceTypeConfig(
+                path_pattern=ARI_HRTF_PATHS,
+            ),
+        },
+    )
+    download: DownloadConfig | None = DownloadConfig(
+        base_url="https://sofacoustics.org/data/database/ari",
+        available_resources=("hrtf",),
+        checksums=cast(dict[str, object], ARI_CHECKSUMS),
+    )
 
 
 @dataclass(frozen=True)

@@ -7,7 +7,7 @@ from typing import Any, cast
 import urllib.error
 import urllib.request
 import zipfile
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from .config import DatasetConfig
 from .summary import download_summary
@@ -407,6 +407,10 @@ class BaseDownload:
         used. The relative resource path remains the same path used for local
         destinations and checksum lookup.
 
+        URL unsafe characters in the relative path, such as spaces in official
+        filenames, are percent-encoded only in the returned URL. Local
+        destination paths and checksum keys keep the original relative path.
+
         Parameters
         ----------
         resource : str
@@ -435,7 +439,7 @@ class BaseDownload:
             self.config.download.base_url,
         )
         validated_base_url = self.validate_download_url(str(resource_base_url).rstrip("/"))
-        return f"{validated_base_url}/{filename}"
+        return f"{validated_base_url}/{quote(filename, safe='/')}"
 
     def get_checksum(
         self,
@@ -677,16 +681,18 @@ class BaseDownload:
         """Build file-level jobs for the selected official resources.
 
         The plan expands resource groups, subject scopes, HRTF variants, mesh
-        variants, path templates, URLs, destinations, and checksums into concrete
-        jobs. Checksum fields are None when checksum verification is disabled. It
-        performs planning without writing files, which lets constructors and tests
-        inspect download intent separately from execution.
+        variants, resource path rules, URLs, destinations, and checksums into
+        concrete jobs. Resource path rules can be one format template shared by
+        all subjects or a mapping from subject ID to relative path. Checksum
+        fields are None when checksum verification is disabled. It performs
+        planning without writing files, which lets constructors and tests inspect
+        download intent separately from execution.
 
         This planner only uses download arguments. It does not inspect dataset specs,
         dataset construction variants, or any future
         :class:`~hrtfpykit.datasets.base.BaseDataset` state. Passing ``all`` in a
         download variant expands that download axis across the available values
-        declared by the dataset config. When a resource type has no sample-rate or
+        declared by the dataset config. When a resource type has no sample rate or
         version axis, the planner still creates jobs with the corresponding selector
         omitted.
 
@@ -826,7 +832,14 @@ class BaseDownload:
                                 str(hrtf_version),
                             )
                         for subject_id in subject_ids:
-                            relative_path = hrtf_type_config.path_pattern.format(
+                            path_pattern = hrtf_type_config.path_pattern
+                            if isinstance(path_pattern, dict):
+                                selected_path_pattern = path_pattern.get(subject_id)
+                                if selected_path_pattern is None:
+                                    continue
+                            else:
+                                selected_path_pattern = path_pattern
+                            relative_path = selected_path_pattern.format(
                                 subject_id=subject_id,
                                 subject_number=subject_numbers[subject_id],
                                 type=hrtf_type,
@@ -921,7 +934,14 @@ class BaseDownload:
                             str(mesh_version),
                         )
                     for subject_id in subject_ids:
-                        relative_path = mesh_type_config.path_pattern.format(
+                        path_pattern = mesh_type_config.path_pattern
+                        if isinstance(path_pattern, dict):
+                            selected_path_pattern = path_pattern.get(subject_id)
+                            if selected_path_pattern is None:
+                                continue
+                        else:
+                            selected_path_pattern = path_pattern
+                        relative_path = selected_path_pattern.format(
                             subject_id=subject_id,
                             subject_number=subject_numbers[subject_id],
                             type=mesh_type,

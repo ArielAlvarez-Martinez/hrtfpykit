@@ -196,9 +196,10 @@ class DatasetResourcesValidator:
             )
         )
         if len(missing_mesh_subject_ids) > 0:
+            mesh_root = mesh_summary.get("root", state.root)
             warnings.warn(
                 f"{state.name}: {len(missing_mesh_subject_ids)} subjects do not have a matching mesh file under "
-                f"{state.root} and will be excluded when mesh is required "
+                f"{mesh_root} and will be excluded when mesh is required "
                 f"({', '.join(str(value) for value in missing_mesh_subject_ids[:5])}"
                 f"{', ...' if len(missing_mesh_subject_ids) > 5 else ''})",
                 stacklevel=2,
@@ -354,15 +355,20 @@ class DatasetResourcesValidator:
             return
         if anthropometry_path is None:
             raise ValueError(
-                f"{state.name} requires an anthropometry file but none was selected"
+                f"AnthropometrySpec was requested, but no anthropometry file was selected for "
+                f"{state.name}. Pass AnthropometrySpec(path=...) or use a dataset "
+                "configuration that declares anthropometry."
             )
         if not anthropometry_path.is_file():
             raise ValueError(
-                f"{state.name} anthropometry path is invalid: {anthropometry_path}"
+                f"AnthropometrySpec selected path does not exist or is not a file: "
+                f"{anthropometry_path}. Relative paths are resolved from dataset "
+                f"root: {state.root}."
             )
         if not isinstance(anthropometry_rows, dict):
             raise ValueError(
-                f"{state.name} anthropometry data is invalid: expected a mapping but got {type(anthropometry_rows)!r}"
+                f"{state.name} anthropometry data is invalid: expected a mapping, "
+                f"got {type(anthropometry_rows)!r}"
             )
 
     def validate_metadata_resources(
@@ -402,30 +408,20 @@ class DatasetResourcesValidator:
             return
         if metadata_path is None:
             raise ValueError(
-                f"{state.name} requires a metadata file but none was selected"
+                f"MetadataSpec was requested, but no metadata file was selected for "
+                f"{state.name}. Pass MetadataSpec(path=...) or use a dataset "
+                "configuration that declares metadata."
             )
         if not metadata_path.is_file():
-            metadata_specs = cast(tuple[Any, ...], get_specs(state.specs, resource_name="metadata"))
-            metadata_spec_path = None
-            if len(metadata_specs) > 0:
-                metadata_spec_path = metadata_specs[0].path
-            config_metadata_path = None
-            if state.config is not None and state.config.metadata is not None:
-                config_metadata_path = state.root / state.config.metadata.path
             raise ValueError(
-                f"{state.name} metadata resource is required because MetadataSpec is requested, "
-                f"but the selected metadata file does not exist or is not a file. "
-                f"selected_path={metadata_path}; "
-                f"root={state.root}; "
-                f"metadata_spec_path={metadata_spec_path}; "
-                f"config_metadata_path={config_metadata_path}; "
-                f"fix: place the metadata file at selected_path, pass MetadataSpec(path=...), "
-                f"or download it with download=True and download_resources='metadata' "
-                f"or download_resources=('hrtf', 'metadata')."
+                f"MetadataSpec selected path does not exist or is not a file: "
+                f"{metadata_path}. Relative paths are resolved from dataset root: "
+                f"{state.root}."
             )
         if not isinstance(metadata_rows, dict):
             raise ValueError(
-                f"{state.name} metadata data is invalid: expected a mapping but got {type(metadata_rows)!r}"
+                f"{state.name} metadata data is invalid: expected a mapping, "
+                f"got {type(metadata_rows)!r}"
             )
 
 
@@ -569,11 +565,13 @@ class DatasetResourcesScanner:
     ) -> tuple[dict[str, Path], dict[str, object] | None]:
         """Scan for HRTF files required by selected acoustic specs.
 
-        The scanner formats the dataset HRTF path pattern with subject IDs, subject
-        numbers, type, sample-rate, and version selectors. It returns the paths that
-        exist plus a summary of checked, found, and missing subjects for validation
-        and error reporting. It does not load SOFA files; loadability and sample
-        rate consistency are handled by
+        The scanner resolves the dataset HRTF path rule for each subject. A rule
+        can be one format template shared by all subjects or a mapping from
+        subject ID to relative path. Template rules are formatted with subject
+        IDs, subject numbers, type, sample rate, and version selectors. The
+        method returns the paths that exist plus a summary of checked, found, and
+        missing subjects for validation and error reporting. It does not load
+        SOFA files; loadability and sample rate consistency are handled by
         :meth:`~hrtfpykit.datasets.resources.DatasetResourcesValidator.validate_hrtf_resources`.
 
         Parameters
@@ -585,7 +583,8 @@ class DatasetResourcesScanner:
         dataset_hrtf_variant : str, dict, or None
             Selected HRTF resource variant. A string selects the HRTF type; a
             mapping can provide ``type``, ``sample_rate``, and ``version``
-            entries.
+            entries. When None and the dataset exposes exactly one HRTF type,
+            that type is selected automatically.
         excluded_subject_ids : set of str
             Canonical subject IDs removed before scanning.
         required : bool
@@ -601,7 +600,7 @@ class DatasetResourcesScanner:
         Raises
         ------
         ValueError
-            If HRTF resources are required but no dataset HRTF variant is selected.
+            If HRTF resources are required but no HRTF type can be selected.
 
         """
         hrtf_paths: dict[str, Path] = {}
@@ -616,7 +615,10 @@ class DatasetResourcesScanner:
             hrtf_sample_rate = None
             hrtf_version = None
         if hrtf_type is None:
-            raise ValueError(f"{config.name} requires dataset_hrtf_variant for HRTF resources")
+            if len(config.hrtf.types) == 1:
+                hrtf_type = next(iter(config.hrtf.types))
+            else:
+                raise ValueError(f"{config.name} requires dataset_hrtf_variant for HRTF resources")
         hrtf_type_config = config.hrtf.types[hrtf_type]
         sample_rate_label = None
         if hrtf_sample_rate is not None:
@@ -646,7 +648,14 @@ class DatasetResourcesScanner:
                     cast(str, hrtf_version),
                     str(hrtf_version),
                 )
-            relative_path = hrtf_type_config.path_pattern.format(
+            path_pattern = hrtf_type_config.path_pattern
+            if isinstance(path_pattern, dict):
+                selected_path_pattern = path_pattern.get(subject_id)
+                if selected_path_pattern is None:
+                    continue
+            else:
+                selected_path_pattern = path_pattern
+            relative_path = selected_path_pattern.format(
                 subject_id=subject_id,
                 subject_number=subject_numbers[subject_id],
                 type=hrtf_type,
@@ -669,7 +678,9 @@ class DatasetResourcesScanner:
             if subject_id not in hrtf_paths
         )
         return hrtf_paths, {
-            "pattern": hrtf_type_config.path_pattern,
+            "pattern": hrtf_type_config.path_pattern
+            if isinstance(hrtf_type_config.path_pattern, str)
+            else f"{len(hrtf_type_config.path_pattern)} subject paths",
             "hrtf_variant": {
                 "type": hrtf_type,
                 "sample_rate": hrtf_sample_rate,
@@ -694,10 +705,12 @@ class DatasetResourcesScanner:
     ) -> tuple[dict[str, Path], dict[str, object] | None]:
         """Scan for mesh files required by selected mesh specs.
 
-        The scanner resolves the selected mesh variant, applies extension candidates,
-        formats per-subject path patterns, and records which subjects have usable
-        mesh files. It does not load mesh geometry; sample selection returns paths
-        or transformed path values later.
+        The scanner resolves the selected mesh variant, applies extension
+        candidates, resolves one path rule for each subject, and records which
+        subjects have usable mesh files. The path rule can be one format template
+        shared by all subjects or a mapping from subject ID to relative path. It
+        does not load mesh geometry; sample selection returns paths or transformed
+        path values later.
 
         Parameters
         ----------
@@ -714,8 +727,8 @@ class DatasetResourcesScanner:
         required : bool
             Whether selected specs require mesh resources.
         extensions : tuple of str or None, default=None
-            Candidate mesh extensions. If the path pattern has no suffix, each
-            extension is appended; otherwise the suffix is replaced by each
+            Candidate mesh extensions. If the selected mesh path has no suffix,
+            each extension is appended; otherwise the suffix is replaced by each
             extension.
 
         Returns
@@ -772,7 +785,14 @@ class DatasetResourcesScanner:
                     cast(str, mesh_version),
                     str(mesh_version),
                 )
-            relative_path = mesh_type_config.path_pattern.format(
+            path_pattern = mesh_type_config.path_pattern
+            if isinstance(path_pattern, dict):
+                selected_path_pattern = path_pattern.get(subject_id)
+                if selected_path_pattern is None:
+                    continue
+            else:
+                selected_path_pattern = path_pattern
+            relative_path = selected_path_pattern.format(
                 subject_id=subject_id,
                 subject_number=subject_numbers[subject_id],
                 type=mesh_type,
@@ -808,7 +828,9 @@ class DatasetResourcesScanner:
             if subject_id not in mesh_paths
         )
         return mesh_paths, {
-            "pattern": mesh_type_config.path_pattern,
+            "pattern": mesh_type_config.path_pattern
+            if isinstance(mesh_type_config.path_pattern, str)
+            else f"{len(mesh_type_config.path_pattern)} subject paths",
             "mesh_variant": {
                 "type": mesh_type,
                 "version": mesh_version,
@@ -884,8 +906,12 @@ class DatasetResourcesScanner:
 
         """
         grouped_paths: dict[tuple[str, int | None, str | None], list[str]] = {}
-        if not path.exists():
-            raise ValueError(f"{resource_name} path does not exist: {path}")
+        if not path.is_dir():
+            raise ValueError(
+                f"{resource_name} root does not exist or is not a directory: {path}. "
+                "Expected one folder per dataset subject, named with the subject ID, "
+                "subjectN, or subject_N."
+            )
         subject_counts: dict[str, int] = {}
         missing_subject_ids: list[str] = []
         normalized_extensions = {extension.lower() for extension in extensions}
@@ -912,8 +938,11 @@ class DatasetResourcesScanner:
             ]
             if len(matches) > 1:
                 raise ValueError(
-                    f"{resource_name} path {path} contains multiple folders for subject {subject_id!r}: "
+                    f"{resource_name} root {path} has multiple folders for subject "
+                    f"{subject_id!r}: "
                     + ", ".join(str(path_item.name) for path_item in matches)
+                    + ". Keep one folder using one accepted name: "
+                    + ", ".join(candidate_names)
                 )
             if len(matches) == 0:
                 missing_subject_ids.append(subject_id)
@@ -1288,6 +1317,10 @@ class DatasetResources:
             ))
         resource_summary["hrtf"] = hrtf_summary
         hrtf_paths = validator.validate_hrtf_resources(hrtf_paths, hrtf_summary)
+        hrtf_summary["subjects_checked"] = int(cast(Any, hrtf_summary.get("checked", 0)))
+        hrtf_summary["subjects_available"] = len(hrtf_paths)
+        hrtf_summary["subjects_missing"] = int(cast(Any, hrtf_summary.get("missing", 0)))
+        hrtf_summary["files"] = len(hrtf_paths)
 
         if has_mesh_specs:
             mesh_root_path = root
@@ -1323,6 +1356,11 @@ class DatasetResources:
                 missing=int(cast(Any, mesh_summary.get("missing", 0))),
                 missing_subject_ids=tuple(cast(tuple[str, ...], mesh_summary.get("missing_subject_ids", tuple()))),
             ))
+            mesh_summary["subjects_checked"] = int(cast(Any, mesh_summary.get("checked", 0)))
+            mesh_summary["subjects_available"] = len(mesh_paths)
+            mesh_summary["subjects_missing"] = int(cast(Any, mesh_summary.get("missing", 0)))
+            mesh_summary["files"] = len(mesh_paths)
+            mesh_summary["root"] = str(mesh_root_path)
             validator.validate_mesh_resources(mesh_summary)
             resource_summary["mesh"] = mesh_summary
         else:
@@ -1371,6 +1409,18 @@ class DatasetResources:
                     found=1,
                     missing=0,
                 ))
+            missing_subject_ids = tuple(
+                subject_id
+                for subject_id in resource_subjects
+                if subject_id not in anthropometry_rows
+            )
+            anthropometry_summary["subjects_checked"] = len(resource_subjects)
+            anthropometry_summary["subjects_available"] = len(anthropometry_rows)
+            anthropometry_summary["subjects_missing"] = len(missing_subject_ids)
+            anthropometry_summary["files"] = (
+                1 if anthropometry_path is not None and anthropometry_path.is_file() else 0
+            )
+            anthropometry_summary["missing_subject_ids"] = missing_subject_ids
         else:
             anthropometry_path = None
             anthropometry_rows = {}
@@ -1424,6 +1474,18 @@ class DatasetResources:
                     found=1,
                     missing=0,
                 ))
+            missing_subject_ids = tuple(
+                subject_id
+                for subject_id in resource_subjects
+                if subject_id not in metadata_rows
+            )
+            metadata_summary["subjects_checked"] = len(resource_subjects)
+            metadata_summary["subjects_available"] = len(metadata_rows)
+            metadata_summary["subjects_missing"] = len(missing_subject_ids)
+            metadata_summary["files"] = (
+                1 if metadata_path is not None and metadata_path.is_file() else 0
+            )
+            metadata_summary["missing_subject_ids"] = missing_subject_ids
         else:
             metadata_path = None
             metadata_rows = {}
@@ -1444,7 +1506,11 @@ class DatasetResources:
             if requested_image_path is None and config.image is not None and config.image.path is not None:
                 requested_image_path = (root / config.image.path).expanduser()
             if requested_image_path is None:
-                raise ValueError("ImageSpec requires a path because no dataset image path is configured")
+                raise ValueError(
+                    f"ImageSpec was requested, but no image root was selected for "
+                    f"{state.name}. Pass ImageSpec(path=...) or use a dataset "
+                    "configuration that declares an image path."
+                )
             image_path = requested_image_path
             image_grouped_by: tuple[str, ...] = ("subject",)
             ears = tuple(ear for ear, _ in state.selected_ears) if len(state.selected_ears) > 0 else ("left", "right")
@@ -1473,6 +1539,10 @@ class DatasetResources:
                 missing=len(missing_subject_ids),
                 missing_subject_ids=tuple(missing_subject_ids),
             ))
+            image_summary["subjects_checked"] = len(resource_subjects)
+            image_summary["subjects_available"] = len(image_counts)
+            image_summary["subjects_missing"] = len(missing_subject_ids)
+            image_summary["files"] = sum(image_counts.values())
             resource_summary["image"] = image_summary
             validator.validate_image_resources(
                 image_summary,
@@ -1492,7 +1562,11 @@ class DatasetResources:
             if requested_video_path is None and config.video is not None and config.video.path is not None:
                 requested_video_path = (root / config.video.path).expanduser()
             if requested_video_path is None:
-                raise ValueError("VideoSpec requires a path because no dataset video path is configured")
+                raise ValueError(
+                    f"VideoSpec was requested, but no video root was selected for "
+                    f"{state.name}. Pass VideoSpec(path=...) or use a dataset "
+                    "configuration that declares a video path."
+                )
             video_path = requested_video_path
             video_grouped_by: tuple[str, ...] = ("subject",)
             ears = tuple(ear for ear, _ in state.selected_ears) if len(state.selected_ears) > 0 else ("left", "right")
@@ -1521,6 +1595,10 @@ class DatasetResources:
                 missing=len(missing_subject_ids),
                 missing_subject_ids=tuple(missing_subject_ids),
             ))
+            video_summary["subjects_checked"] = len(resource_subjects)
+            video_summary["subjects_available"] = len(video_counts)
+            video_summary["subjects_missing"] = len(missing_subject_ids)
+            video_summary["files"] = sum(video_counts.values())
             resource_summary["video"] = video_summary
             validator.validate_video_resources(
                 video_summary,

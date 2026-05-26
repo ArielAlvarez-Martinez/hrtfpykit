@@ -210,7 +210,7 @@ class HUTUBS(BaseDataset):
         row : dict
             Current dataset row context.
         value : object
-            Raw anthropometry value selected by the generic table resolver.
+            Loaded anthropometry value selected by the generic table resolver.
 
         Returns
         -------

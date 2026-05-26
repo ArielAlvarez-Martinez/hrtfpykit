@@ -1,3 +1,4 @@
+from .ari import ARI
 from .hutubs import HUTUBS
 from .sonicom import SONICOM
 from .specs import (
@@ -17,6 +18,7 @@ from .transforms import HRTFTransform
 
 __all__ = [
     "AnthropometrySpec",
+    "ARI",
     "HRTFSpec",
     "HRTFTransform",
     "HUTUBS",

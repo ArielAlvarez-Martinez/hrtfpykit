@@ -18,6 +18,7 @@ use the `v0.0.x` format.
   SH coefficient shapes, basis shapes, and reconstruction from magnitude values.
 - Added ARI HRTF SHA-256 checksums for the `hrtf b`, `hrtf c`, and `hrtf d`
   SOFA files, excluding the duplicate legacy files.
+- Added the `ARI` dataset class with official HRTF SOFA resource downloads.
 
 ### Changed
 
@@ -27,8 +28,15 @@ use the `v0.0.x` format.
   cells so each plot family can be inspected and modified independently.
 - Reordered the plotting tutorial imports so shared plotting functions are
   imported once before the example that explains figure controls.
+- Changed dataset resource summaries to report subject coverage first for every
+  resource family, followed by physical file counts when available.
+- Improved dataset spec path errors for anthropometry, metadata, mesh, image,
+  and video resources.
 - Changed HRTF download checksum lookup to support flat checksum maps keyed by
   file name, in addition to the existing grouped type/version/sample rate maps.
+- Changed dataset HRTF and mesh resource scanning and download planning to
+  support subject specific path maps for datasets whose official filenames do
+  not share one template.
 
 ### Fixed
 

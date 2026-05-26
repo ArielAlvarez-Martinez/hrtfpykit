@@ -579,11 +579,13 @@ class AnthropometrySpec:
         appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
         default key is ``"anthropometry"``.
 
-        The default output type depends on the loaded anthropometry layout. A
-        mapping-style table usually returns a ``dict`` mapping measurement names
-        to values. A matrix-style file can return a :class:`numpy.ndarray` or a
-        scalar-like value. If ``transform`` is provided, the returned type is
-        whatever the transform returns.
+        CSV and MAT anthropometry tables are normalized before sample selection.
+        The generic loaded value is a ``dict`` mapping measurement names to
+        values for the matched subject, regardless of whether subjects were
+        stored along rows or columns in the source table. Dataset selectors can
+        then filter or reshape that value, for example to keep fields for the
+        selected ear. If ``transform`` is provided, the returned type is whatever
+        the transform returns.
 
         The ``transform`` callable receives the selected anthropometry value after
         subject and optional ear selection. Use it when the selected value should
@@ -593,7 +595,7 @@ class AnthropometrySpec:
         Notes
         -----
         Measurement names, units, table schemas, and ear-specific field naming are
-        dataset-specific. Concrete dataset integrations or value selectors handle
+        dataset specific. Concrete dataset integrations or value selectors handle
         those details; this spec only describes how anthropometry resources are
         requested, indexed, and returned.
 
@@ -612,7 +614,10 @@ class AnthropometrySpec:
         grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
             Dataset grouping used to select anthropometry values.
         subject_id : bool, default=True
-            Whether the table includes a leading subject identifier row or column.
+            Whether the table provides explicit subject IDs. CSV tables with
+            subjects in rows use the first column, CSV tables with subjects in
+            columns use the subject column headers, and MAT tables use a subject
+            ID variable.
         ear : {``both``, ``left``, ``right``} or None, default=None
             Optional ear selection for ear-grouped anthropometry.
         ear_one_hot, ear_index : bool, default=False
@@ -697,11 +702,12 @@ class MetadataSpec:
         appears under ``dataset[0]["target"][name]``. When ``name`` is None, the
         default key is ``"metadata"``.
 
-        The default output type depends on the loaded metadata layout. A
-        mapping-style table usually returns a ``dict`` mapping metadata field
-        names to values. A matrix-style file can return a
-        :class:`numpy.ndarray` or scalar-like value. If ``transform`` is provided,
-        the returned type is whatever the transform returns.
+        CSV and MAT metadata tables are normalized before sample selection. The
+        generic loaded value is a ``dict`` mapping metadata field names to values
+        for the matched subject, regardless of whether subjects were stored along
+        rows or columns in the source table. Dataset selectors can then filter or
+        reshape that value. If ``transform`` is provided, the returned type is
+        whatever the transform returns.
 
         The ``transform`` callable receives the selected metadata value after
         subject and optional ear selection. Use it when the selected value should
@@ -711,7 +717,7 @@ class MetadataSpec:
         Notes
         -----
         Metadata availability, field names, and semantic meaning are
-        dataset-specific. If the active dataset configuration does not declare a
+        dataset specific. If the active dataset configuration does not declare a
         metadata table, provide ``path`` to a compatible custom table or use a
         dataset integration that declares metadata resources.
 
@@ -730,7 +736,10 @@ class MetadataSpec:
         grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
             Dataset grouping used to select metadata values.
         subject_id : bool, default=True
-            Whether the table includes a leading subject identifier row or column.
+            Whether the table provides explicit subject IDs. CSV tables with
+            subjects in rows use the first column, CSV tables with subjects in
+            columns use the subject column headers, and MAT tables use a subject
+            ID variable.
         ear : {``both``, ``left``, ``right``} or None, default=None
             Optional ear selection for ear-grouped metadata.
         ear_one_hot, ear_index : bool, default=False

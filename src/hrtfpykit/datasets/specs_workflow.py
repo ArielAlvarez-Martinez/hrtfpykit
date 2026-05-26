@@ -183,7 +183,9 @@ class DatasetSpecWorkflow:
             )
             if len(set(explicit_paths)) > 1:
                 raise ValueError(
-                    f"{descriptor.resource_name} specs must not define different paths in the same dataset"
+                    f"{descriptor.spec_type.__name__} paths for one dataset must "
+                    "select one resource location. Got: "
+                    + ", ".join(sorted(set(explicit_paths)))
                 )
 
         dataset_index_by = None
