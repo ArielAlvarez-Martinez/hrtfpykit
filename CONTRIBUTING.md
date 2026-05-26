@@ -23,7 +23,6 @@ Please include the information that makes the problem reproducible:
 
 - `hrtfpykit` version or commit.
 - Python version and operating system.
-- The SOFA convention involved, when relevant.
 - A small code example that shows the problem.
 - The full error traceback, if there is one.
 - Expected behavior and actual behavior.
@@ -39,56 +38,47 @@ problem.
 1. Create a feature branch from the current main branch.
 2. Keep the change focused on one problem or one feature.
 3. Follow the existing code style and public API naming patterns.
-4. Use the `hrtfpykit` SOFA API for SOFA file handling inside HRTF workflows.
-5. Update documentation when the public behavior changes.
-6. Add or update examples only when they help users understand the change.
-7. Run the relevant checks before opening the pull request.
-8. Open the pull request with a clear description of what changed and why.
+4. Update documentation when the public behavior changes.
+5. Add or update examples only when they help users understand the change.
+6. Run the relevant checks before opening the pull request.
+7. Open the pull request with a clear description of what changed and why.
 
 Avoid committing generated files or local data such as `docs/_build/`, `dist/`,
 `build/`, local HRTF datasets, temporary wheels, or large SOFA files.
 
-## HRTF and SOFA Contributions
+## Contribution Guidelines
 
-For changes involving HRTF or SOFA behavior:
+Use these guidelines for code, documentation, examples, tests, and dataset
+integrations:
 
-- Keep `SimpleFreeFieldHRIR` and `SimpleFreeFieldHRTF` behavior explicit.
-- Preserve the connection between SOFA metadata, source positions, IR data, and
-  TF data.
-- Prefer clear errors when input data is invalid.
+- Keep changes focused and aligned with the public API.
+- Keep HRTF, HRIR, and SOFA behavior explicit when a change touches acoustic
+  data loading, conversion, validation, or saving.
+- Preserve the relationship between metadata, source positions, ears, IR data,
+  TF data, sample axes, and frequency bins.
 - Keep time domain and frequency domain behavior consistent.
-- Be careful with source coordinate systems, ears, sample axes, and frequency
-  bins.
-
-For dataset contributions:
-
+- Prefer clear errors when input data is invalid.
 - Keep dataset samples explicit through specs.
 - Keep inputs, targets, splits, variants, and subject resources reproducible.
 - Do not assume local private paths or unavailable datasets.
-- Keep batching behavior compatible with `collate_samples` when possible.
-
-## Documentation and Plot Examples
-
-Documentation should match the current public API. When adding examples:
-
-- Use import paths that users can run.
+- Keep documentation aligned with the current public API.
 - Keep examples short and focused.
-- Avoid private helper APIs.
-- Do not invent behavior that is not implemented.
-- Regenerate plot images only when the documented plotting example changes.
+
 
 ## Local Checks
 
-Run tests:
+Run the relevant checks before opening a pull request. For a full local pass:
 
 ```bash
-pytest
+python -m pytest
+python -m ruff check src/hrtfpykit
+python -m mypy src/hrtfpykit
 ```
 
 Build the documentation:
 
 ```bash
-sphinx -W -b html docs docs/_build/html
+pyhton -m sphinx -W -b html docs docs/_build/html
 ```
 
 Build package distributions:
