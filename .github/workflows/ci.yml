@@ -92,3 +92,14 @@ jobs:
           tests/test_sonicom.py::test_sonicom_spec_workflow_does_not_mutate_spec_objects
           tests/test_sonicom.py::test_sonicom_metadata_download_plan
           tests/test_sonicom.py::test_sonicom_windowed_checksums_cover_default_sample_rates
+          tests/test_ari.py::test_ari_config_subject_ids_are_valid
+          tests/test_ari.py::test_ari_config_subject_exclusions
+          tests/test_ari.py::test_ari_hrtf_download_plan
+          tests/test_ari.py::test_ari_download_plan_follows_subject_limit
+          tests/test_ari.py::test_ari_missing_checksum_fails_download_plan
+          tests/test_ari.py::test_ari_checksum_mismatch_fails
+          tests/test_ari.py::test_ari_invalid_download_variant_keys_are_rejected
+          tests/test_ari.py::test_ari_spec_workflow_does_not_mutate_spec_objects
+          tests/test_ari.py::test_ari_anthropometry_download_plan
+          tests/test_ari.py::test_ari_metadata_download_plan
+

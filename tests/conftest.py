@@ -19,6 +19,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Path to local SONICOM dataset root",
     )
     parser.addoption(
+        "--ari-root",
+        action="store",
+        default=os.getenv("ARI_ROOT", ""),
+        help="Path to local ARI dataset root",
+    )
+    parser.addoption(
         "--image-path",
         action="store",
         default=os.getenv("HUTUBS_IMAGE_PATH", os.getenv("HUTUBS_IMAGE_ROOT", "")),
@@ -62,6 +68,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Run SONICOM network download tests",
     )
     parser.addoption(
+        "--ari-download",
+        action="store_true",
+        default=False,
+        help="Run ARI network download tests",
+    )
+    parser.addoption(
         "--show",
         action="store_true",
         default=False,
@@ -78,6 +90,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_configure(config: pytest.Config) -> None:
     hutubs_root = str(config.getoption("hutubs_root") or os.getenv("HUTUBS_TEST_HUTUBS_ROOT", "")).strip()
     sonicom_root = str(config.getoption("sonicom_root") or os.getenv("SONICOM_TEST_ROOT", "")).strip()
+    ari_root = str(config.getoption("ari_root") or os.getenv("ARI_TEST_ROOT", "")).strip()
     image_path = str(config.getoption("image_path") or os.getenv("HUTUBS_TEST_IMAGE_PATH", os.getenv("HUTUBS_IMAGE_PATH", os.getenv("HUTUBS_IMAGE_ROOT", "")))).strip()
     sofa_path = str(config.getoption("sofa_path") or os.getenv("HRTFPYKIT_TEST_SOFA_PATH", os.getenv("HRTFPYKIT_SOFA_PATH", ""))).strip()
     compare_sofa_paths_option = config.getoption("compare_sofa_paths")
@@ -91,11 +104,15 @@ def pytest_configure(config: pytest.Config) -> None:
         )
     subjects = str(
         config.getoption("subjects")
-        or os.getenv("HUTUBS_TEST_SUBJECT_LIMIT", os.getenv("SONICOM_TEST_SUBJECT_LIMIT", ""))
+        or os.getenv(
+            "HUTUBS_TEST_SUBJECT_LIMIT",
+            os.getenv("SONICOM_TEST_SUBJECT_LIMIT", os.getenv("ARI_TEST_SUBJECT_LIMIT", "")),
+        )
     ).strip()
     full = bool(config.getoption("full"))
     hutubs_download = bool(config.getoption("hutubs_download"))
     sonicom_download = bool(config.getoption("sonicom_download"))
+    ari_download = bool(config.getoption("ari_download"))
     show = bool(config.getoption("show"))
     visual = bool(config.getoption("visual"))
     if hutubs_root != "":
@@ -105,6 +122,10 @@ def pytest_configure(config: pytest.Config) -> None:
     if sonicom_root != "":
         os.environ["SONICOM_TEST_ROOT"] = sonicom_root
         os.environ["SONICOM_ROOT"] = sonicom_root
+
+    if ari_root != "":
+        os.environ["ARI_TEST_ROOT"] = ari_root
+        os.environ["ARI_ROOT"] = ari_root
 
     if image_path != "":
         os.environ["HUTUBS_TEST_IMAGE_PATH"] = image_path
@@ -121,19 +142,25 @@ def pytest_configure(config: pytest.Config) -> None:
     if subjects != "":
         os.environ["HUTUBS_TEST_SUBJECT_LIMIT"] = subjects
         os.environ["SONICOM_TEST_SUBJECT_LIMIT"] = subjects
+        os.environ["ARI_TEST_SUBJECT_LIMIT"] = subjects
 
     if full:
         os.environ["HUTUBS_TEST_FULL"] = "1"
         os.environ["SONICOM_TEST_FULL"] = "1"
+        os.environ["ARI_TEST_FULL"] = "1"
     else:
         os.environ.pop("HUTUBS_TEST_FULL", None)
         os.environ.pop("SONICOM_TEST_FULL", None)
+        os.environ.pop("ARI_TEST_FULL", None)
 
     if hutubs_download:
         os.environ["HUTUBS_TEST_DOWNLOAD"] = "1"
 
     if sonicom_download:
         os.environ["SONICOM_TEST_DOWNLOAD"] = "1"
+
+    if ari_download:
+        os.environ["ARI_TEST_DOWNLOAD"] = "1"
 
     if show or visual:
         os.environ["HRTFPYKIT_TEST_SHOW_PLOTS"] = "1"

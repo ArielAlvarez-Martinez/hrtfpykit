@@ -24,6 +24,9 @@ use the `v0.0.x` format.
 - Added ARI anthropometry ear selection so `AnthropometrySpec(ear="left")` and
   `AnthropometrySpec(ear="right")` filter ear-specific fields by `L_` and `R_`
   prefixes while preserving shared `x*` measurements.
+- Added ARI dataset tests for configuration, download planning, checksum
+  failures, spec workflow immutability, CSV resource plans, and anthropometry
+  ear selection.
 
 ### Changed
 
