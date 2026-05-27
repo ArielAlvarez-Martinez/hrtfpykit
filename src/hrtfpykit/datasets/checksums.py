@@ -12180,6 +12180,12 @@ SONICOM_CHECKSUMS = {
 }
 
 ARI_CHECKSUMS = {
+    'anthropometry': {
+        'anthro.csv': 'd4a0ddc346eb5cb8f07f64360c1291cf4dea96b96b801315a9765725ee50e1d1',
+    },
+    'metadata': {
+        'metadata.csv': '174132eee78ffb8b9c7bea5a3774586b0527befad41322a08fa005c68d8a0862',
+    },
     'hrtf': {
         'hrtf b_nh2.sofa': 'fb81037fc327fd1454cee5daaa3ddb8ca808406345c753e4c6bf17db5d53cdf3',
         'hrtf b_nh4.sofa': '3ad06c6b9396ca604e95fa9833ca0a926f427823bfd6b5a09845f41f74fecd43',

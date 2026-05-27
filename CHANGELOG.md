@@ -19,6 +19,11 @@ use the `v0.0.x` format.
 - Added ARI HRTF SHA-256 checksums for the `hrtf b`, `hrtf c`, and `hrtf d`
   SOFA files, excluding the duplicate legacy files.
 - Added the `ARI` dataset class with official HRTF SOFA resource downloads.
+- Added ARI anthropometry and metadata CSV resource downloads backed by the
+  `ari_anthropometry_and_metadata` repository.
+- Added ARI anthropometry ear selection so `AnthropometrySpec(ear="left")` and
+  `AnthropometrySpec(ear="right")` filter ear-specific fields by `L_` and `R_`
+  prefixes while preserving shared `x*` measurements.
 
 ### Changed
 
@@ -32,14 +37,22 @@ use the `v0.0.x` format.
   resource family, followed by physical file counts when available.
 - Improved dataset spec path errors for anthropometry, metadata, mesh, image,
   and video resources.
+- Improved missing anthropometry, metadata, image, and video resource errors so
+  they show the selected path, dataset root, configured source, and download
+  resource hint when available.
 - Changed HRTF download checksum lookup to support flat checksum maps keyed by
   file name, in addition to the existing grouped type/version/sample rate maps.
 - Changed dataset HRTF and mesh resource scanning and download planning to
   support subject specific path maps for datasets whose official filenames do
   not share one template.
+- Reordered HUTUBS and SONICOM CI dataset checks so both files follow the same
+  baseline test sequence before dataset specific resource checks.
 
 ### Fixed
 
+- Fixed anthropometry and metadata resource summaries so checked, available,
+  and missing counts use the active dataset subject scope and treat discarded
+  empty, NaN, or infinite rows as missing for those subjects.
 - Fixed the SOFA tutorial reload example so it explicitly disables convention
   checking when confirming the saved tutorial file, matching the surrounding
   explanation.

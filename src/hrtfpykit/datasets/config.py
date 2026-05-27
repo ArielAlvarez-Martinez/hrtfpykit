@@ -1,20 +1,7 @@
 from dataclasses import dataclass
-from typing import cast
+from typing import ClassVar, cast
 
 from .checksums import ARI_CHECKSUMS, HUTUBS_CHECKSUMS, SONICOM_CHECKSUMS
-
-
-ARI_HRTF_PATHS = dict(
-    sorted(
-        (
-            (filename.split("_", 1)[1][:-len(".sofa")], filename)
-            for filename in ARI_CHECKSUMS["hrtf"]
-            if filename.startswith("hrtf ") and filename.endswith(".sofa")
-        ),
-        key=lambda item: int(item[0][2:]),
-    )
-)
-ARI_SUBJECT_IDS = tuple(ARI_HRTF_PATHS)
 
 
 @dataclass(frozen=True)
@@ -353,7 +340,8 @@ class ARIConfig(DatasetConfig):
     """Built-in configuration for the ARI HRTF database.
 
     :class:`~hrtfpykit.datasets.config.ARIConfig` declares the ARI subject IDs,
-    official HRTF SOFA paths, download base URL, and SHA-256 checksums used by
+    official HRTF SOFA paths, ARI CSV resource paths, download base URLs,
+    and SHA-256 checksums used by
     :class:`~hrtfpykit.datasets.ARI`. ARI filenames do not follow one shared
     subject template, so the HRTF configuration stores a subject path map from
     canonical IDs such as ``nh2`` or ``nh720`` to the corresponding official
@@ -369,8 +357,13 @@ class ARIConfig(DatasetConfig):
     hrtf : HRTFConfig or None
         HRTF resource configuration. ARI currently exposes one combined HRTF
         resource family backed by subject-specific SOFA paths.
+    anthropometry : AnthropometryConfig or None
+        ARI anthropometry CSV resource configuration.
+    metadata : MetadataConfig or None
+        ARI metadata CSV resource configuration.
     download : DownloadConfig or None
-        Official ARI download configuration for HRTF resources.
+        Official ARI download configuration for HRTF, anthropometry, and
+        metadata resources.
 
     Notes
     -----
@@ -382,19 +375,48 @@ class ARIConfig(DatasetConfig):
 
     """
 
+    hrtf_paths: ClassVar[dict[str, str]] = dict(
+        sorted(
+            (
+                (filename.split("_", 1)[1][:-len(".sofa")], filename)
+                for filename in ARI_CHECKSUMS["hrtf"]
+                if filename.startswith("hrtf ") and filename.endswith(".sofa")
+            ),
+            key=lambda item: int(item[0][2:]),
+        )
+    )
+    anthropometry_metadata_base_url: ClassVar[str] = (
+        "https://raw.githubusercontent.com/"
+        "ArielAlvarez-Martinez/ari_anthropometry_and_metadata/v1.0"
+    )
+
     name: str = "ARI"
-    subject_ids: tuple[str, ...] = ARI_SUBJECT_IDS
+    subject_ids: tuple[str, ...] = tuple(hrtf_paths)
     hrtf: HRTFConfig | None = HRTFConfig(
         types={
             "hrtf": ResourceTypeConfig(
-                path_pattern=ARI_HRTF_PATHS,
+                path_pattern=hrtf_paths,
             ),
         },
     )
+    anthropometry: AnthropometryConfig | None = AnthropometryConfig(
+        path="anthro.csv",
+        left_prefix="L_",
+        right_prefix="R_",
+        extensions=(".csv",),
+    )
+    metadata: MetadataConfig | None = MetadataConfig(
+        path="metadata.csv",
+        extensions=(".csv",),
+    )
     download: DownloadConfig | None = DownloadConfig(
         base_url="https://sofacoustics.org/data/database/ari",
-        available_resources=("hrtf",),
+        available_resources=("hrtf", "anthropometry", "metadata"),
         checksums=cast(dict[str, object], ARI_CHECKSUMS),
+        resource_base_urls={
+            "anthropometry": anthropometry_metadata_base_url,
+            "metadata": anthropometry_metadata_base_url,
+        },
     )
 
 

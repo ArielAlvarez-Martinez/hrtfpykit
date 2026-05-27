@@ -360,10 +360,34 @@ class DatasetResourcesValidator:
                 "configuration that declares anthropometry."
             )
         if not anthropometry_path.is_file():
+            selected_source = "AnthropometrySpec(path=...)"
+            if state.config is not None and state.config.anthropometry is not None:
+                configured_path = (
+                    state.root / state.config.anthropometry.path
+                ).expanduser()
+                if anthropometry_path == configured_path:
+                    selected_source = (
+                        f"{state.config.__class__.__name__}.anthropometry.path="
+                        f"{state.config.anthropometry.path!r}"
+                    )
+            download_hint = ""
+            if (
+                state.config is not None
+                and state.config.download is not None
+                and "anthropometry" in state.config.download.available_resources
+            ):
+                download_hint = (
+                    f" {state.name} can download this resource; use download=True "
+                    "with download_resources='anthropometry' or "
+                    "download_resources='all'. download=True only downloads "
+                    "the resources named in download_resources."
+                )
             raise ValueError(
-                f"AnthropometrySpec selected path does not exist or is not a file: "
-                f"{anthropometry_path}. Relative paths are resolved from dataset "
-                f"root: {state.root}."
+                "AnthropometrySpec requires an anthropometry file, but the "
+                f"selected path is missing: {anthropometry_path}. "
+                f"Source: {selected_source}. Dataset root: {state.root}."
+                f"{download_hint} For a custom file, pass "
+                "AnthropometrySpec(path=...)."
             )
         if not isinstance(anthropometry_rows, dict):
             raise ValueError(
@@ -413,10 +437,31 @@ class DatasetResourcesValidator:
                 "configuration that declares metadata."
             )
         if not metadata_path.is_file():
+            selected_source = "MetadataSpec(path=...)"
+            if state.config is not None and state.config.metadata is not None:
+                configured_path = (state.root / state.config.metadata.path).expanduser()
+                if metadata_path == configured_path:
+                    selected_source = (
+                        f"{state.config.__class__.__name__}.metadata.path="
+                        f"{state.config.metadata.path!r}"
+                    )
+            download_hint = ""
+            if (
+                state.config is not None
+                and state.config.download is not None
+                and "metadata" in state.config.download.available_resources
+            ):
+                download_hint = (
+                    f" {state.name} can download this resource; use download=True "
+                    "with download_resources='metadata' or "
+                    "download_resources='all'. download=True only downloads "
+                    "the resources named in download_resources."
+                )
             raise ValueError(
-                f"MetadataSpec selected path does not exist or is not a file: "
-                f"{metadata_path}. Relative paths are resolved from dataset root: "
-                f"{state.root}."
+                "MetadataSpec requires a metadata file, but the selected path "
+                f"is missing: {metadata_path}. Source: {selected_source}. "
+                f"Dataset root: {state.root}.{download_hint} For a custom "
+                "file, pass MetadataSpec(path=...)."
             )
         if not isinstance(metadata_rows, dict):
             raise ValueError(
@@ -907,10 +952,13 @@ class DatasetResourcesScanner:
         """
         grouped_paths: dict[tuple[str, int | None, str | None], list[str]] = {}
         if not path.is_dir():
+            spec_name = f"{resource_name}Spec"
             raise ValueError(
-                f"{resource_name} root does not exist or is not a directory: {path}. "
-                "Expected one folder per dataset subject, named with the subject ID, "
-                "subjectN, or subject_N."
+                f"{spec_name} selected root does not exist or is not a directory: "
+                f"{path}. Expected one folder per dataset subject, named with "
+                "the subject ID, subjectN, or subject_N. If this is a custom "
+                f"{resource_name.lower()} resource, pass "
+                f"{spec_name}(path=...) to an existing folder."
             )
         subject_counts: dict[str, int] = {}
         missing_subject_ids: list[str] = []
@@ -1409,13 +1457,18 @@ class DatasetResources:
                     found=1,
                     missing=0,
                 ))
+            available_subject_ids = tuple(
+                subject_id
+                for subject_id in resource_subjects
+                if subject_id in anthropometry_rows
+            )
             missing_subject_ids = tuple(
                 subject_id
                 for subject_id in resource_subjects
                 if subject_id not in anthropometry_rows
             )
             anthropometry_summary["subjects_checked"] = len(resource_subjects)
-            anthropometry_summary["subjects_available"] = len(anthropometry_rows)
+            anthropometry_summary["subjects_available"] = len(available_subject_ids)
             anthropometry_summary["subjects_missing"] = len(missing_subject_ids)
             anthropometry_summary["files"] = (
                 1 if anthropometry_path is not None and anthropometry_path.is_file() else 0
@@ -1474,13 +1527,18 @@ class DatasetResources:
                     found=1,
                     missing=0,
                 ))
+            available_subject_ids = tuple(
+                subject_id
+                for subject_id in resource_subjects
+                if subject_id in metadata_rows
+            )
             missing_subject_ids = tuple(
                 subject_id
                 for subject_id in resource_subjects
                 if subject_id not in metadata_rows
             )
             metadata_summary["subjects_checked"] = len(resource_subjects)
-            metadata_summary["subjects_available"] = len(metadata_rows)
+            metadata_summary["subjects_available"] = len(available_subject_ids)
             metadata_summary["subjects_missing"] = len(missing_subject_ids)
             metadata_summary["files"] = (
                 1 if metadata_path is not None and metadata_path.is_file() else 0
@@ -1507,9 +1565,11 @@ class DatasetResources:
                 requested_image_path = (root / config.image.path).expanduser()
             if requested_image_path is None:
                 raise ValueError(
-                    f"ImageSpec was requested, but no image root was selected for "
-                    f"{state.name}. Pass ImageSpec(path=...) or use a dataset "
-                    "configuration that declares an image path."
+                    f"ImageSpec was requested for {state.name}, but no image "
+                    f"root was selected. Dataset root: {root}. Pass "
+                    "ImageSpec(path=...) to a folder containing one folder per "
+                    "subject, or use a dataset configuration that declares an "
+                    "image path."
                 )
             image_path = requested_image_path
             image_grouped_by: tuple[str, ...] = ("subject",)
@@ -1563,9 +1623,11 @@ class DatasetResources:
                 requested_video_path = (root / config.video.path).expanduser()
             if requested_video_path is None:
                 raise ValueError(
-                    f"VideoSpec was requested, but no video root was selected for "
-                    f"{state.name}. Pass VideoSpec(path=...) or use a dataset "
-                    "configuration that declares a video path."
+                    f"VideoSpec was requested for {state.name}, but no video "
+                    f"root was selected. Dataset root: {root}. Pass "
+                    "VideoSpec(path=...) to a folder containing one folder per "
+                    "subject, or use a dataset configuration that declares a "
+                    "video path."
                 )
             video_path = requested_video_path
             video_grouped_by: tuple[str, ...] = ("subject",)

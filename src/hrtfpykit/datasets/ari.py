@@ -5,6 +5,7 @@ from typing import Callable
 from .base import BaseDataset
 from .config import ARIConfig
 from .download import BaseDownload
+from .sanitize import sanitize_grouped_by
 from .specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -36,8 +37,9 @@ class ARI(BaseDataset):
     ) -> None:
         """Build an ARI dataset instance.
 
-        :class:`~hrtfpykit.datasets.ARI` resolves the local ARI HRTF SOFA
-        resources declared by :class:`~hrtfpykit.datasets.config.ARIConfig`,
+        :class:`~hrtfpykit.datasets.ARI` resolves the local ARI resources
+        declared by :class:`~hrtfpykit.datasets.config.ARIConfig`, including
+        HRTF SOFA files, anthropometry CSV data, and metadata CSV data. It
         applies subject exclusions and split selection, and returns samples
         defined by the requested input and target specs.
 
@@ -59,8 +61,8 @@ class ARI(BaseDataset):
             If True, downloads selected official ARI resources before dataset
             construction.
         download_resources : str or sequence of str, default=``hrtf``
-            Official resources requested for download. The current ARI
-            configuration provides official HRTF SOFA files.
+            Official resources requested for download. ARI provides HRTF SOFA
+            files, anthropometry CSV data, and metadata CSV data.
         verify_checksum : bool, default=True
             Whether official SHA-256 checksums are verified during resource
             download. Keeping this enabled is the recommended behavior. Set it to
@@ -146,3 +148,70 @@ class ARI(BaseDataset):
             split_seed=split_seed,
             verbose=verbose,
         )
+        self._state.anthropometry_value_selector = self._select_anthropometry_value
+
+    def _select_anthropometry_value(
+        self,
+        spec: AnthropometrySpec,
+        row: dict[str, str | int | None],
+        value: object,
+    ) -> object:
+        """Select ARI anthropometry fields for an optional ear context.
+
+        ARI anthropometry columns store shared measurements with names such as
+        ``x1`` and ear-specific measurements with left and right prefixes such as
+        ``L_a1`` and ``R_a1``. This selector filters the loaded subject row when
+        an ear is requested by :class:`~hrtfpykit.datasets.AnthropometrySpec` or
+        by an ear-indexed row. The selected ear keeps its matching prefixed
+        fields and the shared non-ear fields.
+
+        Parameters
+        ----------
+        spec : AnthropometrySpec
+            Anthropometry spec requesting the value.
+        row : dict
+            Current dataset row context.
+        value : object
+            Loaded anthropometry value selected by the generic table resolver.
+
+        Returns
+        -------
+        object
+            Filtered value containing the requested ARI ear fields and shared
+            measurements. Non-dictionary values are returned unchanged.
+
+        """
+        if not isinstance(value, dict):
+            return value
+        grouped_by = sanitize_grouped_by(spec.grouped_by)
+
+        selected_ear = str(spec.ear).strip().lower() if spec.ear else None
+        if selected_ear == "both" or selected_ear == "":
+            selected_ear = None
+
+        if "ear" in grouped_by:
+            if selected_ear not in {"left", "right"}:
+                row_ear = row.get("ear")
+                if row_ear is not None and str(row_ear).strip().lower() in {"left", "right"}:
+                    selected_ear = str(row_ear).strip().lower()
+
+        if selected_ear is None:
+            return value
+
+        config = self._state.config.anthropometry if self._state.config is not None else None
+        left_prefix = "L_"
+        right_prefix = "R_"
+        if config is not None:
+            left_prefix = str(config.left_prefix)
+            right_prefix = str(config.right_prefix)
+        target_prefix = left_prefix if selected_ear == "left" else right_prefix
+
+        return {
+            key: feature
+            for key, feature in value.items()
+            if str(key).startswith(target_prefix)
+            or (
+                not str(key).startswith(left_prefix)
+                and not str(key).startswith(right_prefix)
+            )
+        }

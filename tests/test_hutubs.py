@@ -591,6 +591,136 @@ def _build_dataset(
         )
 
 
+def test_hutubs_config_subject_ids_are_valid() -> None:
+    subject_ids = tuple(HUTUBSConfig.subject_ids)
+
+    assert HUTUBSConfig.name == "HUTUBS"
+    assert len(HUTUBSConfig.subject_ids) == 96
+    assert len(set(subject_ids)) == len(subject_ids)
+    assert all(isinstance(subject_id, str) for subject_id in subject_ids)
+    assert all(subject_id.strip() != "" for subject_id in subject_ids)
+    assert list(subject_ids) == _sort_subject_ids(subject_ids)
+
+
+def test_hutubs_config_subject_exclusions() -> None:
+    assert HUTUBSConfig.excluded_subject_ids == ()
+
+
+@pytest.mark.parametrize(
+    ("download_hrtf_variant", "expected_relative_path"),
+    [
+        ("measured", "pp1_HRIRs_measured.sofa"),
+        ("simulated", "pp1_HRIRs_simulated.sofa"),
+    ],
+)
+def test_hutubs_hrtf_download_plan_variants(
+    tmp_path: Path,
+    download_hrtf_variant: str,
+    expected_relative_path: str,
+) -> None:
+    jobs = BaseDownload(config=HUTUBSConfig, root=tmp_path).build_download_plan(
+        download_resources="hrtf",
+        download_hrtf_variant=download_hrtf_variant,
+    )
+
+    relative_paths = {str(job["relative_path"]) for job in jobs}
+    assert len(jobs) == len(ALL_HUTUBS_SUBJECT_IDS)
+    assert expected_relative_path in relative_paths
+    assert all(job["resource"] == "hrtf" for job in jobs)
+    assert all(job["checksum"] is not None for job in jobs)
+
+
+def test_hutubs_download_plan_follows_subject_limit(tmp_path: Path) -> None:
+    jobs = BaseDownload(
+        config=HUTUBSConfig,
+        root=tmp_path,
+        excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+    ).build_download_plan(
+        download_resources="all",
+        download_hrtf_variant="measured",
+        download_mesh_variant=None,
+    )
+    subject_jobs = [job for job in jobs if job["subject_id"] is not None]
+    root = tmp_path.resolve()
+
+    assert {job["resource"] for job in jobs} == {"anthropometry", "hrtf", "mesh"}
+    assert {job["subject_id"] for job in subject_jobs}.issubset(_TEST_SUBJECT_ID_SET)
+    assert len(subject_jobs) == len(_TEST_SUBJECT_IDS) * 2
+    assert all(job["checksum"] is not None for job in jobs)
+    assert all(str(job["url"]).startswith("https://") for job in jobs)
+    assert all(Path(job["destination"]).resolve().is_relative_to(root) for job in jobs)
+
+
+def test_hutubs_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
+    config = replace(
+        HUTUBSConfig(),
+        download=replace(
+            HUTUBSConfig.download,
+            checksums={"hrtf": {}},
+        ),
+    )
+
+    with pytest.raises(ValueError, match="missing"):
+        BaseDownload(config=config, root=tmp_path).build_download_plan(
+            download_resources="hrtf",
+            download_hrtf_variant="measured",
+        )
+
+
+def test_hutubs_checksum_mismatch_fails(tmp_path: Path) -> None:
+    path = tmp_path / "AntrhopometricMeasures.csv"
+    path.write_text("bad-data")
+    downloader = BaseDownload(config=HUTUBSConfig, root=tmp_path)
+
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        downloader.verify_checksum(path, "0" * 64)
+
+
+def test_hutubs_invalid_variant_keys_are_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Unsupported dataset_hrtf_variant keys"):
+        HUTUBS(
+            root=tmp_path,
+            dataset_hrtf_variant={"type": "measured", "bad": "value"},
+            inputs=None,
+            target=None,
+        )
+
+    with pytest.raises(ValueError, match="Unsupported dataset_hrtf_variant"):
+        HUTUBS(
+            root=tmp_path,
+            dataset_hrtf_variant={"type": "bad"},
+            inputs=None,
+            target=None,
+        )
+
+
+def test_hutubs_spec_workflow_does_not_mutate_spec_objects() -> None:
+    image_spec = ImageSpec(path=IMAGE_ROOT, grouped_by="subject")
+    anthropometry_spec = AnthropometrySpec(accessed_by="ROW", grouped_by="subject-ear", ear="LEFT")
+
+    DatasetSpecWorkflow.build(
+        config=HUTUBSConfig,
+        inputs=(image_spec, anthropometry_spec),
+        target=(),
+    )
+
+    assert image_spec.grouped_by == "subject"
+    assert anthropometry_spec.accessed_by == "ROW"
+    assert anthropometry_spec.grouped_by == "subject-ear"
+    assert anthropometry_spec.ear == "LEFT"
+
+
+def test_hutubs_anthropometry_download_plan(tmp_path: Path) -> None:
+    jobs = BaseDownload(config=HUTUBSConfig, root=tmp_path).build_download_plan(
+        download_resources="anthropometry",
+    )
+
+    assert len(jobs) == 1
+    assert jobs[0]["resource"] == "anthropometry"
+    assert jobs[0]["relative_path"] == "AntrhopometricMeasures.csv"
+    assert jobs[0]["checksum"] == HUTUBS_CHECKSUMS["anthropometry"]["AntrhopometricMeasures.csv"]
+
+
 @pytest.mark.parametrize(
     "index_by,positions,plane,transform,expected_workflow_error,expected_dataset_error",
     HRTF_GRID_CASES,
@@ -931,117 +1061,6 @@ def test_hutubs_constructor_verbose_false_is_quiet() -> None:
     assert output.getvalue() == ""
     assert dataset.resources_summary() != ""
     assert dataset.dataset_summary() != ""
-
-
-def test_spec_workflow_does_not_mutate_grouped_spec_objects() -> None:
-    image_spec = ImageSpec(path=IMAGE_ROOT, grouped_by="subject")
-    anthropometry_spec = AnthropometrySpec(accessed_by="ROW", grouped_by="subject-ear", ear="LEFT")
-
-    DatasetSpecWorkflow.build(
-        config=HUTUBSConfig,
-        inputs=(image_spec, anthropometry_spec),
-        target=(),
-    )
-
-    assert image_spec.grouped_by == "subject"
-    assert anthropometry_spec.accessed_by == "ROW"
-    assert anthropometry_spec.grouped_by == "subject-ear"
-    assert anthropometry_spec.ear == "LEFT"
-
-
-def test_hutubs_anthropometry_download_plan(tmp_path: Path) -> None:
-    jobs = BaseDownload(config=HUTUBSConfig, root=tmp_path).build_download_plan(
-        download_resources="anthropometry",
-    )
-
-    assert len(jobs) == 1
-    assert jobs[0]["resource"] == "anthropometry"
-    assert jobs[0]["relative_path"] == "AntrhopometricMeasures.csv"
-    assert jobs[0]["checksum"] == HUTUBS_CHECKSUMS["anthropometry"]["AntrhopometricMeasures.csv"]
-
-
-@pytest.mark.parametrize(
-    ("download_hrtf_variant", "expected_relative_path"),
-    [
-        ("measured", "pp1_HRIRs_measured.sofa"),
-        ("simulated", "pp1_HRIRs_simulated.sofa"),
-    ],
-)
-def test_hutubs_hrtf_download_plan_variants(
-    tmp_path: Path,
-    download_hrtf_variant: str,
-    expected_relative_path: str,
-) -> None:
-    jobs = BaseDownload(config=HUTUBSConfig, root=tmp_path).build_download_plan(
-        download_resources="hrtf",
-        download_hrtf_variant=download_hrtf_variant,
-    )
-
-    relative_paths = {str(job["relative_path"]) for job in jobs}
-    assert len(jobs) == len(ALL_HUTUBS_SUBJECT_IDS)
-    assert expected_relative_path in relative_paths
-    assert all(job["resource"] == "hrtf" for job in jobs)
-    assert all(job["checksum"] is not None for job in jobs)
-
-
-def test_hutubs_download_plan_follows_subject_limit(tmp_path: Path) -> None:
-    jobs = BaseDownload(
-        config=HUTUBSConfig,
-        root=tmp_path,
-        excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
-    ).build_download_plan(
-        download_resources="all",
-        download_hrtf_variant="measured",
-        download_mesh_variant=None,
-    )
-    subject_jobs = [job for job in jobs if job["subject_id"] is not None]
-
-    assert {job["resource"] for job in jobs} == {"anthropometry", "hrtf", "mesh"}
-    assert {job["subject_id"] for job in subject_jobs}.issubset(_TEST_SUBJECT_ID_SET)
-    assert len(subject_jobs) == len(_TEST_SUBJECT_IDS) * 2
-    assert all(job["checksum"] is not None for job in jobs)
-
-
-def test_hutubs_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
-    config = replace(
-        HUTUBSConfig(),
-        download=replace(
-            HUTUBSConfig.download,
-            checksums={"anthropometry": {}},
-        ),
-    )
-
-    with pytest.raises(ValueError, match="missing a checksum"):
-        BaseDownload(config=config, root=tmp_path).build_download_plan(
-            download_resources="anthropometry",
-        )
-
-
-def test_hutubs_checksum_mismatch_fails(tmp_path: Path) -> None:
-    path = tmp_path / "AntrhopometricMeasures.csv"
-    path.write_text("bad-data")
-    downloader = BaseDownload(config=HUTUBSConfig, root=tmp_path)
-
-    with pytest.raises(ValueError, match="SHA-256 mismatch"):
-        downloader.verify_checksum(path, "0" * 64)
-
-
-def test_hutubs_invalid_variant_keys_are_rejected(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="Unsupported dataset_hrtf_variant keys"):
-        HUTUBS(
-            root=tmp_path,
-            dataset_hrtf_variant={"type": "measured", "bad": "value"},
-            inputs=None,
-            target=None,
-        )
-
-    with pytest.raises(ValueError, match="Unsupported dataset_hrtf_variant"):
-        HUTUBS(
-            root=tmp_path,
-            dataset_hrtf_variant={"type": "bad"},
-            inputs=None,
-            target=None,
-        )
 
 
 @pytest.mark.skipif(

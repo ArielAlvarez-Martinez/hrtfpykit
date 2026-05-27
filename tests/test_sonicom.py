@@ -499,8 +499,20 @@ def _expected_selected_subjects(
     return subject_ids[validation_end:]
 
 
-def test_sonicom_config_subject_exclusions() -> None:
+def test_sonicom_config_subject_ids_are_valid() -> None:
+    subject_ids = tuple(SONICOMConfig.subject_ids)
+
+    assert SONICOMConfig.name == "SONICOM"
     assert len(SONICOMConfig.subject_ids) == 400
+    assert len(set(subject_ids)) == len(subject_ids)
+    assert all(isinstance(subject_id, str) for subject_id in subject_ids)
+    assert all(subject_id.strip() != "" for subject_id in subject_ids)
+    assert list(subject_ids) == _sort_subject_ids(subject_ids)
+
+
+def test_sonicom_config_subject_exclusions() -> None:
+    subject_ids = set(SONICOMConfig.subject_ids)
+
     assert SONICOMConfig.excluded_subject_ids == (
         "P0253",
         "P0258",
@@ -509,6 +521,127 @@ def test_sonicom_config_subject_exclusions() -> None:
         "P0275",
         "P0396",
     )
+    assert set(SONICOMConfig.excluded_subject_ids).issubset(subject_ids)
+    assert len(set(SONICOMConfig.excluded_subject_ids)) == len(SONICOMConfig.excluded_subject_ids)
+
+
+@pytest.mark.parametrize(
+    ("download_hrtf_variant", "expected_relative_path"),
+    [
+        (
+            _DEFAULT_HRTF_VARIANT,
+            "P0001/HRTF/HRTF/44kHz/P0001_FreeFieldComp_44kHz.sofa",
+        ),
+        (
+            {"type": "measured", "sample_rate": 44100, "version": "Windowed"},
+            "P0001/HRTF/HRTF/44kHz/P0001_Windowed_44kHz.sofa",
+        ),
+    ],
+)
+def test_sonicom_hrtf_download_plan_variants(
+    tmp_path: Path,
+    download_hrtf_variant: Mapping[str, object],
+    expected_relative_path: str,
+) -> None:
+    jobs = BaseDownload(config=SONICOMConfig, root=tmp_path).build_download_plan(
+        download_resources="hrtf",
+        download_hrtf_variant=download_hrtf_variant,
+    )
+
+    relative_paths = {str(job["relative_path"]) for job in jobs}
+    assert len(jobs) == 394
+    assert expected_relative_path in relative_paths
+    assert all(job["checksum"] is not None for job in jobs)
+
+
+def test_sonicom_download_plan_follows_subject_limit(tmp_path: Path) -> None:
+    jobs = BaseDownload(
+        config=SONICOMConfig,
+        root=tmp_path,
+        excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+    ).build_download_plan(
+        download_resources="all",
+        download_hrtf_variant=_DEFAULT_HRTF_VARIANT,
+        download_mesh_variant=_DEFAULT_MESH_VARIANT,
+    )
+    subject_jobs = [job for job in jobs if job["subject_id"] is not None]
+    root = tmp_path.resolve()
+
+    assert {job["resource"] for job in jobs} == {"metadata", "hrtf", "mesh"}
+    assert {job["subject_id"] for job in subject_jobs}.issubset(_TEST_SUBJECT_ID_SET)
+    assert len(subject_jobs) == len(_TEST_SUBJECT_IDS) * 2
+    assert all(job["checksum"] is not None for job in jobs)
+    assert all(str(job["url"]).startswith("https://") for job in jobs)
+    assert all(Path(job["destination"]).resolve().is_relative_to(root) for job in jobs)
+
+
+def test_sonicom_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
+    config = replace(
+        SONICOMConfig(),
+        download=replace(
+            SONICOMConfig.download,
+            checksums={"hrtf": {}},
+        ),
+    )
+
+    with pytest.raises(ValueError, match="missing"):
+        BaseDownload(config=config, root=tmp_path).build_download_plan(
+            download_resources="hrtf",
+            download_hrtf_variant=_DEFAULT_HRTF_VARIANT,
+        )
+
+
+def test_sonicom_checksum_mismatch_fails(tmp_path: Path) -> None:
+    path = tmp_path / "metadata.csv"
+    path.write_text("bad-data")
+    downloader = BaseDownload(config=SONICOMConfig, root=tmp_path)
+
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        downloader.verify_checksum(path, "0" * 64)
+
+
+def test_sonicom_invalid_variant_keys_are_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Unsupported dataset_hrtf_variant keys"):
+        SONICOM(
+            root=tmp_path,
+            dataset_hrtf_variant={"type": "measured", "bad": "value"},
+            inputs=None,
+            target=None,
+        )
+
+    with pytest.raises(ValueError, match="Unsupported dataset_hrtf_variant type"):
+        SONICOM(
+            root=tmp_path,
+            dataset_hrtf_variant={"type": "bad"},
+            inputs=None,
+            target=None,
+        )
+
+    with pytest.raises(ValueError, match="Unsupported dataset_mesh_variant keys"):
+        SONICOM(
+            root=tmp_path,
+            dataset_mesh_variant={"type": "scanned", "bad": "value"},
+            inputs=None,
+            target=None,
+        )
+
+
+def test_sonicom_spec_workflow_does_not_mutate_spec_objects() -> None:
+    metadata_spec = MetadataSpec(accessed_by="ROW", grouped_by="subject-ear", ear="LEFT")
+    mesh_spec = MeshSpec(path="meshes", extensions=(".ply",), name="subject_mesh")
+
+    DatasetSpecWorkflow.build(
+        config=SONICOMConfig,
+        inputs=(metadata_spec, mesh_spec),
+        target=(),
+    )
+
+    assert metadata_spec.accessed_by == "ROW"
+    assert metadata_spec.grouped_by == "subject-ear"
+    assert metadata_spec.ear == "LEFT"
+    assert mesh_spec.path == "meshes"
+    assert mesh_spec.extensions == (".ply",)
+    assert mesh_spec.name == "subject_mesh"
 
 
 def test_sonicom_metadata_download_plan(tmp_path: Path) -> None:
@@ -520,19 +653,6 @@ def test_sonicom_metadata_download_plan(tmp_path: Path) -> None:
     assert jobs[0]["checksum"] == SONICOM_CHECKSUMS["metadata"]["metadata_and_readme/metadata.csv"]
 
 
-def test_sonicom_default_windowed_hrtf_download_plan(tmp_path: Path) -> None:
-    jobs = BaseDownload(config=SONICOMConfig, root=tmp_path).build_download_plan(
-        download_resources="hrtf",
-        download_hrtf_variant={"type": "measured", "sample_rate": 44100, "version": "Windowed"},
-    )
-
-    relative_paths = {str(job["relative_path"]) for job in jobs}
-    assert len(jobs) == 394
-    assert "P0001/HRTF/HRTF/44kHz/P0001_Windowed_44kHz.sofa" in relative_paths
-    assert "P0253/HRTF/HRTF/44kHz/P0253_Windowed_44kHz.sofa" not in relative_paths
-    assert all(job["checksum"] is not None for job in jobs)
-
-
 def test_sonicom_windowed_checksums_cover_default_sample_rates() -> None:
     windowed = SONICOM_CHECKSUMS["hrtf"]["measured"]["Windowed"]
 
@@ -540,28 +660,6 @@ def test_sonicom_windowed_checksums_cover_default_sample_rates() -> None:
     assert len(windowed[44100]) == 394
     assert len(windowed[48000]) == 394
     assert len(windowed[96000]) == 394
-
-
-def test_sonicom_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
-    config = replace(
-        SONICOMConfig(),
-        download=replace(
-            SONICOMConfig.download,
-            checksums={"metadata": {}},
-        ),
-    )
-
-    with pytest.raises(ValueError, match="missing a checksum"):
-        BaseDownload(config=config, root=tmp_path).build_download_plan(download_resources="metadata")
-
-
-def test_sonicom_checksum_mismatch_fails(tmp_path: Path) -> None:
-    path = tmp_path / "metadata.csv"
-    path.write_text("bad-data")
-    downloader = BaseDownload(config=SONICOMConfig, root=tmp_path)
-
-    with pytest.raises(ValueError, match="SHA-256 mismatch"):
-        downloader.verify_checksum(path, "0" * 64)
 
 
 @pytest.mark.parametrize(
@@ -744,17 +842,6 @@ def test_sonicom_constructor_verbose_false_is_quiet() -> None:
     assert output.getvalue() == ""
     assert dataset.resources_summary() != ""
     assert dataset.dataset_summary() != ""
-
-
-def test_sonicom_invalid_variant_keys_are_rejected() -> None:
-    if not _path_exists(SONICOM_ROOT):
-        pytest.skip(reason="Required local SONICOM dataset is not available")
-
-    with pytest.raises(ValueError, match="Unsupported dataset_hrtf_variant keys"):
-        SONICOM(root=SONICOM_ROOT, dataset_hrtf_variant={"type": "measured", "bad": "value"}, inputs=None, target=None)
-
-    with pytest.raises(ValueError, match="Unsupported dataset_mesh_variant keys"):
-        SONICOM(root=SONICOM_ROOT, dataset_mesh_variant={"type": "scanned", "bad": "value"}, inputs=None, target=None)
 
 
 @pytest.mark.skipif(
