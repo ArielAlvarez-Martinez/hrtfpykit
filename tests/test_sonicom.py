@@ -503,7 +503,7 @@ def test_sonicom_config_subject_ids_are_valid() -> None:
     subject_ids = tuple(SONICOMConfig.subject_ids)
 
     assert SONICOMConfig.name == "SONICOM"
-    assert len(SONICOMConfig.subject_ids) == 400
+    assert len(SONICOMConfig.subject_ids) == 405
     assert len(set(subject_ids)) == len(subject_ids)
     assert all(isinstance(subject_id, str) for subject_id in subject_ids)
     assert all(subject_id.strip() != "" for subject_id in subject_ids)
@@ -549,7 +549,7 @@ def test_sonicom_hrtf_download_plan_variants(
     )
 
     relative_paths = {str(job["relative_path"]) for job in jobs}
-    assert len(jobs) == 394
+    assert len(jobs) == 399
     assert expected_relative_path in relative_paths
     assert all(job["checksum"] is not None for job in jobs)
 
@@ -657,9 +657,9 @@ def test_sonicom_windowed_checksums_cover_default_sample_rates() -> None:
     windowed = SONICOM_CHECKSUMS["hrtf"]["measured"]["Windowed"]
 
     assert set(windowed) == {44100, 48000, 96000}
-    assert len(windowed[44100]) == 394
-    assert len(windowed[48000]) == 394
-    assert len(windowed[96000]) == 394
+    assert len(windowed[44100]) == 399
+    assert len(windowed[48000]) == 399
+    assert len(windowed[96000]) == 399
 
 
 @pytest.mark.parametrize(

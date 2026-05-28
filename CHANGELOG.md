@@ -27,6 +27,13 @@ use the `v0.0.x` format.
 - Added ARI dataset tests for configuration, download planning, checksum
   failures, spec workflow immutability, CSV resource plans, and anthropometry
   ear selection.
+- Added SONICOM subjects `P0401` through `P0405` with measured HRTF and
+  available scanned mesh checksums.
+- Added the "Starting with hrtfpykit.datasets" tutorial notebook covering
+  SONICOM resource downloads, map-style dataset construction, sample metadata,
+  deterministic splits, dataset-level HRTF preprocessing, compatible dataset
+  concatenation, PyTorch batching with `collate_samples()`, and a small HRTF
+  autoencoder workflow.
 
 ### Changed
 
@@ -50,6 +57,11 @@ use the `v0.0.x` format.
   not share one template.
 - Reordered HUTUBS and SONICOM CI dataset checks so both files follow the same
   baseline test sequence before dataset specific resource checks.
+- Updated the Quick Start examples so they download the SONICOM example HRTFs
+  before loading SOFA, HRTF, and comparison-plot examples.
+- Updated SONICOM dataset documentation with a dated implementation-status note
+  that distinguishes the active upstream dataset from the subject range
+  currently supported by hrtfpykit.
 
 ### Fixed
 

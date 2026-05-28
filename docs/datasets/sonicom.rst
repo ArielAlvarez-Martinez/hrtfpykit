@@ -11,15 +11,25 @@ package's shared dataset interface.
 The dataset paper was published by Isaac Engel, Rapolas Daugintis, Thibault
 Vicente, Aidan O. T. Hogg, Johan Pauwels, Arnaud J. Tournier, and Lorenzo
 Picinali in the Journal of the Audio Engineering Society. The official SONICOM
+pages and publications should be read as release snapshots: the original public
 dataset page describes HRTF data measured from 200 subjects, and the 2025
-extended dataset announcement describes additional measured participants and
-synthetic HRTFs generated from processed 3D scans. In hrtfpykit, the extended
-SONICOM dataset is available up to 400 subject identifiers.
+extended dataset announcement describes additional measured participants,
+synthetic HRTFs generated from processed 3D scans, and continued work to expand
+the dataset.
+
+**Implementation status.**
+
+Last updated: 2026-05-28. SONICOM is an actively developing dataset, and
+new subjects or resources can appear after a hrtfpykit release. This
+implementation supports the released resources indexed by subject identifiers
+``P0001`` through ``P0405``. To use newer SONICOM releases, hrtfpykit must first
+be updated with the corresponding subject identifiers, resource paths, and
+checksums.
 
 **Dataset scope.**
 
 hrtfpykit is configured for SONICOM subject identifiers ``P0001`` through
-``P0400``. The built-in configuration excludes ``P0253``, ``P0258``,
+``P0405``. The built-in configuration excludes ``P0253``, ``P0258``,
 ``P0270``, ``P0272``, ``P0275``, and ``P0396`` before resource scanning and
 split planning. Actual subject availability depends on the resource groups and
 variants present under the local dataset root.

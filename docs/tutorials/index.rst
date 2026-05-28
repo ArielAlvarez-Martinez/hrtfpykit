@@ -63,3 +63,4 @@ Content:
    Starting with hrtfpykit.sofa <starting_with_hrtfpykit_sofa>
    Starting with hrtfpykit.hrtf <starting_with_hrtfpykit_hrtf>
    Starting with hrtfpykit.plots <starting_with_hrtfpykit_plots>
+   Starting with hrtfpykit.datasets <starting_with_hrtfpykit_datasets>

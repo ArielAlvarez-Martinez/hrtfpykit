@@ -500,7 +500,7 @@ class SONICOMConfig(DatasetConfig):
     name : str
         Public dataset name, ``SONICOM``.
     subject_ids : tuple of str
-        SONICOM subject identifiers ``P0001`` through ``P0400``.
+        SONICOM subject identifiers ``P0001`` through ``P0405``.
     excluded_subject_ids : tuple of str
         Dataset-level exclusions applied before resource scanning and split
         planning.
@@ -518,7 +518,7 @@ class SONICOMConfig(DatasetConfig):
     """
 
     name: str = "SONICOM"
-    subject_ids: tuple[str, ...] = tuple(f"P{index:04d}" for index in range(1, 401))
+    subject_ids: tuple[str, ...] = tuple(f"P{index:04d}" for index in range(1, 406))
     excluded_subject_ids: tuple[str, ...] = (
         "P0253",
         "P0258",

@@ -90,7 +90,7 @@ checks, then adds the resource checks that belong to that dataset.
      - Validate dataset name, subject IDs, subject ordering, duplicate IDs, and
        configured exclusions.
      - ARI checks 263 configured subjects. HUTUBS checks 96 subjects. SONICOM
-       checks 400 configured subjects and its excluded subject list.
+       checks 405 configured subjects and its excluded subject list.
    * - Download plan checks
      - Build no network plans, verify resources, checksums, URLs, destination
        paths, and the active subject limit.
