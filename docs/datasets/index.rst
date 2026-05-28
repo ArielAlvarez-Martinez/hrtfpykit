@@ -10,11 +10,12 @@ with ``len(dataset)`` and ``dataset[index]`` access, so the same dataset can be
 inspected directly, preprocessed in scripts, or passed to PyTorch-style data
 loaders.
 
-Dataset integrations such as :class:`~hrtfpykit.datasets.HUTUBS` and
+Dataset integrations such as :class:`~hrtfpykit.datasets.ARI`,
+:class:`~hrtfpykit.datasets.HUTUBS`, and
 :class:`~hrtfpykit.datasets.SONICOM` keep dataset-specific rules outside user
 code. They handle subject identifiers, folder layouts, downloadable resource
-groups, local and download variants, excluded subjects, deterministic splits,
-and resource summaries.
+groups, resource variants where the dataset defines them, excluded subjects,
+deterministic splits, and resource summaries.
 
 Samples are declared with specs passed through ``inputs`` and ``target``. Each
 spec names one value to return and the context used to index it. Acoustic specs
@@ -113,5 +114,6 @@ Content:
    VideoSpec
    HRTFTransform
    collate_samples <collate_samples>
+   ARI <ari>
    HUTUBS <hutubs>
    SONICOM <sonicom>

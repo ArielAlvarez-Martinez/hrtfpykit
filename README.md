@@ -56,6 +56,33 @@ visualize, compare, and reuse HRTF data across research and deep learning tasks.
 - **Create** map-style dataset pipelines for training multimodal deep learning models.
 - **Build** deep learning experiments for HRTF individualization and related tasks.
 
+## Architecture
+
+**hrtfpykit** is organized around four public API entry points. The SOFA layer
+handles file structure, the HRTF layer builds the acoustic object, the plots
+layer visualizes HRTF data, and the datasets layer turns public HRTF resources
+into training and analysis samples.
+
+- **[hrtfpykit.sofa](https://hrtfpykit.readthedocs.io/en/stable/sofa/)**: open,
+  inspect, validate, edit, clone, and save SOFA files as structured Python
+  objects.
+- **[hrtfpykit.hrtf](https://hrtfpykit.readthedocs.io/en/stable/hrtf/)**: load
+  SOFA files as HRTF objects with IR data, TF data, source positions,
+  transforms, metrics, and spherical harmonics.
+- **[hrtfpykit.plots](https://hrtfpykit.readthedocs.io/en/stable/plots/)**:
+  visualize HRTF objects through spectral cues, source grids, binaural cues,
+  spherical harmonic reconstructions, and comparison plots.
+- **[hrtfpykit.datasets](https://hrtfpykit.readthedocs.io/en/stable/datasets/)**:
+  build public HRTF dataset pipelines with explicit inputs, targets, variants,
+  splits, subject resources, and batching utilities.
+
+## Guides
+
+- **[Quick Start](https://hrtfpykit.readthedocs.io/en/stable/quick_start.html)**:
+  first working examples for SOFA files, HRTF objects, plots, and datasets.
+- **[Tutorials](https://hrtfpykit.readthedocs.io/en/stable/tutorials/)**:
+  guided notebook workflows for learning hrtfpykit step by step.
+
 ## Installation
 
 ```bash
@@ -79,43 +106,6 @@ pip install -e ".[test,docs]"
 ```
 
 `hrtfpykit` requires Python 3.13 or newer.
-
-## Quick start
-
-```python
-from hrtfpykit.hrtf import load_hrtf
-from hrtfpykit.datasets import HUTUBS, HRTFSpec
-
-hrtf = load_hrtf("subject_001.sofa")
-
-print(hrtf.IR.values.shape)
-print(hrtf.TF.values.shape)
-print(hrtf.Sources.get_positions().shape)
-
-hrtf.plot_magnitude(
-    positions="front",
-    ear="both",
-    reference="max",
-)
-
-dataset = HUTUBS(
-    root="datasets/hutubs",
-    inputs=HRTFSpec(
-        domain="frequency",
-        signal="tf_magnitude",
-        index_by=("subject", "position"),
-        name="magnitude",
-    ),
-)
-
-sample = dataset[0]
-print(sample["inputs"].keys())
-
-```
-
-## Citation
-
-Forum acusticum article, arXiv  or whatever
 
 ## License
 

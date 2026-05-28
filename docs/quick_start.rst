@@ -48,6 +48,55 @@ dataset specs, and batching utilities.
    from hrtfpykit.datasets import HUTUBS, SONICOM
    from hrtfpykit.datasets import HRTFSpec, ITDSpec, ImageSpec, collate_samples
 
+Download Two SONICOM Example HRTFs
+----------------------------------
+
+The examples below use the first two public SONICOM subjects. Run this setup
+once to download the measured 44.1 kHz FreeFieldComp HRTF resources for
+``P0001`` and ``P0002`` and store their local paths.
+
+.. code-block:: python
+
+   from pathlib import Path
+
+   from hrtfpykit.datasets import SONICOM
+
+   root = Path("datasets/sonicom")
+
+   # Exclude all SONICOM subjects except P0001 and P0002.
+   exclude_subject_ids = tuple(f"P{i:04d}" for i in range(3, 401))
+
+   # Download only the measured 44.1 kHz FreeFieldComp HRTF resources for P0001 and P0002.
+   SONICOM(
+       root=root,
+       download=True,
+       download_resources="hrtf",
+       download_hrtf_variant={
+           "type": "measured",
+           "sample_rate": 44100,
+           "version": "FreeFieldComp",
+       },
+       exclude_subject_ids=exclude_subject_ids,
+       verify_checksum=True,
+   )
+
+   hrtf_path_a = (
+       root
+       / "P0001"
+       / "HRTF"
+       / "HRTF"
+       / "44kHz"
+       / "P0001_FreeFieldComp_44kHz.sofa"
+   )
+   hrtf_path_b = (
+       root
+       / "P0002"
+       / "HRTF"
+       / "HRTF"
+       / "44kHz"
+       / "P0002_FreeFieldComp_44kHz.sofa"
+   )
+
 hrtfpykit.sofa: Working with SOFA files
 ---------------------------------------
 
@@ -64,7 +113,7 @@ edit the stable SOFA conventions registered in hrtfpykit.
    from hrtfpykit.sofa import load_sofa
 
    # Load SOFA file
-   sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+   sofa = load_sofa(hrtf_path_a)
 
    # SOFA file summary
    print(sofa.summary())
@@ -119,7 +168,7 @@ and transforms are reflected directly in the generated figures.
    from hrtfpykit.hrtf import load_hrtf
 
    # Load HRTF file
-   hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+   hrtf = load_hrtf(hrtf_path_a)
 
    # Access SOFA backed object
    sofa = hrtf.Sofa
@@ -184,7 +233,7 @@ and transforms are reflected directly in the generated figures.
 
    from hrtfpykit.hrtf import load_hrtf
 
-   hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+   hrtf = load_hrtf(hrtf_path_a)
    hrtf.plot_amplitude(
        positions="front",
        ear="both",
@@ -202,7 +251,7 @@ and transforms are reflected directly in the generated figures.
 
    from hrtfpykit.hrtf import load_hrtf
 
-   hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+   hrtf = load_hrtf(hrtf_path_a)
    hrtf.plot_magnitude(
        positions="front",
        x_axis="log",
@@ -222,7 +271,7 @@ and transforms are reflected directly in the generated figures.
 
    from hrtfpykit.hrtf import load_hrtf
 
-   hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+   hrtf = load_hrtf(hrtf_path_a)
    hrtf.plot_absolute_itd(elevation_angle=0.0)
 
 .. image:: assets/images/quickstart-plot-absolute-itd.png
@@ -236,7 +285,7 @@ and transforms are reflected directly in the generated figures.
 
    from hrtfpykit.hrtf import load_hrtf
 
-   hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+   hrtf = load_hrtf(hrtf_path_a)
    hrtf.plot_ild_curve(elevation_angle=0.0)
 
 .. image:: assets/images/quickstart-plot-ild-curve.png
@@ -250,7 +299,7 @@ and transforms are reflected directly in the generated figures.
 
    from hrtfpykit.hrtf import load_hrtf
 
-   hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+   hrtf = load_hrtf(hrtf_path_a)
    hrtf.plot_source_grid()
 
 .. image:: assets/images/quickstart-plot-source-grid.png
@@ -264,7 +313,7 @@ and transforms are reflected directly in the generated figures.
 
    from hrtfpykit.hrtf import load_hrtf
 
-   hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+   hrtf = load_hrtf(hrtf_path_a)
    hrtf.plot_spectrum_plane(
        plane="horizontal",
        elevation_angle=0.0,
@@ -301,8 +350,8 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
    from hrtfpykit.hrtf import load_hrtf
    from hrtfpykit.plots import compare_amplitude
 
-   hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-   hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+   hrtf_a = load_hrtf(hrtf_path_a)
+   hrtf_b = load_hrtf(hrtf_path_b)
    compare_amplitude(
        [hrtf_a, hrtf_b],
        positions="front",
@@ -324,8 +373,8 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
    from hrtfpykit.hrtf import load_hrtf
    from hrtfpykit.plots import compare_magnitude
 
-   hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-   hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+   hrtf_a = load_hrtf(hrtf_path_a)
+   hrtf_b = load_hrtf(hrtf_path_b)
    compare_magnitude(
        [hrtf_a, hrtf_b],
        positions="front",
@@ -350,8 +399,8 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
    from hrtfpykit.hrtf import load_hrtf
    from hrtfpykit.plots import compare_absolute_itd
 
-   hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-   hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+   hrtf_a = load_hrtf(hrtf_path_a)
+   hrtf_b = load_hrtf(hrtf_path_b)
    compare_absolute_itd(
        [hrtf_a, hrtf_b],
        elevation_angle=0.0,
@@ -371,8 +420,8 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
    from hrtfpykit.hrtf import load_hrtf
    from hrtfpykit.plots import compare_lsd_plane
 
-   hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-   hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+   hrtf_a = load_hrtf(hrtf_path_a)
+   hrtf_b = load_hrtf(hrtf_path_b)
    compare_lsd_plane(
        hrtf_a,
        hrtf_b,

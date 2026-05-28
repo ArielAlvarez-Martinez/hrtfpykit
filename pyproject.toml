@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hrtfpykit"
-version = "1.dev0"
+version = "0.0.9.dev0"
 description = "A Python library for complete HRTF workflows, from SOFA file inspection and acoustic processing to visualization, comparison, and reproducible dataset pipelines construction."
 readme = "README.md"
 requires-python = ">=3.13"
