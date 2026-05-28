@@ -32,15 +32,15 @@ from .layouts import Layout_1, Layout_2Horizontal, Layout_2Vertical, Layout_3
 from .legends import Ear
 from .polar import create_horizontal_plane_curve
 from .titles import Titles
-from ..coordinates import (
+from ..utils.coordinates import (
     get_named_positions,
     get_position_queries,
     get_source_positions,
     spherical_to_lateral_polar,
 )
-from ..dsp import magnitude_to_db, tf_from_ir
-from ..metrics import ild, itd
-from ..planes import (
+from ..utils.dsp import magnitude_to_db, tf_from_ir
+from ..utils.metrics import ild, itd
+from ..utils.planes import (
     get_frontal_plane,
     get_horizontal_plane,
     get_median_plane,

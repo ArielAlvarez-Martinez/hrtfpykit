@@ -12,7 +12,7 @@ from .specs import (
     SHSpec,
     VideoSpec,
 )
-from .torch import collate_samples
+from ..utils.torch import collate_samples
 from .transforms import HRTFTransform
 
 

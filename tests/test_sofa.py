@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hrtfpykit._warnings import SOFAConventionWarning
+from hrtfpykit.utils.warnings import SOFAConventionWarning
 from hrtfpykit.sofa.check import check_sofa_against_conventions, check_sofa_security
 from hrtfpykit.sofa.sofa import SOFA
 from hrtfpykit.sofa.sofa import load_sofa

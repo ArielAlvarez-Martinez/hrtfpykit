@@ -37,7 +37,7 @@ from hrtfpykit.datasets.specs import (
     VideoSpec,
 )
 from hrtfpykit.hrtf import HRTF, load_hrtf
-from hrtfpykit.metrics import ild, itd
+from hrtfpykit.utils.metrics import ild, itd
 from hrtfpykit.sofa import load_sofa
 
 

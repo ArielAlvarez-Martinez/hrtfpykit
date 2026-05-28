@@ -6,7 +6,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure as MatplotlibFigure
 import numpy as np
 
-from ..coordinates import get_position_alias
+from ..utils.coordinates import get_position_alias
 
 
 @dataclass(frozen=True)

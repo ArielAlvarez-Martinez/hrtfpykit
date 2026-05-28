@@ -59,3 +59,4 @@ Content:
    sht
    sht_inverse
    sht_error
+   hrtf_from_dtf_and_ctf

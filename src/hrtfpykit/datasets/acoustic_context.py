@@ -3,8 +3,8 @@ from dataclasses import dataclass
 import numpy as np
 from typing import TYPE_CHECKING, Any, cast
 
-from ..coordinates import get_spherical_positions
-from ..planes import get_frontal_plane, get_horizontal_plane, get_median_plane
+from ..utils.coordinates import get_spherical_positions
+from ..utils.planes import get_frontal_plane, get_horizontal_plane, get_median_plane
 from .sanitize import sanitize_index_by, sanitize_positions
 from .specs import HRTFSpec, ITDSpec, ILDSpec, SHSpec
 from .specs_workflow import DatasetSpecWorkflow

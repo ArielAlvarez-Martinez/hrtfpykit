@@ -3,7 +3,7 @@ import pathlib
 import re
 import netCDF4
 import numpy as np
-from .._warnings import SOFAConventionWarning, warn_user
+from ..utils.warnings import SOFAConventionWarning, warn_user
 from .conventions import CONVENTIONS
 
 

@@ -6,7 +6,7 @@ from typing import Any, cast
 import numpy as np
 
 from ..sofa.sofa import SOFA
-from ..dsp import ir_from_tf, prepend_missing_dc, tf_from_ir
+from ..utils.dsp import ir_from_tf, prepend_missing_dc, tf_from_ir
 
 
 @dataclass(frozen=True)

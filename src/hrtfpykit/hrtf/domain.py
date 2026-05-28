@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ..dsp import (
+from ..utils.dsp import (
     imag,
     magnitude,
     magnitude_db,
@@ -12,7 +12,7 @@ from ..dsp import (
     real,
     signal_duration,
 )
-from ..metrics import itd
+from ..utils.metrics import itd
 
 if TYPE_CHECKING:
     from .hrtf import HRTF

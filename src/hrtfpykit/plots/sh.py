@@ -8,9 +8,9 @@ from .axis import Axis, FrequencyLinearAxis, FrequencyLogAxis, MagnitudeAxis
 from .figure import Figure
 from .layouts import Layout_1
 from .titles import Titles
-from ..coordinates import get_position_queries
-from ..dsp import magnitude_to_db
-from ..sh import sht_error
+from ..utils.coordinates import get_position_queries
+from ..utils.dsp import magnitude_to_db
+from ..utils.sh import sht_error
 
 if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF

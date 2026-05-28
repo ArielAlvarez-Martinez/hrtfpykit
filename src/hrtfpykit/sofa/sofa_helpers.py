@@ -4,7 +4,7 @@ import pathlib
 import netCDF4
 import numpy as np
 
-from .._warnings import SOFAShapeWarning, warn_user
+from ..utils.warnings import SOFAShapeWarning, warn_user
 from .check import check_sofa_against_conventions
 
 if TYPE_CHECKING:

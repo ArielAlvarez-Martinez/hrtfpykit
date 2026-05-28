@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy.spatial import SphericalVoronoi
 
-from ..coordinates import get_spherical_positions, spherical_to_cartesian
-from ..dsp import ir_from_tf, magnitude as tf_magnitude, minimum_phase, tf_from_ir
+from .coordinates import get_spherical_positions, spherical_to_cartesian
+from .dsp import ir_from_tf, magnitude as tf_magnitude, minimum_phase, tf_from_ir
 
 if TYPE_CHECKING:
-    from .hrtf import HRTF
+    from ..hrtf.hrtf import HRTF
 
 
 def ctf_from_hrtf(
@@ -31,9 +31,9 @@ def ctf_from_hrtf(
     The computation is performed on :attr:`~hrtfpykit.hrtf.HRTF.TF`. If
     :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is available, its
     final-axis length is treated as the reference HRIR support:
-    the reconstructed CTF impulse response is cropped or zero-padded to that
+    the reconstructed CTF impulse response is cropped or padded with zeros to that
     length and the TF is rebuilt on the original FFT grid. If no IR values are
-    available, the inverse-transform length implied by the TF grid is kept.
+    available, the inverse transform length implied by the TF grid is kept.
 
     Parameters
     ----------
@@ -73,7 +73,7 @@ def ctf_from_hrtf(
     ------
     ValueError
         If hrtf does not expose the expected HRTF interface, TF data are
-        missing, empty, non-NumPy, or have fewer than two frequency bins, TF
+        missing, empty, not NumPy, or have fewer than two frequency bins, TF
         frequency bins are missing, weights is not boolean,
         magnitude_average is not ``log`` or ``linear``,
         attenuation is not finite and non-negative, the TF grid contains
@@ -254,14 +254,14 @@ def dtf_from_hrtf(
     A directional transfer function (DTF) isolates the source-dependent part
     of an HRTF by removing an internally estimated common transfer function
     (CTF). This function computes the CTF with
-    :func:`~hrtfpykit.hrtf.directivity.ctf_from_hrtf`, divides
+    :func:`~hrtfpykit.utils.directivity.ctf_from_hrtf`, divides
     the original complex TF values by that CTF on the active frequency grid,
     and returns the directional result as a new :class:`~hrtfpykit.hrtf.HRTF` instance.
 
     The output preserves the source layout of the input object. If
     :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is available, its
     final-axis length is used as the reference HRIR support for the reconstructed DTF impulse responses. If no
-    IR values are available, the inverse-transform length implied by the TF
+    IR values are available, the inverse transform length implied by the TF
     grid is kept.
 
     Parameters
@@ -300,7 +300,7 @@ def dtf_from_hrtf(
     ------
     ValueError
         If hrtf does not expose the expected HRTF interface, TF data are
-        missing, empty, non-NumPy, or have fewer than two frequency bins, TF
+        missing, empty, not NumPy, or have fewer than two frequency bins, TF
         frequency bins are missing, attenuation is not finite and
         non-negative, or the internal CTF computation fails because weighting,
         averaging, source geometry, or frequency-bin requirements are not met.
@@ -408,59 +408,84 @@ def hrtf_from_dtf_and_ctf(
     dtf: "HRTF",
     ctf: "HRTF",
 ) -> "HRTF":
-    """Reconstruct an HRTF from directional and common components.
+    """Reconstruct an HRTF from DTF and CTF components.
 
-    This function combines a directional transfer function (DTF) and a common
-    transfer function (CTF) by multiplying their complex TF values on a shared
-    frequency grid. It is the inverse operation for workflows that decompose an
-    HRTF into source-dependent and source-independent components with
-    :func:`~hrtfpykit.hrtf.directivity.dtf_from_hrtf` and
-    :func:`~hrtfpykit.hrtf.directivity.ctf_from_hrtf`.
+    ``hrtf_from_dtf_and_ctf`` combines a directional transfer function
+    (DTF) with a common transfer function (CTF) to recover a full HRTF
+    object. The reconstruction is performed in the complex frequency domain:
+    the DTF values are multiplied by the CTF values on the same frequency
+    grid, then the time domain impulse responses are rebuilt from the
+    reconstructed transfer functions.
 
-    The returned object is cloned from dtf so the DTF source layout,
-    metadata, and HRTF interface remain the reference. If
-    :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is available, its
-    final-axis length is used as the reference HRIR support for
-    the reconstructed impulse responses. If no DTF IR values are available,
-    the inverse-transform length implied by the TF grid is kept.
+    This function is intended for workflows where the directional and common
+    parts of an HRTF are handled separately. A common example is a deep
+    learning experiment that predicts DTF values and then needs to combine
+    them with a measured, estimated, or predicted CTF before saving, plotting,
+    or evaluating the reconstructed HRTF.
+
+    The returned object is cloned from ``dtf``. The DTF source layout,
+    metadata, SOFA handle, and HRTF interface therefore remain the reference,
+    while the TF and IR values are replaced by the reconstructed HRTF values.
+    If ``dtf.IR.values`` is available, its final-axis length is used as the
+    HRIR support for the reconstructed impulse responses. If no DTF IR values
+    are available, the inverse transform length implied by the TF grid is
+    kept.
 
     Parameters
     ----------
     dtf : HRTF
-        :class:`~hrtfpykit.hrtf.HRTF` object containing the directional transfer function. Its
-        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` define the directional spectral component, its
-        :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` define the output frequency grid, and its source
-        layout defines the source layout of the reconstructed HRTF.
+        :class:`~hrtfpykit.hrtf.HRTF` object containing the directional
+        transfer function. ``dtf.TF.values`` define the directional spectral
+        component, ``dtf.TF.frequency_bins`` define the output frequency grid,
+        and the DTF source layout defines the source layout of the
+        reconstructed HRTF. In normal hrtfpykit workflows, ``dtf`` is produced
+        with :meth:`~hrtfpykit.hrtf.transforms.Transform.to_dtf`.
     ctf : HRTF
-        :class:`~hrtfpykit.hrtf.HRTF` object containing the common transfer function. It is typically
-        the singleton-source compatibility object produced by
-        :func:`~hrtfpykit.hrtf.directivity.ctf_from_hrtf`, but any CTF-like HRTF can be used when its
-        leading TF dimensions broadcast to the DTF layout without expanding
-        that layout.
+        :class:`~hrtfpykit.hrtf.HRTF` object containing the common transfer
+        function. In normal hrtfpykit workflows, ``ctf`` is produced with
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.to_ctf`. Its frequency
+        bins must match the DTF frequency bins, and its leading TF dimensions
+        must broadcast to the DTF layout without expanding that layout.
 
     Returns
     -------
     HRTF
-        New :class:`~hrtfpykit.hrtf.HRTF` object containing the reconstructed transfer function and
-        impulse response. The source layout follows dtf. The TF frequency
-        grid follows :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` and must match the CTF grid.
+        New :class:`~hrtfpykit.hrtf.HRTF` object containing the reconstructed
+        transfer functions and impulse responses. The source layout follows
+        ``dtf``. The frequency grid follows ``dtf.TF.frequency_bins`` and must
+        match ``ctf.TF.frequency_bins``.
 
     Raises
     ------
     ValueError
         If either input does not expose the expected HRTF interface, TF data
-        are missing, empty, non-NumPy, or have fewer than two frequency bins,
+        are missing, empty, not NumPy, or have fewer than two frequency bins,
         frequency bins are missing or do not match, TF lengths differ, or the
         CTF leading dimensions cannot broadcast to the DTF leading dimensions
         without expanding the DTF layout.
 
     Notes
     -----
-    The DTF is the reference object for reconstruction. Its source geometry and
-    metadata are preserved through cloning, while only TF and IR values are
-    replaced by the reconstructed data. If a reference DTF IR length is
-    available, reconstructed HRIRs are cropped or zero-padded to that support
-    and the TF is rebuilt with :attr:`~hrtfpykit.hrtf.HRTF.fft_length`.
+    DTF alone is not enough to recover the original HRTF. The CTF carries the
+    common spectral component that was removed during DTF construction, so a
+    reconstruction workflow must provide both components.
+
+    If a reference DTF IR length is available, reconstructed HRIRs are cropped
+    or padded with zeros to that support and the TF is rebuilt with
+    :attr:`~hrtfpykit.hrtf.HRTF.fft_length`.
+
+    Examples
+    --------
+    Reconstruct an HRTF after separating it into DTF and CTF components:
+
+    >>> from hrtfpykit.hrtf import hrtf_from_dtf_and_ctf, load_hrtf
+    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> dtf = hrtf.transform.to_dtf()
+    >>> ctf = hrtf.transform.to_ctf()
+    >>> reconstructed = hrtf_from_dtf_and_ctf(dtf, ctf)
+    >>> reconstructed.TF.values.shape == hrtf.TF.values.shape
+    True
+
     """
     try:
         dtf_tf = dtf.TF

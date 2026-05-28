@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
-from ..coordinates import (
+from ..utils.coordinates import (
     cartesian_to_lateral_polar,
     cartesian_to_spherical,
     get_closest_position_index,

@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ..coordinates import get_source_positions
-from ..planes import get_horizontal_plane
+from ..utils.coordinates import get_source_positions
+from ..utils.planes import get_horizontal_plane
 
 
 if TYPE_CHECKING:

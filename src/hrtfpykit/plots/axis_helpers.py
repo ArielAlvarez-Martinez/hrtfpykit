@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
 
 from .labels import Labels
-from ..coordinates import spherical_to_cartesian
+from ..utils.coordinates import spherical_to_cartesian
 
 
 if TYPE_CHECKING:
