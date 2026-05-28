@@ -14,13 +14,8 @@ Tests that need large dataset roots or network access are guarded by explicit
 options so the default test run stays lightweight.
 
 The suite is intentionally behavioral. It does not try to benchmark runtime.
-<<<<<<< HEAD
-Instead, it checks whether the main SOFA, HRTF, plotting, and dataset
-workflows keep working together with realistic SOFA-backed data.
-=======
 Instead, it checks whether the SOFA, HRTF, plotting, and dataset workflows keep
 working together with realistic SOFA backed data.
->>>>>>> dev
 
 Test Files
 ----------
