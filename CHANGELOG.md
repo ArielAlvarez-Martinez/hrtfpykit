@@ -133,6 +133,7 @@ use the `v0.x.y` format.
 ### Fixed
 
 - 
+<<<<<<< HEAD
 
 ## [v0.0.9.dev0] - Unreleased
 
@@ -254,6 +255,8 @@ use the `v0.x.y` format.
 ### Fixed
 
 - 
+=======
+>>>>>>> dev
 
 ## [v0.0.6] - 2026-05-15
 
