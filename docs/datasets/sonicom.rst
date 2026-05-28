@@ -19,7 +19,7 @@ the dataset.
 
 **Implementation status.**
 
-Last updated: 2026-05-28. SONICOM is an actively developing dataset, and
+Last updated: 2026-05-29. SONICOM is an actively developing dataset, and
 new subjects or resources can appear after a hrtfpykit release. This
 implementation supports the released resources indexed by subject identifiers
 ``P0001`` through ``P0405``. To use newer SONICOM releases, hrtfpykit must first

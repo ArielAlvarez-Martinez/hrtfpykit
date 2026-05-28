@@ -64,3 +64,4 @@ Content:
    Starting with hrtfpykit.hrtf <starting_with_hrtfpykit_hrtf>
    Starting with hrtfpykit.plots <starting_with_hrtfpykit_plots>
    Starting with hrtfpykit.datasets <starting_with_hrtfpykit_datasets>
+   Mastering hrtfpykit.datasets Specs <mastering_hrtfpykit_datasets_specs>

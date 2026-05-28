@@ -19,6 +19,10 @@ except ImportError:
     tqdm = None
 
 
+class MissingChecksumError(ValueError):
+    pass
+
+
 class BaseDownload:
     def __init__(
         self,
@@ -552,7 +556,7 @@ class BaseDownload:
         else:
             raise ValueError(f"{resource} checksums must be a string or filename dictionary")
         if checksum is None:
-            raise ValueError(
+            raise MissingChecksumError(
                 f"{self.config.name} is missing a checksum for {resource!r} resource {relative_path!r}"
             )
         if not isinstance(checksum, str):
@@ -854,17 +858,19 @@ class BaseDownload:
                                 variant=hrtf_type,
                             )
                             destination = self.compose_download_path(relative_path)
-                            checksum = (
-                                self.get_checksum(
-                                    "hrtf",
-                                    relative_path,
-                                    hrtf_type=hrtf_type,
-                                    hrtf_version=None if hrtf_version is None else str(hrtf_version),
-                                    hrtf_sample_rate=sample_rate_value,
-                                )
-                                if self.verify_checksum_enabled
-                                else None
-                            )
+                            if self.verify_checksum_enabled:
+                                try:
+                                    checksum = self.get_checksum(
+                                        "hrtf",
+                                        relative_path,
+                                        hrtf_type=hrtf_type,
+                                        hrtf_version=None if hrtf_version is None else str(hrtf_version),
+                                        hrtf_sample_rate=sample_rate_value,
+                                    )
+                                except MissingChecksumError:
+                                    continue
+                            else:
+                                checksum = None
                             download_jobs.append(
                                 {
                                     "resource": "hrtf",
@@ -952,16 +958,18 @@ class BaseDownload:
                             mesh_version_label=mesh_version_label,
                         )
                         destination = self.compose_download_path(relative_path)
-                        checksum = (
-                            self.get_checksum(
-                                "mesh",
-                                relative_path,
-                                mesh_type=mesh_type,
-                                mesh_version=None if mesh_version is None else str(mesh_version),
-                            )
-                            if self.verify_checksum_enabled
-                            else None
-                        )
+                        if self.verify_checksum_enabled:
+                            try:
+                                checksum = self.get_checksum(
+                                    "mesh",
+                                    relative_path,
+                                    mesh_type=mesh_type,
+                                    mesh_version=None if mesh_version is None else str(mesh_version),
+                                )
+                            except MissingChecksumError:
+                                continue
+                        else:
+                            checksum = None
                         download_jobs.append(
                             {
                                 "resource": "mesh",
@@ -984,36 +992,54 @@ class BaseDownload:
                 raise ValueError(f"{self.config.name} does not provide official anthropometry")
             relative_path = self.config.anthropometry.path
             destination = self.compose_download_path(relative_path)
-            download_jobs.append(
-                {
-                    "resource": "anthropometry",
-                    "subject_id": None,
-                    "relative_path": relative_path,
-                    "url": self.build_download_url("anthropometry", relative_path),
-                    "destination": destination,
-                    "checksum": self.get_checksum("anthropometry", relative_path)
-                    if self.verify_checksum_enabled
-                    else None,
-                }
-            )
+            if self.verify_checksum_enabled:
+                try:
+                    checksum = self.get_checksum("anthropometry", relative_path)
+                except MissingChecksumError:
+                    skip_job = True
+                else:
+                    skip_job = False
+            else:
+                checksum = None
+                skip_job = False
+            if not skip_job:
+                download_jobs.append(
+                    {
+                        "resource": "anthropometry",
+                        "subject_id": None,
+                        "relative_path": relative_path,
+                        "url": self.build_download_url("anthropometry", relative_path),
+                        "destination": destination,
+                        "checksum": checksum,
+                    }
+                )
 
         if "metadata" in resources:
             if self.config.metadata is None:
                 raise ValueError(f"{self.config.name} does not provide official metadata")
             relative_path = self.config.metadata.path
             destination = self.compose_download_path(relative_path)
-            download_jobs.append(
-                {
-                    "resource": "metadata",
-                    "subject_id": None,
-                    "relative_path": relative_path,
-                    "url": self.build_download_url("metadata", relative_path),
-                    "destination": destination,
-                    "checksum": self.get_checksum("metadata", relative_path)
-                    if self.verify_checksum_enabled
-                    else None,
-                }
-            )
+            if self.verify_checksum_enabled:
+                try:
+                    checksum = self.get_checksum("metadata", relative_path)
+                except MissingChecksumError:
+                    skip_job = True
+                else:
+                    skip_job = False
+            else:
+                checksum = None
+                skip_job = False
+            if not skip_job:
+                download_jobs.append(
+                    {
+                        "resource": "metadata",
+                        "subject_id": None,
+                        "relative_path": relative_path,
+                        "url": self.build_download_url("metadata", relative_path),
+                        "destination": destination,
+                        "checksum": checksum,
+                    }
+                )
 
         return download_jobs
 
