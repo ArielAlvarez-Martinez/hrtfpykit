@@ -241,12 +241,6 @@ To display figures during local visual checks, pass ``--show`` or ``--visual``:
 Dataset Tests
 -------------
 
-<<<<<<< HEAD
-HUTUBS and SONICOM tests are different from the fixture-based tests. They are
-designed to validate the dataset classes against real dataset layouts, so they
-skip when the required local roots are missing. Skips are expected when you run
-these files without dataset resources.
-=======
 ARI, HUTUBS, and SONICOM use the same dataset test pattern for fast checks:
 configuration validity, download plan construction, subject limit behavior,
 checksum failures, invalid variant key errors, spec workflow immutability, and
@@ -272,7 +266,6 @@ Run ARI checks:
 
 Pass ``--ari-root`` when you want ARI downloads or an existing local ARI root to
 be used by a run.
->>>>>>> dev
 
 Run HUTUBS smoke tests with a local dataset root:
 
