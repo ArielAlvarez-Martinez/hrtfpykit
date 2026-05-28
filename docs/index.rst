@@ -60,8 +60,8 @@ Architecture
 
 **hrtfpykit** is organized around four public API entry points. The SOFA layer
 handles file structure, the HRTF layer builds the acoustic object, the plots
-layer visualizes HRTF data, and the datasets layer turns public HRTF resources
-into training and analysis samples.
+layer visualizes HRTF data, and the datasets layer builds map-style datasets
+from public HRTF datasets and aligned custom resources.
 
 - :doc:`hrtfpykit.sofa </sofa/index>`: open, inspect, validate, edit, clone, and save SOFA files as
   structured Python objects.
@@ -69,8 +69,8 @@ into training and analysis samples.
   positions, transforms, metrics, and spherical harmonics.
 - :doc:`hrtfpykit.plots </plots/index>`: visualize HRTF objects through spectral cues, source grids,
   binaural cues, spherical harmonic reconstructions, and comparison plots.
-- :doc:`hrtfpykit.datasets </datasets/index>`: build public HRTF dataset pipelines with explicit inputs,
-  targets, variants, splits, subject resources, and batching utilities.
+- :doc:`hrtfpykit.datasets </datasets/index>`: build map-style public HRTF dataset pipelines with
+  explicit inputs, targets, variants, splits, subject resources, custom resources, and batching utilities.
 
 Content:
 --------

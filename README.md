@@ -73,8 +73,8 @@ into training and analysis samples.
   visualize HRTF objects through spectral cues, source grids, binaural cues,
   spherical harmonic reconstructions, and comparison plots.
 - **[hrtfpykit.datasets](https://hrtfpykit.readthedocs.io/en/stable/datasets/)**:
-  build public HRTF dataset pipelines with explicit inputs, targets, variants,
-  splits, subject resources, and batching utilities.
+  build map-style public HRTF dataset pipelines with explicit inputs, targets,
+  variants, splits, subject resources, custom resources, and batching utilities.
 
 ## Guides
 
