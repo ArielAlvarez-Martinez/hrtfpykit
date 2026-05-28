@@ -4,13 +4,8 @@ from typing import Any, cast
 
 import hrtfpykit.sofa
 import numpy as np
-<<<<<<< HEAD
-from ..coordinates import get_position_queries, get_spherical_positions
-from ..dsp import (
-=======
 from ..utils.coordinates import get_position_queries, get_spherical_positions
 from ..utils.dsp import (
->>>>>>> dev
     ir_from_tf,
     prepend_missing_dc,
     tf_from_ir,
