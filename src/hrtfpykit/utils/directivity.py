@@ -6,7 +6,7 @@ import numpy as np
 from scipy.spatial import SphericalVoronoi
 
 from .coordinates import get_spherical_positions, spherical_to_cartesian
-from .dsp import ir_from_tf, magnitude as tf_magnitude, minimum_phase, tf_from_ir
+from .dsp import ir_from_tf, magnitude, minimum_phase, tf_from_ir
 
 if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
@@ -184,7 +184,7 @@ def ctf_from_hrtf(
             dtype=float,
         )
 
-    magnitude_values = np.maximum(tf_magnitude(tf), tiny)
+    magnitude_values = np.maximum(magnitude(tf), tiny)
 
     if magnitude_average_key == "log":
         ctf_magnitude = np.exp(
