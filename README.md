@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/images/hrtfpykit-logo.png" alt="hrtfpykit" width="720">
+  <img src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/images/hrtfpykit-logo.png" alt="hrtfpykit" width="680">
 </p>
 
 <p align="center">
