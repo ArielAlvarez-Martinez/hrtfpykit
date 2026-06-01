@@ -5,15 +5,19 @@ This file tracks released tags and upcoming release work for `hrtfpykit`.
 Historical baseline tags keep their original names. Future release tags should
 use the `v0.x.y` format.
 
-## [v0.1.1.dev0] - Unreleased
+## [v0.1.1] - 2026-06-1
 
 ### Added
 
-- 
+- Added `HRTFSpec.frequencies` for sparse nearest-bin TF selection and
+  `HRTFSpec.frequency_bands` for inclusive native-grid TF band selection after
+  dataset-level and spec-level HRTF transforms are applied.
 
 ### Changed
 
-- 
+- Changed `HRTF.select()` IR cropping arguments from `start` and `end` to
+  `start_sample` and `end_sample`, and removed the redundant `start_seconds`
+  and `end_seconds` arguments.
 
 ### Fixed
 

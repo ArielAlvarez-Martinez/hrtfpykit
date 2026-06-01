@@ -335,6 +335,10 @@ class DatasetBuilder:
             spec_id: position_indices
             for spec_id, position_indices in acoustic_context.spec_position_indices
         }
+        state.spec_frequency_indices = {
+            spec_id: frequency_indices
+            for spec_id, frequency_indices in acoustic_context.spec_frequency_indices
+        }
 
         state.rows = self._build_rows(
             subject_ids=state.selected_subjects,

@@ -199,8 +199,8 @@ and transforms are reflected directly in the generated figures.
    selected = hrtf.select(
        positions=["front", "left", "right"],
        ear="both",
-       start=0,
-       end=128,
+       start_sample=0,
+       end_sample=128,
    )
 
    # Create a modified HRTF copy

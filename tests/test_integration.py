@@ -98,8 +98,8 @@ def test_selected_transformed_hrtf_feeds_metrics_and_plots(
     selected_hrtf = real_hrtf.select(
         positions=selected_positions,
         position_coordinate_system=real_hrtf.Sources.source_coordinate_system,
-        start=0,
-        end=crop_end,
+        start_sample=0,
+        end_sample=crop_end,
     )
     transformed_hrtf = selected_hrtf.transform.apply_window("hann")
 

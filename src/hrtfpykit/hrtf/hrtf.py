@@ -1296,10 +1296,8 @@ class HRTF(HRTFPlots):
         elevation_angles: float | list[float] | tuple[float, ...] | np.ndarray | None = None,
         ear: str = "both",
         angle_unit: str = "degrees",
-        start: int | None = None,
-        end: int | None = None,
-        start_seconds: float | None = None,
-        end_seconds: float | None = None,
+        start_sample: int | None = None,
+        end_sample: int | None = None,
     ) -> "HRTF":
         """Select a spatial subset, ear subset, and/or IR crop from the HRTF.
 
@@ -1320,8 +1318,7 @@ class HRTF(HRTFPlots):
         ``right`` removes the ear axis entry from available IR and TF arrays.
         IR cropping is applied along the final sample axis and automatically
         recomputes the TF representation from the cropped IR using the cropped
-        IR length as the FFT length. Crop boundaries can be provided either as
-        sample indices or as seconds, but not both in the same call.
+        IR length as the FFT length.
 
         Parameters
         ----------
@@ -1353,14 +1350,10 @@ class HRTF(HRTFPlots):
             Ear selection.
         angle_unit : {``degrees``, ``radians``}, default=``degrees``
             Angle unit used for spatial queries and plane angles.
-        start : int | None, default=None
-            IR crop start index (samples).
-        end : int | None, default=None
-            IR crop end index (samples).
-        start_seconds : float | None, default=None
-            IR crop start time (seconds). Mutually exclusive with start.
-        end_seconds : float | None, default=None
-            IR crop end time (seconds). Mutually exclusive with end.
+        start_sample : int | None, default=None
+            IR crop start sample index.
+        end_sample : int | None, default=None
+            IR crop end sample index.
 
         Returns
         -------
@@ -1372,8 +1365,7 @@ class HRTF(HRTFPlots):
         ValueError
             If the requested selection is invalid, no positions remain after
             filtering, more than one source-selection mode is requested, the
-            requested ear is unavailable, crop boundaries are invalid,
-            seconds-based cropping is requested without a sample rate, or IR
+            requested ear is unavailable, crop boundaries are invalid, or IR
             data are unavailable for cropping.
 
         Examples
@@ -1388,8 +1380,8 @@ class HRTF(HRTFPlots):
         >>> selected = hrtf.select(
         ...     positions=["front", "left", "right"],
         ...     ear="left",
-        ...     start=0,
-        ...     end=128,
+        ...     start_sample=0,
+        ...     end_sample=128,
         ... )
         >>> selected.IR.values.shape
         (3, 128)
@@ -1567,12 +1559,7 @@ class HRTF(HRTFPlots):
                     axis=0,
                 )
 
-        cropping_ir = (
-            start is not None
-            or end is not None
-            or start_seconds is not None
-            or end_seconds is not None
-        )
+        cropping_ir = start_sample is not None or end_sample is not None
         if cropping_ir:
             if transformed_hrtf.IR.values is None:
                 raise ValueError("IR data is not available")
@@ -1581,68 +1568,19 @@ class HRTF(HRTFPlots):
                 raise ValueError("IR data must be a NumPy array")
             if ir_values.ndim == 0:
                 raise ValueError("IR data must have at least one dimension")
-
-            using_sample_indices = start is not None or end is not None
-            using_seconds = start_seconds is not None or end_seconds is not None
-            if using_sample_indices and using_seconds:
-                raise ValueError(
-                    "Use either sample indices (start/end) or seconds (start_seconds/end_seconds)"
-                )
-
-            start_index = start
-            end_index = end
-            if using_seconds:
-                if transformed_hrtf.IR.sample_rate is None:
-                    raise ValueError("sample_rate is required when using seconds crop")
-                resolved_sample_rate = transformed_hrtf.IR.sample_rate
-                if isinstance(resolved_sample_rate, bool):
-                    raise ValueError("sample_rate must be a finite, positive value.")
-                try:
-                    resolved_sample_rate = float(resolved_sample_rate)
-                except (TypeError, ValueError):
-                    raise ValueError("sample_rate must be a finite, positive value.") from None
-                if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
-                    raise ValueError("sample_rate must be a finite, positive value.")
-                if start_seconds is not None:
-                    if isinstance(start_seconds, bool):
-                        raise ValueError("start_seconds must be a finite, non-negative value.")
-                    try:
-                        start_seconds = float(start_seconds)
-                    except (TypeError, ValueError):
-                        raise ValueError("start_seconds must be a finite, non-negative value.") from None
-                    if not np.isfinite(start_seconds) or start_seconds < 0.0:
-                        raise ValueError("start_seconds must be a finite, non-negative value.")
-                    start_index = int(round(start_seconds * resolved_sample_rate))
-                else:
-                    start_index = None
-                if end_seconds is not None:
-                    if isinstance(end_seconds, bool):
-                        raise ValueError("end_seconds must be a finite, non-negative value.")
-                    try:
-                        end_seconds = float(end_seconds)
-                    except (TypeError, ValueError):
-                        raise ValueError("end_seconds must be a finite, non-negative value.") from None
-                    if not np.isfinite(end_seconds) or end_seconds < 0.0:
-                        raise ValueError("end_seconds must be a finite, non-negative value.")
-                    end_index = int(round(end_seconds * resolved_sample_rate))
-                else:
-                    end_index = None
-            else:
-                if start is not None:
-                    if isinstance(start, bool) or not isinstance(start, int):
-                        raise ValueError("start must be an integer")
-                    if start < 0:
-                        raise ValueError("start must be non-negative")
-                if end is not None:
-                    if isinstance(end, bool) or not isinstance(end, int):
-                        raise ValueError("end must be an integer")
-                    if end < 0:
-                        raise ValueError("end must be non-negative")
-
-            if start_index is not None and end_index is not None and start_index >= end_index:
+            if start_sample is not None:
+                if isinstance(start_sample, bool) or not isinstance(start_sample, int):
+                    raise ValueError("start_sample must be an integer")
+                if start_sample < 0:
+                    raise ValueError("start_sample must be non-negative")
+            if end_sample is not None:
+                if isinstance(end_sample, bool) or not isinstance(end_sample, int):
+                    raise ValueError("end_sample must be an integer")
+                if end_sample < 0:
+                    raise ValueError("end_sample must be non-negative")
+            if start_sample is not None and end_sample is not None and start_sample >= end_sample:
                 raise ValueError("Crop end must be greater than crop start")
-
-            transformed_hrtf.IR.values = ir_values[..., slice(start_index, end_index)]
+            transformed_hrtf.IR.values = ir_values[..., slice(start_sample, end_sample)]
             tf_from_ir(
                 transformed_hrtf.IR,
                 fft_length=None,

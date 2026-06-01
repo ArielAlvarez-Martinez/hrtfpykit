@@ -55,6 +55,8 @@ class DatasetAcousticContextPlan:
         Time-sample indices selected by sample-indexed specs.
     spec_position_indices : tuple
         Per-spec position selections stored as (id(spec), indices) pairs.
+    spec_frequency_indices : tuple
+        Per-HRTFSpec frequency selections stored as (id(spec), indices) pairs.
 
     """
     sample_rate: float | None
@@ -69,6 +71,7 @@ class DatasetAcousticContextPlan:
     selected_frequency_indices: tuple[int, ...]
     selected_sample_indices: tuple[int, ...]
     spec_position_indices: tuple[tuple[int, tuple[int, ...]], ...]
+    spec_frequency_indices: tuple[tuple[int, tuple[int, ...]], ...]
 
 
 class DatasetAcousticContext:
@@ -184,6 +187,66 @@ class DatasetAcousticContext:
             )
         return [int(index) for index in np.asarray(indices, dtype=int).reshape(-1)]
 
+    @staticmethod
+    def resolve_frequency_indices(
+        frequencies: float | list[float] | tuple[float, ...] | np.ndarray | None,
+        frequency_bands: tuple[float, float] | list[tuple[float, float]] | tuple[tuple[float, float], ...] | np.ndarray | None,
+        domain: str,
+        hrtf: "HRTF",
+    ) -> list[int]:
+        """Resolve one HRTFSpec frequency selector against an HRTF TF grid."""
+        if frequencies is not None and frequency_bands is not None:
+            raise ValueError("HRTFSpec frequencies and frequency_bands are mutually exclusive")
+        if frequencies is not None or frequency_bands is not None:
+            if str(domain).strip().lower() != "frequency":
+                raise ValueError("HRTFSpec frequencies and frequency_bands require domain=frequency")
+        if hrtf.TF.frequency_bins is None:
+            raise ValueError("HRTFSpec frequency selection requires available TF frequency_bins")
+        frequency_bins = np.asarray(hrtf.TF.frequency_bins, dtype=float).reshape(-1)
+        if frequency_bins.size == 0:
+            raise ValueError("HRTFSpec frequency selection requires available TF frequency_bins")
+        if frequencies is None and frequency_bands is None:
+            return list(range(int(frequency_bins.size)))
+        if frequencies is not None:
+            raw_frequency_values = np.asarray(frequencies, dtype=object).reshape(-1)
+            if any(isinstance(value, bool | np.bool_) for value in raw_frequency_values.tolist()):
+                raise ValueError("HRTFSpec frequencies must contain finite, non-negative value(s)")
+            try:
+                frequency_values = np.asarray(frequencies, dtype=float).reshape(-1)
+            except (TypeError, ValueError):
+                raise ValueError("HRTFSpec frequencies must contain finite, non-negative value(s)") from None
+            if frequency_values.size == 0:
+                raise ValueError("HRTFSpec frequencies must contain at least one value")
+            if not np.all(np.isfinite(frequency_values)) or np.any(frequency_values < 0.0):
+                raise ValueError("HRTFSpec frequencies must contain finite, non-negative value(s)")
+            nearest_indices = [
+                int(np.argmin(np.abs(frequency_bins - float(frequency))))
+                for frequency in frequency_values
+            ]
+            return list(dict.fromkeys(nearest_indices))
+        raw_bands = np.asarray(frequency_bands, dtype=object)
+        if any(isinstance(value, bool | np.bool_) for value in raw_bands.reshape(-1).tolist()):
+            raise ValueError("HRTFSpec frequency_bands must contain finite, non-negative values")
+        try:
+            bands = np.asarray(frequency_bands, dtype=float)
+        except (TypeError, ValueError):
+            raise ValueError("HRTFSpec frequency_bands must contain (minimum, maximum) pairs") from None
+        if bands.ndim == 1 and bands.size == 2:
+            bands = bands.reshape(1, 2)
+        if bands.ndim != 2 or bands.shape[0] == 0 or bands.shape[1] != 2:
+            raise ValueError("HRTFSpec frequency_bands must contain (minimum, maximum) pairs")
+        if not np.all(np.isfinite(bands)) or np.any(bands < 0.0):
+            raise ValueError("HRTFSpec frequency_bands must contain finite, non-negative values")
+        if np.any(bands[:, 0] > bands[:, 1]):
+            raise ValueError("HRTFSpec frequency_bands minimum must not exceed maximum")
+        selected_mask = np.zeros(frequency_bins.shape, dtype=bool)
+        for minimum, maximum in bands:
+            selected_mask |= (frequency_bins >= float(minimum)) & (frequency_bins <= float(maximum))
+        selected_indices = np.flatnonzero(selected_mask).astype(int).tolist()
+        if len(selected_indices) == 0:
+            raise ValueError("HRTFSpec frequency_bands selected no available TF bins")
+        return selected_indices
+
     @classmethod
     def build(cls, dataset: "BaseDataset") -> DatasetAcousticContextPlan:
         """Build acoustic context for a constructed dataset state.
@@ -198,7 +261,9 @@ class DatasetAcousticContext:
         When any of those specs are position-indexed, all position-indexed specs
         must select the same position axis because
         :class:`~hrtfpykit.datasets.base.BaseDataset` builds one shared row table.
-        Frequency-indexed specs must agree on the number of frequency bins, and
+        HRTFSpec frequency selectors are resolved against the representative
+        subject after dataset-level and spec-level HRTF transforms.
+        Frequency-indexed specs must agree on the selected frequency bins, and
         sample-indexed specs must agree on the number of HRIR samples for the
         same reason.
 
@@ -222,7 +287,7 @@ class DatasetAcousticContext:
         ------
         ValueError
             If position-indexed specs select different position axes, if
-            frequency-indexed specs disagree on frequency-bin count, if a
+            frequency-indexed specs disagree on selected frequency bins, if a
             frequency-indexed HRTF or SH spec lacks frequency bins, if
             sample-indexed specs disagree on sample count, or if delegated HRTF
             loading and plane resolution fail.
@@ -257,6 +322,7 @@ class DatasetAcousticContext:
                 selected_frequency_indices=(),
                 selected_sample_indices=(),
                 spec_position_indices=(),
+                spec_frequency_indices=(),
             )
 
         sample_subject_id = state.selected_subjects[0]
@@ -280,11 +346,12 @@ class DatasetAcousticContext:
 
         position_axis: tuple[int, ...] | None = None
         position_axis_spec: str | None = None
-        frequency_count: int | None = None
-        frequency_count_spec: str | None = None
+        frequency_axis: tuple[int, ...] | None = None
+        frequency_axis_spec: str | None = None
         sample_count: int | None = None
         sample_count_spec: str | None = None
         spec_position_indices: list[tuple[int, tuple[int, ...]]] = []
+        spec_frequency_indices: list[tuple[int, tuple[int, ...]]] = []
 
         for spec in tuple(
             spec for spec in state.specs if isinstance(spec, (HRTFSpec, ITDSpec, ILDSpec))
@@ -309,31 +376,50 @@ class DatasetAcousticContext:
                     "Pick one position selection for the full dataset."
                 )
 
+        for spec in tuple(spec for spec in state.specs if isinstance(spec, HRTFSpec)):
+            selected_hrtf = sample_hrtf
+            if spec.transform is not None:
+                transform_cache_key = ("hrtf_transform", sample_subject_id, id(spec.transform))
+                transformed_hrtf = state.cache.get(transform_cache_key)
+                if transformed_hrtf is None:
+                    transformed_hrtf = spec.transform(sample_hrtf)
+                    state.cache[transform_cache_key] = transformed_hrtf
+                selected_hrtf = cast(Any, transformed_hrtf)
+            indices = DatasetAcousticContext.resolve_frequency_indices(
+                spec.frequencies,
+                spec.frequency_bands,
+                str(spec.domain),
+                cast(Any, selected_hrtf),
+            )
+            spec_frequency_indices.append((id(spec), tuple(indices)))
+
         for acoustic_spec in acoustic_specs:
             spec_name = DatasetSpecWorkflow.get_spec_name(acoustic_spec)
             spec_index_by = sanitize_index_by(acoustic_spec.index_by)
             if "frequency" in spec_index_by:
-                if isinstance(acoustic_spec, (HRTFSpec, SHSpec)):
+                if isinstance(acoustic_spec, HRTFSpec):
+                    current_frequency_axis = dict(spec_frequency_indices)[id(acoustic_spec)]
+                elif isinstance(acoustic_spec, SHSpec):
                     if sample_hrtf.TF.frequency_bins is None:
                         raise ValueError("Frequency-indexed specs require available HRTF frequency bins")
-                    current_frequency_count = int(np.asarray(sample_hrtf.TF.frequency_bins).reshape(-1).shape[0])
+                    current_frequency_axis = tuple(range(int(np.asarray(sample_hrtf.TF.frequency_bins).reshape(-1).shape[0])))
                 elif isinstance(acoustic_spec, ILDSpec):
                     fft_length = (
                         int(acoustic_spec.fft_length)
                         if acoustic_spec.fft_length is not None
                         else int(sample_ir_values.shape[-1])
                     )
-                    current_frequency_count = int(fft_length // 2 + 1)
+                    current_frequency_axis = tuple(range(int(fft_length // 2 + 1)))
                 else:
                     continue
-                if frequency_count is None:
-                    frequency_count = current_frequency_count
-                    frequency_count_spec = spec_name
-                elif current_frequency_count != frequency_count:
+                if frequency_axis is None:
+                    frequency_axis = current_frequency_axis
+                    frequency_axis_spec = spec_name
+                elif current_frequency_axis != frequency_axis:
                     raise ValueError(
-                        "All frequency-indexed specs in a dataset must use the same frequency-bin count. "
-                        f"{spec_name!r} selects {current_frequency_count} bins, but "
-                        f"{frequency_count_spec!r} selects {frequency_count}. "
+                        "All frequency-indexed specs in a dataset must use the same selected frequency bins. "
+                        f"{spec_name!r} selects {len(current_frequency_axis)} bins, but "
+                        f"{frequency_axis_spec!r} selects {len(frequency_axis)}. "
                         "Pick one frequency selection for the full dataset."
                     )
             if "samples" in spec_index_by:
@@ -350,8 +436,8 @@ class DatasetAcousticContext:
                     )
 
         selected_position_indices = () if position_axis is None else position_axis
-        if frequency_count is not None:
-            selected_frequency_indices = tuple(range(int(frequency_count)))
+        if frequency_axis is not None:
+            selected_frequency_indices = frequency_axis
         if sample_count is not None:
             selected_sample_indices = tuple(range(int(sample_count)))
 
@@ -385,4 +471,5 @@ class DatasetAcousticContext:
             selected_frequency_indices=selected_frequency_indices,
             selected_sample_indices=selected_sample_indices,
             spec_position_indices=tuple(spec_position_indices),
+            spec_frequency_indices=tuple(spec_frequency_indices),
         )

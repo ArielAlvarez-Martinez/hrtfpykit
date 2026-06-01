@@ -383,8 +383,8 @@ def test_real_hrtf_selects_numeric_positions_crop_and_right_ear(
         positions=source_positions[:selected_count],
         position_coordinate_system=real_hrtf.Sources.source_coordinate_system,
         ear="right",
-        start=crop_start,
-        end=crop_end,
+        start_sample=crop_start,
+        end_sample=crop_end,
     )
 
     assert crop_end > crop_start
@@ -414,12 +414,8 @@ def test_real_hrtf_metric_itd_runs_on_loaded_file(real_hrtf: HRTF) -> None:
     [
         ({"ear": "center"}, "ear must be one of"),
         ({"plane": "diagonal"}, "plane must be one of"),
-        ({"start": 4, "end": 4}, "Crop end must be greater than crop start"),
-        ({"start": True}, "start must be an integer"),
-        (
-            {"start": 0, "start_seconds": 0.0},
-            "Use either sample indices",
-        ),
+        ({"start_sample": 4, "end_sample": 4}, "Crop end must be greater than crop start"),
+        ({"start_sample": True}, "start_sample must be an integer"),
         ({"positions": ["not-a-direction"]}, "named position accepts"),
     ],
 )

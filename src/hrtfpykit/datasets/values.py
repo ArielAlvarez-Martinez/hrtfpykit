@@ -349,6 +349,9 @@ class DatasetSampleValueSelector:
         ``time``, this selector reads IR values and uses the ``samples`` row axis. For
         frequency-domain values, it reads TF values and can expose complex values,
         real part, imaginary part, magnitude, decibel magnitude, or phase.
+        HRTFSpec frequency selectors are resolved during acoustic-context
+        construction and slice the extracted TF axis without modifying the
+        loaded HRTF object.
 
         """
 
@@ -435,8 +438,14 @@ class DatasetSampleValueSelector:
             values = np.squeeze(values, axis=ear_axis)
             axis_names.pop(ear_axis)
 
+        frequency_axis = axis_names.index("frequency") if "frequency" in axis_names else None
+        selected_frequency_indices = state.spec_frequency_indices.get(id(spec))
+        if frequency_axis is not None and "frequency" not in spec_index_by:
+            if selected_frequency_indices is not None:
+                values = np.take(values, selected_frequency_indices, axis=frequency_axis)
         if "frequency" in spec_index_by:
-            frequency_axis = axis_names.index("frequency")
+            if frequency_axis is None:
+                raise ValueError("HRTFSpec frequency indexing requires domain=frequency")
             frequency_index = int(cast(Any, row["frequency_index"]))
             values = np.take(values, [frequency_index], axis=frequency_axis)
             values = np.squeeze(values, axis=frequency_axis)

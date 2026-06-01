@@ -11,6 +11,8 @@ class HRTFSpec:
         signal: str = "ir",
         positions: str | tuple[int, ...] | list[int] | np.ndarray = "all",
         plane: str | tuple[object, ...] | dict[str, object] | None = None,
+        frequencies: float | list[float] | tuple[float, ...] | np.ndarray | None = None,
+        frequency_bands: tuple[float, float] | list[tuple[float, float]] | tuple[tuple[float, float], ...] | np.ndarray | None = None,
         ears: str | tuple[str, ...] = "both",
         index_by: str | tuple[str, ...] = ("subject",),
         position_one_hot: bool = False,
@@ -56,7 +58,11 @@ class HRTFSpec:
         natural acoustic order is source positions, ears, and then samples for
         ``domain="time"`` or frequency bins for ``domain="frequency"``. Selecting
         one ear with ``ears="left"`` or ``ears="right"`` squeezes the ear axis
-        unless ``ear`` is part of ``index_by``.
+        unless ``ear`` is part of ``index_by``. For frequency-domain specs,
+        ``frequencies`` selects sparse nearest bins and ``frequency_bands``
+        selects inclusive native-grid intervals after HRTF transforms are
+        applied. These selectors affect returned arrays and frequency-indexed
+        rows without modifying the underlying HRTF object.
 
         Parameters
         ----------
@@ -69,6 +75,17 @@ class HRTFSpec:
             Source position indices to include.
         plane : str, tuple, dict, or None, default=None
             Optional horizontal, median, or frontal plane selector.
+        frequencies : float, sequence of float, numpy.ndarray, or None, default=None
+            Optional explicit frequency queries in hertz for frequency-domain
+            values. Each query resolves to the nearest available TF bin after
+            HRTF transforms are applied. Duplicate resolved bins are removed
+            while preserving query order. Mutually exclusive with
+            frequency_bands.
+        frequency_bands : (float, float), sequence of (float, float), numpy.ndarray, or None, default=None
+            Optional inclusive frequency bands in hertz for frequency-domain
+            values. Every available TF bin inside any requested band is kept in
+            native grid order after HRTF transforms are applied. Mutually
+            exclusive with frequencies.
         ears : {``both``, ``left``, ``right``} or sequence of str, default=``both``
             Ear axis selection when the spec is indexed by ear.
         index_by : str or tuple of str, default=(``subject``,)
@@ -98,6 +115,7 @@ class HRTFSpec:
         ...     inputs=HRTFSpec(
         ...         domain="frequency",
         ...         signal="tf_magnitude_db",
+        ...         frequency_bands=[(0.0, 16000.0)],
         ...         ears="left",
         ...         index_by=("subject",),
         ...         name="hrtf",
@@ -108,7 +126,7 @@ class HRTFSpec:
         >>> print(type(hrtf).__name__)
         ndarray
         >>> print(hrtf.shape)
-        (440, 129)
+        (440, 93)
         >>> print(np.round(hrtf[:2, :3], 2))  # doctest: +ELLIPSIS
         [[...]]
         """
@@ -116,6 +134,8 @@ class HRTFSpec:
         self.signal = signal
         self.positions = positions
         self.plane = plane
+        self.frequencies = frequencies
+        self.frequency_bands = frequency_bands
         self.ears = ears
         self.index_by = index_by
         self.position_one_hot = position_one_hot

@@ -170,6 +170,9 @@ class DatasetState:
     spec_position_indices : dict of int to tuple of int
         Mapping from spec object identity to the position indices selected for that
         specific spec.
+    spec_frequency_indices : dict of int to tuple of int
+        Mapping from HRTFSpec object identity to the frequency-bin indices selected
+        for that specific spec.
     rows : list of dict
         Generated dataset row table. Each row stores the subject and any selected
         indexing dimensions used by sample extraction.
@@ -246,6 +249,7 @@ class DatasetState:
     selected_frequency_indices: tuple[int, ...] = ()
     selected_sample_indices: tuple[int, ...] = ()
     spec_position_indices: dict[int, tuple[int, ...]] = field(default_factory=dict)
+    spec_frequency_indices: dict[int, tuple[int, ...]] = field(default_factory=dict)
 
     rows: list[dict[str, str | int | None]] = field(default_factory=list)
     anthropometry_value_selector: Callable[..., object] | None = None
