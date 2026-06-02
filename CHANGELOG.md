@@ -3,21 +3,23 @@
 This file tracks released tags and upcoming release work for `hrtfpykit`.
 
 Historical baseline tags keep their original names. Future release tags should
-use the `v0.x.y` format.
+use the `vx.y.z` format.
 
-## [v0.1.2] - Unreleased
+## [v0.1.2] - 2026-06-02
 
 ### Added
 
-- 
+-
 
 ### Changed
 
-- 
+- Lowered the minimum supported Python version from 3.13 to 3.12 to support
+  current Google Colab runtimes.
+- Added Python 3.12 to the CI test matrix.
 
 ### Fixed
 
-- 
+-
 
 ## [v0.1.1] - 2026-06-01
 

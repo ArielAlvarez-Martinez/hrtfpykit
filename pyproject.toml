@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hrtfpykit"
-version = "0.1.2.dev0"
+version = "0.1.2"
 description = "A Python library for complete HRTF workflows, from SOFA file inspection and acoustic processing to visualization, comparison, and reproducible dataset pipelines construction."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [{ name = "Ariel Alvarez-Martinez", email = "aalvmarprojects@gmail.com"}, { name = "Jose J. Lopez", email = "jjlopez@dcom.upv.es"}]
@@ -33,6 +33,7 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Topic :: Multimedia :: Sound/Audio",
@@ -79,7 +80,7 @@ include = ["hrtfpykit*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py313"
+target-version = "py312"
 extend-exclude = [
   "build",
   "dist",
@@ -90,7 +91,7 @@ extend-exclude = [
 "__init__.py" = ["F401"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.12"
 files = ["src/hrtfpykit"]
 ignore_missing_imports = true
 show_error_codes = true

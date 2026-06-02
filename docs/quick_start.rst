@@ -6,6 +6,8 @@ Installation
 
 The recommended and straightforward installation is:
 
+``hrtfpykit`` requires Python 3.12 or newer.
+
 .. code-block:: bash
 
    pip install hrtfpykit
@@ -26,7 +28,6 @@ For local development from source:
    cd hrtfpykit
    pip install -e ".[test,docs]"
 
-``hrtfpykit`` requires Python 3.13 or newer.
 
 Main imports
 ------------

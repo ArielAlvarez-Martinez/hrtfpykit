@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/"><img alt="Python 3.13+" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/python.svg"></a>
+  <a href="https://www.python.org/"><img alt="Python 3.12+" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/python.svg"></a>
   <a href="https://pypi.org/project/hrtfpykit/"><img alt="PyPI package" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/pypi.svg"></a>
   <a href="https://hrtfpykit.readthedocs.io/en/stable/"><img alt="Docs Sphinx Furo" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/docs.svg"></a>
   <a href="https://github.com/ArielAlvarez-Martinez/hrtfpykit/actions/workflows/ci.yml"><img alt="CI/CD workflow" src="https://raw.githubusercontent.com/ArielAlvarez-Martinez/hrtfpykit/main/docs/assets/badges/ci-cd.svg"></a>
@@ -85,6 +85,8 @@ into training and analysis samples.
 
 ## Installation
 
+`hrtfpykit` requires Python 3.12 or newer.
+
 ```bash
 pip install hrtfpykit
 ```
@@ -104,8 +106,6 @@ git clone https://github.com/ArielAlvarez-Martinez/hrtfpykit.git
 cd hrtfpykit
 pip install -e ".[test,docs]"
 ```
-
-`hrtfpykit` requires Python 3.13 or newer.
 
 ## License
 
