@@ -114,7 +114,11 @@ def resources_summary(
         "video": has_specs(state.specs, resource_name="video"),
     }
     if len(state.resource_summary) == 0:
-        return f"{_summary_title('DATASET RESOURCES SUMMARY')}\n  none"
+        return (
+            f"{_summary_title('DATASET RESOURCES SUMMARY')}\n"
+            "  none\n"
+            "  status: no resource specs requested"
+        )
     resource_lines: list[str] = []
     for resource_name, summary in state.resource_summary.items():
         if not used_resource_specs.get(resource_name, False):
@@ -139,7 +143,11 @@ def resources_summary(
                     parts.append(f"{key}={value!r}")
             resource_lines.append("  " + parts[0] + ": " + ", ".join(parts[1:]))
     if len(resource_lines) == 0:
-        return f"{_summary_title('DATASET RESOURCES SUMMARY')}\n  none"
+        return (
+            f"{_summary_title('DATASET RESOURCES SUMMARY')}\n"
+            "  none\n"
+            "  status: no resource specs requested"
+        )
     return "\n".join([_summary_title("DATASET RESOURCES SUMMARY:")] + resource_lines)
 
 
@@ -173,21 +181,44 @@ def dataset_summary(dataset: object) -> str:
     """
 
     state = cast(Any, dataset)._state
-    uses_hrtf = has_specs(state.specs, resource_name="hrtf")
-    uses_mesh = has_specs(state.specs, resource_name="mesh")
-    lines: list[str] = [_summary_title(f"{str(state.name).upper()} DATASET SUMMARY")]
-    lines.extend(
-        [
-            f"  root: {state.root}",
-            f"  split: {state.split}",
-            f"  available_subjects: {len(state.available_subjects)}",
-            f"  selected_subjects: {len(state.selected_subjects)}",
-            f"  excluded_subjects: {len(state.excluded_subjects)}",
-            f"  samples: {len(state.rows)}",
-            f"  inputs: {', '.join(state.input_names) if len(state.input_specs) > 0 else 'none'}",
-            f"  target: {', '.join(state.target_names) if len(state.target_specs) > 0 else 'none'}",
-        ]
+    used_resources = tuple(
+        resource_name
+        for resource_name in ("hrtf", "mesh", "anthropometry", "metadata", "image", "video")
+        if has_specs(state.specs, resource_name=resource_name)
     )
+    uses_hrtf = "hrtf" in used_resources
+    uses_mesh = "mesh" in used_resources
+    has_sample_values = len(state.input_specs) > 0 or len(state.target_specs) > 0
+    lines: list[str] = [_summary_title(f"{str(state.name).upper()} DATASET SUMMARY")]
+    if has_sample_values:
+        lines.extend(
+            [
+                f"  root: {state.root}",
+                f"  split: {state.split}",
+                f"  available_subjects: {len(state.available_subjects)}",
+                f"  selected_subjects: {len(state.selected_subjects)}",
+                f"  excluded_subjects: {len(state.excluded_subjects)}",
+                f"  required_resources: {', '.join(used_resources) if len(used_resources) > 0 else 'none'}",
+                f"  samples: {len(state.rows)}",
+                f"  inputs: {', '.join(state.input_names) if len(state.input_specs) > 0 else 'none'}",
+                f"  target: {', '.join(state.target_names) if len(state.target_specs) > 0 else 'none'}",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                f"  root: {state.root}",
+                f"  split: {state.split}",
+                "  available_subjects: none",
+                "  selected_subjects: none",
+                "  excluded_subjects: none",
+                "  required_resources: none",
+                "  samples: none",
+                "  inputs: none",
+                "  target: none",
+                "  status: no input or target specs requested",
+            ]
+        )
     if uses_hrtf and state.dataset_hrtf_variant is not None:
         if isinstance(state.dataset_hrtf_variant, dict):
             hrtf_variant = ", ".join(
@@ -239,8 +270,8 @@ def download_summary(
         Local download root reported in the summary.
     download_jobs : list of dict
         Planned download job records. Each job is expected to contain a ``resource``
-        entry and may contain ``subject_id``, ``hrtf_variant``, and ``mesh_variant``
-        entries.
+        entry and may contain ``subject_id``, ``subject_ids``, ``resource_count``,
+        ``hrtf_variant``, and ``mesh_variant`` entries.
     downloaded_count : int
         Number of files downloaded in this run.
     verified_count : int
@@ -270,10 +301,14 @@ def download_summary(
     mesh_variants: set[str] = set()
     for job in download_jobs:
         resource = str(job["resource"])
-        resources[resource] = resources.get(resource, 0) + 1
+        resource_count = int(cast(Any, job).get("resource_count", 1))
+        resources[resource] = resources.get(resource, 0) + resource_count
         subject_id = job.get("subject_id")
         if subject_id is not None:
             subject_ids.add(str(subject_id))
+        job_subject_ids = job.get("subject_ids")
+        if isinstance(job_subject_ids, (tuple, list, set)):
+            subject_ids.update(str(value) for value in job_subject_ids)
         hrtf_variant = job.get("hrtf_variant")
         if isinstance(hrtf_variant, dict):
             hrtf_variants.add(

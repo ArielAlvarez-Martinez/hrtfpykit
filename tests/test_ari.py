@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from contextlib import redirect_stdout
 from dataclasses import replace
 import io
+import json
 import os
 import re
 from pathlib import Path
@@ -11,8 +12,8 @@ import pytest
 
 from hrtfpykit.datasets import ARI
 from hrtfpykit.datasets.checksums import ARI_CHECKSUMS
-from hrtfpykit.datasets.config import ARIConfig, DownloadConfig
-from hrtfpykit.datasets.download import BaseDownload
+from hrtfpykit.datasets.config import ARIConfig
+from hrtfpykit.datasets.download import SOFAcousticsDownload, SONICOMEcosystemDownload
 from hrtfpykit.datasets.specs import AnthropometrySpec, MetadataSpec
 from hrtfpykit.datasets.specs_workflow import DatasetSpecWorkflow
 
@@ -84,11 +85,13 @@ def test_ari_config_subject_ids_are_valid() -> None:
 
 
 def test_ari_config_subject_exclusions() -> None:
-    assert ARIConfig.excluded_subject_ids == ()
+    config = ARIConfig()
+
+    assert all(server.download_exclude_subject_ids == () for server in config.download_servers.values())
 
 
 def test_ari_hrtf_download_plan(tmp_path: Path) -> None:
-    jobs = BaseDownload(config=ARIConfig, root=tmp_path).build_download_plan(
+    jobs = SOFAcousticsDownload(config=ARIConfig(), root=tmp_path, download_server="sofacoustics").build_download_plan(
         download_resources="hrtf",
         download_hrtf_variant=None,
     )
@@ -104,10 +107,11 @@ def test_ari_hrtf_download_plan(tmp_path: Path) -> None:
 
 
 def test_ari_download_plan_follows_subject_limit(tmp_path: Path) -> None:
-    jobs = BaseDownload(
-        config=ARIConfig,
+    jobs = SOFAcousticsDownload(
+        config=ARIConfig(),
         root=tmp_path,
         excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+        download_server="sofacoustics",
     ).build_download_plan(
         download_resources="all",
         download_hrtf_variant=None,
@@ -125,17 +129,25 @@ def test_ari_download_plan_follows_subject_limit(tmp_path: Path) -> None:
 
 
 def test_ari_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
-    download_config = cast(DownloadConfig, ARIConfig.download)
+    config = ARIConfig()
+    download_config = config.download_servers["sofacoustics"]
     config = replace(
-        ARIConfig(),
-        download=replace(
-            download_config,
-            checksums={"hrtf": {}},
-        ),
+        config,
+        download_servers={
+            **config.download_servers,
+            "sofacoustics": replace(
+                download_config,
+                checksums={"hrtf": {}},
+            ),
+        },
     )
 
     with pytest.raises(ValueError, match="missing"):
-        BaseDownload(config=config, root=tmp_path).build_download_plan(
+        SOFAcousticsDownload(
+            config=config,
+            root=tmp_path,
+            download_server="sofacoustics",
+        ).build_download_plan(
             download_resources="hrtf",
             download_hrtf_variant=None,
         )
@@ -144,7 +156,7 @@ def test_ari_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
 def test_ari_checksum_mismatch_fails(tmp_path: Path) -> None:
     path = tmp_path / "anthro.csv"
     path.write_text("bad-data", encoding="utf-8")
-    downloader = BaseDownload(config=ARIConfig, root=tmp_path)
+    downloader = SOFAcousticsDownload(config=ARIConfig(), root=tmp_path, download_server="sofacoustics")
 
     with pytest.raises(ValueError, match="SHA-256 mismatch"):
         downloader.verify_checksum(path, "0" * 64)
@@ -152,13 +164,13 @@ def test_ari_checksum_mismatch_fails(tmp_path: Path) -> None:
 
 def test_ari_invalid_download_variant_keys_are_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Unsupported download_hrtf_variant keys"):
-        BaseDownload(config=ARIConfig, root=tmp_path).build_download_plan(
+        SOFAcousticsDownload(config=ARIConfig(), root=tmp_path, download_server="sofacoustics").build_download_plan(
             download_resources="hrtf",
             download_hrtf_variant={"type": "hrtf", "bad": "value"},
         )
 
     with pytest.raises(ValueError, match=r"Unsupported download_hrtf_variant\['type'\]"):
-        BaseDownload(config=ARIConfig, root=tmp_path).build_download_plan(
+        SOFAcousticsDownload(config=ARIConfig(), root=tmp_path, download_server="sofacoustics").build_download_plan(
             download_resources="hrtf",
             download_hrtf_variant={"type": "bad"},
         )
@@ -186,7 +198,7 @@ def test_ari_spec_workflow_does_not_mutate_spec_objects() -> None:
 
 
 def test_ari_anthropometry_download_plan(tmp_path: Path) -> None:
-    jobs = BaseDownload(config=ARIConfig, root=tmp_path).build_download_plan(
+    jobs = SOFAcousticsDownload(config=ARIConfig(), root=tmp_path, download_server="sofacoustics").build_download_plan(
         download_resources="anthropometry",
     )
 
@@ -201,7 +213,7 @@ def test_ari_anthropometry_download_plan(tmp_path: Path) -> None:
 
 
 def test_ari_metadata_download_plan(tmp_path: Path) -> None:
-    jobs = BaseDownload(config=ARIConfig, root=tmp_path).build_download_plan(
+    jobs = SOFAcousticsDownload(config=ARIConfig(), root=tmp_path, download_server="sofacoustics").build_download_plan(
         download_resources="metadata",
     )
 
@@ -213,6 +225,44 @@ def test_ari_metadata_download_plan(tmp_path: Path) -> None:
         "ArielAlvarez-Martinez/ari_anthropometry_and_metadata/v1.0/metadata.csv"
     )
     assert jobs[0]["checksum"] == ARI_CHECKSUMS["metadata"]["metadata.csv"]
+
+
+def test_ari_ecosystem_download_plan_encodes_catalog_urls_with_spaces(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Response:
+        def __enter__(self) -> "Response":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "data": [
+                        {
+                            "Datafile Name": "hrtf b_nh2.sofa",
+                            "Datafile URL": "https://ecosystem.sonicom.eu/data/14/324/832/hrtf b_nh2.sofa",
+                        }
+                    ]
+                }
+            ).encode("utf-8")
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda *args, **kwargs: Response())
+    excluded_subject_ids = tuple(subject_id for subject_id in ARIConfig.subject_ids if subject_id != "nh2")
+
+    jobs = SONICOMEcosystemDownload(
+        config=ARIConfig(),
+        root=tmp_path,
+        excluded_subject_ids=excluded_subject_ids,
+        download_server="sonicom-ecosystem",
+    ).build_download_plan(download_resources="hrtf")
+
+    assert {job["url"] for job in jobs} == {
+        "https://ecosystem.sonicom.eu/data/14/324/832/hrtf%20b_nh2.sofa"
+    }
 
 
 @pytest.mark.parametrize(
@@ -286,10 +336,11 @@ def test_ari_download_resources_follow_subject_limit(tmp_path: Path) -> None:
                 verbose=False,
             )
 
-        jobs = BaseDownload(
-            config=ARIConfig,
+        jobs = SOFAcousticsDownload(
+            config=ARIConfig(),
             root=download_root,
             excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+            download_server="sofacoustics",
         ).build_download_plan(
             download_resources=download_resources,
             download_hrtf_variant=None,

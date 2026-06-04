@@ -373,8 +373,11 @@ class DatasetResourcesValidator:
             download_hint = ""
             if (
                 state.config is not None
-                and state.config.download is not None
-                and "anthropometry" in state.config.download.available_resources
+                and state.config.download_servers is not None
+                and any(
+                    "anthropometry" in download_server.available_resources
+                    for download_server in state.config.download_servers.values()
+                )
             ):
                 download_hint = (
                     f" {state.name} can download this resource; use download=True "
@@ -448,8 +451,11 @@ class DatasetResourcesValidator:
             download_hint = ""
             if (
                 state.config is not None
-                and state.config.download is not None
-                and "metadata" in state.config.download.available_resources
+                and state.config.download_servers is not None
+                and any(
+                    "metadata" in download_server.available_resources
+                    for download_server in state.config.download_servers.values()
+                )
             ):
                 download_hint = (
                     f" {state.name} can download this resource; use download=True "
@@ -486,6 +492,57 @@ class DatasetResourcesScanner:
     :func:`~hrtfpykit.datasets.load.load_table`, while HRTF loadability is checked
     by :class:`~hrtfpykit.datasets.resources.DatasetResourcesValidator`.
     """
+
+    @staticmethod
+    def resolve_resource_patterns(
+        root: Path,
+        patterns: tuple[str | Path, ...],
+        resource_name: str,
+    ) -> Path:
+        fallback = (root / patterns[0]).expanduser()
+        for pattern in patterns:
+            pattern_path = Path(pattern).expanduser()
+            pattern_text = str(pattern_path)
+            has_glob = any(character in pattern_text for character in "*?[")
+            if has_glob:
+                if pattern_path.is_absolute():
+                    matches = sorted(
+                        path
+                        for path in pattern_path.parent.glob(pattern_path.name)
+                        if path.is_file()
+                    )
+                else:
+                    matches = sorted(
+                        path
+                        for path in root.glob(pattern_text)
+                        if path.is_file()
+                    )
+                if len(matches) > 1:
+                    raise ValueError(
+                        f"{resource_name} local path pattern {pattern!r} matched "
+                        f"{len(matches)} files under {root}. Make the pattern more specific."
+                    )
+                if len(matches) == 1:
+                    return matches[0]
+                continue
+
+            candidate = pattern_path if pattern_path.is_absolute() else root / pattern_path
+            candidate = candidate.expanduser()
+            if candidate.is_file():
+                return candidate
+        return fallback
+
+    @staticmethod
+    def resolve_resource_path(
+        root: Path,
+        relative_path: str | Path,
+        subject_id: str | None = None,
+    ) -> Path:
+        return DatasetResourcesScanner.resolve_resource_patterns(
+            root,
+            (relative_path,),
+            "Resource",
+        )
 
     @staticmethod
     def scan_anthropometry_paths(
@@ -529,7 +586,11 @@ class DatasetResourcesScanner:
             }
         anthropometry_path = requested_path
         if anthropometry_path is None and config.anthropometry is not None:
-            anthropometry_path = (root / config.anthropometry.path).expanduser()
+            anthropometry_path = DatasetResourcesScanner.resolve_resource_patterns(
+                root,
+                (config.anthropometry.path,) + config.anthropometry.local_path_patterns,
+                "Anthropometry",
+            )
         return anthropometry_path, {
             "path": str(anthropometry_path),
             "found": anthropometry_path.is_file(),
@@ -582,7 +643,11 @@ class DatasetResourcesScanner:
             }
         metadata_path = requested_path
         if metadata_path is None and config.metadata is not None:
-            metadata_path = (root / config.metadata.path).expanduser()
+            metadata_path = DatasetResourcesScanner.resolve_resource_patterns(
+                root,
+                (config.metadata.path,) + config.metadata.local_path_patterns,
+                "Metadata",
+            )
         if metadata_path is None:
             return None, {
                 "path": None,
@@ -700,21 +765,31 @@ class DatasetResourcesScanner:
                     continue
             else:
                 selected_path_pattern = path_pattern
-            relative_path = selected_path_pattern.format(
-                subject_id=subject_id,
-                subject_number=subject_numbers[subject_id],
-                type=hrtf_type,
-                hrtf_type=hrtf_type,
-                sample_rate=hrtf_sample_rate,
-                hrtf_sample_rate=hrtf_sample_rate,
-                sample_rate_label=sample_rate_label,
-                version=hrtf_version,
-                hrtf_version=hrtf_version,
-                version_label=version_label,
-                hrtf_version_label=version_label,
-                variant=hrtf_type,
+            format_values = {
+                "subject_id": subject_id,
+                "subject_number": subject_numbers[subject_id],
+                "type": hrtf_type,
+                "hrtf_type": hrtf_type,
+                "sample_rate": hrtf_sample_rate,
+                "hrtf_sample_rate": hrtf_sample_rate,
+                "sample_rate_label": sample_rate_label,
+                "version": hrtf_version,
+                "hrtf_version": hrtf_version,
+                "version_label": version_label,
+                "hrtf_version_label": version_label,
+                "variant": hrtf_type,
+            }
+            relative_path = selected_path_pattern.format(**format_values)
+            format_values["filename"] = Path(relative_path).name
+            local_patterns = tuple(
+                local_path_pattern.format(**format_values)
+                for local_path_pattern in hrtf_type_config.local_path_patterns
             )
-            candidate = (root / relative_path).expanduser()
+            candidate = DatasetResourcesScanner.resolve_resource_patterns(
+                root,
+                (relative_path,) + local_patterns,
+                "HRTF",
+            )
             if candidate.is_file():
                 hrtf_paths[subject_id] = candidate
         missing_hrtf_subject_ids = tuple(
@@ -837,33 +912,46 @@ class DatasetResourcesScanner:
                     continue
             else:
                 selected_path_pattern = path_pattern
-            relative_path = selected_path_pattern.format(
-                subject_id=subject_id,
-                subject_number=subject_numbers[subject_id],
-                type=mesh_type,
-                mesh_type=mesh_type,
-                version=mesh_version,
-                mesh_version=mesh_version,
-                version_label=version_label,
-                mesh_version_label=version_label,
+            format_values = {
+                "subject_id": subject_id,
+                "subject_number": subject_numbers[subject_id],
+                "type": mesh_type,
+                "mesh_type": mesh_type,
+                "version": mesh_version,
+                "mesh_version": mesh_version,
+                "version_label": version_label,
+                "mesh_version_label": version_label,
+            }
+            relative_path = selected_path_pattern.format(**format_values)
+            format_values["filename"] = Path(relative_path).name
+            formatted_patterns = (relative_path,) + tuple(
+                local_path_pattern.format(**format_values)
+                for local_path_pattern in mesh_type_config.local_path_patterns
             )
-            pattern_path = Path(relative_path)
             candidate_paths: list[Path] = []
-            if len(normalized_extensions) == 0:
-                candidate_paths = [pattern_path]
-            elif pattern_path.suffix == "":
-                candidate_paths = [
-                    pattern_path.with_name(f"{pattern_path.name}{extension}")
-                    for extension in normalized_extensions
-                ]
-            else:
-                base_path = pattern_path.with_suffix("")
-                candidate_paths = [
-                    base_path.with_suffix(extension)
-                    for extension in normalized_extensions
-                ]
+            for formatted_pattern in formatted_patterns:
+                pattern_path = Path(formatted_pattern)
+                if len(normalized_extensions) == 0 or any(
+                    character in str(pattern_path) for character in "*?["
+                ):
+                    candidate_paths.append(pattern_path)
+                elif pattern_path.suffix == "":
+                    candidate_paths.extend(
+                        pattern_path.with_name(f"{pattern_path.name}{extension}")
+                        for extension in normalized_extensions
+                    )
+                else:
+                    base_path = pattern_path.with_suffix("")
+                    candidate_paths.extend(
+                        base_path.with_suffix(extension)
+                        for extension in normalized_extensions
+                    )
             for candidate in dict.fromkeys(candidate_paths):
-                resolved_candidate = (root / candidate).expanduser()
+                resolved_candidate = DatasetResourcesScanner.resolve_resource_patterns(
+                    root,
+                    (candidate,),
+                    "Mesh",
+                )
                 if resolved_candidate.is_file():
                     mesh_paths[subject_id] = resolved_candidate
                     break
@@ -1299,16 +1387,9 @@ class DatasetResources:
             raise ValueError("Dataset config is not initialized")
         config = state.config
         root = state.root
-        config_excluded_subjects = DatasetSplitPlanner.map_subject_ids(
-            tuple(config.excluded_subject_ids),
-            tuple(config.subject_ids),
-        )
-        requested_excluded_subjects = DatasetSplitPlanner.map_subject_ids(
+        excluded_subjects = DatasetSplitPlanner.map_subject_ids(
             exclude_subject_ids,
             tuple(config.subject_ids),
-        )
-        excluded_subjects = tuple(
-            dict.fromkeys(config_excluded_subjects + requested_excluded_subjects)
         )
         excluded_subject_set = set(excluded_subjects)
         resource_subjects: tuple[str, ...] = tuple()

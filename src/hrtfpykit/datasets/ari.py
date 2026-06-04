@@ -4,7 +4,7 @@ from typing import Callable
 
 from .base import BaseDataset
 from .config import ARIConfig
-from .download import BaseDownload
+from .download import SOFAcousticsDownload, SONICOMEcosystemDownload
 from .sanitize import sanitize_grouped_by
 from .specs import (
     AnthropometrySpec,
@@ -26,8 +26,10 @@ class ARI(BaseDataset):
         dataset_hrtf_transform: Callable[[object], object] | None = None,
         download: bool = False,
         download_resources: str | tuple[str, ...] | list[str] = "hrtf",
+        download_server: str = "sofacoustics",
         verify_checksum: bool = True,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
+        download_exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         split: str = "all",
@@ -41,7 +43,12 @@ class ARI(BaseDataset):
         declared by :class:`~hrtfpykit.datasets.config.ARIConfig`, including
         HRTF SOFA files, anthropometry CSV data, and metadata CSV data. It
         applies subject exclusions and split selection, and returns samples
-        defined by the requested input and target specs.
+        defined by the requested input and target specs. When ``download=True``,
+        ARI can download resources from SOFAcoustics or from the SONICOM
+        ecosystem, depending on ``download_server``. Download selection is
+        independent from dataset construction: ``download_resources`` controls
+        which official files are fetched, while ``inputs`` and ``target``
+        control which local resources are required for samples.
 
         Acoustic specs load one subject HRTF with
         :func:`~hrtfpykit.hrtf.load_hrtf`. When ``dataset_hrtf_transform`` is
@@ -60,9 +67,17 @@ class ARI(BaseDataset):
         download : bool, default=False
             If True, downloads selected official ARI resources before dataset
             construction.
-        download_resources : str or sequence of str, default=``hrtf``
-            Official resources requested for download. ARI provides HRTF SOFA
-            files, anthropometry CSV data, and metadata CSV data.
+        download_resources : {``hrtf``, ``anthropometry``, ``metadata``, ``all``} or sequence of str, default=``hrtf``
+            Official resources requested for download. ``sofacoustics`` supports
+            ``hrtf``, ``anthropometry``, and ``metadata``. ``sonicom-ecosystem``
+            supports only ``hrtf`` for ARI. Passing ``all`` requests every
+            resource provided by the selected download server.
+        download_server : {``sofacoustics``, ``sonicom-ecosystem``}, default=``sofacoustics``
+            Official server used when ``download=True``. ``sofacoustics``
+            downloads configured ARI files directly from SOFAcoustics, with
+            anthropometry and metadata fetched from their configured companion
+            URLs. ``sonicom-ecosystem`` reads the SONICOM ecosystem database JSON
+            entries and downloads ARI HRTF files listed there.
         verify_checksum : bool, default=True
             Whether official SHA-256 checksums are verified during resource
             download. Keeping this enabled is the recommended behavior. Set it to
@@ -70,6 +85,10 @@ class ARI(BaseDataset):
             existence and non empty checks still run.
         exclude_subject_ids : str, int, sequence, or None, default=None
             ARI subjects excluded before scanning and splitting.
+        download_exclude_subject_ids : str, int, sequence, or None, default=None
+            ARI subjects excluded only from the download request. This does not
+            change dataset construction; use exclude_subject_ids to exclude
+            subjects from scanning, splitting, and samples.
         inputs : spec, sequence of specs, or None, default=None
             Specs exposed under sample inputs.
         target : spec, sequence of specs, or None, default=None
@@ -120,23 +139,34 @@ class ARI(BaseDataset):
         (1550, 2, 256)
 
         """
+        config = ARIConfig()
         if download:
-            downloaded, download_report = BaseDownload(
-                config=ARIConfig,
+            download_servers = config.download_servers
+            if download_servers is None:
+                raise ValueError("ARI does not define downloadable resources")
+            selected_download_server = download_server
+            if selected_download_server not in download_servers:
+                raise ValueError(
+                    f"ARI download_server accepts {tuple(download_servers)}; got {download_server!r}"
+                )
+            downloader_class = SONICOMEcosystemDownload if selected_download_server == "sonicom-ecosystem" else SOFAcousticsDownload
+            downloaded, download_report = downloader_class(
+                config=config,
                 root=root,
-                excluded_subject_ids=exclude_subject_ids,
+                excluded_subject_ids=download_exclude_subject_ids,
                 verify_checksum=verify_checksum,
+                download_server=selected_download_server,
             ).download(
                 download_resources=download_resources,
                 download_hrtf_variant=None,
                 download_mesh_variant=None,
             )
-            if downloaded:
+            if downloaded or verbose:
                 print(download_report)
 
         super().__init__(
             root=root,
-            config=ARIConfig,
+            config=config,
             dataset_hrtf_transform=dataset_hrtf_transform,
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,

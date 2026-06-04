@@ -4,7 +4,7 @@ from typing import Callable
 
 from .base import BaseDataset
 from .config import SONICOMConfig
-from .download import BaseDownload
+from .download import ImperialDownload, SONICOMEcosystemDownload
 from .specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -28,8 +28,10 @@ class SONICOM(BaseDataset):
         download_resources: str | tuple[str, ...] | list[str] = "hrtf",
         download_hrtf_variant: str | Mapping[str, object] | None = {"type": "measured", "sample_rate": 44100, "version": "FreeFieldComp"},
         download_mesh_variant: str | Mapping[str, object] | None =  {"type": "scanned", "version": "watertight"},
+        download_server: str = "imperial",
         verify_checksum: bool = True,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
+        download_exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         split: str = "all",
@@ -57,23 +59,38 @@ class SONICOM(BaseDataset):
         are removed before row construction.
 
         Download selection is independent from dataset construction selection.
-        download_resources, download_hrtf_variant, and download_mesh_variant
-        control which official files are downloaded. dataset_hrtf_variant and
-        dataset_mesh_variant control which local files are scanned and loaded
-        after the download step. The dataset does not infer download resources
-        from inputs or target and does not copy dataset variants into download
-        variants.
+        ``download_resources``, ``download_hrtf_variant``, and
+        ``download_mesh_variant`` control which official files are downloaded.
+        ``dataset_hrtf_variant`` and ``dataset_mesh_variant`` control which local
+        files are scanned and loaded after the download step. The dataset does
+        not infer download resources from inputs or target and does not copy
+        dataset variants into download variants. SONICOM can download from the
+        original Imperial transfer server or from the SONICOM ecosystem. The
+        Imperial server exposes metadata, HRTFs, and meshes through configured
+        direct paths. The SONICOM ecosystem exposes HRTFs and meshes through
+        database JSON listings; it does not currently provide the SONICOM
+        metadata table through this downloader.
 
         Parameters
         ----------
         root : str or Path
             Local SONICOM dataset root.
         dataset_hrtf_variant : dict or str
-            SONICOM HRTF variant used for dataset construction. Full SONICOM HRTF
-            variants use type, sample_rate, and version keys.
+            SONICOM HRTF variant used for dataset construction. Valid HRTF types
+            are ``measured`` and ``synthetic``. ``measured`` supports sample
+            rates ``44100``, ``48000``, and ``96000`` with versions ``Raw``,
+            ``Raw_NoITD``, ``Windowed``, ``Windowed_NoITD``, ``FreeFieldComp``,
+            ``FreeFieldComp_NoITD``, ``FreeFieldCompMinPhase``, and
+            ``FreeFieldCompMinPhase_NoITD``. ``synthetic`` supports sample rates
+            ``44100`` and ``48000`` with version ``generic``. A full dict uses
+            ``{"type": ..., "sample_rate": ..., "version": ...}``.
         dataset_mesh_variant : dict or str
-            SONICOM mesh variant used for dataset construction. Full SONICOM mesh
-            variants use type and version keys.
+            SONICOM mesh variant used for dataset construction. Valid mesh types
+            are ``scanned`` and ``synthetic``. ``scanned`` supports versions
+            ``raw``, ``point_cloud``, and ``watertight``. ``synthetic`` supports
+            versions ``preprocessed``, ``plugged``, ``graded_left``, and
+            ``graded_right``. A full dict uses ``{"type": ..., "version":
+            ...}``.
         dataset_hrtf_transform : callable or None, default=None
             Optional transform applied to every loaded HRTF before any acoustic
             spec is evaluated. Spec-level HRTF transforms are applied after this
@@ -82,15 +99,32 @@ class SONICOM(BaseDataset):
         download : bool, default=False
             If True, downloads selected official SONICOM resources before dataset
             construction.
-        download_resources : str or sequence of str, default=``hrtf``
+        download_resources : {``metadata``, ``hrtf``, ``mesh``, ``all``} or sequence of str, default=``hrtf``
             Official resources requested for download. This value is not inferred
-            from inputs or target.
+            from inputs or target. ``imperial`` supports ``metadata``, ``hrtf``,
+            and ``mesh``. ``sonicom-ecosystem`` supports ``hrtf`` and ``mesh``.
+            Passing ``all`` requests every resource provided by the selected
+            download server.
         download_hrtf_variant : dict, str, or None
-            HRTF variant values requested for download. This value is independent
-            from dataset_hrtf_variant.
+            HRTF variant values requested for download. The valid HRTF type,
+            sample-rate, and version combinations are the same as
+            ``dataset_hrtf_variant``: measured HRTFs use sample rates ``44100``,
+            ``48000``, or ``96000`` with measured versions, while synthetic HRTFs
+            use sample rates ``44100`` or ``48000`` with version ``generic``.
+            This value is independent from ``dataset_hrtf_variant``.
         download_mesh_variant : dict, str, or None
-            Mesh variant values requested for download. This value is independent
-            from dataset_mesh_variant.
+            Mesh variant values requested for download. The valid mesh type and
+            version combinations are the same as ``dataset_mesh_variant``:
+            ``scanned`` with ``raw``, ``point_cloud``, or ``watertight``;
+            ``synthetic`` with ``preprocessed``, ``plugged``, ``graded_left``, or
+            ``graded_right``. This value is independent from
+            ``dataset_mesh_variant`` and is only used when mesh is requested.
+        download_server : {``imperial``, ``sonicom-ecosystem``}, default=``imperial``
+            Official server used when ``download=True``. ``imperial`` downloads
+            direct files from the original Imperial transfer server and supports
+            metadata, HRTF, mesh, subject, and variant filtering. ``sonicom-
+            ecosystem`` reads configured ecosystem database JSON endpoints and
+            downloads only HRTF and mesh files available in those entries.
         verify_checksum : bool, default=True
             Whether official SHA-256 checksums are verified during resource
             download. Keeping this enabled is the recommended behavior. Set it to
@@ -99,6 +133,10 @@ class SONICOM(BaseDataset):
             run.
         exclude_subject_ids : str, int, sequence, or None, default=None
             SONICOM subjects excluded before scanning and splitting.
+        download_exclude_subject_ids : str, int, sequence, or None, default=None
+            SONICOM subjects excluded only from the download request. This does
+            not change dataset construction; use exclude_subject_ids to exclude
+            subjects from scanning, splitting, and samples.
         inputs : spec, sequence of specs, or None, default=None
             Specs exposed under sample inputs.
         target : spec, sequence of specs, or None, default=None
@@ -156,23 +194,34 @@ class SONICOM(BaseDataset):
         >>> sample = dataset[0]
 
         """
+        config = SONICOMConfig()
         if download:
-            downloaded, download_report = BaseDownload(
-                config=SONICOMConfig,
+            download_servers = config.download_servers
+            if download_servers is None:
+                raise ValueError("SONICOM does not define downloadable resources")
+            selected_download_server = download_server
+            if selected_download_server not in download_servers:
+                raise ValueError(
+                    f"SONICOM download_server accepts {tuple(download_servers)}; got {download_server!r}"
+                )
+            downloader_class = SONICOMEcosystemDownload if selected_download_server == "sonicom-ecosystem" else ImperialDownload
+            downloaded, download_report = downloader_class(
+                config=config,
                 root=root,
-                excluded_subject_ids=exclude_subject_ids,
+                excluded_subject_ids=download_exclude_subject_ids,
                 verify_checksum=verify_checksum,
+                download_server=selected_download_server,
             ).download(
                 download_resources=download_resources,
                 download_hrtf_variant=download_hrtf_variant,
                 download_mesh_variant=download_mesh_variant,
             )
-            if downloaded:
+            if downloaded or verbose:
                 print(download_report)
 
         super().__init__(
             root=root,
-            config=SONICOMConfig,
+            config=config,
             dataset_hrtf_transform=dataset_hrtf_transform,
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,

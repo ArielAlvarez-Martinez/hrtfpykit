@@ -607,6 +607,15 @@ class AnthropometrySpec:
         selected ear. If ``transform`` is provided, the returned type is whatever
         the transform returns.
 
+        During dataset construction, subjects with missing, empty, NaN, or
+        infinite anthropometry fields are removed before samples are built. This
+        avoids constructing datasets with empty table-derived samples, but users
+        should account for it when choosing table fields. If only some fields are
+        incomplete, exclude those fields instead of losing otherwise valid
+        subjects: with ``accessed_by="row"``, subjects are rows and fields are
+        columns, so use ``exclude_column``; with ``accessed_by="column"``,
+        subjects are columns and fields are rows, so use ``exclude_row``.
+
         The ``transform`` callable receives the selected anthropometry value after
         subject and optional ear selection. Use it when the selected value should
         be reshaped, filtered, normalized, or converted into the structure expected
@@ -728,6 +737,15 @@ class MetadataSpec:
         rows or columns in the source table. Dataset selectors can then filter or
         reshape that value. If ``transform`` is provided, the returned type is
         whatever the transform returns.
+
+        During dataset construction, subjects with missing, empty, NaN, or
+        infinite metadata fields are removed before samples are built. This
+        avoids constructing datasets with empty table-derived samples, but users
+        should account for it when choosing table fields. If only some fields are
+        incomplete, exclude those fields instead of losing otherwise valid
+        subjects: with ``accessed_by="row"``, subjects are rows and fields are
+        columns, so use ``exclude_column``; with ``accessed_by="column"``,
+        subjects are columns and fields are rows, so use ``exclude_row``.
 
         The ``transform`` callable receives the selected metadata value after
         subject and optional ear selection. Use it when the selected value should

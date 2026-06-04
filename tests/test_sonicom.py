@@ -3,6 +3,7 @@ from contextlib import redirect_stdout
 from dataclasses import replace
 from itertools import product
 import io
+import json
 import os
 import re
 from pathlib import Path
@@ -13,7 +14,7 @@ import pytest
 from hrtfpykit.datasets import SONICOM
 from hrtfpykit.datasets.checksums import SONICOM_CHECKSUMS
 from hrtfpykit.datasets.config import SONICOMConfig
-from hrtfpykit.datasets.download import BaseDownload
+from hrtfpykit.datasets.download import ImperialDownload, SONICOMEcosystemDownload
 from hrtfpykit.datasets.specs import (
     HRTFSpec,
     ILDSpec,
@@ -32,7 +33,7 @@ _RUN_FULL_SONICOM_TESTS = os.getenv("SONICOM_TEST_FULL", "").strip() == "1"
 ALL_SONICOM_SUBJECT_IDS = tuple(
     subject_id
     for subject_id in SONICOMConfig.subject_ids
-    if subject_id not in set(SONICOMConfig.excluded_subject_ids)
+    if subject_id not in set(SONICOMConfig().download_servers["imperial"].download_exclude_subject_ids)
 )
 _SUBJECT_LIMIT_OPTION = os.getenv("SONICOM_TEST_SUBJECT_LIMIT", "").strip()
 _SAFE_SUBJECT_LIMIT_ENV = _SUBJECT_LIMIT_OPTION if _SUBJECT_LIMIT_OPTION != "" else "3"
@@ -510,10 +511,10 @@ def test_sonicom_config_subject_ids_are_valid() -> None:
     assert list(subject_ids) == _sort_subject_ids(subject_ids)
 
 
-def test_sonicom_config_subject_exclusions() -> None:
+def test_sonicom_config_download_subject_exclusions() -> None:
     subject_ids = set(SONICOMConfig.subject_ids)
-
-    assert SONICOMConfig.excluded_subject_ids == (
+    config = SONICOMConfig()
+    excluded_subject_ids = (
         "P0253",
         "P0258",
         "P0270",
@@ -521,8 +522,16 @@ def test_sonicom_config_subject_exclusions() -> None:
         "P0275",
         "P0396",
     )
-    assert set(SONICOMConfig.excluded_subject_ids).issubset(subject_ids)
-    assert len(set(SONICOMConfig.excluded_subject_ids)) == len(SONICOMConfig.excluded_subject_ids)
+
+    imperial = config.download_servers["imperial"]
+    ecosystem = config.download_servers["sonicom-ecosystem"]
+
+    assert imperial.download_exclude_subject_ids == excluded_subject_ids
+    assert set(imperial.download_exclude_subject_ids).issubset(subject_ids)
+    assert len(set(imperial.download_exclude_subject_ids)) == len(
+        imperial.download_exclude_subject_ids
+    )
+    assert ecosystem.download_exclude_subject_ids == ()
 
 
 @pytest.mark.parametrize(
@@ -543,7 +552,7 @@ def test_sonicom_hrtf_download_plan_variants(
     download_hrtf_variant: Mapping[str, object],
     expected_relative_path: str,
 ) -> None:
-    jobs = BaseDownload(config=SONICOMConfig, root=tmp_path).build_download_plan(
+    jobs = ImperialDownload(config=SONICOMConfig(), root=tmp_path, download_server="imperial").build_download_plan(
         download_resources="hrtf",
         download_hrtf_variant=download_hrtf_variant,
     )
@@ -555,10 +564,11 @@ def test_sonicom_hrtf_download_plan_variants(
 
 
 def test_sonicom_download_plan_follows_subject_limit(tmp_path: Path) -> None:
-    jobs = BaseDownload(
-        config=SONICOMConfig,
+    jobs = ImperialDownload(
+        config=SONICOMConfig(),
         root=tmp_path,
         excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+        download_server="imperial",
     ).build_download_plan(
         download_resources="all",
         download_hrtf_variant=_DEFAULT_HRTF_VARIANT,
@@ -575,17 +585,186 @@ def test_sonicom_download_plan_follows_subject_limit(tmp_path: Path) -> None:
     assert all(Path(job["destination"]).resolve().is_relative_to(root) for job in jobs)
 
 
-def test_sonicom_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
-    config = replace(
-        SONICOMConfig(),
-        download=replace(
-            SONICOMConfig.download,
-            checksums={"hrtf": {}},
+def test_sonicom_empty_download_warning_reports_only_requested_resource_variants(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    downloader = ImperialDownload(config=SONICOMConfig(), root=tmp_path, download_server="imperial")
+
+    def build_download_plan(
+        download_resources: str | tuple[str, ...] | list[str] | None = None,
+        download_hrtf_variant: str | Mapping[str, object] | None = None,
+        download_mesh_variant: str | Mapping[str, object] | None = None,
+    ) -> list[dict[str, object]]:
+        return []
+
+    monkeypatch.setattr(downloader, "build_download_plan", build_download_plan)
+
+    with pytest.warns(UserWarning) as warning_records:
+        downloader.download(
+            download_resources="hrtf",
+            download_hrtf_variant={"type": "synthetic", "sample_rate": 48000, "version": "generic"},
+            download_mesh_variant={"type": "scanned", "version": "watertight"},
+        )
+
+    message = str(warning_records[0].message)
+
+    assert "Requested resources='hrtf'" in message
+    assert "download_hrtf_variant=" in message
+    assert "download_mesh_variant=" not in message
+
+
+def test_sonicom_ecosystem_synthetic_hrtf_uses_subject_checksum_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Response:
+        def __enter__(self) -> "Response":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "data": [
+                        {
+                            "Datafile Name": "HRIR_SONICOM_48000.sofa",
+                            "Datafile URL": "https://ecosystem.sonicom.eu/data/20/1/1/HRIR_SONICOM_48000.sofa",
+                            "Dataset Name": "P0001",
+                        }
+                    ]
+                }
+            ).encode("utf-8")
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda *args, **kwargs: Response())
+    excluded_subject_ids = tuple(subject_id for subject_id in SONICOMConfig.subject_ids if subject_id != "P0001")
+
+    jobs = SONICOMEcosystemDownload(
+        config=SONICOMConfig(),
+        root=tmp_path,
+        excluded_subject_ids=excluded_subject_ids,
+        download_server="sonicom-ecosystem",
+    ).build_download_plan(
+        download_resources="hrtf",
+        download_hrtf_variant={"type": "synthetic", "sample_rate": 48000, "version": "generic"},
+        download_mesh_variant={"type": "scanned", "version": "watertight"},
+    )
+
+    assert len(jobs) == 1
+    assert jobs[0]["subject_id"] == "P0001"
+    assert jobs[0]["checksum_key"] == "P0001/HRIR_SONICOM_48000.sofa"
+    assert jobs[0]["checksum"] == SONICOM_CHECKSUMS["hrtf"]["synthetic"]["generic"][48000]["P0001/HRIR_SONICOM_48000.sofa"]
+
+
+def test_sonicom_ecosystem_download_uses_scanner_local_patterns_before_transfer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Response:
+        def __enter__(self) -> "Response":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "data": [
+                        {
+                            "Datafile Name": "P0001_FreeFieldComp_48kHz.sofa",
+                            "Datafile URL": "https://ecosystem.sonicom.eu/data/3/1/1/P0001_FreeFieldComp_48kHz.sofa",
+                            "Dataset Name": "P0001",
+                        }
+                    ]
+                }
+            ).encode("utf-8")
+
+    existing_path = tmp_path / "P0001" / "hrtf" / "measured" / "48000" / "P0001_FreeFieldComp_48kHz.sofa"
+    existing_path.parent.mkdir(parents=True)
+    existing_path.write_bytes(b"existing-sofa")
+    monkeypatch.setattr("urllib.request.urlopen", lambda *args, **kwargs: Response())
+    excluded_subject_ids = tuple(subject_id for subject_id in SONICOMConfig.subject_ids if subject_id != "P0001")
+    downloader = SONICOMEcosystemDownload(
+        config=SONICOMConfig(),
+        root=tmp_path,
+        excluded_subject_ids=excluded_subject_ids,
+        verify_checksum=False,
+        download_server="sonicom-ecosystem",
+    )
+
+    def download_file(*args: object, **kwargs: object) -> str:
+        raise AssertionError("existing scanner-compatible files must be verified, not downloaded")
+
+    monkeypatch.setattr(downloader, "download_file", download_file)
+
+    downloaded, summary = downloader.download(
+        download_resources="hrtf",
+        download_hrtf_variant={"type": "measured", "sample_rate": 48000, "version": "FreeFieldComp"},
+        download_mesh_variant={"type": "scanned", "version": "watertight"},
+    )
+
+    assert downloaded is False
+    assert "verified_existing_files: 1" in summary
+    assert downloader.last_verified_count == 1
+
+
+@pytest.mark.parametrize(
+    "download_hrtf_variant,match",
+    [
+        (
+            {"type": "measured", "sample_rate": 48000, "version": "generic"},
+            r"Unsupported download_hrtf_variant\['version'\]",
         ),
+        (
+            {"type": "measured", "sample_rate": 47000, "version": "FreeFieldComp"},
+            r"Unsupported download_hrtf_variant\['sample_rate'\]",
+        ),
+        (
+            {"type": "bad", "sample_rate": 48000, "version": "FreeFieldComp"},
+            r"Unsupported download_hrtf_variant\['type'\]",
+        ),
+    ],
+)
+def test_sonicom_ecosystem_download_variant_validation_matches_common_errors(
+    tmp_path: Path,
+    download_hrtf_variant: Mapping[str, object],
+    match: str,
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        SONICOMEcosystemDownload(
+            config=SONICOMConfig(),
+            root=tmp_path,
+            download_server="sonicom-ecosystem",
+        ).build_download_plan(
+            download_resources="hrtf",
+            download_hrtf_variant=download_hrtf_variant,
+            download_mesh_variant={"type": "scanned", "version": "watertight"},
+        )
+
+
+def test_sonicom_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
+    config = SONICOMConfig()
+    download_config = config.download_servers["imperial"]
+    config = replace(
+        config,
+        download_servers={
+            **config.download_servers,
+            "imperial": replace(
+                download_config,
+                checksums={"hrtf": {}},
+            ),
+        },
     )
 
     with pytest.raises(ValueError, match="missing"):
-        BaseDownload(config=config, root=tmp_path).build_download_plan(
+        ImperialDownload(
+            config=config,
+            root=tmp_path,
+            download_server="imperial",
+        ).build_download_plan(
             download_resources="hrtf",
             download_hrtf_variant=_DEFAULT_HRTF_VARIANT,
         )
@@ -594,7 +773,7 @@ def test_sonicom_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
 def test_sonicom_checksum_mismatch_fails(tmp_path: Path) -> None:
     path = tmp_path / "metadata.csv"
     path.write_text("bad-data")
-    downloader = BaseDownload(config=SONICOMConfig, root=tmp_path)
+    downloader = ImperialDownload(config=SONICOMConfig(), root=tmp_path, download_server="imperial")
 
     with pytest.raises(ValueError, match="SHA-256 mismatch"):
         downloader.verify_checksum(path, "0" * 64)
@@ -645,12 +824,32 @@ def test_sonicom_spec_workflow_does_not_mutate_spec_objects() -> None:
 
 
 def test_sonicom_metadata_download_plan(tmp_path: Path) -> None:
-    jobs = BaseDownload(config=SONICOMConfig, root=tmp_path).build_download_plan(download_resources="metadata")
+    jobs = ImperialDownload(config=SONICOMConfig(), root=tmp_path, download_server="imperial").build_download_plan(download_resources="metadata")
 
     assert len(jobs) == 1
     assert jobs[0]["resource"] == "metadata"
     assert jobs[0]["relative_path"] == "metadata_and_readme/metadata.csv"
-    assert jobs[0]["checksum"] == SONICOM_CHECKSUMS["metadata"]["metadata_and_readme/metadata.csv"]
+    assert jobs[0]["checksum"] == SONICOM_CHECKSUMS["metadata"]["metadata.csv"]
+
+
+def test_sonicom_ecosystem_unsupported_resource_error_mentions_server(tmp_path: Path) -> None:
+    with pytest.raises(ValueError) as error_info:
+        SONICOMEcosystemDownload(
+            config=SONICOMConfig(),
+            root=tmp_path,
+            download_server="sonicom-ecosystem",
+        ).build_download_plan(
+            download_resources=("hrtf", "metadata"),
+            download_hrtf_variant={"type": "measured", "sample_rate": 48000, "version": "FreeFieldComp"},
+            download_mesh_variant={"type": "scanned", "version": "watertight"},
+        )
+
+    message = str(error_info.value)
+
+    assert "SONICOM" in message
+    assert "sonicom-ecosystem" in message
+    assert "metadata" in message
+    assert "('hrtf', 'mesh', 'all')" in message
 
 
 def test_sonicom_windowed_checksums_cover_default_sample_rates() -> None:
@@ -830,6 +1029,39 @@ def test_sonicom_summary_reports_available_and_selected_subjects() -> None:
     assert len(dataset.available_subjects) >= len(dataset.selected_subjects)
 
 
+def test_sonicom_summary_reports_context_only_rows_without_specs(tmp_path: Path) -> None:
+    selected_subject_ids = ("P0001", "P0002", "P0003")
+    excluded_subject_ids = tuple(
+        subject_id
+        for subject_id in SONICOMConfig.subject_ids
+        if subject_id not in selected_subject_ids
+    )
+
+    dataset = SONICOM(
+        root=tmp_path,
+        inputs=None,
+        target=None,
+        exclude_subject_ids=excluded_subject_ids,
+        split="all",
+        verbose=False,
+    )
+    summary = dataset.dataset_summary()
+    resource_summary = dataset.resources_summary()
+
+    assert dataset.available_subjects == list(selected_subject_ids)
+    assert len(dataset) == len(selected_subject_ids)
+    assert "available_subjects: none" in summary
+    assert "selected_subjects: none" in summary
+    assert "excluded_subjects: none" in summary
+    assert "required_resources: none" in summary
+    assert "samples: none" in summary
+    assert "status: no input or target specs requested" in summary
+    assert "inputs: none" in summary
+    assert "target: none" in summary
+    assert "none" in resource_summary
+    assert "status: no resource specs requested" in resource_summary
+
+
 def test_sonicom_constructor_verbose_false_is_quiet() -> None:
     inputs = (HRTFSpec(index_by=("subject",)),)
     if not _paths_available(inputs, (), _DEFAULT_HRTF_VARIANT):
@@ -883,10 +1115,11 @@ def test_sonicom_download_resources_follow_subject_limit(tmp_path: Path) -> None
                 verbose=False,
             )
 
-        jobs = BaseDownload(
-            config=SONICOMConfig,
+        jobs = ImperialDownload(
+            config=SONICOMConfig(),
             root=download_root,
             excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+            download_server="imperial",
         ).build_download_plan(
             download_resources=download_resources,
             download_hrtf_variant=download_hrtf_variant,

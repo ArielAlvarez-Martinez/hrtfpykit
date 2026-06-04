@@ -4,7 +4,7 @@ from typing import Callable
 
 from .base import BaseDataset
 from .config import HUTUBSConfig
-from .download import BaseDownload
+from .download import SOFAcousticsDownload, TUBerlinDownload
 from .sanitize import sanitize_grouped_by
 from .specs import (
     AnthropometrySpec,
@@ -28,8 +28,10 @@ class HUTUBS(BaseDataset):
         download: bool = False,
         download_resources: str | tuple[str, ...] | list[str] = "hrtf",
         download_hrtf_variant: str | Mapping[str, object] = "measured",
+        download_server: str = "sofacoustics",
         verify_checksum: bool = True,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
+        download_exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         split: str = "all",
@@ -59,18 +61,26 @@ class HUTUBS(BaseDataset):
         values such as ITD, ILD, or spherical-harmonic coefficients.
 
         Download selection is independent from dataset construction selection.
-        download_resources and download_hrtf_variant control which official
-        files are downloaded. dataset_hrtf_variant controls which local HRTF files
-        are scanned and loaded after the download step. The dataset does not infer
-        download resources from inputs or target and does not copy
-        dataset_hrtf_variant into download_hrtf_variant.
+        ``download_resources`` and ``download_hrtf_variant`` control which
+        official files are downloaded. ``dataset_hrtf_variant`` controls which
+        local HRTF files are scanned and loaded after the download step. The
+        dataset does not infer download resources from inputs or target and does
+        not copy ``dataset_hrtf_variant`` into ``download_hrtf_variant``. HUTUBS
+        can download from ``sofacoustics`` or ``tu-berlin``. ``sofacoustics``
+        provides individually addressable configured files. ``tu-berlin``
+        downloads complete DepositOnce archives, extracts them, moves usable
+        SOFA, mesh, and anthropometry files into the dataset root, and keeps the
+        original ZIP files under ``archives/``.
 
         Parameters
         ----------
         root : str or Path
             Local HUTUBS dataset root.
         dataset_hrtf_variant : {``measured``, ``simulated``} or dict, default=``measured``
-            HUTUBS HRTF resource variant used for dataset construction.
+            HUTUBS HRTF resource variant used for dataset construction. A string
+            selects the HRTF type directly. A dict may use ``{"type":
+            "measured"}`` or ``{"type": "simulated"}``. HUTUBS does not expose
+            sample-rate or version selectors in this dataset interface.
         dataset_hrtf_transform : callable or None, default=None
             Optional transform applied to every loaded HRTF before any acoustic
             spec is evaluated. Spec-level HRTF transforms are applied after this
@@ -79,12 +89,26 @@ class HUTUBS(BaseDataset):
         download : bool, default=False
             If True, downloads selected official HUTUBS resources before dataset
             construction.
-        download_resources : str or sequence of str, default=``hrtf``
+        download_resources : {``hrtf``, ``mesh``, ``anthropometry``, ``all``} or sequence of str, default=``hrtf``
             Official resources requested for download. This value is not inferred
-            from inputs or target.
-        download_hrtf_variant : str or dict, default=``measured``
-            HRTF variant requested for download. This value is independent from
-            dataset_hrtf_variant.
+            from inputs or target. Passing ``all`` requests every resource
+            provided by the selected download server.
+        download_hrtf_variant : {``measured``, ``simulated``} or dict, default=``measured``
+            HRTF variant requested for download. A string selects the HRTF type;
+            a dict may use ``{"type": "measured"}`` or ``{"type":
+            "simulated"}``. This value is independent from
+            ``dataset_hrtf_variant``. For ``download_server="tu-berlin"``, HRTF
+            variant filtering is not supported because TU Berlin provides whole
+            archives; set ``download_hrtf_variant=None`` and select archive
+            families with ``download_resources``.
+        download_server : {``sofacoustics``, ``tu-berlin``}, default=``sofacoustics``
+            Official server used when ``download=True``. ``sofacoustics``
+            downloads individual configured resources and supports resource,
+            subject, and HRTF type filtering. ``tu-berlin`` downloads complete
+            DepositOnce archives selected by ``download_resources``, normalizes
+            usable files into the dataset root, and keeps archive files under
+            ``archives/``. TU Berlin does not support subject or HRTF variant
+            filtering.
         verify_checksum : bool, default=True
             Whether official SHA-256 checksums are verified during resource
             download. Keeping this enabled is the recommended behavior. Set it to
@@ -93,6 +117,11 @@ class HUTUBS(BaseDataset):
             run.
         exclude_subject_ids : str, int, sequence, or None, default=None
             HUTUBS subjects excluded before scanning and splitting.
+        download_exclude_subject_ids : str, int, sequence, or None, default=None
+            HUTUBS subjects excluded only from the download request when the
+            selected server supports subject filtering. This does not change
+            dataset construction; use exclude_subject_ids to exclude subjects
+            from scanning, splitting, and samples.
         inputs : spec, sequence of specs, or None, default=None
             Specs exposed under sample inputs.
         target : spec, sequence of specs, or None, default=None
@@ -144,6 +173,7 @@ class HUTUBS(BaseDataset):
         >>> sample = dataset[0]
 
         """
+        config = HUTUBSConfig()
         if isinstance(dataset_hrtf_variant, Mapping):
             unknown_keys = set(dataset_hrtf_variant) - {"type"}
             if len(unknown_keys) > 0:
@@ -155,28 +185,39 @@ class HUTUBS(BaseDataset):
         else:
             hrtf_type_value = dataset_hrtf_variant
         hrtf_type = str(hrtf_type_value).strip().lower()
-        if HUTUBSConfig.hrtf is None:
+        if config.hrtf is None:
             raise ValueError("HUTUBS config does not define HRTF metadata")
-        if hrtf_type not in HUTUBSConfig.hrtf.types:
+        if hrtf_type not in config.hrtf.types:
             raise ValueError(
-                f"Unsupported dataset_hrtf_variant {hrtf_type!r}. Expected one of {tuple(HUTUBSConfig.hrtf.types)}"
+                f"Unsupported dataset_hrtf_variant {hrtf_type!r}. Expected one of {tuple(config.hrtf.types)}"
             )
         if download:
-            downloaded, download_report = BaseDownload(
-                config=HUTUBSConfig,
+            download_servers = config.download_servers
+            if download_servers is None:
+                raise ValueError("HUTUBS does not define downloadable resources")
+            selected_download_server = download_server
+            if selected_download_server not in download_servers:
+                raise ValueError(
+                    f"HUTUBS download_server accepts {tuple(download_servers)}; got {download_server!r}"
+                )
+            downloader_class = TUBerlinDownload if selected_download_server == "tu-berlin" else SOFAcousticsDownload
+            hrtf_download_variant = download_hrtf_variant
+            downloaded, download_report = downloader_class(
+                config=config,
                 root=root,
-                excluded_subject_ids=exclude_subject_ids,
+                excluded_subject_ids=download_exclude_subject_ids,
                 verify_checksum=verify_checksum,
+                download_server=selected_download_server,
             ).download(
                 download_resources=download_resources,
-                download_hrtf_variant=download_hrtf_variant,
+                download_hrtf_variant=hrtf_download_variant,
                 download_mesh_variant=None,
             )
-            if downloaded:
+            if downloaded or verbose:
                 print(download_report)
         super().__init__(
             root=root,
-            config=HUTUBSConfig,
+            config=config,
             dataset_hrtf_transform=dataset_hrtf_transform,
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,

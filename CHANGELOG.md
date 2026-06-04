@@ -9,15 +9,89 @@ use the `vx.y.z` format.
 
 ### Added
 
--
+- Added configurable local resource path patterns for HRTF, mesh,
+  anthropometry, and metadata resources so dataset scanners can discover files
+  in canonical flat layouts, subject folders, and semantic folders such as
+  `subject_id/hrtf/...`, `subject_id/mesh/...`, `metadata/...`,
+  `metadata_and_readme/...`, `anthropometry/...`, and `anthro/...`.
+- Added concrete server-specific dataset downloader classes for SOFAcoustics,
+  Imperial, TU Berlin DepositOnce, and the SONICOM ecosystem, reusing shared
+  download mechanics while keeping server-specific planning logic in the
+  concrete downloader classes.
+- Added `DownloadServerConfig` and per-dataset `download_servers` mappings so
+  datasets can expose multiple official download sources with separate URLs,
+  checksums, database endpoints, archives, supported filters, and server-level
+  download exclusions.
+- Added TU Berlin DepositOnce SHA-256 checksums for the official HUTUBS archive
+  files.
+- Added shared downloader validation for HRTF and mesh variant selectors so all
+  download servers report unsupported types, sample rates, and versions with the
+  same error format before server-specific planning begins.
 
 ### Changed
 
--
+- Changed dataset downloads to check the same local resource path candidates
+  used by the dataset scanners before downloading. Existing valid local files
+  found through `local_path_patterns` are now verified and reused instead of
+  downloaded again.
+- Changed catalog-based download jobs to derive scanner-compatible local path
+  candidates from the shared dataset resource config, so ecosystem downloads can
+  reuse files already stored in semantic local layouts such as
+  `subject_id/hrtf/measured/...`.
+- Changed dataset constructors to separate `download_exclude_subject_ids` from
+  `exclude_subject_ids`, so download filtering and dataset-building filtering
+  can be controlled independently.
+- Changed built-in download exclusions to live on `DownloadServerConfig` as
+  `download_exclude_subject_ids` instead of dataset construction config.
+- Removed the legacy single-server `DownloadConfig` and `DatasetConfig.download`
+  path; downloads now use `download_servers` exclusively.
+- Changed SOFAcoustics download server configuration to use direct per-dataset
+  base URLs instead of a shared base URL plus `path_prefix`.
+- Changed checksum planning to use an explicit per-job `checksum_key` instead of
+  fuzzy fallback lookup across full paths, filenames, and subject/file pairs.
+  Checksum verification now targets downloader-managed resources only and remains
+  independent from local scanner path layouts.
+- Changed TU Berlin HUTUBS downloads to treat archives as transport files:
+  archives are kept under `archives/`, usable HRTF SOFA files, mesh PLY files,
+  and `AntrhopometricMeasures.csv` are normalized into the dataset root, and
+  temporary extracted archive folders are removed.
+- Changed TU Berlin HUTUBS archive planning to skip archive jobs when the
+  normalized usable resource files already exist in the dataset root.
+- Changed HUTUBS mesh configuration to use the official 58-subject mesh scope
+  instead of assuming every HUTUBS subject has a mesh file.
+- Changed download summaries to support archive-derived resource counts so TU
+  Berlin archive downloads can report usable HRTF, mesh, and anthropometry file
+  counts instead of only zip-file counts.
+- Changed dataset download failures to emit warnings with the full download
+  summary after processing all planned jobs, allowing successful files from the
+  same request to remain available.
+- Improved download failure messages with HTTP or URL error details, and added
+  a warning when a download request produces no planned files because the
+  selected resource or variant is not available from the configured source. The
+  warning now reports only the variant selectors relevant to the requested
+  resources.
+- Improved ARI, HUTUBS, and SONICOM dataset docstrings with explicit download
+  server options, download resource support, and dataset/download variant
+  choices.
+- Documented in `AnthropometrySpec` and `MetadataSpec` that subjects with
+  missing, empty, NaN, or infinite table fields are removed during dataset
+  construction, and that users can exclude incomplete fields with
+  `exclude_column` or `exclude_row` depending on table orientation.
 
 ### Fixed
 
--
+- Fixed downloader/scanner inconsistency where files found by dataset scanning,
+  such as `root/metadata.csv` for SONICOM metadata, could still be downloaded
+  again because the downloader only checked the official configured destination.
+- Fixed catalog downloaders so existing files in scanner-accepted local layouts
+  are verified and reused before transfer instead of being downloaded again.
+- Fixed SONICOM ecosystem synthetic HRTF checksum lookup to use the existing
+  subject-specific checksum keys such as `P0001/HRIR_SONICOM_48000.sofa`.
+- Fixed TU Berlin HUTUBS repeated-download behavior where existing normalized
+  root resources were ignored and only `archives/*.zip` files were considered.
+- Fixed verbose dataset constructors so download summaries print when
+  `verbose=True` even if files were only verified or no new files were
+  downloaded.
 
 ## [v0.1.2] - 2026-06-02
 

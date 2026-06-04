@@ -1,7 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import ClassVar, cast
 
-from .checksums import ARI_CHECKSUMS, HUTUBS_CHECKSUMS, SONICOM_CHECKSUMS
+from .checksums import ARI_CHECKSUMS, HUTUBS_CHECKSUMS, SONICOM_CHECKSUMS, TUBERLIN_HUTUBS_CHECKSUMS
 
 
 @dataclass(frozen=True)
@@ -54,6 +54,7 @@ class ResourceTypeConfig:
     """
 
     path_pattern: str | dict[str, str]
+    local_path_patterns: tuple[str, ...] = ()
     versions: tuple[str, ...] = ()
     version_labels: dict[str, str] | None = None
     sample_rates: tuple[int | str, ...] = ()
@@ -149,6 +150,10 @@ class AnthropometryConfig:
     extensions : tuple of str
         Supported table file extensions. Extensions should include the leading
         dot.
+    local_path_patterns : tuple of str
+        Additional local table paths accepted by the resource scanner. The
+        configured path remains the fallback path reported when no candidate
+        exists.
 
     Notes
     -----
@@ -161,6 +166,7 @@ class AnthropometryConfig:
     left_prefix: str
     right_prefix: str
     extensions: tuple[str, ...] = (".csv", ".mat")
+    local_path_patterns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -179,6 +185,10 @@ class MetadataConfig:
     extensions : tuple of str
         Supported table file extensions. Extensions should include the leading
         dot.
+    local_path_patterns : tuple of str
+        Additional local table paths accepted by the resource scanner. The
+        configured path remains the fallback path reported when no candidate
+        exists.
 
     Notes
     -----
@@ -189,6 +199,7 @@ class MetadataConfig:
 
     path: str
     extensions: tuple[str, ...] = (".csv", ".mat")
+    local_path_patterns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -238,43 +249,76 @@ class VideoConfig:
 
 
 @dataclass(frozen=True)
-class DownloadConfig:
-    """Describe official downloadable resources for a dataset family.
+class EcosystemCatalogRule:
+    database_key: str
+    filename_regex: str
+    relative_path_pattern: str
+    checksum_key: str = "filename"
+    subject_id_field: str | None = "Dataset Name"
+    hrtf_type: str | None = None
+    mesh_type: str | None = None
+    version: str | None = None
 
-    :class:`~hrtfpykit.datasets.config.DownloadConfig` is consumed by
-    :class:`~hrtfpykit.datasets.download.BaseDownload`. It defines the HTTPS base
-    URL, the resource groups that can be downloaded, and the checksum mapping
-    used to verify every planned file.
+
+@dataclass(frozen=True)
+class DownloadServerConfig:
+    """Describe one official download source for a dataset family.
+
+    A dataset can expose multiple official sources for the same logical
+    resources. For example, SONICOM can use the Imperial transfer server or the
+    SONICOM ecosystem, while HUTUBS can use SOFAcoustics or TU Berlin
+    DepositOnce archives. This config keeps the server-specific download
+    metadata separate from local resource scanning.
 
     Attributes
     ----------
     base_url : str
-        Default HTTPS base URL used to compose resource download URLs.
-        Resource-specific base URLs override this value when declared in
-        ``resource_base_urls``.
+        Server root used by the downloader. Direct path-pattern downloaders join
+        this URL with a resource relative path. Server-specific downloaders can
+        still use absolute URLs stored in database_urls or archives.
     available_resources : tuple of str
-        Resource group names accepted by the downloader, such as ``hrtf``,
-        ``mesh``, ``metadata``, or ``anthropometry``.
-    checksums : dict[str, object] or None
-        Optional SHA-256 checksum map used for secure verification. The nested
-        shape depends on the resource family and variant axes.
+        Logical resources the server can provide, such as ``hrtf``, ``mesh``,
+        ``anthropometry``, or ``metadata``.
+    download_exclude_subject_ids : tuple of str
+        Subject IDs excluded by this download server before user-provided
+        download exclusions are applied. These exclusions affect download
+        planning only.
+    checksums : dict or None
+        Expected file checksums for this server. Keys are server-relative
+        download identities, not necessarily the only local paths accepted by
+        the resource scanner.
     resource_base_urls : dict[str, str] or None
-        Optional mapping from resource group names to HTTPS base URLs. Use this
-        when one dataset hosts different official resource families on different
-        servers or URL roots while preserving the same resource-relative paths.
+        Optional per-resource URL roots for one-off resources whose official
+        host differs from base_url.
+    database_urls : dict[str, str or tuple[str, ...]]
+        Server-specific database JSON URLs used by downloaders that discover
+        file URLs from a remote listing.
+    archives : dict[str, tuple[dict[str, str], ...]]
+        Archive resources used by archive-based downloaders. Each archive entry
+        stores at least a name and URL.
+    supports_filter : dict[str, bool]
+        Declares whether this server can filter downloads by resource selector.
+        A False value means the downloader may need to fetch a larger archive or
+        complete resource group even when a narrower dataset selection is used.
 
     Notes
     -----
-    Download selection is independent from dataset construction selection. A
-    dataset class can download one variant while later constructing samples from
-    another local variant.
+    Local scanning is controlled by resource configs such as
+    :class:`ResourceTypeConfig`, :class:`AnthropometryConfig`, and
+    :class:`MetadataConfig`. DownloadServerConfig only describes where official
+    files come from and how the downloader should identify them.
 
     """
 
     base_url: str
     available_resources: tuple[str, ...]
+    download_exclude_subject_ids: tuple[str, ...] = ()
     checksums: dict[str, object] | None = None
     resource_base_urls: dict[str, str] | None = None
+    database_urls: dict[str, str | tuple[str, ...]] = field(default_factory=dict)
+    catalog_rules: dict[str, tuple[EcosystemCatalogRule, ...]] = field(default_factory=dict)
+    archives: dict[str, tuple[dict[str, str], ...]] = field(default_factory=dict)
+    supports_filter: dict[str, bool] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -296,9 +340,6 @@ class DatasetConfig:
         Public dataset name used in summaries, errors, and download reports.
     subject_ids : tuple of str
         Canonical subject identifiers accepted by the dataset.
-    excluded_subject_ids : tuple of str
-        Dataset-level subject exclusions applied before user-provided
-        exclusions.
     hrtf : HRTFConfig or None
         HRTF/HRIR resource configuration, when the dataset provides acoustic
         files.
@@ -312,8 +353,8 @@ class DatasetConfig:
         Image resource configuration, when available.
     video : VideoConfig or None
         Video resource configuration, when available.
-    download : DownloadConfig or None
-        Official download configuration, when supported.
+    download_servers : dict[str, DownloadServerConfig] or None
+        Named official download sources available for this dataset.
 
     Notes
     -----
@@ -325,14 +366,13 @@ class DatasetConfig:
 
     name: str
     subject_ids: tuple[str, ...]
-    excluded_subject_ids: tuple[str, ...] = ()
     hrtf: HRTFConfig | None = None
     mesh: MeshConfig | None = None
     anthropometry: AnthropometryConfig | None = None
     metadata: MetadataConfig | None = None
     image: ImageConfig | None = None
     video: VideoConfig | None = None
-    download: DownloadConfig | None = None
+    download_servers: dict[str, DownloadServerConfig] | None = None
 
 
 @dataclass(frozen=True)
@@ -361,9 +401,9 @@ class ARIConfig(DatasetConfig):
         ARI anthropometry CSV resource configuration.
     metadata : MetadataConfig or None
         ARI metadata CSV resource configuration.
-    download : DownloadConfig or None
-        Official ARI download configuration for HRTF, anthropometry, and
-        metadata resources.
+    download_servers : dict[str, DownloadServerConfig] or None
+        Official ARI download sources for HRTF, anthropometry, and metadata
+        resources.
 
     Notes
     -----
@@ -396,6 +436,10 @@ class ARIConfig(DatasetConfig):
         types={
             "hrtf": ResourceTypeConfig(
                 path_pattern=hrtf_paths,
+                local_path_patterns=(
+                    "{subject_id}/{filename}",
+                    "{subject_id}/hrtf/{filename}",
+                ),
             ),
         },
     )
@@ -404,21 +448,71 @@ class ARIConfig(DatasetConfig):
         left_prefix="L_",
         right_prefix="R_",
         extensions=(".csv",),
+        local_path_patterns=(
+            "anthropometry/anthro.csv",
+            "anthropometry/*.csv",
+            "anthro/anthro.csv",
+            "anthro/*.csv",
+        ),
     )
     metadata: MetadataConfig | None = MetadataConfig(
         path="metadata.csv",
         extensions=(".csv",),
+        local_path_patterns=(
+            "metadata/metadata.csv",
+            "metadata/*.csv",
+        ),
     )
-    download: DownloadConfig | None = DownloadConfig(
-        base_url="https://sofacoustics.org/data/database/ari",
-        available_resources=("hrtf", "anthropometry", "metadata"),
-        checksums=cast(dict[str, object], ARI_CHECKSUMS),
-        resource_base_urls={
-            "anthropometry": anthropometry_metadata_base_url,
-            "metadata": anthropometry_metadata_base_url,
-        },
+    download_servers: dict[str, DownloadServerConfig] | None = field(
+        default_factory=lambda: {
+            "sofacoustics": DownloadServerConfig(
+                base_url="https://sofacoustics.org/data/database/ari",
+                available_resources=("hrtf", "anthropometry", "metadata"),
+                checksums=cast(dict[str, object], ARI_CHECKSUMS),
+                resource_base_urls={
+                    "anthropometry": "https://raw.githubusercontent.com/ArielAlvarez-Martinez/ari_anthropometry_and_metadata/v1.0",
+                    "metadata": "https://raw.githubusercontent.com/ArielAlvarez-Martinez/ari_anthropometry_and_metadata/v1.0",
+                },
+                supports_filter={
+                    "subject": True,
+                    "resource": True,
+                    "hrtf_variant": True,
+                    "mesh_variant": False,
+                },
+            ),
+            "sonicom-ecosystem": DownloadServerConfig(
+                base_url="https://ecosystem.sonicom.eu",
+                available_resources=("hrtf",),
+                checksums=cast(dict[str, object], ARI_CHECKSUMS),
+                database_urls={
+                    "hrtf": (
+                        "https://ecosystem.sonicom.eu/databases/14/download?type=json",
+                        "https://ecosystem.sonicom.eu/databases/16/download?type=json",
+                        "https://ecosystem.sonicom.eu/databases/18/download?type=json",
+                        "https://ecosystem.sonicom.eu/databases/63/download?type=json",
+                        "https://ecosystem.sonicom.eu/databases/64/download?type=json",
+                    ),
+                },
+                catalog_rules={
+                    "hrtf": (
+                        EcosystemCatalogRule(
+                            database_key="hrtf",
+                            filename_regex=r"^hrtf [bcd]_(?P<subject_id>.+)\.sofa$",
+                            relative_path_pattern="{filename}",
+                            subject_id_field=None,
+                            hrtf_type="hrtf",
+                        ),
+                    ),
+                },
+                supports_filter={
+                    "subject": True,
+                    "resource": True,
+                    "hrtf_variant": True,
+                    "mesh_variant": False,
+                },
+            ),
+        }
     )
-
 
 @dataclass(frozen=True)
 class HUTUBSConfig(DatasetConfig):
@@ -445,9 +539,9 @@ class HUTUBSConfig(DatasetConfig):
         Official HUTUBS anthropometry table and left/right field prefixes.
     image, video : ImageConfig, VideoConfig
         Default media extension declarations for optional local media resources.
-    download : DownloadConfig
-        Official HUTUBS download base URL, downloadable resource groups, and
-        checksum map.
+    download_servers : dict[str, DownloadServerConfig]
+        Official HUTUBS download sources, downloadable resource groups, and
+        checksum maps.
 
     """
 
@@ -457,9 +551,17 @@ class HUTUBSConfig(DatasetConfig):
         types={
             "measured": ResourceTypeConfig(
                 path_pattern="{subject_id}_HRIRs_measured.sofa",
+                local_path_patterns=(
+                    "{subject_id}/{filename}",
+                    "{subject_id}/hrtf/measured/{filename}",
+                ),
             ),
             "simulated": ResourceTypeConfig(
                 path_pattern="{subject_id}_HRIRs_simulated.sofa",
+                local_path_patterns=(
+                    "{subject_id}/{filename}",
+                    "{subject_id}/hrtf/simulated/{filename}",
+                ),
             ),
         },
     )
@@ -467,22 +569,79 @@ class HUTUBSConfig(DatasetConfig):
         types={
             "default": ResourceTypeConfig(
                 path_pattern="{subject_id}_3DheadMesh.ply",
+                local_path_patterns=(
+                    "{subject_id}/{filename}",
+                    "{subject_id}/mesh/{filename}",
+                    "{subject_id}/mesh/default/{filename}",
+                ),
             ),
         },
+        subject_ids=tuple(
+            sorted(
+                (filename.split("_", 1)[0] for filename in cast(dict[str, str], HUTUBS_CHECKSUMS["mesh"])),
+                key=lambda subject_id: int(subject_id[2:]),
+            )
+        ),
     )
     anthropometry: AnthropometryConfig | None = AnthropometryConfig(
         path="AntrhopometricMeasures.csv",
         left_prefix="L_",
         right_prefix="R_",
+        local_path_patterns=(
+            "anthropometry/AntrhopometricMeasures.csv",
+            "anthropometry/*.csv",
+            "anthro/AntrhopometricMeasures.csv",
+            "anthro/*.csv",
+        ),
     )
     image: ImageConfig | None = ImageConfig()
     video: VideoConfig | None = VideoConfig()
-    download: DownloadConfig | None = DownloadConfig(
-        base_url="https://sofacoustics.org/data/database/hutubs",
-        available_resources=("hrtf", "mesh", "anthropometry"),
-        checksums=HUTUBS_CHECKSUMS,
+    download_servers: dict[str, DownloadServerConfig] | None = field(
+        default_factory=lambda: {
+            "sofacoustics": DownloadServerConfig(
+                base_url="https://sofacoustics.org/data/database/hutubs",
+                available_resources=("hrtf", "mesh", "anthropometry"),
+                checksums=HUTUBS_CHECKSUMS,
+                supports_filter={
+                    "subject": True,
+                    "resource": True,
+                    "hrtf_variant": True,
+                    "mesh_variant": True,
+                },
+            ),
+            "tu-berlin": DownloadServerConfig(
+                base_url="https://depositonce.tu-berlin.de/bitstreams",
+                available_resources=("hrtf", "mesh", "anthropometry"),
+                checksums=cast(dict[str, object], TUBERLIN_HUTUBS_CHECKSUMS),
+                archives={
+                    "hrtf": (
+                        {
+                            "name": "HRIRs.zip",
+                            "url": "https://depositonce.tu-berlin.de/bitstreams/9f8b8874-c567-43fa-9085-eac010599a66/download",
+                        },
+                    ),
+                    "mesh": (
+                        {
+                            "name": "3D head meshes.zip",
+                            "url": "https://depositonce.tu-berlin.de/bitstreams/7153f32e-f630-4b5e-9674-445f9797887d/download",
+                        },
+                    ),
+                    "anthropometry": (
+                        {
+                            "name": "Antrhopometric measures.zip",
+                            "url": "https://depositonce.tu-berlin.de/bitstreams/21612c81-9b16-477f-af01-0eb775acb253/download",
+                        },
+                    ),
+                },
+                supports_filter={
+                    "subject": False,
+                    "resource": True,
+                    "hrtf_variant": False,
+                    "mesh_variant": False,
+                },
+            ),
+        }
     )
-
 
 @dataclass(frozen=True)
 class SONICOMConfig(DatasetConfig):
@@ -492,8 +651,8 @@ class SONICOMConfig(DatasetConfig):
     and official resource layout used by :class:`~hrtfpykit.datasets.SONICOM`.
     It provides measured and
     synthetic HRTF resource variants, scanned and synthetic mesh variants, the
-    official metadata table, dataset-level subject exclusions, and download
-    metadata for metadata, HRTF, and mesh resources.
+    official metadata table, and download metadata for metadata, HRTF, and mesh
+    resources.
 
     Attributes
     ----------
@@ -501,9 +660,6 @@ class SONICOMConfig(DatasetConfig):
         Public dataset name, ``SONICOM``.
     subject_ids : tuple of str
         SONICOM subject identifiers ``P0001`` through ``P0405``.
-    excluded_subject_ids : tuple of str
-        Dataset-level exclusions applied before resource scanning and split
-        planning.
     hrtf : HRTFConfig
         Measured and synthetic SONICOM HRTF templates with sample-rate and
         version selectors.
@@ -511,26 +667,26 @@ class SONICOMConfig(DatasetConfig):
         Scanned and synthetic SONICOM mesh templates with version selectors.
     metadata : MetadataConfig
         Official SONICOM metadata table configuration.
-    download : DownloadConfig
-        Official SONICOM download base URL, downloadable resource groups, and
-        checksum map.
+    download_servers : dict[str, DownloadServerConfig]
+        Official SONICOM download sources, downloadable resource groups, and
+        checksum maps.
 
     """
 
     name: str = "SONICOM"
     subject_ids: tuple[str, ...] = tuple(f"P{index:04d}" for index in range(1, 406))
-    excluded_subject_ids: tuple[str, ...] = (
-        "P0253",
-        "P0258",
-        "P0270",
-        "P0272",
-        "P0275",
-        "P0396",
-    )
     hrtf: HRTFConfig | None = HRTFConfig(
         types={
             "measured": ResourceTypeConfig(
                 path_pattern="{subject_id}/HRTF/HRTF/{sample_rate_label}/{subject_id}_{version}_{sample_rate_label}.sofa",
+                local_path_patterns=(
+                    "{subject_id}/{filename}",
+                    "{subject_id}/hrtf/measured/{filename}",
+                    "{subject_id}/hrtf/measured/{sample_rate}/{filename}",
+                    "{subject_id}/hrtf/measured/{sample_rate_label}/{filename}",
+                    "{subject_id}/hrtf/measured/{version}/{sample_rate}/{filename}",
+                    "{subject_id}/hrtf/measured/{version}/{sample_rate_label}/{filename}",
+                ),
                 sample_rates=(44100, 48000, 96000),
                 sample_rate_labels={
                     44100: "44kHz",
@@ -550,6 +706,11 @@ class SONICOMConfig(DatasetConfig):
             ),
             "synthetic": ResourceTypeConfig(
                 path_pattern="{subject_id}/SYNTHETIC_HRTF/HRIR_SONICOM_{sample_rate}.sofa",
+                local_path_patterns=(
+                    "{subject_id}/{filename}",
+                    "{subject_id}/hrtf/synthetic/{filename}",
+                    "{subject_id}/hrtf/synthetic/{sample_rate}/{filename}",
+                ),
                 sample_rates=(44100, 48000),
                 versions=("generic",),
             ),
@@ -559,6 +720,11 @@ class SONICOMConfig(DatasetConfig):
         types={
             "scanned": ResourceTypeConfig(
                 path_pattern="{subject_id}/3DSCAN/{subject_id}{version_label}",
+                local_path_patterns=(
+                    "{subject_id}/{filename}",
+                    "{subject_id}/mesh/scanned/{filename}",
+                    "{subject_id}/mesh/scanned/{version}/{filename}",
+                ),
                 versions=("raw", "point_cloud", "watertight"),
                 version_labels={
                     "raw": ".stl",
@@ -568,6 +734,11 @@ class SONICOMConfig(DatasetConfig):
             ),
             "synthetic": ResourceTypeConfig(
                 path_pattern="{subject_id}/SYNTHETIC_HRTF/{subject_id}_{version}.stl",
+                local_path_patterns=(
+                    "{subject_id}/{filename}",
+                    "{subject_id}/mesh/synthetic/{filename}",
+                    "{subject_id}/mesh/synthetic/{version}/{filename}",
+                ),
                 versions=("preprocessed", "plugged", "graded_left", "graded_right"),
             ),
         },
@@ -576,9 +747,86 @@ class SONICOMConfig(DatasetConfig):
     metadata: MetadataConfig | None = MetadataConfig(
         path="metadata_and_readme/metadata.csv",
         extensions=(".csv",),
+        local_path_patterns=(
+            "metadata.csv",
+            "metadata/metadata.csv",
+            "metadata_and_readme/*.csv",
+        ),
     )
-    download: DownloadConfig | None = DownloadConfig(
-        base_url="https://transfer.ic.ac.uk:9090/2022_SONICOM-HRTF-DATASET",
-        available_resources=("metadata", "hrtf", "mesh"),
-        checksums=SONICOM_CHECKSUMS,
+    download_servers: dict[str, DownloadServerConfig] | None = field(
+        default_factory=lambda: {
+            "imperial": DownloadServerConfig(
+                base_url="https://transfer.ic.ac.uk:9090/2022_SONICOM-HRTF-DATASET",
+                available_resources=("metadata", "hrtf", "mesh"),
+                download_exclude_subject_ids=(
+                    "P0253",
+                    "P0258",
+                    "P0270",
+                    "P0272",
+                    "P0275",
+                    "P0396",
+                ),
+                checksums=SONICOM_CHECKSUMS,
+                supports_filter={
+                    "subject": True,
+                    "resource": True,
+                    "hrtf_variant": True,
+                    "mesh_variant": True,
+                },
+            ),
+            "sonicom-ecosystem": DownloadServerConfig(
+                base_url="https://ecosystem.sonicom.eu",
+                available_resources=("hrtf", "mesh"),
+                checksums=SONICOM_CHECKSUMS,
+                database_urls={
+                    "measured": "https://ecosystem.sonicom.eu/databases/3/download?type=json",
+                    "synthetic": "https://ecosystem.sonicom.eu/databases/20/download?type=json",
+                },
+                catalog_rules={
+                    "hrtf": (
+                        EcosystemCatalogRule(
+                            database_key="measured",
+                            filename_regex=r"^(?P<subject_id>P\d{4})_(?P<version>.+)_(?P<sample_rate_label>\d+kHz)\.sofa$",
+                            relative_path_pattern="{subject_id}/HRTF/HRTF/{sample_rate_label}/{filename}",
+                            hrtf_type="measured",
+                        ),
+                        EcosystemCatalogRule(
+                            database_key="synthetic",
+                            filename_regex=r"^HRIR_SONICOM_(?P<sample_rate>\d+)\.sofa$",
+                            relative_path_pattern="{subject_id}/SYNTHETIC_HRTF/{filename}",
+                            hrtf_type="synthetic",
+                            version="generic",
+                        ),
+                    ),
+                    "mesh": (
+                        EcosystemCatalogRule(
+                            database_key="synthetic",
+                            filename_regex=r"^(?P<subject_id>P\d{4})\.stl(?:\.stl)?$",
+                            relative_path_pattern="{subject_id}/3DSCAN/{subject_id}.stl",
+                            mesh_type="scanned",
+                            version="raw",
+                        ),
+                        EcosystemCatalogRule(
+                            database_key="synthetic",
+                            filename_regex=r"^(?P<subject_id>P\d{4})_watertight\.stl$",
+                            relative_path_pattern="{subject_id}/3DSCAN/{filename}",
+                            mesh_type="scanned",
+                            version="watertight",
+                        ),
+                        EcosystemCatalogRule(
+                            database_key="synthetic",
+                            filename_regex=r"^(?P<subject_id>P\d{4})_(?P<version>.+)\.stl$",
+                            relative_path_pattern="{subject_id}/SYNTHETIC_HRTF/{filename}",
+                            mesh_type="synthetic",
+                        ),
+                    ),
+                },
+                supports_filter={
+                    "subject": True,
+                    "resource": True,
+                    "hrtf_variant": True,
+                    "mesh_variant": True,
+                },
+            ),
+        }
     )

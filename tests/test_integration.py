@@ -16,7 +16,7 @@ from hrtfpykit.datasets.base import BaseDataset
 from hrtfpykit.datasets.config import (
     AnthropometryConfig,
     DatasetConfig,
-    DownloadConfig,
+    DownloadServerConfig,
     HRTFConfig,
     ImageConfig,
     MeshConfig,
@@ -24,7 +24,7 @@ from hrtfpykit.datasets.config import (
     ResourceTypeConfig,
     VideoConfig,
 )
-from hrtfpykit.datasets.download import BaseDownload
+from hrtfpykit.datasets.download import PathPatternDownload
 from hrtfpykit.datasets.specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -525,21 +525,24 @@ def test_download_plan_supports_resource_specific_base_urls(tmp_path: Path) -> N
             right_prefix="right_",
         ),
         metadata=MetadataConfig(path="tables/metadata.csv"),
-        download=DownloadConfig(
-            base_url="https://default.example.org/dataset",
-            available_resources=("hrtf", "mesh", "anthropometry", "metadata"),
-            resource_base_urls={
-                "hrtf": "https://hrtf.example.org/files",
-                "mesh": "https://mesh.example.org/releases/v1",
-                "anthropometry": "https://tables.example.org/resources",
-            },
-        ),
+        download_servers={
+            "custom": DownloadServerConfig(
+                base_url="https://default.example.org/dataset",
+                available_resources=("hrtf", "mesh", "anthropometry", "metadata"),
+                resource_base_urls={
+                    "hrtf": "https://hrtf.example.org/files",
+                    "mesh": "https://mesh.example.org/releases/v1",
+                    "anthropometry": "https://tables.example.org/resources",
+                },
+            ),
+        },
     )
 
-    jobs = BaseDownload(
+    jobs = PathPatternDownload(
         config=config,
         root=tmp_path,
         verify_checksum=False,
+        download_server="custom",
     ).build_download_plan(
         download_resources="all",
         download_hrtf_variant="measured",

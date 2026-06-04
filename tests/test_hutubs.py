@@ -13,7 +13,7 @@ import pytest
 from hrtfpykit.datasets import HUTUBS
 from hrtfpykit.datasets.checksums import HUTUBS_CHECKSUMS
 from hrtfpykit.datasets.config import HUTUBSConfig
-from hrtfpykit.datasets.download import BaseDownload
+from hrtfpykit.datasets.download import SOFAcousticsDownload, TUBerlinDownload
 from hrtfpykit.datasets.specs import (
     AnthropometrySpec,
     HRTFSpec,
@@ -603,7 +603,9 @@ def test_hutubs_config_subject_ids_are_valid() -> None:
 
 
 def test_hutubs_config_subject_exclusions() -> None:
-    assert HUTUBSConfig.excluded_subject_ids == ()
+    config = HUTUBSConfig()
+
+    assert all(server.download_exclude_subject_ids == () for server in config.download_servers.values())
 
 
 @pytest.mark.parametrize(
@@ -618,7 +620,7 @@ def test_hutubs_hrtf_download_plan_variants(
     download_hrtf_variant: str,
     expected_relative_path: str,
 ) -> None:
-    jobs = BaseDownload(config=HUTUBSConfig, root=tmp_path).build_download_plan(
+    jobs = SOFAcousticsDownload(config=HUTUBSConfig(), root=tmp_path, download_server="sofacoustics").build_download_plan(
         download_resources="hrtf",
         download_hrtf_variant=download_hrtf_variant,
     )
@@ -631,10 +633,11 @@ def test_hutubs_hrtf_download_plan_variants(
 
 
 def test_hutubs_download_plan_follows_subject_limit(tmp_path: Path) -> None:
-    jobs = BaseDownload(
-        config=HUTUBSConfig,
+    jobs = SOFAcousticsDownload(
+        config=HUTUBSConfig(),
         root=tmp_path,
         excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+        download_server="sofacoustics",
     ).build_download_plan(
         download_resources="all",
         download_hrtf_variant="measured",
@@ -652,25 +655,59 @@ def test_hutubs_download_plan_follows_subject_limit(tmp_path: Path) -> None:
 
 
 def test_hutubs_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
+    config = HUTUBSConfig()
+    download_config = config.download_servers["sofacoustics"]
     config = replace(
-        HUTUBSConfig(),
-        download=replace(
-            HUTUBSConfig.download,
-            checksums={"hrtf": {}},
-        ),
+        config,
+        download_servers={
+            **config.download_servers,
+            "sofacoustics": replace(
+                download_config,
+                checksums={"hrtf": {}},
+            ),
+        },
     )
 
     with pytest.raises(ValueError, match="missing"):
-        BaseDownload(config=config, root=tmp_path).build_download_plan(
+        SOFAcousticsDownload(
+            config=config,
+            root=tmp_path,
+            download_server="sofacoustics",
+        ).build_download_plan(
             download_resources="hrtf",
             download_hrtf_variant="measured",
+        )
+
+
+def test_hutubs_tu_berlin_rejects_download_variant_filter(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Set download_hrtf_variant=None"):
+        TUBerlinDownload(
+            config=HUTUBSConfig(),
+            root=tmp_path,
+            download_server="tu-berlin",
+        ).build_download_plan(
+            download_resources="hrtf",
+            download_hrtf_variant="measured",
+        )
+
+
+def test_hutubs_tu_berlin_rejects_subject_filter(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Set download_exclude_subject_ids=None"):
+        TUBerlinDownload(
+            config=HUTUBSConfig(),
+            root=tmp_path,
+            excluded_subject_ids=("pp1",),
+            download_server="tu-berlin",
+        ).build_download_plan(
+            download_resources="hrtf",
+            download_hrtf_variant=None,
         )
 
 
 def test_hutubs_checksum_mismatch_fails(tmp_path: Path) -> None:
     path = tmp_path / "AntrhopometricMeasures.csv"
     path.write_text("bad-data")
-    downloader = BaseDownload(config=HUTUBSConfig, root=tmp_path)
+    downloader = SOFAcousticsDownload(config=HUTUBSConfig(), root=tmp_path, download_server="sofacoustics")
 
     with pytest.raises(ValueError, match="SHA-256 mismatch"):
         downloader.verify_checksum(path, "0" * 64)
@@ -711,7 +748,7 @@ def test_hutubs_spec_workflow_does_not_mutate_spec_objects() -> None:
 
 
 def test_hutubs_anthropometry_download_plan(tmp_path: Path) -> None:
-    jobs = BaseDownload(config=HUTUBSConfig, root=tmp_path).build_download_plan(
+    jobs = SOFAcousticsDownload(config=HUTUBSConfig(), root=tmp_path, download_server="sofacoustics").build_download_plan(
         download_resources="anthropometry",
     )
 
@@ -1089,10 +1126,11 @@ def test_hutubs_download_resources_follow_subject_limit(tmp_path: Path) -> None:
                 verbose=False,
             )
 
-        jobs = BaseDownload(
-            config=HUTUBSConfig,
+        jobs = SOFAcousticsDownload(
+            config=HUTUBSConfig(),
             root=download_root,
             excluded_subject_ids=_DOWNLOAD_EXCLUDED_SUBJECT_IDS,
+            download_server="sofacoustics",
         ).build_download_plan(
             download_resources=download_resources,
             download_hrtf_variant="measured",
