@@ -83,7 +83,7 @@ jobs:
           tests/test_hutubs.py::test_hutubs_spec_workflow_does_not_mutate_spec_objects
           tests/test_hutubs.py::test_hutubs_anthropometry_download_plan
           tests/test_sonicom.py::test_sonicom_config_subject_ids_are_valid
-          tests/test_sonicom.py::test_sonicom_config_subject_exclusions
+          tests/test_sonicom.py::test_sonicom_config_download_subject_exclusions
           tests/test_sonicom.py::test_sonicom_hrtf_download_plan_variants
           tests/test_sonicom.py::test_sonicom_download_plan_follows_subject_limit
           tests/test_sonicom.py::test_sonicom_missing_checksum_fails_download_plan
