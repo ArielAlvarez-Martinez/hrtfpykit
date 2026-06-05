@@ -14,6 +14,7 @@ from hrtfpykit.datasets import ARI
 from hrtfpykit.datasets.checksums import ARI_CHECKSUMS
 from hrtfpykit.datasets.config import ARIConfig
 from hrtfpykit.datasets.download import SOFAcousticsDownload, SONICOMEcosystemDownload
+from hrtfpykit.datasets.resources import DatasetResourcesScanner
 from hrtfpykit.datasets.specs import AnthropometrySpec, MetadataSpec
 from hrtfpykit.datasets.specs_workflow import DatasetSpecWorkflow
 
@@ -71,23 +72,58 @@ def _write_ari_anthropometry_csv(root: Path) -> None:
     )
 
 
-def test_ari_config_subject_ids_are_valid() -> None:
+def test_ari_config_subject_ids_are_valid(tmp_path: Path) -> None:
     subject_ids = tuple(ARIConfig.subject_ids)
 
     assert ARIConfig.name == "ARI"
     assert len(subject_ids) == 263
-    assert len(ARIConfig.hrtf_paths) == len(subject_ids)
     assert len(ARI_CHECKSUMS["hrtf"]) == len(subject_ids)
+    hrtf_config = ARIConfig.hrtf
+    assert hrtf_config is not None
+    assert tuple(hrtf_config.types) == ("nh",)
+    assert hrtf_config.types["nh"].path_pattern == "hrtf {version}_{subject_id}.sofa"
+    assert hrtf_config.types["nh"].versions == ("b", "c", "d")
     assert len(set(subject_ids)) == len(subject_ids)
     assert all(isinstance(subject_id, str) for subject_id in subject_ids)
     assert all(subject_id.strip() != "" for subject_id in subject_ids)
     assert list(subject_ids) == _sort_subject_ids(subject_ids)
 
+    for filename in ("hrtf b_nh2.sofa", "hrtf c_nh831.sofa", "hrtf d_nh1059.sofa"):
+        (tmp_path / filename).write_bytes(b"placeholder")
+
+    paths, summary = DatasetResourcesScanner.scan_hrtf_paths(
+        ARIConfig(),
+        tmp_path,
+        "NH",
+        excluded_subject_ids=set(),
+        required=True,
+    )
+    assert paths == {
+        "nh2": tmp_path / "hrtf b_nh2.sofa",
+        "nh831": tmp_path / "hrtf c_nh831.sofa",
+        "nh1059": tmp_path / "hrtf d_nh1059.sofa",
+    }
+    assert summary is not None
+    assert summary["hrtf_variant"] == "nh"
+
+    b_paths, b_summary = DatasetResourcesScanner.scan_hrtf_paths(
+        ARIConfig(),
+        tmp_path,
+        {"type": "NH", "version": "b"},
+        excluded_subject_ids=set(),
+        required=True,
+    )
+    assert b_paths == {"nh2": tmp_path / "hrtf b_nh2.sofa"}
+    assert b_summary is not None
+    assert b_summary["hrtf_variant"] == {"type": "nh", "sample_rate": None, "version": "b"}
+
 
 def test_ari_config_subject_exclusions() -> None:
     config = ARIConfig()
+    download_servers = config.download_servers
+    assert download_servers is not None
 
-    assert all(server.download_exclude_subject_ids == () for server in config.download_servers.values())
+    assert all(server.download_exclude_subject_ids == () for server in download_servers.values())
 
 
 def test_ari_hrtf_download_plan(tmp_path: Path) -> None:
@@ -102,8 +138,21 @@ def test_ari_hrtf_download_plan(tmp_path: Path) -> None:
     assert "hrtf c_nh831.sofa" in relative_paths
     assert "hrtf d_nh1059.sofa" in relative_paths
     assert all(job["resource"] == "hrtf" for job in jobs)
-    assert all(job["hrtf_variant"] == "hrtf" for job in jobs)
+    assert {tuple(cast(dict[str, object], job["hrtf_variant"]).items()) for job in jobs} == {
+        (("type", "nh"), ("sample_rate", None), ("version", "b")),
+        (("type", "nh"), ("sample_rate", None), ("version", "c")),
+        (("type", "nh"), ("sample_rate", None), ("version", "d")),
+    }
     assert all(job["checksum"] is not None for job in jobs)
+
+    b_jobs = SOFAcousticsDownload(config=ARIConfig(), root=tmp_path, download_server="sofacoustics").build_download_plan(
+        download_resources="hrtf",
+        download_hrtf_variant={"type": "NH", "version": "b"},
+    )
+    assert len(b_jobs) == 177
+    assert {str(job["relative_path"]).split("_", 1)[0] for job in b_jobs} == {"hrtf b"}
+    assert all(cast(dict[str, object], job["hrtf_variant"])["type"] == "nh" for job in b_jobs)
+    assert all(cast(dict[str, object], job["hrtf_variant"])["version"] == "b" for job in b_jobs)
 
 
 def test_ari_download_plan_follows_subject_limit(tmp_path: Path) -> None:
@@ -130,11 +179,13 @@ def test_ari_download_plan_follows_subject_limit(tmp_path: Path) -> None:
 
 def test_ari_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
     config = ARIConfig()
-    download_config = config.download_servers["sofacoustics"]
+    download_servers = config.download_servers
+    assert download_servers is not None
+    download_config = download_servers["sofacoustics"]
     config = replace(
         config,
         download_servers={
-            **config.download_servers,
+            **download_servers,
             "sofacoustics": replace(
                 download_config,
                 checksums={"hrtf": {}},
@@ -166,7 +217,7 @@ def test_ari_invalid_download_variant_keys_are_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Unsupported download_hrtf_variant keys"):
         SOFAcousticsDownload(config=ARIConfig(), root=tmp_path, download_server="sofacoustics").build_download_plan(
             download_resources="hrtf",
-            download_hrtf_variant={"type": "hrtf", "bad": "value"},
+            download_hrtf_variant={"type": "NH", "bad": "value"},
         )
 
     with pytest.raises(ValueError, match=r"Unsupported download_hrtf_variant\['type'\]"):

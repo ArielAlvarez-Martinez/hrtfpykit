@@ -67,7 +67,7 @@ Test Files
      - ARI dataset behavior
      - Follows the shared dataset test order for configuration, download plan,
        checksum, subject limit, variant key, spec workflow, and quiet construction
-       checks. It also covers ARI HRTF path maps, anthropometry and metadata
+       checks. It also covers ARI NH HRTF variants, anthropometry and metadata
        download plans, anthropometry ear selection, lightweight generated CSV
        resources, and optional downloads.
 
@@ -95,8 +95,8 @@ checks, then adds the resource checks that belong to that dataset.
    * - Download plan checks
      - Build no network plans, verify resources, checksums, URLs, destination
        paths, and the active subject limit.
-     - HUTUBS and SONICOM check HRTF variant plans. ARI checks its HRTF path map
-       and global anthropometry/metadata resources.
+     - HUTUBS and SONICOM check HRTF variant plans. ARI checks NH HRTF
+       variant planning and global anthropometry/metadata resources.
    * - Failure checks
      - Verify missing checksums, checksum mismatches, and unsupported variant
        keys raise clear errors.
@@ -254,8 +254,9 @@ specs, non acoustic specs, summaries, indexed samples, and subject length for
 ear indexed rows. They skip when the required local roots or media folders are
 missing.
 
-ARI includes checks for its HRTF path map, anthropometry and metadata download
-plans, anthropometry ear selection, and generated local CSV resources.
+ARI includes checks for NH HRTF variant planning, anthropometry and metadata
+resource download plans, anthropometry ear selection, and generated local CSV
+resources.
 
 Run ARI checks:
 

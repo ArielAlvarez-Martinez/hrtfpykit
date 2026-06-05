@@ -39,14 +39,14 @@ class SONICOM(BaseDataset):
         split_seed: int = 0,
         verbose: bool = False,
     ) -> None:
-        """Dataset interface for local or downloadable SONICOM resources.
-
-        :class:`~hrtfpykit.datasets.SONICOM` turns SONICOM HRTF, mesh, and
-        metadata layouts into the shared
-        :class:`~hrtfpykit.datasets.base.BaseDataset` API. It resolves measured
-        and synthetic HRTF variants, scanned or synthetic mesh variants, subject
-        metadata, subject exclusions, and split selection before exposing samples
-        through the shared integer-indexed dataset interface.
+        """
+        :class:`~hrtfpykit.datasets.SONICOM` resolves the local SONICOM
+        resources declared by :class:`~hrtfpykit.datasets.config.SONICOMConfig`.
+        It exposes measured and synthetic HRTF SOFA variants, scanned and
+        synthetic mesh variants, and subject metadata through the shared
+        integer-indexed dataset interface. The dataset applies subject
+        exclusions and split selection after resource scanning so samples only
+        use subjects with every required local resource family.
 
         Samples are driven by input and target specs. Acoustic specs load a
         subject HRTF with :func:`~hrtfpykit.hrtf.load_hrtf`. If
@@ -64,12 +64,27 @@ class SONICOM(BaseDataset):
         ``dataset_hrtf_variant`` and ``dataset_mesh_variant`` control which local
         files are scanned and loaded after the download step. The dataset does
         not infer download resources from inputs or target and does not copy
-        dataset variants into download variants. SONICOM can download from the
-        original Imperial transfer server or from the SONICOM ecosystem. The
-        Imperial server exposes metadata, HRTFs, and meshes through configured
-        direct paths. The SONICOM ecosystem exposes HRTFs and meshes through
-        database JSON listings; it does not currently provide the SONICOM
-        metadata table through this downloader.
+        dataset variants into download variants. SONICOM can download from
+        ``imperial`` or ``sonicom-ecosystem``. ``imperial`` provides configured
+        metadata, HRTF, and mesh files through direct paths.
+        ``sonicom-ecosystem`` provides HRTF and mesh files listed by ecosystem
+        database catalogs; it does not provide the SONICOM metadata table through
+        this downloader.
+
+        Users can also download or prepare files manually and copy them under
+        ``root``. Measured SONICOM HRTFs are accepted in the official layout such
+        as ``P0001/HRTF/HRTF/44kHz/P0001_FreeFieldComp_44kHz.sofa`` and in
+        semantic alternatives such as ``P0001/hrtf/measured/{filename}``,
+        ``P0001/hrtf/measured/44100/{filename}``,
+        ``P0001/hrtf/measured/44kHz/{filename}``, or
+        ``P0001/hrtf/measured/FreeFieldComp/44kHz/{filename}``. Synthetic HRTFs
+        are accepted in ``P0001/SYNTHETIC_HRTF/HRIR_SONICOM_44100.sofa`` or
+        ``P0001/hrtf/synthetic/44100/HRIR_SONICOM_44100.sofa`` style layouts.
+        Scanned and synthetic meshes are accepted in their official folders or
+        under ``P0001/mesh/scanned/...`` and ``P0001/mesh/synthetic/...``.
+        Metadata is accepted as ``metadata_and_readme/metadata.csv``,
+        ``metadata_and_readme/*.csv``, ``metadata/metadata.csv``, or
+        ``metadata.csv``.
 
         Parameters
         ----------
@@ -83,7 +98,9 @@ class SONICOM(BaseDataset):
             ``FreeFieldComp_NoITD``, ``FreeFieldCompMinPhase``, and
             ``FreeFieldCompMinPhase_NoITD``. ``synthetic`` supports sample rates
             ``44100`` and ``48000`` with version ``generic``. A full dict uses
-            ``{"type": ..., "sample_rate": ..., "version": ...}``.
+            ``{"type": ..., "sample_rate": ..., "version": ...}``; a string
+            selects an HRTF type only when the remaining axes can be resolved by
+            the dataset configuration.
         dataset_mesh_variant : dict or str
             SONICOM mesh variant used for dataset construction. Valid mesh types
             are ``scanned`` and ``synthetic``. ``scanned`` supports versions
@@ -111,7 +128,8 @@ class SONICOM(BaseDataset):
             ``dataset_hrtf_variant``: measured HRTFs use sample rates ``44100``,
             ``48000``, or ``96000`` with measured versions, while synthetic HRTFs
             use sample rates ``44100`` or ``48000`` with version ``generic``.
-            This value is independent from ``dataset_hrtf_variant``.
+            This value is independent from ``dataset_hrtf_variant`` and is only
+            used when HRTF resources are requested.
         download_mesh_variant : dict, str, or None
             Mesh variant values requested for download. The valid mesh type and
             version combinations are the same as ``dataset_mesh_variant``:
@@ -138,9 +156,11 @@ class SONICOM(BaseDataset):
             not change dataset construction; use exclude_subject_ids to exclude
             subjects from scanning, splitting, and samples.
         inputs : spec, sequence of specs, or None, default=None
-            Specs exposed under sample inputs.
+            Specs resolved under ``sample["inputs"]``. None builds samples
+            without an inputs group unless target specs are provided.
         target : spec, sequence of specs, or None, default=None
-            Specs exposed under sample targets.
+            Specs resolved under ``sample["target"]``. None builds samples
+            without a target group unless input specs are provided.
         split : {``all``, ``train``, ``validation``, ``test``}, default=``all``
             Subject split used by this dataset instance.
         split_ratio : tuple of float, default=(0.8, 0.1, 0.1)
@@ -148,8 +168,8 @@ class SONICOM(BaseDataset):
         split_seed : int, default=0
             Random seed used for deterministic split assignment.
         verbose : bool, default=False
-            If True, prints resource and dataset summaries. Download summaries print
-            whenever files are downloaded.
+            If True, prints resource and dataset summaries. Download summaries
+            print whenever files are downloaded.
 
         Returns
         -------

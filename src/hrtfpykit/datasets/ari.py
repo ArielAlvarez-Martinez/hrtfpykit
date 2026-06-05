@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Callable
 
@@ -23,9 +23,11 @@ class ARI(BaseDataset):
     def __init__(
         self,
         root: str | Path,
+        dataset_hrtf_variant: str | Mapping[str, object] = "NH",
         dataset_hrtf_transform: Callable[[object], object] | None = None,
         download: bool = False,
         download_resources: str | tuple[str, ...] | list[str] = "hrtf",
+        download_hrtf_variant: str | Mapping[str, object] | None = "NH",
         download_server: str = "sofacoustics",
         verify_checksum: bool = True,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
@@ -37,33 +39,61 @@ class ARI(BaseDataset):
         split_seed: int = 0,
         verbose: bool = False,
     ) -> None:
-        """Build an ARI dataset instance.
-
+        """
         :class:`~hrtfpykit.datasets.ARI` resolves the local ARI resources
-        declared by :class:`~hrtfpykit.datasets.config.ARIConfig`, including
-        HRTF SOFA files, anthropometry CSV data, and metadata CSV data. It
-        applies subject exclusions and split selection, and returns samples
-        defined by the requested input and target specs. When ``download=True``,
-        ARI can download resources from SOFAcoustics or from the SONICOM
-        ecosystem, depending on ``download_server``. Download selection is
-        independent from dataset construction: ``download_resources`` controls
-        which official files are fetched, while ``inputs`` and ``target``
-        control which local resources are required for samples.
+        declared by :class:`~hrtfpykit.datasets.config.ARIConfig`. It exposes
+        the official NH HRTF SOFA collection, ARI anthropometry CSV data, and
+        subject metadata CSV data through the shared integer-indexed dataset
+        interface. The NH HRTFs are distributed in ``b``, ``c``, and ``d``
+        filename groups; ``dataset_hrtf_variant="NH"`` scans the compatible
+        configured collection, while a versioned NH variant selects one group.
 
-        Acoustic specs load one subject HRTF with
-        :func:`~hrtfpykit.hrtf.load_hrtf`. When ``dataset_hrtf_transform`` is
-        provided, the loaded HRTF is transformed before specs extract IR/TF
-        values or calculate derived values such as ITD, ILD, or
-        spherical harmonic coefficients.
+        Samples are driven by input and target specs. Acoustic specs load one
+        subject HRTF with :func:`~hrtfpykit.hrtf.load_hrtf`. If
+        ``dataset_hrtf_transform`` is provided, it is applied to that loaded HRTF
+        first. Acoustic specs then operate on the dataset-level HRTF version,
+        optionally apply their own HRTF transform, and finally extract
+        time-domain values, frequency-domain values, ITD, ILD, or
+        spherical-harmonic coefficients. Resource specs can add anthropometry and
+        metadata values to the same sample. Subjects missing any required
+        resource family are removed before row construction.
+
+        Download selection is independent from dataset construction selection.
+        ``download_resources`` and ``download_hrtf_variant`` control which
+        official files are downloaded. ``dataset_hrtf_variant`` controls which
+        local HRTF files are scanned and loaded after the download step. The
+        dataset does not infer download resources from inputs or target and does
+        not copy ``dataset_hrtf_variant`` into ``download_hrtf_variant``. ARI can
+        download from ``sofacoustics`` or ``sonicom-ecosystem``. ``sofacoustics``
+        provides configured HRTF, anthropometry, and metadata files.
+        ``sonicom-ecosystem`` provides ARI HRTF files listed by ecosystem
+        database catalogs.
+
+        Users can also download or prepare files manually and copy them under
+        ``root``. ARI HRTFs are accepted as official root-level filenames such as
+        ``hrtf b_nh2.sofa`` and as local alternatives such as
+        ``nh2/hrtf b_nh2.sofa``, ``nh2/hrtf/hrtf b_nh2.sofa``,
+        ``nh2/hrtf/nh/hrtf b_nh2.sofa``, or
+        ``nh2/hrtf/nh/b/hrtf b_nh2.sofa``. Anthropometry is accepted as
+        ``anthro.csv``, ``anthropometry/anthro.csv``, ``anthropometry/*.csv``,
+        ``anthro/anthro.csv``, or ``anthro/*.csv``. Metadata is accepted as
+        ``metadata.csv``, ``metadata/metadata.csv``, or ``metadata/*.csv``.
 
         Parameters
         ----------
         root : str or Path
             Local ARI dataset root.
+        dataset_hrtf_variant : {``NH``} or dict, default=``NH``
+            ARI HRTF variant used for dataset construction. ``NH`` selects the
+            full configured NH collection across the ``b``, ``c``, and ``d``
+            filename groups. A dict may use ``{"type": "NH", "version": "b"}``,
+            ``{"type": "NH", "version": "c"}``, or ``{"type": "NH",
+            "version": "d"}`` to scan only one filename group.
         dataset_hrtf_transform : callable or None, default=None
             Optional transform applied to every loaded HRTF before any acoustic
-            spec is evaluated. Spec transforms are applied after this dataset
-            transform and before value extraction or derived cue calculation.
+            spec is evaluated. Spec-level HRTF transforms run after this
+            dataset-level transform and before value extraction or derived cue
+            calculation.
         download : bool, default=False
             If True, downloads selected official ARI resources before dataset
             construction.
@@ -72,6 +102,13 @@ class ARI(BaseDataset):
             ``hrtf``, ``anthropometry``, and ``metadata``. ``sonicom-ecosystem``
             supports only ``hrtf`` for ARI. Passing ``all`` requests every
             resource provided by the selected download server.
+        download_hrtf_variant : {``all``, ``NH``}, dict, or None, default=``NH``
+            ARI HRTF variant requested for download. ``all`` downloads every
+            configured ARI HRTF family. ``NH`` downloads the full NH collection.
+            A dict may use ``{"type": "NH", "version": "b"}``, ``{"type":
+            "NH", "version": "c"}``, or ``{"type": "NH", "version": "d"}``
+            to download one ARI filename group. This value is independent from
+            ``dataset_hrtf_variant``.
         download_server : {``sofacoustics``, ``sonicom-ecosystem``}, default=``sofacoustics``
             Official server used when ``download=True``. ``sofacoustics``
             downloads configured ARI files directly from SOFAcoustics, with
@@ -82,7 +119,7 @@ class ARI(BaseDataset):
             Whether official SHA-256 checksums are verified during resource
             download. Keeping this enabled is the recommended behavior. Set it to
             False only when checksum verification should be skipped; file
-            existence and non empty checks still run.
+            existence and non-empty checks still run.
         exclude_subject_ids : str, int, sequence, or None, default=None
             ARI subjects excluded before scanning and splitting.
         download_exclude_subject_ids : str, int, sequence, or None, default=None
@@ -90,9 +127,11 @@ class ARI(BaseDataset):
             change dataset construction; use exclude_subject_ids to exclude
             subjects from scanning, splitting, and samples.
         inputs : spec, sequence of specs, or None, default=None
-            Specs exposed under sample inputs.
+            Specs resolved under ``sample["inputs"]``. None builds samples
+            without an inputs group unless target specs are provided.
         target : spec, sequence of specs, or None, default=None
-            Specs exposed under sample targets.
+            Specs resolved under ``sample["target"]``. None builds samples
+            without a target group unless input specs are provided.
         split : {``all``, ``train``, ``validation``, ``test``}, default=``all``
             Subject split used by this dataset instance.
         split_ratio : tuple of float, default=(0.8, 0.1, 0.1)
@@ -111,14 +150,9 @@ class ARI(BaseDataset):
 
         Notes
         -----
-        The official ARI HRTF files are distributed in b, c, and d filename
-        groups. This class treats the included files as one compatible ARI HRTF
-        collection because they share the same source grid, IR shape, and sample
-        rate, so they can be used inside the same ARI dataset instance.
-
-        The ARI dataset does not expose a public group selector. To use only a
-        specific subset, exclude the subjects outside that subset with
-        ``exclude_subject_ids`` before construction.
+        The configured ARI NH groups share the same source grid, IR shape, and
+        sample rate, so they can be used as one compatible dataset collection or
+        selected by filename group when a workflow needs a narrower subset.
 
         Examples
         --------
@@ -158,7 +192,7 @@ class ARI(BaseDataset):
                 download_server=selected_download_server,
             ).download(
                 download_resources=download_resources,
-                download_hrtf_variant=None,
+                download_hrtf_variant=download_hrtf_variant,
                 download_mesh_variant=None,
             )
             if downloaded or verbose:
@@ -171,7 +205,7 @@ class ARI(BaseDataset):
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,
-            dataset_hrtf_variant=None,
+            dataset_hrtf_variant=dict(dataset_hrtf_variant) if isinstance(dataset_hrtf_variant, Mapping) else dataset_hrtf_variant,
             dataset_mesh_variant=None,
             split=split,
             split_ratio=split_ratio,

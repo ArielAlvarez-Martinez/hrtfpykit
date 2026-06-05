@@ -202,11 +202,7 @@ class DatasetBuilder:
                     raise ValueError(
                         f"dataset_hrtf_variant version is not supported for type={hrtf_type!r}"
                     )
-                if len(hrtf_type_config.versions) > 0:
-                    if hrtf_version is None:
-                        raise ValueError(
-                            f"{config.name} requires dataset_hrtf_variant version for type={hrtf_type!r}"
-                        )
+                if len(hrtf_type_config.versions) > 0 and hrtf_version is not None:
                     if hrtf_version not in hrtf_type_config.versions:
                         raise ValueError(
                             f"Unsupported dataset_hrtf_variant version {hrtf_version!r} for type={hrtf_type!r}. "

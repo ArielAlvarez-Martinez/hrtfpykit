@@ -39,26 +39,26 @@ class HUTUBS(BaseDataset):
         split_seed: int = 0,
         verbose: bool = False,
     ) -> None:
-        """Dataset interface for local or downloadable HUTUBS resources.
+        """
+        :class:`~hrtfpykit.datasets.HUTUBS` resolves the local HUTUBS resources
+        declared by :class:`~hrtfpykit.datasets.config.HUTUBSConfig`. It exposes
+        measured and simulated HRTF SOFA files, optional mesh resources,
+        anthropometry tables, and subject media through the shared
+        integer-indexed dataset interface. HUTUBS-specific anthropometry
+        selection preserves shared body measurements and filters left/right
+        fields when an ear-specific sample requests them.
 
-        :class:`~hrtfpykit.datasets.HUTUBS` turns the HUTUBS resource layout
-        into the shared :class:`~hrtfpykit.datasets.base.BaseDataset` API. It
-        maps HUTUBS subject identifiers to local resource paths, supports
-        measured and simulated HRTF variants, handles optional anthropometry,
-        mesh, image, and video resources, and exposes samples through the shared
-        integer-indexed dataset interface. HUTUBS-specific anthropometry field
-        selection is applied for left/right measurements.
-
-        Samples are defined entirely by input and target specs. The dataset
-        scans the requested resource families, intersects available subjects, applies
+        Samples are driven by input and target specs. The dataset scans the
+        requested resource families, intersects available subjects, applies
         exclusions and split selection, and builds row contexts for subject-,
-        position-, ear-, frequency-, or sample-indexed data. At access time, the
-        selected subject HRTF is loaded through
-        :func:`~hrtfpykit.hrtf.load_hrtf`. If ``dataset_hrtf_transform`` is
-        provided, it is applied to that loaded HRTF first. Acoustic specs then
-        operate on the dataset-level HRTF version, optionally apply their own
-        HRTF transform, and finally extract IR/TF values or calculate derived
-        values such as ITD, ILD, or spherical-harmonic coefficients.
+        position-, ear-, frequency-, or sample-indexed data. Acoustic specs load
+        one subject HRTF with :func:`~hrtfpykit.hrtf.load_hrtf`. If
+        ``dataset_hrtf_transform`` is provided, it is applied to that loaded HRTF
+        first. Acoustic specs then operate on the dataset-level HRTF version,
+        optionally apply their own HRTF transform, and finally extract
+        time-domain values, frequency-domain values, ITD, ILD, or
+        spherical-harmonic coefficients. Resource specs can add mesh,
+        anthropometry, image, or video values to the same sample.
 
         Download selection is independent from dataset construction selection.
         ``download_resources`` and ``download_hrtf_variant`` control which
@@ -72,15 +72,28 @@ class HUTUBS(BaseDataset):
         SOFA, mesh, and anthropometry files into the dataset root, and keeps the
         original ZIP files under ``archives/``.
 
+        Users can also download or prepare files manually and copy them under
+        ``root``. HUTUBS HRTFs are accepted as official root-level filenames such
+        as ``pp1_HRIRs_measured.sofa`` or ``pp1_HRIRs_simulated.sofa`` and as
+        ``pp1/pp1_HRIRs_measured.sofa`` or
+        ``pp1/hrtf/measured/pp1_HRIRs_measured.sofa`` style alternatives. Meshes
+        are accepted as ``pp1_3DheadMesh.ply``, ``pp1/pp1_3DheadMesh.ply``,
+        ``pp1/mesh/pp1_3DheadMesh.ply``, or
+        ``pp1/mesh/default/pp1_3DheadMesh.ply``. Anthropometry is accepted as
+        ``AntrhopometricMeasures.csv``,
+        ``anthropometry/AntrhopometricMeasures.csv``,
+        ``anthropometry/*.csv``, ``anthro/AntrhopometricMeasures.csv``, or
+        ``anthro/*.csv``.
+
         Parameters
         ----------
         root : str or Path
             Local HUTUBS dataset root.
         dataset_hrtf_variant : {``measured``, ``simulated``} or dict, default=``measured``
-            HUTUBS HRTF resource variant used for dataset construction. A string
-            selects the HRTF type directly. A dict may use ``{"type":
-            "measured"}`` or ``{"type": "simulated"}``. HUTUBS does not expose
-            sample-rate or version selectors in this dataset interface.
+            HUTUBS HRTF variant used for dataset construction. A string selects
+            the HRTF type directly. A dict may use ``{"type": "measured"}`` or
+            ``{"type": "simulated"}``. HUTUBS does not expose sample-rate or
+            version selectors in this dataset interface.
         dataset_hrtf_transform : callable or None, default=None
             Optional transform applied to every loaded HRTF before any acoustic
             spec is evaluated. Spec-level HRTF transforms are applied after this
@@ -90,9 +103,10 @@ class HUTUBS(BaseDataset):
             If True, downloads selected official HUTUBS resources before dataset
             construction.
         download_resources : {``hrtf``, ``mesh``, ``anthropometry``, ``all``} or sequence of str, default=``hrtf``
-            Official resources requested for download. This value is not inferred
-            from inputs or target. Passing ``all`` requests every resource
-            provided by the selected download server.
+            Official resources requested for download. ``sofacoustics`` supports
+            individual ``hrtf``, ``mesh``, and ``anthropometry`` resources.
+            ``tu-berlin`` selects complete archive families. Passing ``all``
+            requests every resource provided by the selected download server.
         download_hrtf_variant : {``measured``, ``simulated``} or dict, default=``measured``
             HRTF variant requested for download. A string selects the HRTF type;
             a dict may use ``{"type": "measured"}`` or ``{"type":
@@ -123,9 +137,11 @@ class HUTUBS(BaseDataset):
             dataset construction; use exclude_subject_ids to exclude subjects
             from scanning, splitting, and samples.
         inputs : spec, sequence of specs, or None, default=None
-            Specs exposed under sample inputs.
+            Specs resolved under ``sample["inputs"]``. None builds samples
+            without an inputs group unless target specs are provided.
         target : spec, sequence of specs, or None, default=None
-            Specs exposed under sample targets.
+            Specs resolved under ``sample["target"]``. None builds samples
+            without a target group unless input specs are provided.
         split : {``all``, ``train``, ``validation``, ``test``}, default=``all``
             Subject split used by this dataset instance.
         split_ratio : tuple of float, default=(0.8, 0.1, 0.1)
@@ -133,8 +149,8 @@ class HUTUBS(BaseDataset):
         split_seed : int, default=0
             Random seed used for deterministic split assignment.
         verbose : bool, default=False
-            If True, prints resource and dataset summaries. Download summaries print
-            whenever files are downloaded.
+            If True, prints resource and dataset summaries. Download summaries
+            print whenever files are downloaded.
 
         Returns
         -------

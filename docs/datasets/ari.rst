@@ -33,17 +33,16 @@ requested independently with :class:`~hrtfpykit.datasets.AnthropometrySpec` and
 
 **Layout and subject paths.**
 
-ARI HRTF filenames are not generated from one common subject path template. The
-configuration therefore stores a subject path map from each canonical subject ID
-to its SOFA filename. Examples include ``hrtf b_nh2.sofa``,
-``hrtf c_nh831.sofa``, and ``hrtf d_nh1059.sofa``.
+ARI HRTF filenames use the regular template ``hrtf {version}_{subject_id}.sofa``.
+Examples include ``hrtf b_nh2.sofa``, ``hrtf c_nh831.sofa``, and
+``hrtf d_nh1059.sofa``.
 
-The official ARI HRTF files are distributed in ``b``, ``c``, and ``d`` filename
-groups. hrtfpykit treats the included files as one compatible ARI HRTF
+The official ARI NH HRTF files are distributed in ``b``, ``c``, and ``d``
+filename groups. hrtfpykit treats the included files as one compatible ARI NH
 collection because they share the same source grid, IR shape, and sample rate.
-The dataset class does not expose a public group selector. If a workflow needs
-only a subset of ARI subjects, pass ``exclude_subject_ids`` when constructing
-the dataset.
+Use ``dataset_hrtf_variant="NH"`` for the full configured NH collection, or pass
+``dataset_hrtf_variant={"type": "NH", "version": "b"}``, ``"c"``, or ``"d"``
+to scan one filename group.
 
 ARI anthropometry uses shared measurement columns such as ``x1`` and ear
 measurement columns with ``L_`` and ``R_`` prefixes. When
@@ -58,8 +57,10 @@ The built-in downloader supports the ``hrtf``, ``anthropometry``, and
 dataset construction, and use ``download_resources`` to choose which resource
 groups to fetch.
 
-ARI does not use ``download_hrtf_variant`` or ``dataset_hrtf_variant``. The HRTF
-resource family is represented by the configured subject path map.
+ARI uses the HRTF type ``NH``. ``download_hrtf_variant="all"`` or
+``download_hrtf_variant="NH"`` downloads the full configured NH collection.
+Passing ``download_hrtf_variant={"type": "NH", "version": "b"}``, ``"c"``, or
+``"d"`` downloads one ARI filename group.
 
 By default, downloads verify SHA-256 checksums. ``verify_checksum=False`` skips
 checksum verification when that behavior is explicitly required, but keeping

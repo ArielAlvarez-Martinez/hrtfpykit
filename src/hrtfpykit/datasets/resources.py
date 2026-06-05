@@ -717,11 +717,11 @@ class DatasetResourcesScanner:
         if config.hrtf is None or not required:
             return hrtf_paths, None
         if isinstance(dataset_hrtf_variant, dict):
-            hrtf_type: str | None = str(dataset_hrtf_variant["type"])
+            hrtf_type: str | None = str(dataset_hrtf_variant["type"]).strip().lower()
             hrtf_sample_rate = dataset_hrtf_variant.get("sample_rate")
             hrtf_version = dataset_hrtf_variant.get("version")
         else:
-            hrtf_type = dataset_hrtf_variant
+            hrtf_type = None if dataset_hrtf_variant is None else str(dataset_hrtf_variant).strip().lower()
             hrtf_sample_rate = None
             hrtf_version = None
         if hrtf_type is None:
@@ -751,47 +751,56 @@ class DatasetResourcesScanner:
             for subject_id in hrtf_subject_ids
             if subject_id not in excluded_subject_ids
         )
+        hrtf_versions: tuple[object | None, ...]
+        if hrtf_version is not None:
+            hrtf_versions = (hrtf_version,)
+        elif len(hrtf_type_config.versions) > 0:
+            hrtf_versions = tuple(hrtf_type_config.versions)
+        else:
+            hrtf_versions = (None,)
         for subject_id in checked_hrtf_subject_ids:
-            version_label = None
-            if hrtf_type_config.version_labels is not None and hrtf_version is not None:
-                version_label = hrtf_type_config.version_labels.get(
-                    cast(str, hrtf_version),
-                    str(hrtf_version),
+            for selected_hrtf_version in hrtf_versions:
+                version_label = None
+                if hrtf_type_config.version_labels is not None and selected_hrtf_version is not None:
+                    version_label = hrtf_type_config.version_labels.get(
+                        cast(str, selected_hrtf_version),
+                        str(selected_hrtf_version),
+                    )
+                path_pattern = hrtf_type_config.path_pattern
+                if isinstance(path_pattern, dict):
+                    selected_path_pattern = path_pattern.get(subject_id)
+                    if selected_path_pattern is None:
+                        continue
+                else:
+                    selected_path_pattern = path_pattern
+                format_values = {
+                    "subject_id": subject_id,
+                    "subject_number": subject_numbers[subject_id],
+                    "type": hrtf_type,
+                    "hrtf_type": hrtf_type,
+                    "sample_rate": hrtf_sample_rate,
+                    "hrtf_sample_rate": hrtf_sample_rate,
+                    "sample_rate_label": sample_rate_label,
+                    "version": selected_hrtf_version,
+                    "hrtf_version": selected_hrtf_version,
+                    "version_label": version_label,
+                    "hrtf_version_label": version_label,
+                    "variant": hrtf_type,
+                }
+                relative_path = selected_path_pattern.format(**format_values)
+                format_values["filename"] = Path(relative_path).name
+                local_patterns = tuple(
+                    local_path_pattern.format(**format_values)
+                    for local_path_pattern in hrtf_type_config.local_path_patterns
                 )
-            path_pattern = hrtf_type_config.path_pattern
-            if isinstance(path_pattern, dict):
-                selected_path_pattern = path_pattern.get(subject_id)
-                if selected_path_pattern is None:
-                    continue
-            else:
-                selected_path_pattern = path_pattern
-            format_values = {
-                "subject_id": subject_id,
-                "subject_number": subject_numbers[subject_id],
-                "type": hrtf_type,
-                "hrtf_type": hrtf_type,
-                "sample_rate": hrtf_sample_rate,
-                "hrtf_sample_rate": hrtf_sample_rate,
-                "sample_rate_label": sample_rate_label,
-                "version": hrtf_version,
-                "hrtf_version": hrtf_version,
-                "version_label": version_label,
-                "hrtf_version_label": version_label,
-                "variant": hrtf_type,
-            }
-            relative_path = selected_path_pattern.format(**format_values)
-            format_values["filename"] = Path(relative_path).name
-            local_patterns = tuple(
-                local_path_pattern.format(**format_values)
-                for local_path_pattern in hrtf_type_config.local_path_patterns
-            )
-            candidate = DatasetResourcesScanner.resolve_resource_patterns(
-                root,
-                (relative_path,) + local_patterns,
-                "HRTF",
-            )
-            if candidate.is_file():
-                hrtf_paths[subject_id] = candidate
+                candidate = DatasetResourcesScanner.resolve_resource_patterns(
+                    root,
+                    (relative_path,) + local_patterns,
+                    "HRTF",
+                )
+                if candidate.is_file():
+                    hrtf_paths[subject_id] = candidate
+                    break
         missing_hrtf_subject_ids = tuple(
             subject_id
             for subject_id in checked_hrtf_subject_ids

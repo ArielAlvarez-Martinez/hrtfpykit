@@ -26,6 +26,8 @@ except ImportError:
 
 
 class MissingChecksumError(ValueError):
+    """Raised when an official download checksum is missing."""
+
     pass
 
 
@@ -131,6 +133,39 @@ class BaseDownload(ABC):
         download_hrtf_variant: str | Mapping[str, object] | None,
         download_mesh_variant: str | Mapping[str, object] | None,
     ) -> None:
+        """Validate request axes supported by the selected download server.
+
+        Some servers expose individual files and can filter by resource,
+        subject, HRTF variant, or mesh variant. Other servers expose complete
+        archives and cannot honor those selectors. This method checks the
+        selected :class:`DownloadServerConfig.supports_filter` declaration before
+        planning starts, so unsupported selectors fail with an explicit message
+        instead of being silently ignored.
+
+        Parameters
+        ----------
+        download_resources : str, sequence of str, or None
+            Requested resource groups. None means the server default, normally
+            all available resources.
+        download_hrtf_variant : str, mapping, or None
+            Requested HRTF selector. Unsupported when the selected server cannot
+            filter HRTF variants.
+        download_mesh_variant : str, mapping, or None
+            Requested mesh selector. Unsupported when the selected server cannot
+            filter mesh variants.
+
+        Returns
+        -------
+        None
+            Raises when the selected server cannot honor one of the requested
+            filters.
+
+        Raises
+        ------
+        ValueError
+            If resource, subject, HRTF variant, or mesh variant filtering is
+            requested for a server that does not support it.
+        """
         supports_filter = self.download_config.supports_filter or {}
         server_name = self.download_server or self.__class__.__name__
         requested_resources = ("all",) if download_resources is None else (download_resources,) if isinstance(download_resources, str) else tuple(download_resources)
@@ -439,6 +474,38 @@ class BaseDownload(ABC):
         download_hrtf_variant: str | Mapping[str, object] | None,
         download_mesh_variant: str | Mapping[str, object] | None,
     ) -> None:
+        """Validate HRTF and mesh variant selectors for requested resources.
+
+        The validator checks selector keys and values against the dataset config
+        before a server-specific planner creates jobs. It is shared by all
+        downloaders so unsupported types, sample rates, versions, and mesh
+        variants produce consistent error messages across SOFAcoustics, Imperial,
+        TU Berlin, and SONICOM ecosystem downloads.
+
+        Parameters
+        ----------
+        download_resources : str, sequence of str, or None
+            Requested resource groups. Variant selectors are validated only for
+            resources included by this request.
+        download_hrtf_variant : str, mapping, or None
+            HRTF selector. A string selects the HRTF type. A mapping may contain
+            ``type``, ``sample_rate``, and ``version``.
+        download_mesh_variant : str, mapping, or None
+            Mesh selector. A string selects the mesh type. A mapping may contain
+            ``type`` and ``version``.
+
+        Returns
+        -------
+        None
+            Raises when any requested variant axis is unsupported.
+
+        Raises
+        ------
+        ValueError
+            If a requested resource family is unavailable, a selector mapping
+            contains unsupported keys, or a selector value is outside the
+            configured dataset variants.
+        """
         resources = self.sanitize_download_resources(download_resources)
         if "hrtf" in resources:
             if self.config.hrtf is None:
@@ -716,6 +783,10 @@ class BaseDownload(ABC):
             raise ValueError(
                 f"{self.config.name} cannot download {resource!r} resources because no checksums are configured for that resource"
             )
+        if isinstance(resource_checksums, dict) and len(resource_checksums) == 0:
+            raise ValueError(
+                f"{self.config.name} cannot download {resource!r} resources because the checksum map for that resource is missing or empty"
+            )
         checksum: object | None = None
         if resource == "hrtf":
             if not isinstance(resource_checksums, dict):
@@ -728,6 +799,10 @@ class BaseDownload(ABC):
             else:
                 type_checksums = resource_checksums.get(hrtf_type)
                 if type_checksums is None:
+                    if any(isinstance(value, str) for value in resource_checksums.values()):
+                        raise MissingChecksumError(
+                            f"{self.config.name} is missing a checksum for {resource!r} resource {checksum_key!r}"
+                        )
                     raise ValueError(
                         f"{self.config.name} is missing HRTF checksums for type={hrtf_type!r}"
                     )
@@ -1218,6 +1293,39 @@ class BaseDownload(ABC):
         sample_rate_label: str | None = None,
         version: str | None = None,
     ) -> tuple[str, ...]:
+        """Build scanner-compatible local alternatives for one planned job.
+
+        Catalog and archive servers may download files from URLs that do not
+        match every local layout accepted by the resource scanner. This method
+        expands the configured ``local_path_patterns`` for HRTF and mesh
+        resources so :meth:`download` can detect already-local files before
+        transferring them again.
+
+        Parameters
+        ----------
+        resource : str
+            Resource family, currently ``hrtf`` or ``mesh`` for subject-specific
+            local path alternatives.
+        subject_id : str or None
+            Subject identifier for subject-specific resources. None returns no
+            local alternatives.
+        filename : str
+            File name used by ``{filename}`` placeholders in local path patterns.
+        resource_type : str or None, default=None
+            HRTF or mesh type used by type placeholders.
+        sample_rate : str, int, or None, default=None
+            HRTF sample rate used by sample-rate placeholders.
+        sample_rate_label : str or None, default=None
+            Human-readable sample-rate label when the server provides one.
+        version : str or None, default=None
+            HRTF or mesh version used by version placeholders.
+
+        Returns
+        -------
+        tuple of str
+            Relative local path patterns that the scanner can resolve under the
+            dataset root.
+        """
         if subject_id is None:
             return tuple()
         if resource == "hrtf":
@@ -1737,14 +1845,29 @@ class PathPatternDownload(BaseDownload):
 
 
 class SOFAcousticsDownload(PathPatternDownload):
-    """Download direct resource files from the SOFAcoustics server.
-
-    SOFAcoustics uses stable dataset-relative file paths, so this downloader
-    relies on :class:`PathPatternDownload` for planning and only fixes the
-    selected download server name to ``sofacoustics``.
-    """
-
     def __init__(self, *args: Any, download_server: str | None = None, **kwargs: Any) -> None:
+        """Create a SOFAcoustics downloader bound to its server key.
+
+        SOFAcoustics exposes stable dataset-relative file paths. This
+        constructor fixes the selected download server to ``sofacoustics`` and
+        delegates path expansion, local-file checks, checksum verification, and
+        transfer execution to :class:`PathPatternDownload` and
+        :class:`BaseDownload`.
+
+        Parameters
+        ----------
+        *args : Any
+            Positional arguments forwarded to :class:`PathPatternDownload`.
+        download_server : str or None, default=None
+            Optional server name. When provided it must be ``sofacoustics``.
+        **kwargs : Any
+            Keyword arguments forwarded to :class:`PathPatternDownload`.
+
+        Raises
+        ------
+        UnsupportedDownloadServerError
+            If download_server is not ``sofacoustics``.
+        """
         if download_server is not None and download_server != "sofacoustics":
             raise UnsupportedDownloadServerError(
                 f"SOFAcousticsDownload download_server accepts ('sofacoustics',); got {download_server!r}"
@@ -1754,15 +1877,29 @@ class SOFAcousticsDownload(PathPatternDownload):
 
 
 class ImperialDownload(PathPatternDownload):
-    """Download direct SONICOM resources from the Imperial transfer server.
-
-    The Imperial server exposes SONICOM files through configured path patterns,
-    including subject, HRTF type, sample-rate, version, and mesh variant axes.
-    This downloader fixes the selected download server name to ``imperial`` and
-    delegates path expansion to :class:`PathPatternDownload`.
-    """
-
     def __init__(self, *args: Any, download_server: str | None = None, **kwargs: Any) -> None:
+        """Create an Imperial downloader bound to its server key.
+
+        The Imperial transfer server exposes SONICOM files through configured
+        path patterns, including subject, HRTF type, sample-rate, version, and
+        mesh variant axes. This constructor fixes the selected download server
+        to ``imperial`` and delegates path expansion to
+        :class:`PathPatternDownload`.
+
+        Parameters
+        ----------
+        *args : Any
+            Positional arguments forwarded to :class:`PathPatternDownload`.
+        download_server : str or None, default=None
+            Optional server name. When provided it must be ``imperial``.
+        **kwargs : Any
+            Keyword arguments forwarded to :class:`PathPatternDownload`.
+
+        Raises
+        ------
+        UnsupportedDownloadServerError
+            If download_server is not ``imperial``.
+        """
         if download_server is not None and download_server != "imperial":
             raise UnsupportedDownloadServerError(
                 f"ImperialDownload download_server accepts ('imperial',); got {download_server!r}"
@@ -1772,18 +1909,32 @@ class ImperialDownload(PathPatternDownload):
 
 
 class TUBerlinDownload(BaseDownload):
-    """Download complete HUTUBS archives from TU Berlin DepositOnce.
-
-    TU Berlin distributes HUTUBS as archive files instead of individual
-    subject resources. This downloader plans archive jobs from
-    :attr:`DownloadServerConfig.archives`, verifies their SHA-256 checksums when
-    enabled, extracts downloaded ZIP files, flattens usable HUTUBS files into
-    the dataset root, and removes the temporary extracted archive folders.
-    Subject and variant filtering are not supported by this server; use
-    ``download_resources`` to select which archive families to fetch.
-    """
-
     def __init__(self, *args: Any, download_server: str | None = None, **kwargs: Any) -> None:
+        """Create a TU Berlin archive downloader bound to its server key.
+
+        TU Berlin distributes HUTUBS as complete archive files instead of
+        individual subject resources. This constructor fixes the selected
+        download server to ``tu-berlin``. Planning reads archive metadata from
+        :attr:`DownloadServerConfig.archives`, while the finalization step
+        extracts verified ZIP files, flattens usable HUTUBS files into the
+        dataset root, and removes temporary extracted folders. Subject and
+        variant filtering are not supported by this server; use
+        ``download_resources`` to select archive families.
+
+        Parameters
+        ----------
+        *args : Any
+            Positional arguments forwarded to :class:`BaseDownload`.
+        download_server : str or None, default=None
+            Optional server name. When provided it must be ``tu-berlin``.
+        **kwargs : Any
+            Keyword arguments forwarded to :class:`BaseDownload`.
+
+        Raises
+        ------
+        UnsupportedDownloadServerError
+            If download_server is not ``tu-berlin``.
+        """
         if download_server is not None and download_server != "tu-berlin":
             raise UnsupportedDownloadServerError(
                 f"TUBerlinDownload download_server accepts ('tu-berlin',); got {download_server!r}"
@@ -2005,16 +2156,30 @@ class TUBerlinDownload(BaseDownload):
 
 
 class SONICOMEcosystemDownload(BaseDownload):
-    """Download resources described by SONICOM ecosystem JSON databases.
-
-    The ecosystem publishes database JSON endpoints that contain the concrete
-    file names and URLs. This downloader reads the configured database URLs,
-    filters rows by dataset, subject, resource, and requested variants, maps the
-    selected files into the local dataset resource layout, and lets
-    :class:`BaseDownload` handle transfer and verification.
-    """
-
     def __init__(self, *args: Any, download_server: str | None = None, **kwargs: Any) -> None:
+        """Create a SONICOM ecosystem downloader bound to its server key.
+
+        The SONICOM ecosystem publishes database JSON endpoints containing
+        concrete file names and URLs. This constructor fixes the selected
+        download server to ``sonicom-ecosystem``. Planning reads the configured
+        database URLs, filters rows by dataset, subject, resource, and requested
+        variants, maps selected files into the local dataset resource layout,
+        and lets :class:`BaseDownload` handle transfer and verification.
+
+        Parameters
+        ----------
+        *args : Any
+            Positional arguments forwarded to :class:`BaseDownload`.
+        download_server : str or None, default=None
+            Optional server name. When provided it must be ``sonicom-ecosystem``.
+        **kwargs : Any
+            Keyword arguments forwarded to :class:`BaseDownload`.
+
+        Raises
+        ------
+        UnsupportedDownloadServerError
+            If download_server is not ``sonicom-ecosystem``.
+        """
         if download_server is not None and download_server != "sonicom-ecosystem":
             raise UnsupportedDownloadServerError(
                 f"SONICOMEcosystemDownload download_server accepts ('sonicom-ecosystem',); got {download_server!r}"
@@ -2028,6 +2193,39 @@ class SONICOMEcosystemDownload(BaseDownload):
         download_hrtf_variant: str | Mapping[str, object] | None = None,
         download_mesh_variant: str | Mapping[str, object] | None = None,
     ) -> list[dict[str, object]]:
+        """Build file-level jobs from SONICOM ecosystem JSON catalogs.
+
+        The planner reads the configured ecosystem database URLs, validates the
+        requested resources and variants, filters catalog rows by subject and
+        file metadata, maps each selected row to the dataset's configured local
+        resource layout, resolves checksum keys, and returns jobs for the shared
+        :meth:`BaseDownload.download` execution loop.
+
+        Parameters
+        ----------
+        download_resources : str, sequence of str, or None, default=None
+            Resource groups to plan from the ecosystem catalogs. None selects all
+            resources supported by the selected server config.
+        download_hrtf_variant : str, mapping, or None, default=None
+            HRTF selector. A mapping may contain ``type``, ``sample_rate``, and
+            ``version``.
+        download_mesh_variant : str, mapping, or None, default=None
+            Mesh selector. A mapping may contain ``type`` and ``version``.
+
+        Returns
+        -------
+        list of dict
+            Planned download jobs with resource, subject, variant, URL,
+            destination, checksum key, checksum, and scanner-compatible local
+            path alternatives.
+
+        Raises
+        ------
+        ValueError
+            If requested resources or variants are unsupported, an ecosystem
+            database cannot be read, a catalog row cannot be mapped to the
+            configured dataset layout, or required checksum metadata is missing.
+        """
         self.validate_supported_download_filters(
             download_resources=download_resources,
             download_hrtf_variant=download_hrtf_variant,

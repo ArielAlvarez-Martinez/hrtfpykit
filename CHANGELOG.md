@@ -27,6 +27,11 @@ use the `vx.y.z` format.
 - Added shared downloader validation for HRTF and mesh variant selectors so all
   download servers report unsupported types, sample rates, and versions with the
   same error format before server-specific planning begins.
+- Added ARI NH HRTF variant selection. `dataset_hrtf_variant="NH"` scans the
+  full configured NH collection, while `{"type": "NH", "version": "b"}`
+  (or `c`/`d`) selects one ARI filename group. Downloads support the same NH
+  selector plus `download_hrtf_variant="all"` for every configured ARI HRTF
+  family.
 
 ### Changed
 

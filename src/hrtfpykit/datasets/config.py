@@ -382,10 +382,9 @@ class ARIConfig(DatasetConfig):
     :class:`~hrtfpykit.datasets.config.ARIConfig` declares the ARI subject IDs,
     official HRTF SOFA paths, ARI CSV resource paths, download base URLs,
     and SHA-256 checksums used by
-    :class:`~hrtfpykit.datasets.ARI`. ARI filenames do not follow one shared
-    subject template, so the HRTF configuration stores a subject path map from
-    canonical IDs such as ``nh2`` or ``nh720`` to the corresponding official
-    SOFA filename.
+    :class:`~hrtfpykit.datasets.ARI`. ARI filenames use the regular template
+    ``hrtf {version}_{subject_id}.sofa`` with the public HRTF type ``nh`` and
+    filename-group versions ``b``, ``c``, and ``d``.
 
     Attributes
     ----------
@@ -395,8 +394,8 @@ class ARIConfig(DatasetConfig):
         ARI subject IDs available through the current official HRTF checksum
         map.
     hrtf : HRTFConfig or None
-        HRTF resource configuration. ARI currently exposes one combined HRTF
-        resource family backed by subject-specific SOFA paths.
+        HRTF resource configuration. ARI exposes the ``nh`` HRTF type with
+        ``b``, ``c``, and ``d`` filename-group versions.
     anthropometry : AnthropometryConfig or None
         ARI anthropometry CSV resource configuration.
     metadata : MetadataConfig or None
@@ -407,16 +406,16 @@ class ARIConfig(DatasetConfig):
 
     Notes
     -----
-    The official ARI HRTF files are distributed in b, c, and d filename groups.
-    The files included in this configuration are treated as one compatible ARI
-    HRTF collection because they share the same source grid, IR shape, and
-    sample rate. Workflows that need a narrower subset can exclude subject IDs
-    when constructing :class:`~hrtfpykit.datasets.ARI`.
+    The official ARI NH HRTF files are distributed in b, c, and d filename
+    groups. Omitting a dataset HRTF version scans the compatible NH collection
+    across those groups. Passing ``{"type": "NH", "version": "b"}``, ``c``,
+    or ``d`` selects one group explicitly.
 
     """
 
-    hrtf_paths: ClassVar[dict[str, str]] = dict(
-        sorted(
+    subject_ids: tuple[str, ...] = tuple(
+        subject_id
+        for subject_id, _filename in sorted(
             (
                 (filename.split("_", 1)[1][:-len(".sofa")], filename)
                 for filename in ARI_CHECKSUMS["hrtf"]
@@ -431,15 +430,17 @@ class ARIConfig(DatasetConfig):
     )
 
     name: str = "ARI"
-    subject_ids: tuple[str, ...] = tuple(hrtf_paths)
     hrtf: HRTFConfig | None = HRTFConfig(
         types={
-            "hrtf": ResourceTypeConfig(
-                path_pattern=hrtf_paths,
+            "nh": ResourceTypeConfig(
+                path_pattern="hrtf {version}_{subject_id}.sofa",
                 local_path_patterns=(
                     "{subject_id}/{filename}",
                     "{subject_id}/hrtf/{filename}",
+                    "{subject_id}/hrtf/nh/{filename}",
+                    "{subject_id}/hrtf/nh/{version}/{filename}",
                 ),
+                versions=("b", "c", "d"),
             ),
         },
     )
@@ -489,18 +490,16 @@ class ARIConfig(DatasetConfig):
                         "https://ecosystem.sonicom.eu/databases/14/download?type=json",
                         "https://ecosystem.sonicom.eu/databases/16/download?type=json",
                         "https://ecosystem.sonicom.eu/databases/18/download?type=json",
-                        "https://ecosystem.sonicom.eu/databases/63/download?type=json",
-                        "https://ecosystem.sonicom.eu/databases/64/download?type=json",
                     ),
                 },
                 catalog_rules={
                     "hrtf": (
                         EcosystemCatalogRule(
                             database_key="hrtf",
-                            filename_regex=r"^hrtf [bcd]_(?P<subject_id>.+)\.sofa$",
+                            filename_regex=r"^hrtf (?P<version>[bcd])_(?P<subject_id>.+)\.sofa$",
                             relative_path_pattern="{filename}",
                             subject_id_field=None,
-                            hrtf_type="hrtf",
+                            hrtf_type="nh",
                         ),
                     ),
                 },
