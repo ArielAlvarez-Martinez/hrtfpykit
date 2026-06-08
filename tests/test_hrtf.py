@@ -6,7 +6,7 @@ import pytest
 
 from hrtfpykit.hrtf.hrtf import HRTF
 from hrtfpykit.hrtf import load_hrtf
-from hrtfpykit.utils.metrics import itd
+from hrtfpykit.utils.metrics import itd, lsd
 from hrtfpykit.sofa import load_sofa
 
 
@@ -407,6 +407,91 @@ def test_real_hrtf_metric_itd_runs_on_loaded_file(real_hrtf: HRTF) -> None:
 
     assert np.asarray(values).shape[0] == real_hrtf.IR.values.shape[0]
     assert np.all(np.isfinite(values))
+
+
+def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
+    processed = real_hrtf.transform.apply_gain(-1.0, scale="db")
+    frequency_bins = np.asarray(real_hrtf.TF.frequency_bins, dtype=float)
+    positive_bins = frequency_bins[frequency_bins >= 20.0]
+    if positive_bins.size < 4:
+        pytest.skip("LSD frequency band test requires at least four positive frequency bins")
+    band = (float(positive_bins[0]), float(positive_bins[min(3, positive_bins.size - 1)]))
+    expected_indices = np.where((frequency_bins >= band[0]) & (frequency_bins <= band[1]))[0]
+
+    band_values = lsd(
+        real_hrtf,
+        processed,
+        ear="left",
+        positions="front",
+        frequency_bands=band,
+        reduction="none",
+    )
+    explicit_values = lsd(
+        real_hrtf,
+        processed,
+        ear="left",
+        positions="front",
+        frequencies=frequency_bins[expected_indices],
+        reduction="none",
+    )
+    both_ear_values = lsd(
+        real_hrtf,
+        processed,
+        ear="both",
+        positions="front",
+        frequency_bands=band,
+        reduction="none",
+    )
+    source_frequency_reduced = lsd(
+        real_hrtf,
+        processed,
+        ear="both",
+        positions="front",
+        frequency_bands=band,
+        reduction=("frequencies", "sources"),
+    )
+    ear_reduced = lsd(
+        real_hrtf,
+        processed,
+        ear="both",
+        positions="front",
+        frequency_bands=band,
+        reduction=("ear",),
+    )
+    left_source_frequency_reduced = lsd(
+        real_hrtf,
+        processed,
+        ear="left",
+        positions="front",
+        frequency_bands=band,
+        reduction=("frequencies", "sources"),
+    )
+
+    assert np.asarray(band_values).shape == np.asarray(explicit_values).shape
+    assert np.asarray(band_values).shape == (1, expected_indices.size)
+    assert np.asarray(both_ear_values).shape == (1, 2, expected_indices.size)
+    assert np.asarray(source_frequency_reduced).shape == (2,)
+    assert np.asarray(ear_reduced).shape == (1, expected_indices.size)
+    assert isinstance(left_source_frequency_reduced, float)
+    np.testing.assert_allclose(band_values, explicit_values)
+
+    with pytest.raises(ValueError, match="can only be used when ear='both'"):
+        lsd(
+            real_hrtf,
+            processed,
+            ear="left",
+            frequency_bands=band,
+            reduction=("ear",),
+        )
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        lsd(
+            real_hrtf,
+            processed,
+            frequencies=[1000.0],
+            frequency_bands=band,
+        )
+    with pytest.raises(ValueError, match="minimum must not exceed maximum"):
+        lsd(real_hrtf, processed, frequency_bands=(band[1], band[0]))
 
 
 @pytest.mark.parametrize(

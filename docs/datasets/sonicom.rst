@@ -37,7 +37,7 @@ files through the same HRTF workflow used by the rest of the package.
 
 **Implementation status.**
 
-Last updated: 2026-06-05. The current hrtfpykit SONICOM configuration exposes
+Last updated: 2026-06-08. The current hrtfpykit SONICOM configuration exposes
 subject identifiers ``P0001`` through ``P0405``. The Imperial transfer server is
 the most complete configured source for this implementation: it provides
 ``metadata``, ``hrtf``, and ``mesh`` resource groups, with six download-level
@@ -53,41 +53,26 @@ after a hrtfpykit release; hrtfpykit must be updated with the corresponding
 subject identifiers, resource paths, and checksums before those files become part
 of the built-in verified configuration.
 
-**Variants and layout.**
-
-SONICOM provides measured HRTF variants with both sample-rate and processing
-version selectors. hrtfpykit supports measured HRTF sample rates ``44100``,
-``48000``, and ``96000`` with these versions:
-
-- ``Raw``
-- ``Raw_NoITD``
-- ``Windowed``
-- ``Windowed_NoITD``
-- ``FreeFieldComp``
-- ``FreeFieldComp_NoITD``
-- ``FreeFieldCompMinPhase``
-- ``FreeFieldCompMinPhase_NoITD``
-
-Measured HRTF files are expected under
-``{subject_id}/HRTF/HRTF/{sample_rate_label}/`` with names of the form
-``{subject_id}_{version}_{sample_rate_label}.sofa``. The default HRTF
-selection in hrtfpykit is ``type=measured, sample_rate=44100,
-version=FreeFieldComp``.
-
-Synthetic HRTFs use the ``synthetic`` type, the ``generic`` version, and sample
-rates ``44100`` or ``48000``. They are expected under
-``{subject_id}/SYNTHETIC_HRTF/`` as ``HRIR_SONICOM_{sample_rate}.sofa``.
-
-SONICOM mesh resources are selected independently from HRTF resources. Scanned
-meshes support ``raw``, ``point_cloud``, and ``watertight`` versions. Synthetic
-meshes support ``preprocessed``, ``plugged``, ``graded_left``, and
-``graded_right`` versions. The default mesh selection in hrtfpykit is
-``type=scanned, version=watertight``.
+SONICOM HRTF and mesh resources expose separate variant selectors because the
+public resources include measured and synthetic HRTFs, plus scanned and synthetic
+mesh families. Measured HRTFs support sample rates ``44100``, ``48000``, and
+``96000`` and the processing versions ``Raw``,
+``Raw_NoITD``, ``Windowed``, ``Windowed_NoITD``, ``FreeFieldComp``,
+``FreeFieldComp_NoITD``, ``FreeFieldCompMinPhase``, and
+``FreeFieldCompMinPhase_NoITD``. The default HRTF selection is
+``type=measured, sample_rate=44100, version=FreeFieldComp``. Synthetic HRTFs use
+``type=synthetic``, version ``generic``, and sample rates ``44100`` or ``48000``.
+Mesh selection is independent from HRTF selection: scanned meshes support
+``raw``, ``point_cloud``, and ``watertight`` versions, synthetic meshes support
+``preprocessed``, ``plugged``, ``graded_left``, and ``graded_right`` versions,
+and the default mesh selection is ``type=scanned, version=watertight``.
 
 **Local resource discovery.**
 
 Users can download SONICOM files through hrtfpykit or copy previously downloaded
-files under ``root``. Measured HRTFs are discovered from the official layout and
+files under ``root``. Measured HRTFs are discovered from the official layout,
+where files are stored under ``{subject_id}/HRTF/HRTF/{sample_rate_label}/``
+with names of the form ``{subject_id}_{version}_{sample_rate_label}.sofa``, and
 from semantic local alternatives. For example, the default measured HRTF for
 ``P0001`` can be discovered as:
 
@@ -101,8 +86,8 @@ from semantic local alternatives. For example, the default measured HRTF for
    P0001/hrtf/measured/FreeFieldComp/44100/P0001_FreeFieldComp_44kHz.sofa
    P0001/hrtf/measured/FreeFieldComp/44kHz/P0001_FreeFieldComp_44kHz.sofa
 
-Synthetic HRTFs are discovered as
-``P0001/SYNTHETIC_HRTF/HRIR_SONICOM_44100.sofa`` or from
+Synthetic HRTFs are discovered from the official
+``{subject_id}/SYNTHETIC_HRTF/HRIR_SONICOM_{sample_rate}.sofa`` layout or from
 ``P0001/HRIR_SONICOM_44100.sofa``, ``P0001/hrtf/synthetic/HRIR_SONICOM_44100.sofa``,
 and ``P0001/hrtf/synthetic/44100/HRIR_SONICOM_44100.sofa`` style layouts.
 

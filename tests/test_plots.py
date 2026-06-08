@@ -291,7 +291,7 @@ def test_real_hrtf_plot_methods_create_matplotlib_figures(
             lambda hrtfs: compare_lsd(
                 hrtfs[0],
                 hrtfs[1],
-                ear="left",
+                ear="both",
                 show=False,
             ),
         ),
@@ -301,7 +301,7 @@ def test_real_hrtf_plot_methods_create_matplotlib_figures(
                 hrtfs[0],
                 hrtfs[1],
                 plane="horizontal",
-                ear="left",
+                ear="both",
                 show=False,
             ),
         ),

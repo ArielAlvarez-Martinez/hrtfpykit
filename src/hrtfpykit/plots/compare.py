@@ -2161,9 +2161,10 @@ def compare_lsd(
 ) -> None:
     """Plot full-grid LSD across source positions as a spatial scatter map.
 
-    The function computes one LSD value per source position by averaging
-    across frequencies using :func:`~hrtfpykit.hrtf.lsd` with
-    frequencies=None and ``reduction`` is ``frequencies``. The result is shown
+    The function computes one LSD value per source position by reducing
+    frequency bins with :func:`~hrtfpykit.hrtf.lsd`. When ``ear="both"``, the
+    delegated LSD call also reduces the ear axis with ``reduction="ear"`` so
+    each source position still maps to one displayed value. The result is shown
     as an azimuth-elevation scatter map with color representing log-spectral
     distance in decibels.
 
@@ -2179,8 +2180,10 @@ def compare_lsd(
     hrtf_b : HRTF
         Second HRTF used in the comparison. Must contain TF data and a source
         grid compatible with hrtf_a.
-    ear : {``left``, ``right``}, default=``left``
-        Ear channel used for LSD computation.
+    ear : {``left``, ``right``, ``both``}, default=``left``
+        Ear channel selection passed to :func:`~hrtfpykit.hrtf.lsd`. ``both``
+        computes both ear channels and reduces the ear axis inside ``lsd`` so
+        the scatter plot receives one value per source position.
     epsilon : float, default=1e-12
         Positive floor passed to :func:`~hrtfpykit.hrtf.lsd` before dB conversion.
     azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
@@ -2206,7 +2209,8 @@ def compare_lsd(
     Notes
     -----
     This is a spatial summary plot: each source position receives one
-    frequency-averaged LSD value. Use
+    frequency-reduced LSD value. If ``ear="both"``, the displayed value also
+    includes the LSD ear-axis reduction. Use
     :func:`~hrtfpykit.plots.compare_lsd_plane` when you need to
     inspect how LSD varies with both direction and frequency on a canonical
     plane.
@@ -2227,14 +2231,20 @@ def compare_lsd(
     ...     colormap="viridis",
     ... )
     """
+    ear_key = str(ear).strip().lower()
+    reduction: str | tuple[str, ...]
+    if ear_key == "both":
+        reduction = ("frequencies", "ear")
+    else:
+        reduction = "frequencies"
     difference_values = np.asarray(
         lsd(
             hrtf_a=hrtf_a,
             hrtf_b=hrtf_b,
-            ear=ear,
+            ear=ear_key,
             plane="all",
             frequencies=None,
-            reduction="frequencies",
+            reduction=reduction,
             epsilon=epsilon,
         ),
         dtype=float,
@@ -2328,10 +2338,12 @@ def compare_lsd_plane(
     """Plot plane-restricted LSD as a frequency-angle heatmap.
 
     This function visualizes log-spectral distance values in decibels for a
-    canonical spatial plane. It calls :func:`~hrtfpykit.hrtf.lsd` with
-    ``reduction`` is ``none`` so the output keeps one value per selected plane
-    position and selected frequency bin. Frequency is shown in kilohertz on the
-    x-axis, direction is shown on the y-axis, and color encodes LSD.
+    canonical spatial plane. It calls :func:`~hrtfpykit.hrtf.lsd` without source
+    or frequency reduction so the output keeps one value per selected plane
+    position and selected frequency bin. When ``ear="both"``, the delegated LSD
+    call reduces the ear axis with ``reduction="ear"`` so the heatmap remains a
+    two-dimensional direction-frequency image. Frequency is shown in kilohertz
+    on the x-axis, direction is shown on the y-axis, and color encodes LSD.
 
     Horizontal-plane plots use signed azimuth in the -180 .. 180 convention
     on the y-axis. Median-plane plots use lateral-polar polar angle on the
@@ -2348,8 +2360,10 @@ def compare_lsd_plane(
         a source grid compatible with hrtf_a.
     plane : {``horizontal``, ``median``}, default=``horizontal``
         Canonical plane used to select source positions.
-    ear : {``left``, ``right``}, default=``left``
-        Ear channel used for LSD computation.
+    ear : {``left``, ``right``, ``both``}, default=``left``
+        Ear channel selection passed to :func:`~hrtfpykit.hrtf.lsd`. ``both``
+        computes both ear channels and reduces the ear axis inside ``lsd`` so
+        the heatmap receives one value per selected direction and frequency bin.
     elevation : float, default=0.0
         Requested elevation in degrees when ``plane`` is ``horizontal``.
         Ignored when ``plane`` is ``median``.
@@ -2448,21 +2462,23 @@ def compare_lsd_plane(
     if frequency_bins.size < 2:
         raise ValueError("Selected frequency range must contain at least two TF bins")
 
+    ear_key = str(ear).strip().lower()
+    reduction: str | tuple[str, ...] | None = "ear" if ear_key == "both" else None
     lsd_values = np.asarray(
         lsd(
             hrtf_a=hrtf_a,
             hrtf_b=hrtf_b,
-            ear=ear,
+            ear=ear_key,
             plane=plane_key,
             elevation=elevation,
             frequencies=frequency_bins,
-            reduction="none",
+            reduction=reduction,
             epsilon=epsilon,
         ),
         dtype=float,
     )
     if lsd_values.ndim != 2:
-        raise ValueError("compare_lsd_plane expects lsd(..., reduction='none') to return 2D values")
+        raise ValueError("compare_lsd_plane expects 2D LSD values after the requested ear selection")
     if lsd_values.shape[0] != selected_positions.shape[0]:
         raise ValueError("LSD plane values must match selected positions count")
 

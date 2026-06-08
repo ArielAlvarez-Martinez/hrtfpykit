@@ -54,6 +54,18 @@ class IR:
             axes before the final sample axis as preserved metadata axes.
         sample_rate : float or None
             Sampling rate in hertz for the impulse-response data.
+
+        Examples
+        --------
+        Load an HRIR-backed SOFA file and inspect the time-domain array exposed
+        by the HRTF object:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.IR.values.shape
+        (793, 2, 256)
+        >>> hrtf.IR.sample_rate
+        44100.0
         """
         self._hrtf = hrtf
         self.values: np.ndarray | None = None
@@ -78,6 +90,15 @@ class IR:
         ------
         AttributeError
             If :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is None.
+
+        Examples
+        --------
+        Load an HRTF and read the number of samples in each HRIR:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.IR.ir_length
+        256
         """
         if self.values is None:
             raise ValueError("IR values are not available")
@@ -106,6 +127,15 @@ class IR:
             not a NumPy array, has no sample axis, or
             :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is
             missing or not finite and positive.
+
+        Examples
+        --------
+        Load an HRTF and compute the duration represented by each HRIR:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> round(hrtf.IR.ir_duration, 6)
+        0.005805
         """
         return signal_duration(self)
 
@@ -155,6 +185,16 @@ class IR:
             does not contain at least two ears and two samples, the estimator
             configuration is invalid, or the threshold estimator cannot find a
             valid onset.
+
+        Examples
+        --------
+        Estimate one ITD value per source position using the loaded HRIR data:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> itd_values = hrtf.IR.get_itd(output="samples")
+        >>> itd_values.shape
+        (793,)
         """
         return itd(
             self,
@@ -202,6 +242,17 @@ class TF:
         frequency_bins : numpy.ndarray or None
             One-dimensional frequency-bin values in hertz corresponding to the final
             axis of :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
+
+        Examples
+        --------
+        Load an HRIR SOFA file and inspect the derived frequency-domain view:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.TF.values.shape
+        (793, 2, 129)
+        >>> hrtf.TF.frequency_bins.shape
+        (129,)
         """
         self._hrtf = hrtf
         self.values: np.ndarray | None = None
@@ -225,6 +276,15 @@ class TF:
         ------
         AttributeError
             If :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` is None.
+
+        Examples
+        --------
+        Read the number of one-sided frequency bins in the current HRTF:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.TF.tf_length
+        129
         """
         if self.values is None:
             raise ValueError("TF values are not available")
@@ -250,6 +310,15 @@ class TF:
             If :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` is None.
         IndexError
             If fewer than two frequency bins are available.
+
+        Examples
+        --------
+        Inspect the spacing of a uniformly sampled one-sided frequency grid:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> round(hrtf.TF.frequency_bins_step, 3)
+        172.266
         """
         frequency_bins = self.frequency_bins
         if frequency_bins is None:
@@ -278,6 +347,15 @@ class TF:
             If :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` is None.
         ValueError
             If :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` is empty.
+
+        Examples
+        --------
+        Read the lowest available frequency bin:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.TF.min_frequency_bin
+        0.0
         """
         if self.frequency_bins is None:
             raise ValueError("TF frequency_bins are not available")
@@ -301,6 +379,15 @@ class TF:
             If :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` is None.
         ValueError
             If :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` is empty.
+
+        Examples
+        --------
+        Read the highest available frequency bin:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.TF.max_frequency_bin
+        22050.0
         """
         if self.frequency_bins is None:
             raise ValueError("TF frequency_bins are not available")
@@ -322,6 +409,16 @@ class TF:
         ------
         ValueError
             If :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` is missing or is not a NumPy array.
+
+        Examples
+        --------
+        Compute linear magnitude without modifying the complex transfer function:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> magnitude_values = hrtf.TF.magnitude
+        >>> magnitude_values.shape
+        (793, 2, 129)
         """
         return magnitude(self)
 
@@ -349,6 +446,16 @@ class TF:
         ValueError
             If :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` is missing or invalid, if a magnitude is invalid,
             or if reference is not accepted by the dB conversion helper.
+
+        Examples
+        --------
+        Convert the current transfer-function magnitude to decibels:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> magnitude_db = hrtf.TF.get_magnitude_db()
+        >>> magnitude_db.shape
+        (793, 2, 129)
         """
         return magnitude_db(self, reference=reference)
 
@@ -368,6 +475,16 @@ class TF:
         ------
         ValueError
             If :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` is missing or is not a NumPy array.
+
+        Examples
+        --------
+        Inspect phase values for every source, ear, and frequency bin:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> phase_values = hrtf.TF.phase
+        >>> phase_values.shape
+        (793, 2, 129)
         """
         return phase(self)
 
@@ -387,6 +504,16 @@ class TF:
         ------
         ValueError
             If :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` is missing or is not a NumPy array.
+
+        Examples
+        --------
+        Access the SOFA-style real component of the complex HRTF:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> real_values = hrtf.TF.real
+        >>> real_values.shape
+        (793, 2, 129)
         """
         return real(self)
 
@@ -406,5 +533,15 @@ class TF:
         ------
         ValueError
             If :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` is missing or is not a NumPy array.
+
+        Examples
+        --------
+        Access the SOFA-style imaginary component of the complex HRTF:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> imag_values = hrtf.TF.imag
+        >>> imag_values.shape
+        (793, 2, 129)
         """
         return imag(self)

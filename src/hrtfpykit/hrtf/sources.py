@@ -74,6 +74,17 @@ class Sources:
         _selected_indices : numpy.ndarray or None
             Source-position indices retained by the current HRTF view after spatial
             selection.
+
+        Examples
+        --------
+        Load an HRTF and inspect the source manager exposed by the HRTF object:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.Sources.source_coordinate_system
+        'spherical'
+        >>> hrtf.Sources.get_positions().shape
+        (793, 3)
         """
         self._hrtf = hrtf
         if self._hrtf is None or self._hrtf.Sofa is None:
@@ -153,8 +164,13 @@ class Sources:
 
         Examples
         --------
+        Load an HRTF, inspect the full spherical source grid, then request
+        plane-filtered positions in spherical and Cartesian coordinates:
+
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.Sources.get_positions().shape
+        (793, 3)
         >>> horizontal = hrtf.Sources.get_positions(plane="horizontal")
         >>> horizontal.shape
         (72, 3)
@@ -163,7 +179,7 @@ class Sources:
         ...     plane="frontal",
         ... )
         >>> frontal_xyz.shape
-        (25, 3)
+        (22, 3)
         """
         if self._hrtf is None or self._hrtf.Sofa is None:
             raise ValueError("Sources requires an HRTF with a loaded SOFA dataset")
@@ -355,6 +371,14 @@ class Sources:
         ValueError
             If positions cannot be read or converted to spherical coordinates.
 
+        Examples
+        --------
+        Load an HRTF and inspect the available azimuth grid in degrees:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.Sources.get_azimuth_angles()[:5]
+        array([ 0.,  5., 10., 15., 20.])
         """
         spherical = get_spherical_positions(self, angle_unit=angle_unit)
         azimuth = spherical[..., 0]
@@ -386,6 +410,15 @@ class Sources:
         ValueError
             If positions cannot be read or converted to spherical coordinates.
 
+        Examples
+        --------
+        Load an HRTF and inspect the available elevation grid in degrees:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.Sources.get_elevation_angles()
+        array([-45., -30., -20., -10.,   0.,  10.,  20.,  30.,  45.,  60.,  75.,
+                90.])
         """
         spherical = get_spherical_positions(self, angle_unit=angle_unit)
         elevation = spherical[..., 1]
@@ -426,6 +459,18 @@ class Sources:
             unsupported, or positions cannot be read or converted to spherical
             coordinates.
 
+        Examples
+        --------
+        Ask for the elevations available at the source-grid azimuth nearest to
+        0 degrees:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> elevations, real_azimuth = hrtf.Sources.get_elevation_angles_for_azimuth(0.0)
+        >>> elevations[:5]
+        array([-45., -30., -20., -10.,   0.])
+        >>> real_azimuth
+        0.0
         """
         if isinstance(azimuth, bool):
             raise ValueError("azimuth must be a finite value")
@@ -489,6 +534,18 @@ class Sources:
             unsupported, or positions cannot be read or converted to spherical
             coordinates.
 
+        Examples
+        --------
+        Ask for the azimuths available at the source-grid elevation nearest to
+        the horizontal plane:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> azimuths, real_elevation = hrtf.Sources.get_azimuth_angles_for_elevation(0.0)
+        >>> azimuths[:5]
+        array([ 0.,  5., 10., 15., 20.])
+        >>> real_elevation
+        0.0
         """
         if isinstance(elevation, bool):
             raise ValueError("elevation must be a finite value")
@@ -554,6 +611,16 @@ class Sources:
             positions do not form an (N, 3) grid, a named position is
             unknown, a query has an invalid shape, or the needed coordinate
             conversion is unsupported.
+
+        Examples
+        --------
+        Resolve a named source direction to the nearest measured source index
+        and its real spherical grid position:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.Sources.get_position_index("front")
+        (4, array([0. , 0. , 1.5]))
         """
         system = str(coordinate_system).strip().lower()
         if system not in {"spherical", "cartesian", "lateral-polar"}:

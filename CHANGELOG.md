@@ -36,6 +36,9 @@ use the `vx.y.z` format.
   `Sources.get_positions`, so users can request spherical, Cartesian, or
   lateral-polar positions and filter source grids by horizontal, median, or
   frontal planes directly at read time.
+- Added `frequency_bands` to `lsd`, matching `HRTFSpec` frequency-band
+  selection semantics and remaining mutually exclusive with explicit
+  `frequencies` queries.
 
 ### Changed
 
@@ -65,6 +68,14 @@ use the `vx.y.z` format.
   `hrtf.Sources.get_positions(coordinate_system="spherical")`.
 - Changed SOFAcoustics download server configuration to use direct per-dataset
   base URLs instead of a shared base URL plus `path_prefix`.
+- Changed `lsd` reduction semantics so `ear="both"` preserves the ear axis
+  unless the reduction explicitly includes `ear`; reductions can now target
+  `sources`, `frequencies`, `ear`, or use `global` for one scalar LSD score.
+- Changed `compare_lsd` and `compare_lsd_plane` to accept `ear="both"` by
+  delegating the ear-axis reduction to `lsd` with the explicit `ear` reduction
+  axis.
+- Improved `IR`, `TF`, and `Sources` docstrings with task-focused examples for
+  inspecting time-domain data, frequency-domain data, and source-grid queries.
 - Changed checksum planning to use an explicit per-job `checksum_key` instead of
   fuzzy fallback lookup across full paths, filenames, and subject/file pairs.
   Checksum verification now targets downloader-managed resources only and remains

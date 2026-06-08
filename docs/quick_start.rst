@@ -444,23 +444,36 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 hrtfpykit.datasets: Building dataset pipelines
 ----------------------------------------------
 
-The :doc:`datasets API </datasets/index>` is the dataset construction layer
-for public HRTF resources. Dataset objects are configured with
-spec objects such as :doc:`HRTFSpec </datasets/HRTFSpec>`,
+The :doc:`datasets API </datasets/index>` is the dataset construction and
+resource preparation layer for public HRTF datasets. Dataset objects are
+configured with spec objects such as :doc:`HRTFSpec </datasets/HRTFSpec>`,
 :doc:`ITDSpec </datasets/ITDSpec>`, and :doc:`ILDSpec </datasets/ILDSpec>`,
 which declare the acoustic values, cue metrics, and subject resources exposed
-as sample inputs and targets. The same pattern can align HRTFs with
-anthropometry, metadata, meshes, images, videos, or other available resources,
-then read one sample directly or batch samples for PyTorch with
-:func:`collate_samples() <hrtfpykit.datasets.collate_samples>`.
+as sample inputs and targets. hrtfpykit can download selected official resources
+before construction, or it can scan files you downloaded manually and copied
+under the dataset root using the accepted local layouts. The same pattern can
+align HRTFs with anthropometry, metadata, meshes, images, videos, or other
+available resources, then read one sample directly or batch samples for PyTorch
+with :func:`collate_samples() <hrtfpykit.datasets.collate_samples>`.
 
 .. code-block:: python
 
    from torch.utils.data import DataLoader
+
    from hrtfpykit.datasets import HUTUBS, HRTFSpec, ILDSpec, ITDSpec, collate_samples
+
+   # Keep the quickstart small: download and build only pp1 through pp10.
+   excluded_subject_ids = tuple(f"pp{i}" for i in range(11, 97))
 
    dataset = HUTUBS(
        root="datasets/hutubs",
+       download=True,
+       download_resources="hrtf",
+       download_hrtf_variant="measured",
+       download_server="sofacoustics",
+       verify_checksum=True,
+       download_exclude_subject_ids=excluded_subject_ids,
+       exclude_subject_ids=excluded_subject_ids,
        inputs=HRTFSpec(
            domain="frequency",
            signal="tf_magnitude_db",
@@ -484,13 +497,16 @@ then read one sample directly or batch samples for PyTorch with
        split="train",
    )
 
-   # Read one sample
+   # If you already have the measured HUTUBS SOFA files, copy them under
+   # datasets/hutubs using an accepted local layout and set download=False.
+
+   # Read one sample.
    sample = dataset[0]
 
    print(sample["inputs"].keys())
    print(sample["target"].keys())
 
-   # Batch samples for PyTorch
+   # Batch samples for PyTorch.
    loader = DataLoader(dataset, batch_size=8, collate_fn=collate_samples)
    batch = next(iter(loader))
 

@@ -83,7 +83,8 @@ def load_hrtf(
     check_sofa_against_conventions : bool, default=True
         Whether to run convention checks when reading the SOFA file.
     fft_length : int | None, default=None
-        Optional FFT length used when deriving TF from HRIR content. For HRTF
+        Optional FFT length used when deriving TF from HRIR content. If None,
+        HRIR input uses the impulse-response length from ``Data.IR``. For HRTF
         files, a provided value must match the FFT length implied by
         N/frequency bins.
     mesh2hrtf_compatible : bool, default=False
@@ -129,20 +130,6 @@ def load_hrtf(
     (793, 2, 129)
     >>> hrtf.IR.sample_rate
     44100.0
-
-    Load a SimpleFreeFieldHRTF file with Mesh2HRTF compatible reconstruction
-    and keep those reconstruction settings available for reset and later TF
-    workflows:
-
-    >>> hrtf = load_hrtf(
-    ...     "hrtfs/HRTF_ARI_44100.sofa",
-    ...     mesh2hrtf_compatible=True,
-    ...     mesh2hrtf_n_shift=30,
-    ... )
-    >>> hrtf.mesh2hrtf_compatible
-    True
-    >>> hrtf.mesh2hrtf_n_shift
-    30
     """
     Sofa = hrtfpykit.sofa.load_sofa(
         path,
