@@ -14,10 +14,12 @@ those resources are present or downloaded.
 
 **Dataset scope.**
 
-hrtfpykit configures ARI subject identifiers from the official HRTF files
-included in the checksum map. The exposed subject IDs use the ``nh`` form, such
-as ``nh2``, ``nh720``, or ``nh1059``. The ARI configuration contains
-263 subject HRTF files.
+ARI is represented in hrtfpykit as the official NH HRTF collection plus aligned
+CSV subject resources. The exposed subject IDs use the ``nh`` form, such as
+``nh2``, ``nh720``, or ``nh1059``. Acoustic specs use the HRTF SOFA files, while
+:class:`~hrtfpykit.datasets.AnthropometrySpec` and
+:class:`~hrtfpykit.datasets.MetadataSpec` can use the ARI anthropometry and
+metadata CSV tables when those files are available locally or downloaded.
 
 The ARI resources used by hrtfpykit are:
 
@@ -28,21 +30,45 @@ The ARI resources used by hrtfpykit are:
 
 The anthropometry and metadata CSV resources are derived from the public ARI
 ``anthro.mat`` MATLAB file and are stored as separate tables so they can be
-requested independently with :class:`~hrtfpykit.datasets.AnthropometrySpec` and
-:class:`~hrtfpykit.datasets.MetadataSpec`.
+requested independently.
 
-**Layout and subject paths.**
+**Implementation status.**
 
-ARI HRTF filenames use the regular template ``hrtf {version}_{subject_id}.sofa``.
-Examples include ``hrtf b_nh2.sofa``, ``hrtf c_nh831.sofa``, and
-``hrtf d_nh1059.sofa``.
+The current hrtfpykit ARI configuration contains 263 checksum-backed NH HRTF
+files. These files are distributed in ``b``, ``c``, and ``d`` filename groups.
+Use ``dataset_hrtf_variant="NH"`` for the full configured NH collection, or
+pass a dictionary such as ``{"type": "NH", "version": "b"}`` with version
+``"b"``, ``"c"``, or ``"d"`` to scan one filename group.
 
-The official ARI NH HRTF files are distributed in ``b``, ``c``, and ``d``
-filename groups. hrtfpykit treats the included files as one compatible ARI NH
-collection because they share the same source grid, IR shape, and sample rate.
-Use ``dataset_hrtf_variant="NH"`` for the full configured NH collection, or pass
-``dataset_hrtf_variant={"type": "NH", "version": "b"}``, ``"c"``, or ``"d"``
-to scan one filename group.
+Two official download sources are configured:
+
+- ``sofacoustics`` provides HRTF, anthropometry, and metadata resources.
+- ``sonicom-ecosystem`` provides ARI HRTF resources from the configured
+  ecosystem database catalogs.
+
+The ARI ecosystem configuration is intentionally limited to the current NH
+``b``, ``c``, and ``d`` catalogs. Other ecosystem ARI-related databases are not
+mixed into this dataset until their subject IDs, variants, and checksums are
+modeled explicitly.
+
+**Local resource discovery.**
+
+Users can download ARI files through hrtfpykit or copy previously downloaded
+files under ``root``. The scanner accepts the official root-level HRTF filenames
+and semantic subject folders. For example, subject ``nh2`` can be discovered as:
+
+.. code-block:: text
+
+   hrtf b_nh2.sofa
+   nh2/hrtf b_nh2.sofa
+   nh2/hrtf/hrtf b_nh2.sofa
+   nh2/hrtf/nh/hrtf b_nh2.sofa
+   nh2/hrtf/nh/b/hrtf b_nh2.sofa
+
+Anthropometry is discovered as ``anthro.csv``,
+``anthropometry/anthro.csv``, ``anthropometry/*.csv``,
+``anthro/anthro.csv``, or ``anthro/*.csv``. Metadata is discovered as
+``metadata.csv``, ``metadata/metadata.csv``, or ``metadata/*.csv``.
 
 ARI anthropometry uses shared measurement columns such as ``x1`` and ear
 measurement columns with ``L_`` and ``R_`` prefixes. When
@@ -52,19 +78,20 @@ match the requested ear prefix.
 
 **Downloads.**
 
-The built-in downloader supports the ``hrtf``, ``anthropometry``, and
-``metadata`` resource groups. Set ``download=True`` to download resources before
-dataset construction, and use ``download_resources`` to choose which resource
-groups to fetch.
+Set ``download=True`` to download selected resources before dataset construction,
+and use ``download_resources`` to choose which resource groups to fetch.
+``download_hrtf_variant="all"`` or ``download_hrtf_variant="NH"`` downloads the
+full configured NH collection. Passing a dictionary such as ``{"type": "NH",
+"version": "b"}`` with version ``"b"``, ``"c"``, or ``"d"`` downloads one ARI
+filename group.
 
-ARI uses the HRTF type ``NH``. ``download_hrtf_variant="all"`` or
-``download_hrtf_variant="NH"`` downloads the full configured NH collection.
-Passing ``download_hrtf_variant={"type": "NH", "version": "b"}``, ``"c"``, or
-``"d"`` downloads one ARI filename group.
-
-By default, downloads verify SHA-256 checksums. ``verify_checksum=False`` skips
-checksum verification when that behavior is explicitly required, but keeping
-checksum verification enabled is recommended.
+Download selection is separate from dataset construction. ``download_resources``
+and ``download_hrtf_variant`` decide which official files are fetched;
+``dataset_hrtf_variant``, ``inputs``, and ``target`` decide which local files are
+required for samples after the download step. By default, downloads verify
+SHA-256 checksums. ``verify_checksum=False`` skips checksum verification when
+that behavior is explicitly required, but keeping checksum verification enabled
+is recommended.
 
 **References.**
 

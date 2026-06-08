@@ -65,7 +65,10 @@ def _get_plane_indices(
         raise ValueError("angle must be a finite value")
 
     grid_system = str(hrtf.Sources.source_coordinate_system).strip().lower()
-    grid_positions = hrtf.Sources.get_positions(angle_unit=unit)
+    grid_positions = hrtf.Sources.get_positions(
+        angle_unit=unit,
+        coordinate_system=grid_system,
+    )
     if grid_positions.ndim != 2 or grid_positions.shape[-1] != 3:
         raise ValueError("Source positions grid must have shape (N, 3)")
 

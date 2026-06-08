@@ -77,7 +77,7 @@ class HRTFPlots:
     :class:`~hrtfpykit.hrtf.HRTF` object:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf.plot_magnitude(positions="front", x_axis="log", ear="left")
     """
 
@@ -162,7 +162,7 @@ class HRTFPlots:
         logarithmic frequency axis:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_magnitude(
         ...     positions="front",
         ...     x_axis="log",
@@ -381,7 +381,7 @@ class HRTFPlots:
         Plot one front HRIR waveform:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_amplitude(
         ...     positions="front",
         ...     ear="both",
@@ -573,7 +573,7 @@ class HRTFPlots:
         direction in the same figure:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_amplitude(positions="front", ear="both")
         """
         if ear not in {"left", "right", "both"}:
@@ -869,7 +869,7 @@ class HRTFPlots:
         Plot a horizontal-plane spectrum heatmap around ear height:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_spectrum_plane(
         ...     plane="horizontal",
         ...     elevation_angle=0.0,
@@ -1171,7 +1171,7 @@ class HRTFPlots:
         from below to above the listener:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_elevation_spectrum(
         ...     azimuth="front",
         ...     x_axis="log",
@@ -1402,7 +1402,7 @@ class HRTFPlots:
         Plot signed ITD around the horizontal plane:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_itd_curve(elevation_angle=0.0)
         """
         resolved_margins = Margins()
@@ -1539,7 +1539,7 @@ class HRTFPlots:
         Plot the absolute ITD cue around the horizontal plane in polar form:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_absolute_itd(elevation_angle=0.0)
         """
         resolved_margins = Margins()
@@ -1688,7 +1688,7 @@ class HRTFPlots:
         Plot frequency-dependent ILD over the horizontal plane:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_ild_plane(
         ...     plane="horizontal",
         ...     elevation_angle=0.0,
@@ -1897,7 +1897,7 @@ class HRTFPlots:
         Plot signed broad-band ILD around the horizontal plane:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_ild_curve(elevation_angle=0.0)
         """
         resolved_margins = Margins()
@@ -2035,7 +2035,7 @@ class HRTFPlots:
         Plot the absolute broad-band ILD cue around the horizontal plane:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_absolute_ild(elevation_angle=0.0)
         """
         resolved_margins = Margins()
@@ -2159,7 +2159,7 @@ class HRTFPlots:
         Plot the measurement source grid from a loaded SOFA file:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_source_grid()
         """
         resolved_margins = Margins()
@@ -2283,7 +2283,7 @@ class HRTFPlots:
         Plot the source grid and highlight the canonical horizontal plane:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_plane_grid(plane="horizontal")
         """
         resolved_margins = Margins()

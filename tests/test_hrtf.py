@@ -86,10 +86,6 @@ def transform_modify_fft_length(hrtf: HRTF) -> HRTF:
     return hrtf.transform.modify_fft_length(int(hrtf.IR.values.shape[-1]) + 32)
 
 
-def transform_modify_source_coordinate_system(hrtf: HRTF) -> HRTF:
-    return hrtf.transform.modify_source_coordinate_system("cartesian")
-
-
 def transform_add_itd(hrtf: HRTF) -> HRTF:
     return hrtf.transform.add_itd(1, unit="samples")
 
@@ -112,7 +108,6 @@ TRANSFORM_CASES = [
     ("modify_magnitude", transform_modify_magnitude, True),
     ("apply_gain", transform_apply_gain, True),
     ("modify_fft_length", transform_modify_fft_length, True),
-    ("modify_source_coordinate_system", transform_modify_source_coordinate_system, True),
     ("add_itd", transform_add_itd, True),
     ("delete_itd", transform_delete_itd, True),
 ]
@@ -162,6 +157,8 @@ def test_real_hrtf_load_populates_domains_and_sources(real_hrtf: HRTF) -> None:
     tf_values = np.asarray(real_hrtf.TF.values)
     frequency_bins = np.asarray(real_hrtf.TF.frequency_bins, dtype=float)
     source_positions = real_hrtf.Sources.get_positions()
+    cartesian_positions = real_hrtf.Sources.get_positions(coordinate_system="cartesian")
+    lateral_polar_positions = real_hrtf.Sources.get_positions(coordinate_system="lateral-polar")
     sample_rate = float(real_hrtf.IR.sample_rate)
 
     assert ir_values.ndim == 3
@@ -169,6 +166,9 @@ def test_real_hrtf_load_populates_domains_and_sources(real_hrtf: HRTF) -> None:
     assert ir_values.shape[:-1] == tf_values.shape[:-1]
     assert tf_values.shape[-1] == frequency_bins.size
     assert source_positions.shape == (ir_values.shape[0], 3)
+    assert cartesian_positions.shape == source_positions.shape
+    assert lateral_polar_positions.shape == source_positions.shape
+    assert real_hrtf.Sources.source_coordinate_system == "spherical"
     assert np.isfinite(ir_values).all()
     assert np.isfinite(np.real(tf_values)).all()
     assert np.isfinite(np.imag(tf_values)).all()

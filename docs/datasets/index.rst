@@ -17,6 +17,21 @@ code. They handle subject identifiers, folder layouts, downloadable resource
 groups, resource variants where the dataset defines them, excluded subjects,
 deterministic splits, and resource summaries.
 
+The built-in dataset pages distinguish dataset scope from implementation status.
+Dataset scope describes the public dataset and the resource families hrtfpykit
+can use. Implementation status describes the exact subject identifiers,
+resource groups, server choices, and checksum-backed files configured in the
+current hrtfpykit release. This matters most for actively evolving sources such
+as SONICOM, where the Imperial transfer server and SONICOM ecosystem catalogs do
+not necessarily expose the same subject/resource coverage at the same time.
+
+Users do not have to use the built-in download step. If files were downloaded
+previously or prepared by another workflow, they can be copied under the dataset
+``root``. Dataset scanners look for the official layout and the semantic local
+alternatives declared in the dataset configuration, such as
+``subject_id/hrtf/...``, ``subject_id/mesh/...``, ``metadata/...``, and
+``anthropometry/...`` folders where supported.
+
 Samples are declared with specs passed through ``inputs`` and ``target``. Each
 spec names one value to return and the context used to index it. Acoustic specs
 such as :class:`~hrtfpykit.datasets.HRTFSpec`,

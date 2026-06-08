@@ -12,6 +12,7 @@ from ..utils.coordinates import (
     spherical_to_cartesian,
     spherical_to_lateral_polar,
 )
+from ..utils.planes import get_frontal_plane, get_horizontal_plane, get_median_plane
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -86,21 +87,48 @@ class Sources:
     def get_positions(
         self,
         angle_unit: str = "degrees",
+        coordinate_system: str = "spherical",
+        plane: str | None = None,
+        plane_angle: float | None = None,
     ) -> np.ndarray:
-        """Return the current source grid in the configured coordinate system.
+        """Return the current source grid in the requested coordinate system.
 
         Positions are read from the owning :class:`~hrtfpykit.hrtf.HRTF`
         object's SOFA ``SourcePosition`` variable each time this method is
         called. The SOFA coordinate system is taken from ``SourcePosition:Type``
-        and converted to
-        :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`. If the owning HRTF has been
-        spatially selected, only the selected source rows are returned.
+        and converted on read. By default, positions are returned in spherical
+        coordinates. If the owning HRTF has been spatially selected, only the
+        selected source rows are returned. If ``plane`` is provided, hrtfpykit
+        first resolves the nearest measured plane in spherical coordinates,
+        keeps only those source rows, and then returns them in
+        ``coordinate_system``.
 
         Parameters
         ----------
         angle_unit : {``degrees``, ``radians``}, default=``degrees``
             Angular unit used for returned spherical or lateral-polar angles.
             Cartesian coordinates are returned in their stored distance unit.
+        coordinate_system : {``spherical``, ``cartesian``, ``lateral-polar``}, default=``spherical``
+            Coordinate system used for returned positions.
+        plane : {``horizontal``, ``median``, ``frontal``} or None, default=None
+            Optional source plane used to filter returned positions. Plane
+            matching is performed on spherical coordinates, independent of the
+            requested output ``coordinate_system``.
+
+            - ``"horizontal"`` selects a constant-elevation plane. The
+              ``plane_angle`` value is interpreted as elevation.
+            - ``"median"`` selects the nearest requested azimuth and the nearest
+              opposite azimuth. The ``plane_angle`` value is interpreted as the
+              primary azimuth.
+            - ``"frontal"`` also selects the nearest requested azimuth and the
+              nearest opposite azimuth. The ``plane_angle`` value is interpreted
+              as the primary azimuth, with a frontal-plane default.
+        plane_angle : float or None, default=None
+            Requested plane angle in ``angle_unit``. For ``plane="horizontal"``
+            this is an elevation angle. For ``plane="median"`` and
+            ``plane="frontal"`` this is an azimuth angle; the opposite azimuth
+            is added automatically. ``None`` uses 0 for horizontal and median
+            planes, and 90 degrees or pi / 2 radians for the frontal plane.
 
         Returns
         -------
@@ -113,15 +141,29 @@ class Sources:
         Raises
         ------
         ValueError
-            If angle_unit is unsupported, the source or target coordinate
-            system is unsupported, SOFA angular units cannot be interpreted,
-            or the requested conversion is not implemented.
+            If angle_unit is unsupported, plane is unsupported, the source or
+            target coordinate system is unsupported, SOFA angular units cannot be
+            interpreted, or the requested conversion is not implemented.
 
         Notes
         -----
         SOFA angular units are detected from the ``SourcePosition:Units``
         attribute. Angular source data stored in radians are converted through
         cartesian coordinates when degree/radian conversion is required.
+
+        Examples
+        --------
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> horizontal = hrtf.Sources.get_positions(plane="horizontal")
+        >>> horizontal.shape
+        (72, 3)
+        >>> frontal_xyz = hrtf.Sources.get_positions(
+        ...     coordinate_system="cartesian",
+        ...     plane="frontal",
+        ... )
+        >>> frontal_xyz.shape
+        (25, 3)
         """
         if self._hrtf is None or self._hrtf.Sofa is None:
             raise ValueError("Sources requires an HRTF with a loaded SOFA dataset")
@@ -137,7 +179,7 @@ class Sources:
             Any,
             cast(Any, self._hrtf.Sofa.VariableAttributes).get("SourcePosition:Units"),
         ).value
-        target_system = self.source_coordinate_system
+        target_system = coordinate_system
 
         requested_angle_unit = str(angle_unit).strip().lower()
         if requested_angle_unit not in {"degrees", "radians"}:
@@ -168,6 +210,36 @@ class Sources:
                 np.asarray(self._selected_indices, dtype=int),
                 axis=0,
             )
+
+        if plane is not None:
+            plane_key = str(plane).strip().lower()
+            if plane_key == "horizontal":
+                selected_plane_angle = 0.0 if plane_angle is None else float(plane_angle)
+                plane_indices, _ = get_horizontal_plane(
+                    self._hrtf,
+                    elevation=selected_plane_angle,
+                    angle_unit=requested_angle_unit,
+                )
+            elif plane_key == "median":
+                selected_plane_angle = 0.0 if plane_angle is None else float(plane_angle)
+                plane_indices, _ = get_median_plane(
+                    self._hrtf,
+                    azimuth=selected_plane_angle,
+                    angle_unit=requested_angle_unit,
+                )
+            elif plane_key == "frontal":
+                if plane_angle is None:
+                    selected_plane_angle = 90.0 if requested_angle_unit == "degrees" else np.pi / 2.0
+                else:
+                    selected_plane_angle = float(plane_angle)
+                plane_indices, _ = get_frontal_plane(
+                    self._hrtf,
+                    azimuth=selected_plane_angle,
+                    angle_unit=requested_angle_unit,
+                )
+            else:
+                raise ValueError("plane must be one of: horizontal, median, frontal")
+            source_positions = np.take(source_positions, plane_indices, axis=0)
 
         if source_system == target_system:
             if target_system == "cartesian" or source_angle_unit == requested_angle_unit:
@@ -493,7 +565,10 @@ class Sources:
             raise ValueError("angle_unit must be 'degrees' or 'radians'")
 
         grid_system = str(self.source_coordinate_system).strip().lower()
-        grid_positions = self.get_positions(angle_unit=unit)
+        grid_positions = self.get_positions(
+            angle_unit=unit,
+            coordinate_system=grid_system,
+        )
         if grid_positions.ndim != 2 or grid_positions.shape[-1] != 3:
             raise ValueError("Source positions grid must have shape (N, 3)")
 

@@ -118,7 +118,7 @@ def sht_reconstruction_comparison(
 
     >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
     >>> from hrtfpykit.plots import sht_reconstruction_comparison
-    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> sh_representation = sht(hrtf, sh_order=8, ear="both")
     >>> sh_representation.C.shape
     (81, 2, 129)
@@ -404,7 +404,7 @@ def sht_reconstruction_error(
 
     >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
     >>> from hrtfpykit.plots import sht_reconstruction_error
-    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> sh_representation = sht(hrtf, sh_order=8, ear="both")
     >>> sh_representation.C.shape
     (81, 2, 129)

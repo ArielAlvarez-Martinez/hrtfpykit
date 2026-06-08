@@ -146,8 +146,8 @@ def compare_magnitude(
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_magnitude
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_magnitude(
     ...     [hrtf_a, hrtf_b],
     ...     positions="front",
@@ -561,8 +561,8 @@ def compare_amplitude(
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_amplitude
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_amplitude(
     ...     [hrtf_a, hrtf_b],
     ...     positions="front",
@@ -873,8 +873,8 @@ def compare_absolute_itd(
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_absolute_itd
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_absolute_itd(
     ...     [hrtf_a, hrtf_b],
     ...     elevation_angle=0.0,
@@ -1115,8 +1115,8 @@ def compare_absolute_ild(
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_absolute_ild
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_absolute_ild(
     ...     [hrtf_a, hrtf_b],
     ...     elevation_angle=0.0,
@@ -1358,8 +1358,8 @@ def compare_itd_curve(
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_itd_curve
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_itd_curve(
     ...     [hrtf_a, hrtf_b],
     ...     elevation_angle=0.0,
@@ -1596,8 +1596,8 @@ def compare_ild_curve(
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_ild_curve
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_ild_curve(
     ...     [hrtf_a, hrtf_b],
     ...     elevation_angle=0.0,
@@ -1838,8 +1838,8 @@ def compare_itd_difference(
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_itd_difference
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_itd_difference(
     ...     hrtf_a,
     ...     hrtf_b,
@@ -2050,8 +2050,8 @@ def compare_ild_difference(
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_ild_difference
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_ild_difference(
     ...     hrtf_a,
     ...     hrtf_b,
@@ -2217,8 +2217,8 @@ def compare_lsd(
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_lsd
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_lsd(
     ...     hrtf_a,
     ...     hrtf_b,
@@ -2396,8 +2396,8 @@ def compare_lsd_plane(
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_lsd_plane
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_lsd_plane(
     ...     hrtf_a,
     ...     hrtf_b,

@@ -411,8 +411,8 @@ def itd_difference(
     timing-difference value per source position:
 
     >>> from hrtfpykit.hrtf import load_hrtf, itd_difference
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> itd_diff = itd_difference(hrtf_a, hrtf_b, output="seconds")
     >>> itd_diff.shape
     (793,)
@@ -542,8 +542,8 @@ def ild_difference(
     source grid:
 
     >>> from hrtfpykit.hrtf import load_hrtf, ild_difference
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> ild_diff = ild_difference(
     ...     hrtf_a,
     ...     hrtf_b,
@@ -723,8 +723,8 @@ def lsd(
     frequencies and reduce over source locations:
 
     >>> from hrtfpykit.hrtf import load_hrtf, lsd
-    >>> hrtf_a = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("hrtfs/P0002_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> spectral_error = lsd(
     ...     hrtf_a,
     ...     hrtf_b,

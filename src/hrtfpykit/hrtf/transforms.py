@@ -57,7 +57,7 @@ class Transform:
         preprocessing step without changing the original object:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> windowed = hrtf.transform.apply_window("hann")
         >>> hrtf.is_transformed()
         False
@@ -96,7 +96,7 @@ class Transform:
         layout unchanged:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> windowed = hrtf.transform.apply_window("hann")
         >>> windowed.IR.values.shape
         (793, 2, 256)
@@ -151,7 +151,7 @@ class Transform:
         representation from the padded signals:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.IR.values.shape
         (793, 2, 256)
         >>> padded = hrtf.transform.apply_padding(32, location="end")
@@ -211,7 +211,7 @@ class Transform:
         time-domain processing:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.IR.sample_rate
         44100.0
         >>> hrtf.IR.values.shape
@@ -271,7 +271,7 @@ class Transform:
         synchronized with the new HRIR samples:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.IR.sample_rate
         44100.0
         >>> hrtf.IR.values.shape
@@ -338,7 +338,7 @@ class Transform:
         for subsequent metric or plotting workflows:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> filtered = hrtf.transform.apply_fir_filter(
         ...     filter="lowpass",
         ...     cutoff=3000.0,
@@ -406,7 +406,7 @@ class Transform:
         transfer functions available on the returned object:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> filtered = hrtf.transform.apply_iir_filter(
         ...     filter="lowpass",
         ...     cutoff=3000.0,
@@ -470,7 +470,7 @@ class Transform:
         the current HRTF layout:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> minimum = hrtf.transform.minimum_phase()
         >>> minimum.IR.values.shape
         (793, 2, 256)
@@ -538,7 +538,7 @@ class Transform:
         the singleton source axis kept in the result:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.TF.values.shape
         (793, 2, 129)
         >>> ctf = hrtf.transform.to_ctf(weights=False)
@@ -600,7 +600,7 @@ class Transform:
         grid layout:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.TF.values.shape
         (793, 2, 129)
         >>> dtf = hrtf.transform.to_dtf(weights=False)
@@ -657,7 +657,7 @@ class Transform:
 
         >>> import numpy as np
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> ir = np.array(hrtf.IR.values, copy=True)
         >>> ir[..., :8] = 0.0
         >>> modified = hrtf.transform.modify_ir(ir)
@@ -753,7 +753,7 @@ class Transform:
 
         >>> import numpy as np
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> phase = np.array(hrtf.TF.phase, copy=True)
         >>> phase[..., 1:] *= 0.95
         >>> modified = hrtf.transform.modify_phase(phase, unit="radians")
@@ -820,7 +820,7 @@ class Transform:
 
         >>> import numpy as np
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> round(float(hrtf.TF.magnitude[0, 0, 1]), 6)
         0.209696
         >>> tf = np.array(hrtf.TF.values, copy=True) * 0.98
@@ -956,7 +956,7 @@ class Transform:
 
         >>> import numpy as np
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> round(float(hrtf.TF.magnitude[0, 0, 1]), 6)
         0.209696
         >>> magnitude = np.array(hrtf.TF.magnitude, copy=True) * 0.95
@@ -1023,7 +1023,7 @@ class Transform:
         Apply a broadband attenuation in dB to all source positions and ears:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> round(float(hrtf.TF.magnitude[0, 0, 1]), 6)
         0.209696
         >>> quieter = hrtf.transform.apply_gain(-3.0, scale="db")
@@ -1079,7 +1079,7 @@ class Transform:
         resulting frequency-bin count:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.fft_length
         256
         >>> hrtf.TF.values.shape
@@ -1099,59 +1099,6 @@ class Transform:
             ir,
             fft_length=transformed_hrtf.fft_length,
         )
-        transformed_hrtf._transformed = True
-        return transformed_hrtf
-
-    def modify_source_coordinate_system(
-        self,
-        coordinate_system: str,
-    ) -> "HRTF":
-        """Update the target source coordinate system.
-
-        This updates the coordinate system used by :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions`
-        on the returned HRTF. It does not rewrite SOFA SourcePosition
-        values; positions are converted on read through the source manager.
-
-        Parameters
-        ----------
-        coordinate_system : {``spherical``, ``cartesian``, ``lateral-polar``}
-            Target coordinate system used by :class:`~hrtfpykit.hrtf.sources.Sources` when positions are read.
-
-        Returns
-        -------
-        HRTF
-            A new HRTF instance with updated :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`.
-
-        Raises
-        ------
-        ValueError
-            If coordinate_system is not one of the supported source
-            coordinate systems.
-
-        Examples
-        --------
-        Read source positions in Cartesian coordinates from a transformed HRTF:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.Sources.source_coordinate_system
-        'spherical'
-        >>> cartesian = hrtf.transform.modify_source_coordinate_system("cartesian")
-        >>> positions = cartesian.Sources.get_positions()
-        >>> cartesian.Sources.source_coordinate_system
-        'cartesian'
-        >>> positions.shape
-        (793, 3)
-        """
-        coordinate_system = str(coordinate_system).strip().lower()
-        allowed_coordinate_systems = {"spherical", "cartesian", "lateral-polar"}
-        if coordinate_system not in allowed_coordinate_systems:
-            raise ValueError(
-                "coordinate_system must be one of: spherical, cartesian, lateral-polar"
-            )
-
-        transformed_hrtf = self._hrtf.clone()
-        transformed_hrtf.Sources.source_coordinate_system = coordinate_system
         transformed_hrtf._transformed = True
         return transformed_hrtf
 
@@ -1193,7 +1140,7 @@ class Transform:
         Add a two-sample delay to the left ear for every source position:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.IR.get_itd(output="samples")[:5]
         array([-3, -4, -3, -4, -4])
         >>> delayed = hrtf.transform.add_itd(2, unit="samples")
@@ -1327,7 +1274,7 @@ class Transform:
         magnitude-focused features:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.IR.get_itd(output="samples")[:5]
         array([-3, -4, -3, -4, -4])
         >>> no_itd = hrtf.transform.delete_itd()

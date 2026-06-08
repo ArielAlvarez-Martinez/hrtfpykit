@@ -908,49 +908,6 @@ class HRTFTransform:
         return HRTFTransform.build("modify_fft_length", new_fft_length)
 
     @staticmethod
-    def modify_source_coordinate_system(coordinate_system: str) -> Callable[[object], object]:
-        """Create a callable that changes source coordinate-system metadata.
-
-        The returned callable forwards coordinate_system to
-        :meth:`~hrtfpykit.hrtf.transforms.Transform.modify_source_coordinate_system`.
-        The transform changes how the subject source manager reports positions,
-        while leaving the source layout and acoustic arrays intact.
-
-        Parameters
-        ----------
-        coordinate_system : {``spherical``, ``cartesian``, ``lateral-polar``}
-            Source coordinate system requested for each loaded HRTF.
-
-        Returns
-        -------
-        callable
-            Dataset-level transform callable accepting and returning an
-            :class:`~hrtfpykit.hrtf.HRTF` object.
-
-        Notes
-        -----
-        Use this factory when downstream specs or custom code should read source
-        positions in a consistent coordinate system without editing SOFA
-        SourcePosition values.
-
-        Examples
-        --------
-        >>> from hrtfpykit.datasets import HUTUBS
-        >>> from hrtfpykit.datasets import HRTFSpec
-        >>> from hrtfpykit.datasets import HRTFTransform
-        >>> transform = HRTFTransform.modify_source_coordinate_system("spherical")
-        >>> dataset = HUTUBS(
-        ...     root="datasets/hutubs",
-        ...     inputs=HRTFSpec(),
-        ...     dataset_hrtf_transform=transform,
-        ... )
-        """
-        return HRTFTransform.build(
-            "modify_source_coordinate_system",
-            coordinate_system,
-        )
-
-    @staticmethod
     def add_itd(
         itd: float,
         unit: str = "samples",

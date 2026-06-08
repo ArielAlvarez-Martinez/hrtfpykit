@@ -479,7 +479,7 @@ def hrtf_from_dtf_and_ctf(
     Reconstruct an HRTF after separating it into DTF and CTF components:
 
     >>> from hrtfpykit.hrtf import hrtf_from_dtf_and_ctf, load_hrtf
-    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> dtf = hrtf.transform.to_dtf()
     >>> ctf = hrtf.transform.to_ctf()
     >>> reconstructed = hrtf_from_dtf_and_ctf(dtf, ctf)

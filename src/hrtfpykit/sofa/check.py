@@ -82,7 +82,7 @@ def check_sofa_against_conventions(
 
     >>> from hrtfpykit.sofa import check_sofa_against_conventions
     >>> summary = check_sofa_against_conventions(
-    ...     "hrtfs/P0001_FreeFieldComp_44kHz.sofa"
+    ...     "P0001_FreeFieldComp_44kHz.sofa"
     ... )
     >>> summary["convention"]["name"]
     'SimpleFreeFieldHRIR'
@@ -322,7 +322,7 @@ def check_sofa_security(
 
     >>> from hrtfpykit.sofa import check_sofa_security
     >>> report = check_sofa_security(
-    ...     "hrtfs/P0001_FreeFieldComp_44kHz.sofa",
+    ...     "P0001_FreeFieldComp_44kHz.sofa",
     ...     print_report=False,
     ... )
     >>> report["passed"]

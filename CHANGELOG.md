@@ -32,6 +32,10 @@ use the `vx.y.z` format.
   (or `c`/`d`) selects one ARI filename group. Downloads support the same NH
   selector plus `download_hrtf_variant="all"` for every configured ARI HRTF
   family.
+- Added `coordinate_system`, `plane`, and `plane_angle` selection to
+  `Sources.get_positions`, so users can request spherical, Cartesian, or
+  lateral-polar positions and filter source grids by horizontal, median, or
+  frontal planes directly at read time.
 
 ### Changed
 
@@ -50,6 +54,15 @@ use the `vx.y.z` format.
   `download_exclude_subject_ids` instead of dataset construction config.
 - Removed the legacy single-server `DownloadConfig` and `DatasetConfig.download`
   path; downloads now use `download_servers` exclusively.
+- Removed collection-style `__getitem__`, `__iter__`, and `__len__` methods from
+  the SOFA data wrappers; users should call `get`, `get_names`, `get_values`,
+  `get_all`, and `summary` explicitly.
+- Removed `modify_source_coordinate_system` from HRTF transform APIs because it
+  changed only the in-memory read coordinate system and did not rewrite SOFA
+  source-position values on save. Now a similar feature (get the source positions 
+  in different coordinate system references like `spherical`, `cartesian` or 
+  `lateral-polar`) can be accessed through :
+  `hrtf.Sources.get_positions(coordinate_system="spherical")`.
 - Changed SOFAcoustics download server configuration to use direct per-dataset
   base URLs instead of a shared base URL plus `path_prefix`.
 - Changed checksum planning to use an explicit per-job `checksum_key` instead of
@@ -76,8 +89,12 @@ use the `vx.y.z` format.
   warning now reports only the variant selectors relevant to the requested
   resources.
 - Improved ARI, HUTUBS, and SONICOM dataset docstrings with explicit download
-  server options, download resource support, and dataset/download variant
-  choices.
+  server options, download resource support, dataset/download variant choices,
+  subject availability, and scanner-compatible local layouts for manually copied
+  resources.
+- Improved SOFA wrapper API documentation with consistent method ordering and
+  practical examples for dimensions, variables, global attributes, and variable
+  attributes.
 - Documented in `AnthropometrySpec` and `MetadataSpec` that subjects with
   missing, empty, NaN, or infinite table fields are removed during dataset
   construction, and that users can exclude incomplete fields with

@@ -78,9 +78,11 @@ def load_sofa(
     metadata, source grid, and HRIR array through the SOFA wrappers:
 
     >>> from hrtfpykit.sofa import load_sofa
-    >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
     >>> sofa.GlobalAttributes.get("SOFAConventions").value
     'SimpleFreeFieldHRIR'
+    >>> sofa.Variables.get_names()
+    ['ListenerPosition', 'ReceiverPosition', 'SourcePosition', 'EmitterPosition', 'ListenerUp', 'ListenerView', 'Data.IR', 'Data.SamplingRate']
     >>> sofa.Variables.get("SourcePosition").value.shape
     (793, 3)
     >>> sofa.Variables.get("Data.IR").value.shape
@@ -142,7 +144,7 @@ class SOFA:
         through a :class:`~hrtfpykit.sofa.SOFA` object:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> sofa.path.name
         'P0001_FreeFieldComp_44kHz.sofa'
         >>> sofa.Dimensions.get("M").value
@@ -181,7 +183,7 @@ class SOFA:
         SimpleFreeFieldHRIR SOFA file:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> sofa.Dimensions.get("M").value
         793
         >>> sofa.Dimensions.get("R").value
@@ -212,7 +214,7 @@ class SOFA:
         Read convention-level metadata from a loaded SOFA file:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> sofa.GlobalAttributes.get("SOFAConventions").value
         'SimpleFreeFieldHRIR'
         >>> sofa.GlobalAttributes.get("DataType").value
@@ -241,7 +243,7 @@ class SOFA:
         loaded SOFA file:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> sofa.Variables.get("Data.IR").value.shape
         (793, 2, 256)
         >>> sofa.Variables.get("SourcePosition").value.shape
@@ -273,7 +275,7 @@ class SOFA:
         Read coordinate-system and units metadata for source positions:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> sofa.VariableAttributes.get("SourcePosition:Type").value
         'spherical'
         >>> sofa.VariableAttributes.get("SourcePosition:Units").value
@@ -320,7 +322,7 @@ class SOFA:
         dimension metadata:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_dimension("Q", 3)
         >>> editable.Dimensions.get("Q").value
@@ -371,7 +373,7 @@ class SOFA:
         that depend on it:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_dimension("Q", 2)
         >>> editable.rename_dimension("Q", "Q2")
@@ -425,7 +427,7 @@ class SOFA:
         file:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_global_attribute(
         ...     "ExampleNote",
@@ -480,7 +482,7 @@ class SOFA:
         value back through the global-attribute wrapper:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_global_attribute("ExampleNote", "initial note")
         >>> editable.modify_global_attribute("ExampleNote", "updated note")
@@ -529,7 +531,7 @@ class SOFA:
         Remove a custom global attribute from an in-memory clone:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_global_attribute("ExampleNote", "temporary")
         >>> editable.delete_global_attribute("ExampleNote")
@@ -583,7 +585,7 @@ class SOFA:
         Add metadata to the HRIR variable on a cloned SOFA object:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_variable_attribute(
         ...     "Data.IR:ExampleNote",
@@ -644,7 +646,7 @@ class SOFA:
         Update metadata on the HRIR variable of a cloned SOFA object:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_variable_attribute("Data.IR:ExampleNote", "initial")
         >>> editable.modify_variable_attribute("Data.IR:ExampleNote", "edited copy")
@@ -701,7 +703,7 @@ class SOFA:
         workflow:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_variable_attribute("Data.IR:ExampleNote", "temporary")
         >>> editable.delete_variable_attribute("Data.IR:ExampleNote")
@@ -784,7 +786,7 @@ class SOFA:
         units metadata to it:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_dimension("Q", 3)
         >>> editable.create_variable(
@@ -879,7 +881,7 @@ class SOFA:
 
         >>> import numpy as np
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> ir = editable.Variables.get("Data.IR").value
         >>> edited_ir = np.array(ir, copy=True)
@@ -944,7 +946,7 @@ class SOFA:
         temporary metadata:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_dimension("Q", 3)
         >>> editable.create_variable("ExampleVector", [1.0, 2.0, 3.0], ("Q",))
@@ -1017,7 +1019,7 @@ class SOFA:
 
         >>> from pathlib import Path
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_global_attribute("ExampleNote", "saved copy")
         >>> output_dir = Path("processed")
@@ -1141,7 +1143,7 @@ class SOFA:
         SOFA object unchanged:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> editable = sofa.clone()
         >>> editable.create_global_attribute("ExampleNote", "clone only")
         >>> editable.path is None
@@ -1244,7 +1246,7 @@ class SOFA:
         SOFA object unchanged:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> ir = sofa.Variables.get("Data.IR").value
         >>> cropped = sofa.copy_with(
         ...     dim_sizes={"N": 128},
@@ -1413,7 +1415,7 @@ class SOFA:
         and HRIR variable dimensions:
 
         >>> from hrtfpykit.sofa import load_sofa
-        >>> sofa = load_sofa("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
         >>> summary = sofa.summary()
         >>> summary.splitlines()[:3]
         ['****************************', '     GLOBAL ATTRIBUTES', '****************************']

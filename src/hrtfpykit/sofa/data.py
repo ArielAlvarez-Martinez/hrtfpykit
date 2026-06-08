@@ -37,6 +37,27 @@ class _Data(ABC):
         self._netCDF4_dataset = dataset
 
     @abstractmethod
+    def get(self, name: str):
+        """Return a wrapped item by name.
+
+        Parameters
+        ----------
+        name : str
+            Item name or key.
+
+        Returns
+        -------
+        object
+            Collection-specific wrapper object.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` cannot be resolved by the concrete collection.
+        """
+        pass
+
+    @abstractmethod
     def get_names(self):
         """Return available item names for the wrapped collection.
 
@@ -60,27 +81,6 @@ class _Data(ABC):
         pass
 
     @abstractmethod
-    def get(self, name: str): 
-        """Return a wrapped item by name.
-
-        Parameters
-        ----------
-        name : str
-            Item name or key.
-
-        Returns
-        -------
-        object
-            Collection-specific wrapper object.
-
-        Raises
-        ------
-        ValueError
-            If ``name`` cannot be resolved by the concrete collection.
-        """
-        pass
-    
-    @abstractmethod
     def get_all(self):
         """Return all wrapped items keyed by name.
 
@@ -90,7 +90,7 @@ class _Data(ABC):
             Mapping from collection-specific names to wrapper objects.
         """
         pass
-    
+
     @abstractmethod
     def summary(self):
         """Return a formatted text summary for this collection.
@@ -99,49 +99,6 @@ class _Data(ABC):
         -------
         str
             Human-readable summary of the collection content.
-        """
-        pass
-
-    @abstractmethod
-    def __getitem__(self, name):
-        """Return a wrapped item using indexing syntax.
-
-        Parameters
-        ----------
-        name : str
-            Item name or key.
-
-        Returns
-        -------
-        object
-            Collection-specific wrapper object.
-
-        Raises
-        ------
-        ValueError
-            If ``name`` cannot be resolved by the concrete collection.
-        """
-        pass
-
-    @abstractmethod
-    def __iter__(self):
-        """Iterate over wrapped collection items.
-
-        Returns
-        -------
-        Iterator
-            Iterator over collection-specific wrapper objects.
-        """
-        pass
-
-    @abstractmethod    
-    def __len__(self):
-        """Return the number of items in the wrapped collection.
-
-        Returns
-        -------
-        int
-            Number of available collection items.
         """
         pass
 
@@ -168,6 +125,38 @@ class _Dimensions(_Data):
         """
         super().__init__(dataset)
 
+    def get(self, name: str) -> Optional[DimensionsWrap]:
+        """Return one wrapped SOFA dimension by name.
+
+        Parameters
+        ----------
+        name : str
+            Dimension name to resolve, such as ``M``, ``R``, ``N``, or ``E``.
+
+        Returns
+        -------
+        DimensionsWrap
+            Wrapped dimension metadata containing the name, size, and
+            unlimited flag.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` is not present in the netCDF4 dimensions.
+
+        Examples
+        --------
+        Read the measurement dimension size from a SOFA file:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa.Dimensions.get("M").value
+        793
+        """
+        if name not in self._netCDF4_dataset.dimensions:
+            raise ValueError(f"Dimension not found: {name}")
+        return DimensionsWrap(name, self._netCDF4_dataset.dimensions)
+
     def get_names(self) -> list[str]:
         """Return all dimension names in storage order.
 
@@ -175,6 +164,15 @@ class _Dimensions(_Data):
         -------
         list[str]
             Names from ``dataset.dimensions`` on the netCDF4 storage handle.
+
+        Examples
+        --------
+        List the dimension keys exposed by the SOFA file:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa.Dimensions.get_names()
+        ['M', 'R', 'E', 'N', 'C', 'I']
         """
         return list(self._netCDF4_dataset.dimensions.keys())
 
@@ -187,31 +185,18 @@ class _Dimensions(_Data):
             Dimension sizes matching the order returned by
             :meth:`~hrtfpykit.sofa.data._Dimensions.get_names`.
             Unlimited dimensions report their current netCDF4 size.
+
+        Examples
+        --------
+        Read dimension sizes in the same order as
+        :meth:`get_names`:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa.Dimensions.get_values()
+        [793, 2, 3, 256, 3, 1]
         """
         return [dim.size for dim in self._netCDF4_dataset.dimensions.values()]
-
-    def get(self, name: str) -> Optional[DimensionsWrap]:
-        """Return one wrapped SOFA dimension by name.
-
-        Parameters
-        ----------
-        name : str
-            Dimension name to resolve.
-
-        Returns
-        -------
-        DimensionsWrap
-            Wrapped dimension metadata containing the name, size, and
-            unlimited flag.
-
-        Raises
-        ------
-        ValueError
-            If ``name`` is not present in the netCDF4 dimensions.
-        """
-        if name not in self._netCDF4_dataset.dimensions:
-            raise ValueError(f"Dimension not found: {name}")
-        return DimensionsWrap(name, self._netCDF4_dataset.dimensions)
 
     def get_all(self) -> Dict[str, DimensionsWrap]:
         """Return all dimensions as wrapped objects.
@@ -220,11 +205,21 @@ class _Dimensions(_Data):
         -------
         dict[str, DimensionsWrap]
             Mapping from dimension names to wrapped dimension metadata.
+
+        Examples
+        --------
+        Collect dimension wrappers and inspect one dimension:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> dimensions = sofa.Dimensions.get_all()
+        >>> dimensions["M"].value
+        793
         """
         return {
             k: DimensionsWrap(k, self._netCDF4_dataset.dimensions)
             for k in self._netCDF4_dataset.dimensions.keys()
-            }
+        }
 
     def summary(self) -> str:
         """Return a formatted summary of SOFA dimensions.
@@ -234,6 +229,20 @@ class _Dimensions(_Data):
         str
             Multi-line text where each line has name = size. Dimensions
             are sorted alphabetically to keep the summary stable.
+
+        Examples
+        --------
+        Print a stable text summary of the SOFA dimensions:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> print(sofa.Dimensions.summary())
+        C = 3
+        E = 3
+        I = 1
+        M = 793
+        N = 256
+        R = 2
         """
         lines = []
         for name in sorted(self._netCDF4_dataset.dimensions.keys()):
@@ -241,46 +250,6 @@ class _Dimensions(_Data):
             lines.append(f"{name} = {dim.size}")
         return "\n".join(lines)
 
-    def __getitem__(self, name: str) -> Optional[DimensionsWrap]:
-        """Return a wrapped dimension using indexing syntax.
-
-        Parameters
-        ----------
-        name : str
-            Dimension name.
-
-        Returns
-        -------
-        DimensionsWrap
-            Wrapped dimension metadata.
-
-        Raises
-        ------
-        ValueError
-            If ``name`` is not present in the netCDF4 dimensions.
-        """
-        return self.get(name)
-
-    def __iter__(self) -> Iterator[DimensionsWrap]:
-        """Iterate over wrapped dimensions.
-
-        Returns
-        -------
-        Iterator[DimensionsWrap]
-            Iterator over all dimensions in storage order.
-        """
-        return iter(self.get_all().values())
-
-    def __len__(self) -> int:
-        """Return the number of dimensions in the netCDF4 storage handle.
-
-        Returns
-        -------
-        int
-            Number of entries in ``dataset.dimensions`` on the netCDF4 storage handle.
-        """
-        return len(self._netCDF4_dataset.dimensions)
-    
 
 class _AttributesBase(_Data):
     def __init__(self, dataset: netCDF4.Dataset | None = None, attribute_type: str = "Attribute") -> None:
@@ -345,28 +314,6 @@ class _AttributesBase(_Data):
         """
         return "Please insert a valid attribute name"
 
-    def get_names(self) -> list[str]:
-        """Return all attribute names in collection order.
-
-        Returns
-        -------
-        list[str]
-            Attribute keys produced by
-            :meth:`~hrtfpykit.sofa.data._AttributesBase._iter_items`.
-        """
-        return [name for name, _ in self._iter_items()]
-
-    def get_values(self) -> list[Any]:
-        """Return all raw attribute values in collection order.
-
-        Returns
-        -------
-        list[Any]
-            Attribute values produced by
-            :meth:`~hrtfpykit.sofa.data._AttributesBase._iter_items`.
-        """
-        return [value for _, value in self._iter_items()]
-
     def get(self, name: str) -> Optional[AttributesWrap]:
         """Return one wrapped attribute by name.
 
@@ -388,6 +335,17 @@ class _AttributesBase(_Data):
         ValueError
             If ``name`` does not resolve to an available attribute in the
             wrapped collection.
+
+        Examples
+        --------
+        Read one global attribute and one variable attribute by key:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa.GlobalAttributes.get("SOFAConventions").value
+        'SimpleFreeFieldHRIR'
+        >>> sofa.VariableAttributes.get("SourcePosition:Type").value
+        'spherical'
         """
         value = self._get_value(name)
         if value is None:
@@ -399,6 +357,48 @@ class _AttributesBase(_Data):
             raise ValueError(f"{label} not found: {name}")
         return AttributesWrap(name, value, self._attribute_type)
 
+    def get_names(self) -> list[str]:
+        """Return all attribute names in collection order.
+
+        Returns
+        -------
+        list[str]
+            Attribute keys produced by
+            :meth:`~hrtfpykit.sofa.data._AttributesBase._iter_items`.
+
+        Examples
+        --------
+        Check whether expected global and variable attribute keys are present:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> "SOFAConventions" in sofa.GlobalAttributes.get_names()
+        True
+        >>> "SourcePosition:Type" in sofa.VariableAttributes.get_names()
+        True
+        """
+        return [name for name, _ in self._iter_items()]
+
+    def get_values(self) -> list[Any]:
+        """Return all raw attribute values in collection order.
+
+        Returns
+        -------
+        list[Any]
+            Attribute values produced by
+            :meth:`~hrtfpykit.sofa.data._AttributesBase._iter_items`.
+
+        Examples
+        --------
+        Inspect raw attribute values without wrapping them first:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> "SimpleFreeFieldHRIR" in sofa.GlobalAttributes.get_values()
+        True
+        """
+        return [value for _, value in self._iter_items()]
+
     def get_all(self) -> Dict[str, AttributesWrap]:
         """Return all attributes as wrapped objects.
 
@@ -406,6 +406,19 @@ class _AttributesBase(_Data):
         -------
         dict[str, AttributesWrap]
             Mapping from attribute keys to wrapped attribute metadata.
+
+        Examples
+        --------
+        Collect wrapped attributes and inspect metadata from each collection:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> global_attributes = sofa.GlobalAttributes.get_all()
+        >>> global_attributes["SOFAConventions"].value
+        'SimpleFreeFieldHRIR'
+        >>> variable_attributes = sofa.VariableAttributes.get_all()
+        >>> variable_attributes["SourcePosition:Type"].value
+        'spherical'
         """
         return {
             name: AttributesWrap(name, value, self._attribute_type)
@@ -421,52 +434,16 @@ class _AttributesBase(_Data):
 
         Returns
         -------
-        None
-            The base implementation does not build a summary.
+        str
+            Empty string.
+
+        Examples
+        --------
+        Users normally call ``summary()`` on ``sofa.GlobalAttributes`` or
+        ``sofa.VariableAttributes``, which use the concrete summary
+        implementations.
         """
         return ""
-
-    def __getitem__(self, key: str) -> Optional[AttributesWrap]:
-        """Return a wrapped attribute using indexing syntax.
-
-        Parameters
-        ----------
-        key : str
-            Attribute key accepted by
-            :meth:`~hrtfpykit.sofa.data._AttributesBase.get`.
-
-        Returns
-        -------
-        AttributesWrap
-            Wrapped attribute metadata.
-
-        Raises
-        ------
-        ValueError
-            If ``key`` does not resolve to an available attribute.
-        """
-        return self.get(key)
-
-    def __iter__(self) -> Iterator[AttributesWrap]:
-        """Iterate over wrapped attributes.
-
-        Returns
-        -------
-        Iterator[AttributesWrap]
-            Iterator over all wrapped attributes in collection order.
-        """
-        return iter(self.get_all().values())
-
-    def __len__(self) -> int:
-        """Return the number of attributes in the collection.
-
-        Returns
-        -------
-        int
-            Number of attribute keys returned by
-            :meth:`~hrtfpykit.sofa.data._AttributesBase.get_names`.
-        """
-        return len(self.get_names())
 
 
 class _GlobalAttributes(_AttributesBase):
@@ -539,6 +516,15 @@ class _GlobalAttributes(_AttributesBase):
             Multi-line summary with a header followed by ``GLOBAL:name`` =
             value lines. Returns an empty string when the SOFA file has no
             global attributes.
+
+        Examples
+        --------
+        Check the formatted global-attribute summary text:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> "SOFAConventions" in sofa.GlobalAttributes.summary()
+        True
         """
         items = list(self._iter_items())
         if not items:
@@ -630,6 +616,23 @@ class _VariableAttributes(_AttributesBase):
             Multi-line summary with a header followed by
             ``Variable:Attribute`` = value lines. Returns an empty string when
             no variable attributes are present.
+
+        Examples
+        --------
+        Update metadata on the HRIR variable of a cloned SOFA object:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_variable_attribute("Data.IR:ExampleNote", "initial")
+        >>> editable.modify_variable_attribute("Data.IR:ExampleNote", "edited copy")
+        >>> editable.VariableAttributes.get("Data.IR:ExampleNote").value
+        'edited copy'
+
+        Check the formatted variable-attribute summary text:
+
+        >>> "SourcePosition:Type" in sofa.VariableAttributes.summary()
+        True
         """
         items = list(self._iter_items())
         if not items:
@@ -641,6 +644,7 @@ class _VariableAttributes(_AttributesBase):
         ]
         lines.extend(f"{name} = {value}" for name, value in items)
         return "\n".join(lines)
+
 
 class _Variables(_Data):
     def __init__(self, dataset: netCDF4.Dataset | None = None):
@@ -664,6 +668,41 @@ class _Variables(_Data):
         """
         super().__init__(dataset)
 
+    def get(self, name: str) -> Optional[VariablesWrap]:
+        """Return one wrapped SOFA variable by name.
+
+        Parameters
+        ----------
+        name : str
+            Variable name to resolve, such as ``Data.IR``, ``SourcePosition``,
+            or ``Data.SamplingRate``.
+
+        Returns
+        -------
+        VariablesWrap
+            Wrapped variable exposing NumPy data through
+            :attr:`~hrtfpykit.sofa.wraps.VariablesWrap.value` and variable
+            attributes through
+            :attr:`~hrtfpykit.sofa.wraps.VariablesWrap.attributes`.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` is not present in the netCDF4 variables.
+
+        Examples
+        --------
+        Read the HRIR data variable and inspect its array shape:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> sofa.Variables.get("Data.IR").value.shape
+        (793, 2, 256)
+        """
+        if name not in self._netCDF4_dataset.variables:
+            raise ValueError(f"Variable not found: {name}")
+        return VariablesWrap(name, self._netCDF4_dataset.variables[name])
+
     def get_names(self) -> list[str]:
         """Return all variable names in storage order.
 
@@ -671,6 +710,15 @@ class _Variables(_Data):
         -------
         list[str]
             Names from ``dataset.variables`` on the netCDF4 storage handle.
+
+        Examples
+        --------
+        Check whether a standard SOFA data variable is present:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> "Data.IR" in sofa.Variables.get_names()
+        True
         """
         return list(self._netCDF4_dataset.variables.keys())
 
@@ -688,33 +736,18 @@ class _Variables(_Data):
         Exception
             Propagates errors raised by netCDF4 when a variable cannot be
             read.
+
+        Examples
+        --------
+        Load every SOFA variable value and compare the count with the names:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> values = sofa.Variables.get_values()
+        >>> len(values) == len(sofa.Variables.get_names())
+        True
         """
         return [np.array(v[:]) for v in self._netCDF4_dataset.variables.values()]
-
-    def get(self, name: str) -> Optional[VariablesWrap]:
-        """Return one wrapped SOFA variable by name.
-
-        Parameters
-        ----------
-        name : str
-            Variable name to resolve.
-
-        Returns
-        -------
-        VariablesWrap
-            Wrapped variable exposing NumPy data through
-            :attr:`~hrtfpykit.sofa.wraps.VariablesWrap.value` and variable
-            attributes through
-            :attr:`~hrtfpykit.sofa.wraps.VariablesWrap.attributes`.
-
-        Raises
-        ------
-        ValueError
-            If ``name`` is not present in the netCDF4 variables.
-        """
-        if name not in self._netCDF4_dataset.variables:
-            raise ValueError(f"Variable not found: {name}")
-        return VariablesWrap(name, self._netCDF4_dataset.variables[name])
 
     def get_all(self) -> Dict[str, VariablesWrap]:
         """Return all variables as wrapped objects.
@@ -723,6 +756,26 @@ class _Variables(_Data):
         -------
         dict[str, VariablesWrap]
             Mapping from variable names to wrapped variable objects.
+
+        Examples
+        --------
+        Create a small derived variable on a cloned SOFA object and attach
+        units metadata to it:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> editable = sofa.clone()
+        >>> editable.create_dimension("Q", 3)
+        >>> editable.create_variable(
+        ...     "ExampleVector",
+        ...     [1.0, 2.0, 3.0],
+        ...     ("Q",),
+        ...     attributes={"Units": "1"},
+        ... )
+        >>> editable.Variables.get_all()["ExampleVector"].value
+        array([1., 2., 3.])
+        >>> editable.VariableAttributes.get("ExampleVector:Units").value
+        '1'
         """
         return {
             k: VariablesWrap(k, v) for k, v in self._netCDF4_dataset.variables.items()
@@ -737,6 +790,15 @@ class _Variables(_Data):
             Multi-line summary listing each variable, its dimension names and
             current dimension sizes, followed by any variable attributes.
             Missing dimension references are displayed with ?.
+
+        Examples
+        --------
+        Check the formatted variable summary text:
+
+        >>> from hrtfpykit.sofa import load_sofa
+        >>> sofa = load_sofa("P0001_FreeFieldComp_44kHz.sofa")
+        >>> "Data.IR" in sofa.Variables.summary()
+        True
         """
         lines = []
         for name, var in self._netCDF4_dataset.variables.items():
@@ -758,42 +820,3 @@ class _Variables(_Data):
                     lines.append(f"      {name}:{attr_name}= {value}")
         return "\n".join(lines)
 
-    def __getitem__(self, key: str) -> Optional[VariablesWrap]:
-        """Return a wrapped variable using indexing syntax.
-
-        Parameters
-        ----------
-        key : str
-            Variable name.
-
-        Returns
-        -------
-        VariablesWrap
-            Wrapped variable object.
-
-        Raises
-        ------
-        ValueError
-            If ``key`` is not present in the netCDF4 variables.
-        """
-        return self.get(key)
-
-    def __iter__(self) -> Iterator[VariablesWrap]:
-        """Iterate over wrapped SOFA variables.
-
-        Returns
-        -------
-        Iterator[VariablesWrap]
-            Iterator over all variables in storage order.
-        """
-        return iter(self.get_all().values())
-
-    def __len__(self) -> int:
-        """Return the number of variables in the netCDF4 storage handle.
-
-        Returns
-        -------
-        int
-            Number of entries in ``dataset.variables`` on the netCDF4 storage handle.
-        """
-        return len(self._netCDF4_dataset.variables)

@@ -52,7 +52,7 @@ class SH:
     dimensions stored in the returned container:
 
     >>> from hrtfpykit.hrtf import load_hrtf, sht
-    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> sh = sht(hrtf, sh_order=3, ear="both")
     >>> sh.C.shape
     (16, 2, 129)
@@ -84,7 +84,7 @@ class SH:
         spherical harmonics:
 
         >>> from hrtfpykit.hrtf import load_hrtf, sht
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> sh = sht(hrtf, sh_order=3, ear="both")
         >>> coefficients = sh.get_coefficients()
         >>> coefficients.shape
@@ -160,7 +160,7 @@ def sht(
     HRTF and keep both ears in the coefficient tensor:
 
     >>> from hrtfpykit.hrtf import load_hrtf, sht
-    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> sh = sht(hrtf, sh_order=3, ear="both")
     >>> sh.get_coefficients().shape
     (16, 2, 129)
@@ -295,7 +295,7 @@ def sht_inverse(sh: SH):
     Reconstruct magnitudes on the same source grid used for decomposition:
 
     >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_inverse
-    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> sh = sht(hrtf, sh_order=3, ear="both")
     >>> magnitude_reconstructed = sht_inverse(sh)
     >>> magnitude_reconstructed.shape
@@ -389,7 +389,7 @@ def sht_error(
 
     >>> import numpy as np
     >>> from hrtfpykit.hrtf import load_hrtf, sht, sht_error, sht_inverse
-    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> sh = sht(hrtf, sh_order=3, ear="left")
     >>> reconstructed = sht_inverse(sh)
     >>> abs_err, rel_err, rms_err, max_err = sht_error(

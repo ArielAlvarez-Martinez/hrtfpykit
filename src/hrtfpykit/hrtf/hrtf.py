@@ -120,7 +120,7 @@ def load_hrtf(
     time- and frequency-domain views:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf.SOFAConventions
     'SimpleFreeFieldHRIR'
     >>> hrtf.IR.values.shape
@@ -369,7 +369,7 @@ class HRTF(HRTFPlots):
         signal length, duration, and ITD values through ``hrtf.IR``:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> ir_values = hrtf.IR.values
         >>> sample_rate = hrtf.IR.sample_rate
         >>> first_position_left_ir = hrtf.IR.values[0, 0, :]
@@ -404,7 +404,7 @@ class HRTF(HRTFPlots):
         axis, bin metadata, and derived spectral arrays through ``hrtf.TF``:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.TF.values.shape
         (793, 2, 129)
         >>> hrtf.TF.values.dtype
@@ -447,7 +447,7 @@ class HRTF(HRTFPlots):
         source views through ``hrtf.Sources``:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.Sources.source_coordinate_system
         'spherical'
         >>> hrtf.Sources.get_positions().shape
@@ -518,7 +518,7 @@ class HRTF(HRTFPlots):
         remains unchanged:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf_copy = hrtf.clone()
         >>> hrtf_copy.IR.values[0, 0, 0] += 1.0
         >>> hrtf_copy.IR.values[0, 0, 0] == hrtf.IR.values[0, 0, 0]
@@ -587,7 +587,7 @@ class HRTF(HRTFPlots):
         Restore a selected HRTF object from its backed SOFA content:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> selected = hrtf.select(positions=["front", "left", "right"])
         >>> selected.IR.values.shape
         (3, 2, 256)
@@ -715,7 +715,7 @@ class HRTF(HRTFPlots):
         object stayed unchanged:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> windowed = hrtf.transform.apply_window("hann")
         >>> hrtf.is_transformed()
         False
@@ -783,7 +783,7 @@ class HRTF(HRTFPlots):
         saving or inspecting SOFA variables:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> selected = hrtf.select(positions=["front", "left", "right"])
         >>> selected.update_sofa(change_sofa_dimensions=True)
         >>> source_positions = selected.Sofa.Variables.get("SourcePosition").value
@@ -1267,7 +1267,7 @@ class HRTF(HRTFPlots):
 
         >>> from pathlib import Path
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> windowed = hrtf.transform.apply_window("hann")
         >>> output_dir = Path("processed")
         >>> output_dir.mkdir(exist_ok=True)
@@ -1374,7 +1374,7 @@ class HRTF(HRTFPlots):
         HRIR samples used in the returned HRTF:
 
         >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("hrtfs/P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.IR.values.shape
         (793, 2, 256)
         >>> selected = hrtf.select(

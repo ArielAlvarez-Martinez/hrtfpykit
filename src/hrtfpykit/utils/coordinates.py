@@ -311,8 +311,11 @@ def get_spherical_positions(
     :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` is responsible for
     applying that selection before this function converts the coordinates.
     """
-    positions = sources.get_positions(angle_unit=angle_unit)
     target_system = str(sources.source_coordinate_system).strip().lower()
+    positions = sources.get_positions(
+        angle_unit=angle_unit,
+        coordinate_system=target_system,
+    )
     if target_system == "spherical":
         return np.asarray(positions, dtype=float)
     if target_system == "cartesian":
@@ -390,8 +393,12 @@ def get_source_positions(
     :class:`~hrtfpykit.hrtf.sources.Sources` before this function performs the
     final coordinate-system normalization.
     """
+    source_system = str(sources.source_coordinate_system).strip().lower()
     source_positions = np.asarray(
-        sources.get_positions(angle_unit=angle_unit),
+        sources.get_positions(
+            angle_unit=angle_unit,
+            coordinate_system=source_system,
+        ),
         dtype=float,
     )
     if (
@@ -401,7 +408,6 @@ def get_source_positions(
     ):
         raise ValueError("Source positions must have shape (M, 3)")
 
-    source_system = str(sources.source_coordinate_system).strip().lower()
     target_system = str(coordinate_system).strip().lower()
     if target_system == source_system:
         return source_positions

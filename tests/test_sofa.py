@@ -51,7 +51,6 @@ def test_real_sofa_dimensions_are_available(real_sofa: SOFA) -> None:
     dimensions = real_sofa.Dimensions
 
     assert dimensions is not None
-    assert len(dimensions) > 0
     assert len(dimensions.get_names()) > 0
     assert dimensions.summary() != ""
 

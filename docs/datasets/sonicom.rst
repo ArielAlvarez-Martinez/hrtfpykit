@@ -17,22 +17,13 @@ extended dataset announcement describes additional measured participants,
 synthetic HRTFs generated from processed 3D scans, and continued work to expand
 the dataset.
 
-**Implementation status.**
-
-Last updated: 2026-05-29. SONICOM is an actively developing dataset, and
-new subjects or resources can appear after a hrtfpykit release. This
-implementation supports the released resources indexed by subject identifiers
-``P0001`` through ``P0405``. To use newer SONICOM releases, hrtfpykit must first
-be updated with the corresponding subject identifiers, resource paths, and
-checksums.
-
 **Dataset scope.**
 
-hrtfpykit is configured for SONICOM subject identifiers ``P0001`` through
-``P0405``. The built-in configuration excludes ``P0253``, ``P0258``,
-``P0270``, ``P0272``, ``P0275``, and ``P0396`` before resource scanning and
-split planning. Actual subject availability depends on the resource groups and
-variants present under the local dataset root.
+SONICOM is represented in hrtfpykit as a subject-indexed dataset family with
+measured and synthetic HRTF SOFA files, scanned and synthetic mesh resources,
+and the official metadata table. The dataset is actively evolving upstream, so
+hrtfpykit documents the implemented subject/resource scope separately from the
+broader SONICOM project and ecosystem pages.
 
 The SONICOM resources used by hrtfpykit are:
 
@@ -43,6 +34,24 @@ The SONICOM resources used by hrtfpykit are:
 SONICOM HRIRs are released at 96 kHz and 24 bits, with lower-rate 44.1 kHz and
 48 kHz versions also available for measured HRTFs. hrtfpykit loads these SOFA
 files through the same HRTF workflow used by the rest of the package.
+
+**Implementation status.**
+
+Last updated: 2026-06-05. The current hrtfpykit SONICOM configuration exposes
+subject identifiers ``P0001`` through ``P0405``. The Imperial transfer server is
+the most complete configured source for this implementation: it provides
+``metadata``, ``hrtf``, and ``mesh`` resource groups, with six download-level
+subject exclusions configured for resources that are not available from that
+server: ``P0253``, ``P0258``, ``P0270``, ``P0272``, ``P0275``, and ``P0396``.
+
+The ``sonicom-ecosystem`` server is configured separately and currently supports
+``hrtf`` and ``mesh`` downloads from ecosystem database catalogs. It does not
+provide the SONICOM metadata table through this downloader, and its public
+catalog coverage can differ from the 405 subject identifiers configured for the
+Imperial transfer layout. New SONICOM subjects or resources can appear upstream
+after a hrtfpykit release; hrtfpykit must be updated with the corresponding
+subject identifiers, resource paths, and checksums before those files become part
+of the built-in verified configuration.
 
 **Variants and layout.**
 
@@ -75,20 +84,50 @@ meshes support ``preprocessed``, ``plugged``, ``graded_left``, and
 ``graded_right`` versions. The default mesh selection in hrtfpykit is
 ``type=scanned, version=watertight``.
 
-The metadata table is expected at ``metadata_and_readme/metadata.csv``.
+**Local resource discovery.**
+
+Users can download SONICOM files through hrtfpykit or copy previously downloaded
+files under ``root``. Measured HRTFs are discovered from the official layout and
+from semantic local alternatives. For example, the default measured HRTF for
+``P0001`` can be discovered as:
+
+.. code-block:: text
+
+   P0001/HRTF/HRTF/44kHz/P0001_FreeFieldComp_44kHz.sofa
+   P0001/P0001_FreeFieldComp_44kHz.sofa
+   P0001/hrtf/measured/P0001_FreeFieldComp_44kHz.sofa
+   P0001/hrtf/measured/44100/P0001_FreeFieldComp_44kHz.sofa
+   P0001/hrtf/measured/44kHz/P0001_FreeFieldComp_44kHz.sofa
+   P0001/hrtf/measured/FreeFieldComp/44100/P0001_FreeFieldComp_44kHz.sofa
+   P0001/hrtf/measured/FreeFieldComp/44kHz/P0001_FreeFieldComp_44kHz.sofa
+
+Synthetic HRTFs are discovered as
+``P0001/SYNTHETIC_HRTF/HRIR_SONICOM_44100.sofa`` or from
+``P0001/HRIR_SONICOM_44100.sofa``, ``P0001/hrtf/synthetic/HRIR_SONICOM_44100.sofa``,
+and ``P0001/hrtf/synthetic/44100/HRIR_SONICOM_44100.sofa`` style layouts.
+
+Scanned meshes are discovered from the official ``P0001/3DSCAN/...`` layout and
+from ``P0001/mesh/scanned/...`` alternatives. Synthetic meshes are discovered
+from ``P0001/SYNTHETIC_HRTF/...`` and ``P0001/mesh/synthetic/...`` alternatives.
+Metadata is discovered as ``metadata_and_readme/metadata.csv``,
+``metadata_and_readme/*.csv``, ``metadata/metadata.csv``, or ``metadata.csv``.
 
 **Downloads.**
 
-The built-in downloader uses the SONICOM transfer URL and supports the
-``metadata``, ``hrtf``, and ``mesh`` resource groups. Set ``download=True`` to
-download resources before dataset construction, and use ``download_resources``
-to choose which resource groups to fetch.
+Set ``download=True`` to download selected resources before dataset construction,
+and use ``download_resources`` to choose which resource groups to fetch.
+``download_hrtf_variant`` and ``download_mesh_variant`` control which official
+variants are downloaded. ``dataset_hrtf_variant`` and ``dataset_mesh_variant``
+control which local variants are scanned and used for samples.
 
-``download_hrtf_variant`` and ``download_mesh_variant`` control which variants
-are downloaded. ``dataset_hrtf_variant`` and ``dataset_mesh_variant`` control
-which local variants are scanned and used for samples. Keeping download
-selection separate from dataset construction makes the selected local resources
-explicit.
+Download selection is separate from dataset construction. This is especially
+important for SONICOM because the configured servers differ: ``imperial`` can
+fetch metadata, HRTF, and mesh resources from direct paths, while
+``sonicom-ecosystem`` fetches HRTF and mesh resources from public ecosystem
+catalogs and does not provide metadata through this downloader. By default,
+downloads verify SHA-256 checksums. ``verify_checksum=False`` skips checksum
+verification when that behavior is explicitly required, but keeping checksum
+verification enabled is recommended.
 
 **References.**
 

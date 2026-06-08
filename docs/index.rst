@@ -50,6 +50,9 @@ visualize, compare, and reuse HRTF data across research and deep learning tasks.
 - **Generate** plots to inspect spectral cues, magnitude, amplitude, ITD, LSD, and
   differences between HRTFs with comparison plots, which is especially useful for
   HRTF individualization.
+- **Download** selected resources, including HRTF SOFA files,
+  anthropometry, metadata, and meshes when available from public HRTF datasets
+  like ARI, SONICOM, or HUTUBS.
 - **Combine** HRTFs with subject data such as anthropometry, metadata, meshes, and
   images.
 - **Create** map-style dataset pipelines for training multimodal deep learning models.

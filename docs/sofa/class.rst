@@ -27,25 +27,36 @@ save workflows.
 
 
 .. autoclass:: hrtfpykit.sofa.data._Dimensions
-   :members:
-   :special-members: __len__, __iter__, __getitem__
 
+   .. automethod:: get
+   .. automethod:: get_names
+   .. automethod:: get_values
+   .. automethod:: get_all
+   .. automethod:: summary
 
 
 .. autoclass:: hrtfpykit.sofa.data._GlobalAttributes
-   :members:
-   :inherited-members:
-   :special-members: __len__, __iter__, __getitem__
 
+   .. automethod:: get
+   .. automethod:: get_names
+   .. automethod:: get_values
+   .. automethod:: get_all
+   .. automethod:: summary
 
 
 .. autoclass:: hrtfpykit.sofa.data._Variables
-   :members:
-   :special-members: __len__, __iter__, __getitem__
 
+   .. automethod:: get
+   .. automethod:: get_names
+   .. automethod:: get_values
+   .. automethod:: get_all
+   .. automethod:: summary
 
 
 .. autoclass:: hrtfpykit.sofa.data._VariableAttributes
-   :members:
-   :inherited-members:
-   :special-members: __len__, __iter__, __getitem__
+
+   .. automethod:: get
+   .. automethod:: get_names
+   .. automethod:: get_values
+   .. automethod:: get_all
+   .. automethod:: summary
