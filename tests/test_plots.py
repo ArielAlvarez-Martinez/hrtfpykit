@@ -126,6 +126,16 @@ def test_plot_magnitude_accepts_real_hrtf_file(real_hrtf: HRTF) -> None:
             ),
         ),
         (
+            "plot_etc",
+            lambda hrtf: hrtf.plot_etc(
+                positions="front",
+                ear="both",
+                x_axis="samples",
+                reference="max",
+                show=False,
+            ),
+        ),
+        (
             "plot_amplitude_and_magnitude",
             lambda hrtf: hrtf.plot_amplitude_and_magnitude(
                 position="front",
@@ -197,6 +207,7 @@ def test_plot_magnitude_accepts_real_hrtf_file(real_hrtf: HRTF) -> None:
     ids=[
         "plot_magnitude",
         "plot_amplitude",
+        "plot_etc",
         "plot_amplitude_and_magnitude",
         "plot_spectrum_plane",
         "plot_elevation_spectrum",

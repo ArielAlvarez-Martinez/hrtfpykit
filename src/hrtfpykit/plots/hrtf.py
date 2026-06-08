@@ -498,6 +498,213 @@ class HRTFPlots:
             plt.show()
         return None
 
+    def plot_etc(
+        hrtf: Any,
+        positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
+        ear: str = "both",
+        x_axis: str = "time",
+        reference: float | str = "max",
+        show: bool = True,
+        titles: bool = True,
+    ) -> None:
+        """Plot energy time curves for up to four source positions.
+
+        The method selects one to four source directions from the current
+        source grid, computes an energy-time-curve view from the corresponding
+        HRIR samples, and draws the result in decibels. The plotted value is
+        derived from the absolute impulse response with
+        :func:`~hrtfpykit.utils.dsp.magnitude_to_db`, which is equivalent to
+        plotting ``20 * log10(abs(h) / reference)`` and therefore represents
+        impulse-response energy level in dB.
+
+        Positions are resolved in spherical coordinates in degrees and may be
+        provided through named aliases or numeric [azimuth, elevation] queries.
+        The x-axis can show elapsed time in seconds or raw sample indices. Time
+        mode requires :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>`.
+
+        Parameters
+        ----------
+        positions : str | list | tuple | np.ndarray, default=(``front``, ``back``, ``left``, ``right``)
+            One position or a collection of positions. Named aliases such as
+            ``front``, ``back``, ``left``, and ``right`` are accepted. Numeric
+            queries must use spherical coordinates in degrees as [azimuth,
+            elevation], for example [0.0, 0.0] for the front direction. Up to
+            four positions can be shown in one figure.
+        ear : {``left``, ``right``, ``both``}, default=``both``
+            Ear channel to display. When ``both`` is selected, left and right
+            ear ETC traces are drawn together in each subplot.
+        x_axis : {``time``, ``samples``}, default=``time``
+            Horizontal axis used for the ETC plot.
+        reference : float | {``max``}, default=``max``
+            Reference used for decibel conversion. ``max`` normalizes the
+            selected ETC traces to their maximum absolute IR value.
+        show : bool, default=True
+            If True, call matplotlib.pyplot.show() before returning.
+        titles : bool, default=True
+            If False, suppress generated default subplot titles.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        AttributeError
+            If ear or x_axis is not one of the supported values.
+        ValueError
+            If IR data is missing, a time axis is requested without a sample
+            rate, no positions are requested, more than four positions are
+            requested, the IR array has no samples, no positive reference can be
+            resolved, or the requested ear channel is not available.
+
+        Notes
+        -----
+        ``plot_etc`` uses the same position selection, subplot layout, ear
+        overlay, titles, legends, and x-axis handling as
+        :meth:`~hrtfpykit.plots.hrtf.HRTFPlots.plot_amplitude`. It differs only
+        in the y-values: the raw HRIR amplitude is converted to a dB
+        energy-time-curve representation.
+
+        Examples
+        --------
+        Plot the front-direction ETC for both ears using sample indices:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> hrtf.plot_etc(
+        ...     positions="front",
+        ...     ear="both",
+        ...     x_axis="samples",
+        ...     reference="max",
+        ... )
+        """
+        if ear not in {"left", "right", "both"}:
+            raise AttributeError(
+                "ear accepts left, right or both"
+            )
+        if x_axis not in {"time", "samples"}:
+            raise AttributeError(
+                "x_axis accepts : time or samples"
+            )
+        resolved_margins = Margins()
+
+        if hrtf.IR.values is None:
+            raise ValueError("IR data is not available")
+        if x_axis == "time" and hrtf.IR.sample_rate is None:
+            raise ValueError("IR sample_rate is required when x_axis='time'")
+
+        position_queries = get_position_queries(positions)
+        position_count = len(position_queries)
+        if position_count == 0:
+            raise ValueError("At least one position is required")
+        if position_count > 4:
+            raise ValueError("plot_etc accepts up to 4 positions")
+
+        resolved_layout: Any
+        if position_count == 1:
+            resolved_layout = Layout_1(
+                figsize=Layout_1().figsize,
+                margins=resolved_margins,
+            )
+        elif position_count == 2:
+            resolved_layout = Layout_2Vertical(
+                figsize=Layout_2Vertical().figsize,
+                margins=resolved_margins,
+            )
+        else:
+            resolved_layout = Layout_3(
+                figsize=Layout_3().figsize,
+                margins=resolved_margins,
+            )
+        figure = Figure(resolved_layout)
+
+        ir_values = np.asarray(hrtf.IR.values, dtype=float)
+        if ir_values.ndim < 2 or ir_values.shape[-1] == 0:
+            raise ValueError("IR values must contain at least one sample")
+        sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
+        if x_axis == "time":
+            x_values = sample_indexes / float(cast(Any, hrtf.IR.sample_rate))
+        else:
+            x_values = sample_indexes
+
+        selected_position_info = [
+            hrtf.Sources.get_position_index(
+                selected_position_query,
+                coordinate_system="spherical",
+            )
+            for selected_position_query in position_queries
+        ]
+        selected_indices = [selected_index for selected_index, _ in selected_position_info]
+        reference_values = np.abs(np.asarray(ir_values[selected_indices], dtype=float))
+        if ear != "both" and reference_values.ndim >= 3:
+            ear_index = 0 if ear == "left" else 1
+            if reference_values.shape[1] <= ear_index:
+                raise ValueError(f"Requested ear '{ear}' is not available in IR data")
+            reference_values = reference_values[:, ear_index, :]
+        plot_reference: float | str
+        if isinstance(reference, str) and str(reference).strip().lower() == "max":
+            plot_reference = float(np.max(reference_values))
+        else:
+            plot_reference = reference
+
+        for index, (idxs, selected_positions) in enumerate(selected_position_info):
+            ax = figure.get_ax(index)
+            selected_positions = np.asarray(selected_positions, dtype=float)
+            y_values = np.asarray(ir_values[int(idxs)], dtype=float)
+            etc_values = magnitude_to_db(np.abs(y_values), reference=plot_reference)
+
+            if ear == "both":
+                if etc_values.ndim < 2 or etc_values.shape[0] < 2:
+                    raise ValueError("Both ears requested but IR data does not contain two ear channels")
+                figure.create_two_dimension(
+                    ax=ax,
+                    x=x_values,
+                    y=etc_values[0, :],
+                    color="blue",
+                )
+                figure.create_two_dimension(
+                    ax=ax,
+                    x=x_values,
+                    y=etc_values[1, :],
+                    color="red",
+                )
+            else:
+                if etc_values.ndim == 1:
+                    selected_y_values = etc_values.reshape(-1)
+                else:
+                    ear_index = 0 if ear == "left" else 1
+                    if etc_values.shape[0] <= ear_index:
+                        raise ValueError(f"Requested ear '{ear}' is not available in IR data")
+                    selected_y_values = np.asarray(etc_values[ear_index], dtype=float).reshape(-1)
+                figure.create_two_dimension(
+                    ax=ax,
+                    x=x_values,
+                    y=selected_y_values,
+                    color="blue",
+                )
+
+            if x_axis == "time":
+                TimeAxis.apply(ax=ax, axis="x")
+            else:
+                SampleAxis.apply(ax=ax, axis="x")
+            Axis.apply_label(ax=ax, axis="y", default_label=Labels.energy_db)
+            default_subplot_title = Titles.create_position_title(
+                selected_positions=selected_positions,
+            )
+            resolved_subplot_title = default_subplot_title if titles else ""
+            Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
+            if Figure.shared_x_visible:
+                ax.tick_params(axis="x", which="both", labelbottom=True)
+            Ear.apply(ax=ax, ear=ear, location="upper right", labels=None)
+            ax.grid(True)
+
+        if position_count < figure.axes.size:
+            figure.hide_unused_axes(position_count)
+
+        if show:
+            plt.show()
+        return None
+
     def plot_amplitude_and_magnitude(
         hrtf: Any,
         position: str | list | np.ndarray = "front",

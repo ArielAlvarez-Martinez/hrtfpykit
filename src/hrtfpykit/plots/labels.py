@@ -72,6 +72,7 @@ class Labels:
     time = "Time (s)"
     samples = "Samples"
     impulse_response = "Amplitude"
+    energy_db = "Energy (dB)"
     itd_seconds = "Absolute ITD (s)"
     ild_db = "Absolute ILD (dB)"
     azimuth = "Azimuth (degrees)"

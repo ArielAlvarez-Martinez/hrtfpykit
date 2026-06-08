@@ -39,6 +39,7 @@ use the `vx.y.z` format.
 - Added `frequency_bands` to `lsd`, matching `HRTFSpec` frequency-band
   selection semantics and remaining mutually exclusive with explicit
   `frequencies` queries.
+- Added `plot_etc` for position-based energy time curve plots from HRIR data. 
 
 ### Changed
 
