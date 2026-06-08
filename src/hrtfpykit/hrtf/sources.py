@@ -110,9 +110,8 @@ class Sources:
         and converted on read. By default, positions are returned in spherical
         coordinates. If the owning HRTF has been spatially selected, only the
         selected source rows are returned. If ``plane`` is provided, hrtfpykit
-        first resolves the nearest measured plane in spherical coordinates,
-        keeps only those source rows, and then returns them in
-        ``coordinate_system``.
+        first resolves the nearest measured plane, keeps only those source
+        rows, and then returns them in ``coordinate_system``.
 
         Parameters
         ----------
@@ -123,21 +122,18 @@ class Sources:
             Coordinate system used for returned positions.
         plane : {``horizontal``, ``median``, ``frontal``} or None, default=None
             Optional source plane used to filter returned positions. Plane
-            matching is performed on spherical coordinates, independent of the
-            requested output ``coordinate_system``.
+            matching is independent of the requested output
+            ``coordinate_system``.
 
-            - ``"horizontal"`` selects a constant-elevation plane. The
-              ``plane_angle`` value is interpreted as elevation.
-            - ``"median"`` selects the nearest requested azimuth and the nearest
-              opposite azimuth. The ``plane_angle`` value is interpreted as the
-              primary azimuth.
-            - ``"frontal"`` also selects the nearest requested azimuth and the
-              nearest opposite azimuth. The ``plane_angle`` value is interpreted
-              as the primary azimuth, with a frontal-plane default.
+            - ``"horizontal"`` selects a constant spherical elevation.
+            - ``"median"`` selects a constant lateral-polar lateral angle.
+            - ``"frontal"`` selects the nearest requested spherical azimuth and
+              the nearest opposite azimuth.
         plane_angle : float or None, default=None
-            Requested plane angle in ``angle_unit``. For ``plane="horizontal"``
-            this is an elevation angle. For ``plane="median"`` and
-            ``plane="frontal"`` this is an azimuth angle; the opposite azimuth
+            Requested plane coordinate in ``angle_unit``. For
+            ``plane="horizontal"`` this is spherical elevation. For
+            ``plane="median"`` this is lateral-polar lateral angle. For
+            ``plane="frontal"`` this is spherical azimuth; the opposite azimuth
             is added automatically. ``None`` uses 0 for horizontal and median
             planes, and 90 degrees or pi / 2 radians for the frontal plane.
 
@@ -233,14 +229,14 @@ class Sources:
                 selected_plane_angle = 0.0 if plane_angle is None else float(plane_angle)
                 plane_indices, _ = get_horizontal_plane(
                     self._hrtf,
-                    elevation=selected_plane_angle,
+                    plane_angle=selected_plane_angle,
                     angle_unit=requested_angle_unit,
                 )
             elif plane_key == "median":
                 selected_plane_angle = 0.0 if plane_angle is None else float(plane_angle)
                 plane_indices, _ = get_median_plane(
                     self._hrtf,
-                    azimuth=selected_plane_angle,
+                    plane_angle=selected_plane_angle,
                     angle_unit=requested_angle_unit,
                 )
             elif plane_key == "frontal":
@@ -250,7 +246,7 @@ class Sources:
                     selected_plane_angle = float(plane_angle)
                 plane_indices, _ = get_frontal_plane(
                     self._hrtf,
-                    azimuth=selected_plane_angle,
+                    plane_angle=selected_plane_angle,
                     angle_unit=requested_angle_unit,
                 )
             else:

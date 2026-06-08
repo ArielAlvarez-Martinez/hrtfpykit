@@ -33,7 +33,7 @@ class Titles:
         Templates for cartesian source-position titles.
     lateral_polar_alias, lateral_polar_position : str
         Templates for lateral-polar source-position titles.
-    horizontal_plane, horizontal_plane_elevation, median_plane : str
+    horizontal_plane, horizontal_plane_elevation, median_plane, median_plane_lateral : str
         Templates for plane-level figure titles.
     elevation_spectrum : str
         Template for elevation-spectrum figure titles.
@@ -52,6 +52,7 @@ class Titles:
     horizontal_plane = "Horizontal Plane"
     horizontal_plane_elevation = "Horizontal Plane : [Elevation= {angle}°]"
     median_plane = "Median Plane"
+    median_plane_lateral = "Median Plane : [Lateral= {angle}°]"
     elevation_spectrum = "Elevation Spectrum : [Azimuth= {angle}°]"
     left_ear = "Left Ear"
     right_ear = "Right Ear"
@@ -114,23 +115,25 @@ class Titles:
     @staticmethod
     def create_plane_title(
         plane: str,
-        elevation_angle: float = 0.0,
+        plane_angle: float = 0.0,
     ) -> str:
         """Create a figure title for horizontal or median plane plots.
 
-        Horizontal-plane titles include the elevation angle only when the angle is
-        not numerically close to zero. Median-plane titles do not use
-        elevation_angle because the median plane is selected by azimuth in the
-        HRTF plane utilities.
+        Horizontal-plane titles interpret ``plane_angle`` as spherical
+        elevation. Median-plane titles interpret ``plane_angle`` as
+        lateral-polar lateral angle. The angle is omitted from the title when it
+        is numerically close to zero so canonical horizontal and median plots
+        keep compact titles.
 
         Parameters
         ----------
         plane : str
             Plane name. Supported values are ``horizontal`` and ``median``.
             Matching is case-insensitive after surrounding whitespace is removed.
-        elevation_angle : float, default=0.0
-            Horizontal-plane elevation in degrees. Used only when plane is
-            ``horizontal``.
+        plane_angle : float, default=0.0
+            Resolved plane coordinate in degrees. For ``horizontal`` this is
+            spherical elevation. For ``median`` this is lateral-polar lateral
+            angle.
 
         Returns
         -------
@@ -145,13 +148,13 @@ class Titles:
         """
         plane_key = str(plane).strip().lower()
         if plane_key == "horizontal":
-            if np.isclose(float(elevation_angle), 0.0, atol=1e-8, rtol=0.0):
+            if np.isclose(float(plane_angle), 0.0, atol=1e-8, rtol=0.0):
                 return Titles.horizontal_plane
-            return Titles.horizontal_plane_elevation.format(
-                angle=float(elevation_angle)
-            )
+            return Titles.horizontal_plane_elevation.format(angle=float(plane_angle))
         if plane_key == "median":
-            return Titles.median_plane
+            if np.isclose(float(plane_angle), 0.0, atol=1e-8, rtol=0.0):
+                return Titles.median_plane
+            return Titles.median_plane_lateral.format(angle=float(plane_angle))
         raise ValueError("plane accepts horizontal or median")
 
     @staticmethod

@@ -617,7 +617,7 @@ def lsd(
     hrtf_b: "HRTF",
     ear: str = "both",
     plane: str = "all",
-    elevation: float = 0.0,
+    plane_angle: float = 0.0,
     positions: np.ndarray | list | tuple | str | None = None,
     frequencies: float | list[float] | tuple[float, ...] | np.ndarray | None = None,
     frequency_bands: tuple[float, float] | list[tuple[float, float]] | tuple[tuple[float, float], ...] | np.ndarray | None = None,
@@ -664,11 +664,12 @@ def lsd(
     plane : {``all``, ``horizontal``, ``median``}, default=``all``
         Spatial subset used before comparison. ``all`` uses the current
         full source grid, ``horizontal`` uses the nearest measured
-        horizontal plane at elevation, and ``median`` uses the canonical
-        median plane at azimuth 0 degrees.
-    elevation : float, default=0.0
-        Requested elevation in degrees used only when plane=``horizontal``.
-        The nearest measured elevation in hrtf_a is used.
+        horizontal plane at spherical elevation, and ``median`` uses the nearest
+        measured median plane at lateral-polar lateral angle.
+    plane_angle : float, default=0.0
+        Plane coordinate in degrees. For ``plane="horizontal"`` this is
+        spherical elevation. For ``plane="median"`` this is lateral-polar
+        lateral angle. The nearest measured plane in hrtf_a is used.
     positions : np.ndarray | list | tuple | str | None, default=None
         Optional source-position selector. Accepts one query or a collection
         of queries in the format accepted by
@@ -749,7 +750,7 @@ def lsd(
     ...     hrtf_b,
     ...     ear="both",
     ...     plane="horizontal",
-    ...     elevation=0.0,
+    ...     plane_angle=0.0,
     ...     frequency_bands=(0.0, 16000.0),
     ...     reduction="global",
     ... )
@@ -856,9 +857,9 @@ def lsd(
     if plane_key == "all":
         selected_positions = np.arange(source_positions_a.shape[0], dtype=int)
     elif plane_key == "horizontal":
-        selected_positions, _ = get_horizontal_plane(hrtf=hrtf_a, elevation=float(elevation))
+        selected_positions, _ = get_horizontal_plane(hrtf=hrtf_a, plane_angle=float(plane_angle))
     else:
-        selected_positions, _ = get_median_plane(hrtf=hrtf_a, azimuth=0.0)
+        selected_positions, _ = get_median_plane(hrtf=hrtf_a, plane_angle=float(plane_angle))
     selected_positions = np.asarray(selected_positions, dtype=int).reshape(-1)
     if selected_positions.size == 0:
         raise ValueError("Selected plane has no source positions")

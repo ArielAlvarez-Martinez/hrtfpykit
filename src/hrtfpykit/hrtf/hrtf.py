@@ -1320,9 +1320,10 @@ class HRTF(HRTFPlots):
             Plane name to filter positions. Supported values are
             horizontal, median, and frontal.
         plane_angle : float, default=0.0
-            Plane angle used to resolve the nearest available plane. For the
-            horizontal plane this is elevation; for median and frontal planes
-            this is azimuth.
+            Plane coordinate used to resolve the nearest available plane. For
+            ``plane="horizontal"`` this is spherical elevation. For
+            ``plane="median"`` this is lateral-polar lateral angle. For
+            ``plane="frontal"`` this is spherical azimuth.
         azimuth_angles : float, sequence of float, numpy.ndarray, or None, default=None
             Azimuth angle or angles used to keep matching source positions.
             Requested values resolve to the nearest available source-grid
@@ -1418,19 +1419,19 @@ class HRTF(HRTFPlots):
                 if plane_key == "horizontal":
                     plane_indices, _ = get_horizontal_plane(
                         hrtf=transformed_hrtf,
-                        elevation=plane_angle,
+                        plane_angle=plane_angle,
                         angle_unit=angle_unit,
                     )
                 elif plane_key == "median":
                     plane_indices, _ = get_median_plane(
                         hrtf=transformed_hrtf,
-                        azimuth=plane_angle,
+                        plane_angle=plane_angle,
                         angle_unit=angle_unit,
                     )
                 elif plane_key == "frontal":
                     plane_indices, _ = get_frontal_plane(
                         hrtf=transformed_hrtf,
-                        azimuth=plane_angle,
+                        plane_angle=plane_angle,
                         angle_unit=angle_unit,
                     )
                 else:

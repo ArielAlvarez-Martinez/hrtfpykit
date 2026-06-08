@@ -273,7 +273,7 @@ and transforms are reflected directly in the generated figures.
    from hrtfpykit.hrtf import load_hrtf
 
    hrtf = load_hrtf(hrtf_path_a)
-   hrtf.plot_absolute_itd(elevation_angle=0.0)
+   hrtf.plot_absolute_itd(plane_angle=0.0)
 
 .. image:: assets/images/quickstart-plot-absolute-itd.png
    :alt: Absolute ITD polar plot
@@ -287,7 +287,7 @@ and transforms are reflected directly in the generated figures.
    from hrtfpykit.hrtf import load_hrtf
 
    hrtf = load_hrtf(hrtf_path_a)
-   hrtf.plot_ild_curve(elevation_angle=0.0)
+   hrtf.plot_ild_curve(plane_angle=0.0)
 
 .. image:: assets/images/quickstart-plot-ild-curve.png
    :alt: ILD curve plot
@@ -317,7 +317,7 @@ and transforms are reflected directly in the generated figures.
    hrtf = load_hrtf(hrtf_path_a)
    hrtf.plot_spectrum_plane(
        plane="horizontal",
-       elevation_angle=0.0,
+       plane_angle=0.0,
        x_axis="linear",
        ear="left",
        freq_max=16000.0,
@@ -404,7 +404,7 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
    hrtf_b = load_hrtf(hrtf_path_b)
    compare_absolute_itd(
        [hrtf_a, hrtf_b],
-       elevation_angle=0.0,
+       plane_angle=0.0,
        legends=["P0001", "P0002"],
        line_styles=["-", "--"],
    )
@@ -428,7 +428,7 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
        hrtf_b,
        plane="horizontal",
        ear="right",
-       elevation=0.0,
+       plane_angle=0.0,
        x_axis="log",
        freq_max=16000.0,
        colormap="viridis",

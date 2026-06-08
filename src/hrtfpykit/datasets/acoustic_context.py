@@ -170,19 +170,19 @@ class DatasetAcousticContext:
         if plane_key == "horizontal":
             indices, _ = get_horizontal_plane(
                 hrtf=hrtf,
-                elevation=float(angle),
+                plane_angle=float(angle),
                 angle_unit=angle_unit,
             )
         elif plane_key == "median":
             indices, _ = get_median_plane(
                 hrtf=hrtf,
-                azimuth=float(angle),
+                plane_angle=float(angle),
                 angle_unit=angle_unit,
             )
         else:
             indices, _ = get_frontal_plane(
                 hrtf=hrtf,
-                azimuth=float(angle),
+                plane_angle=float(angle),
                 angle_unit=angle_unit,
             )
         return [int(index) for index in np.asarray(indices, dtype=int).reshape(-1)]

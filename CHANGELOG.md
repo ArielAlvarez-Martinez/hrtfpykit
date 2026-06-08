@@ -66,6 +66,9 @@ use the `vx.y.z` format.
   in different coordinate system references like `spherical`, `cartesian` or 
   `lateral-polar`) can be accessed through :
   `hrtf.Sources.get_positions(coordinate_system="spherical")`.
+- Renamed horizontal-plane cue plot parameters to `plane_angle` across ITD/ILD
+  curve plots, absolute cue plots, comparison plots, and the shared polar curve
+  helper.
 - Changed SOFAcoustics download server configuration to use direct per-dataset
   base URLs instead of a shared base URL plus `path_prefix`.
 - Changed `lsd` reduction semantics so `ear="both"` preserves the ear axis

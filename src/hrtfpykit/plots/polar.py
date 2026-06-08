@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 def create_horizontal_plane_curve(
     hrtf: "HRTF",
     values: np.ndarray,
-    elevation: float = 0.0,
+    plane_angle: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """Create polar-plot curve arrays for a horizontal HRTF plane.
 
@@ -44,7 +44,7 @@ def create_horizontal_plane_curve(
         Per-source scalar values aligned with the HRTF source-position axis. The first
         axis must correspond to source positions because the horizontal-plane indices
         are applied directly to this array.
-    elevation : float, default=0.0
+    plane_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The returned
         real_elevation may differ when the source grid does not contain the exact
         requested elevation.
@@ -80,7 +80,7 @@ def create_horizontal_plane_curve(
     """
     indices, real_elevation = get_horizontal_plane(
         hrtf=hrtf,
-        elevation=elevation,
+        plane_angle=plane_angle,
         angle_unit="degrees",
     )
     if indices.size == 0:

@@ -786,7 +786,7 @@ class HRTFPlots:
     def plot_spectrum_plane(
         hrtf: Any,
         plane: str = "horizontal",
-        elevation_angle: float = 0.0,
+        plane_angle: float = 0.0,
         x_axis: str = "linear",
         unit: str = "db",
         ear: str = "both",
@@ -805,22 +805,22 @@ class HRTFPlots:
         either azimuth for horizontal planes or lateral-polar angle for the
         median plane.
 
-        Horizontal planes are selected by the nearest available elevation to
-        elevation_angle. Median-plane plots use the canonical sagittal path
-        at azimuth zero. With ear=``both``, the method creates one heatmap for
-        the left ear and one heatmap for the right ear using shared color
-        limits.
+        Horizontal planes are selected by the nearest available spherical
+        elevation to ``plane_angle``. Median-plane plots are selected by the
+        nearest available lateral-polar lateral angle to ``plane_angle``. With
+        ear=``both``, the method creates one heatmap for the left ear and one
+        heatmap for the right ear using shared color limits.
 
         Parameters
         ----------
         plane : {``horizontal``, ``median``}, default=``horizontal``
             Plane to visualize. ``horizontal`` uses a horizontal plane
-            selected by elevation. ``median`` uses the canonical median
-            plane defined by the front-back sagittal path.
-        elevation_angle : float, default=0.0
-            Target elevation used when plane=``horizontal``. The nearest
-            available horizontal plane in the grid is selected. This parameter
-            is not used for the median plane.
+            selected by spherical elevation. ``median`` uses the nearest
+            measured lateral-polar lateral angle.
+        plane_angle : float, default=0.0
+            Plane coordinate in degrees used to resolve the nearest measured
+            plane. For ``plane="horizontal"`` this is spherical elevation. For
+            ``plane="median"`` this is lateral-polar lateral angle.
         x_axis : {``linear``, ``log``}, default=``linear``
             Frequency scale used on the x axis.
         unit : {``db``, ``linear``}, default=``db``
@@ -850,12 +850,11 @@ class HRTFPlots:
         ------
         AttributeError
             If plane, unit, x_axis, or ear is not one of the
-            supported values, or if elevation_angle is not finite.
+            supported values, or if plane_angle is not finite.
         ValueError
-            If TF data is missing, elevation_angle is used with a non-
-            horizontal plane, the selected plane has no positions, frequency
-            bins are invalid, the selected frequency range contains no bins, or
-            the requested ear channel is not available.
+            If TF data is missing, the selected plane has no positions,
+            frequency bins are invalid, the selected frequency range contains no
+            bins, or the requested ear channel is not available.
 
         Notes
         -----
@@ -872,7 +871,7 @@ class HRTFPlots:
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_spectrum_plane(
         ...     plane="horizontal",
-        ...     elevation_angle=0.0,
+        ...     plane_angle=0.0,
         ...     x_axis="linear",
         ...     ear="left",
         ...     freq_max=16000.0,
@@ -882,11 +881,11 @@ class HRTFPlots:
             raise AttributeError(
                 "plot_spectrum_plane plane accepts horizontal or median"
             )
-        if isinstance(elevation_angle, bool):
-            raise AttributeError("elevation_angle must be a finite value")
-        elevation_angle = float(elevation_angle)
-        if not np.isfinite(elevation_angle):
-            raise AttributeError("elevation_angle must be a finite value")
+        if isinstance(plane_angle, bool):
+            raise AttributeError("plane_angle must be a finite value")
+        plane_angle = float(plane_angle)
+        if not np.isfinite(plane_angle):
+            raise AttributeError("plane_angle must be a finite value")
         if unit not in {"db", "linear"}:
             raise AttributeError(
                 "unit accepts : db or linear"
@@ -907,15 +906,6 @@ class HRTFPlots:
             raise ValueError("TF data is not available")
 
         plane_key = str(plane).strip().lower()
-        if plane_key != "horizontal" and not np.isclose(
-            elevation_angle,
-            0.0,
-            atol=1e-8,
-            rtol=0.0,
-        ):
-            raise ValueError(
-                "elevation_angle only applies when plane='horizontal'"
-            )
         resolved_layout: Any
         if ear == "both":
             resolved_layout = Layout_2Horizontal(
@@ -930,18 +920,18 @@ class HRTFPlots:
         figure = Figure(resolved_layout)
 
         if plane_key == "horizontal":
-            indices, real_plane_elevation = get_horizontal_plane(
+            indices, real_plane_angle = get_horizontal_plane(
                 hrtf=hrtf,
-                elevation=elevation_angle,
+                plane_angle=plane_angle,
                 angle_unit="degrees",
             )
         else:
-            indices, _ = get_median_plane(
+            indices, real_plane_angle = get_median_plane(
                 hrtf=hrtf,
-                azimuth=0.0,
+                plane_angle=plane_angle,
                 angle_unit="degrees",
             )
-            real_plane_elevation = 0.0
+
         if indices.size == 0:
             raise ValueError("Selected plane does not contain any source positions")
 
@@ -1082,7 +1072,7 @@ class HRTFPlots:
                 figure.figure_title_y,
                 Titles.create_plane_title(
                     plane=plane_key,
-                    elevation_angle=real_plane_elevation,
+                    plane_angle=real_plane_angle,
                 ),
             )
         if show:
@@ -1359,21 +1349,21 @@ class HRTFPlots:
 
     def plot_itd_curve(
         hrtf: Any,
-        elevation_angle: float = 0.0,
+        plane_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
     ) -> None:
         """Plot signed ITD over a horizontal plane as azimuth versus time delay.
 
         The method computes signed interaural time difference from the current
-        HRIR data, selects the nearest horizontal plane to elevation_angle,
+        HRIR data, selects the nearest horizontal plane to ``plane_angle``,
         and plots ITD in seconds against signed azimuth. The curve is sorted by
         azimuth so the plot follows the horizontal plane continuously.
 
         Parameters
         ----------
-        elevation_angle : float, default=0.0
-            Target elevation used to select the horizontal plane. The nearest
+        plane_angle : float, default=0.0
+            Target horizontal-plane elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
         show : bool, default=True
             If True, call matplotlib.pyplot.show() before returning.
@@ -1387,7 +1377,7 @@ class HRTFPlots:
         Raises
         ------
         ValueError
-            If IR data or sample rate is missing, elevation_angle is not
+            If IR data or sample rate is missing, plane_angle is not
             finite, the selected horizontal plane is empty, or the computed ITD
             values do not align with the number of source positions.
 
@@ -1403,7 +1393,7 @@ class HRTFPlots:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.plot_itd_curve(elevation_angle=0.0)
+        >>> hrtf.plot_itd_curve(plane_angle=0.0)
         """
         resolved_margins = Margins()
         azimuth_range_mode = "-180-180"
@@ -1412,11 +1402,11 @@ class HRTFPlots:
             raise ValueError("IR data is not available")
         if hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
-        if isinstance(elevation_angle, bool):
-            raise ValueError("elevation_angle must be a finite value")
-        elevation_angle = float(elevation_angle)
-        if not np.isfinite(elevation_angle):
-            raise ValueError("elevation_angle must be a finite value")
+        if isinstance(plane_angle, bool):
+            raise ValueError("plane_angle must be a finite value")
+        plane_angle = float(plane_angle)
+        if not np.isfinite(plane_angle):
+            raise ValueError("plane_angle must be a finite value")
 
         itd_values = np.asarray(
             itd(
@@ -1429,7 +1419,7 @@ class HRTFPlots:
             itd_values = itd_values.reshape(-1)
         indices, real_elevation = get_horizontal_plane(
             hrtf=hrtf,
-            elevation=elevation_angle,
+            plane_angle=plane_angle,
             angle_unit="degrees",
         )
         if indices.size == 0:
@@ -1486,7 +1476,7 @@ class HRTFPlots:
                 figure.figure_title_y,
                 Titles.create_plane_title(
                     plane="horizontal",
-                    elevation_angle=real_elevation,
+                    plane_angle=real_elevation,
                 ),
             )
         if show:
@@ -1495,22 +1485,22 @@ class HRTFPlots:
 
     def plot_absolute_itd(
         hrtf: Any,
-        elevation_angle: float = 0.0,
+        plane_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
     ) -> None:
         """Plot absolute ITD over a horizontal plane in polar coordinates.
 
         The method computes absolute interaural time difference from the current
-        HRIR data, selects the nearest horizontal plane to elevation_angle,
+        HRIR data, selects the nearest horizontal plane to ``plane_angle``,
         and displays the resulting cue magnitude in a polar plot. Azimuth is
         represented on the angular axis and absolute ITD in seconds is
         represented on the radial axis.
 
         Parameters
         ----------
-        elevation_angle : float, default=0.0
-            Target elevation used to select the horizontal plane. The nearest
+        plane_angle : float, default=0.0
+            Target horizontal-plane elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
         show : bool, default=True
             If True, call matplotlib.pyplot.show() before returning.
@@ -1524,7 +1514,7 @@ class HRTFPlots:
         Raises
         ------
         ValueError
-            If IR data or sample rate is missing, elevation_angle is not
+            If IR data or sample rate is missing, plane_angle is not
             finite, or the selected horizontal plane cannot be resolved for the
             current source grid.
 
@@ -1540,7 +1530,7 @@ class HRTFPlots:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.plot_absolute_itd(elevation_angle=0.0)
+        >>> hrtf.plot_absolute_itd(plane_angle=0.0)
         """
         resolved_margins = Margins()
         polar_tick_step = 30.0
@@ -1554,11 +1544,11 @@ class HRTFPlots:
             raise ValueError("IR data is not available")
         if hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
-        if isinstance(elevation_angle, bool):
-            raise ValueError("elevation_angle must be a finite value")
-        elevation_angle = float(elevation_angle)
-        if not np.isfinite(elevation_angle):
-            raise ValueError("elevation_angle must be a finite value")
+        if isinstance(plane_angle, bool):
+            raise ValueError("plane_angle must be a finite value")
+        plane_angle = float(plane_angle)
+        if not np.isfinite(plane_angle):
+            raise ValueError("plane_angle must be a finite value")
 
         itd_values = np.abs(
             np.asarray(
@@ -1572,7 +1562,7 @@ class HRTFPlots:
         theta_values, radial_values, sorted_itd_values, real_elevation = create_horizontal_plane_curve(
             hrtf=hrtf,
             values=itd_values,
-            elevation=elevation_angle,
+            plane_angle=plane_angle,
         )
 
         figure = Figure(
@@ -1610,7 +1600,7 @@ class HRTFPlots:
                 figure.figure_title_y,
                 Titles.create_plane_title(
                     plane="horizontal",
-                    elevation_angle=real_elevation,
+                    plane_angle=real_elevation,
                 ),
             )
         ax.grid(True)
@@ -1621,7 +1611,7 @@ class HRTFPlots:
     def plot_ild_plane(
         hrtf: Any,
         plane: str = "horizontal",
-        elevation_angle: float = 0.0,
+        plane_angle: float = 0.0,
         colormap: str = "jet",
         freq_min: float | None = None,
         freq_max: float | None = None,
@@ -1635,21 +1625,22 @@ class HRTFPlots:
         heatmap. Frequency is shown in kilohertz. The vertical axis is azimuth
         for horizontal planes and lateral-polar angle for the median plane.
 
-        Horizontal planes are selected by the nearest available elevation to
-        elevation_angle. Median-plane plots use the canonical sagittal path
-        at azimuth zero. The ILD values are computed in decibels from the
-        current impulse responses before plotting.
+        Horizontal planes are selected by the nearest available spherical
+        elevation to ``plane_angle``. Median-plane plots are selected by the
+        nearest available lateral-polar lateral angle to ``plane_angle``. The
+        ILD values are computed in decibels from the current impulse responses
+        before plotting.
 
         Parameters
         ----------
         plane : {``horizontal``, ``median``}, default=``horizontal``
             Plane to visualize. ``horizontal`` uses a horizontal plane
-            selected by elevation. ``median`` uses the canonical median
-            plane defined by the front-back sagittal path.
-        elevation_angle : float, default=0.0
-            Target elevation used when plane=``horizontal``. The nearest
-            available horizontal plane in the grid is selected. This parameter
-            is not used for the median plane.
+            selected by spherical elevation. ``median`` uses the nearest
+            measured lateral-polar lateral angle.
+        plane_angle : float, default=0.0
+            Plane coordinate in degrees used to resolve the nearest measured
+            plane. For ``plane="horizontal"`` this is spherical elevation. For
+            ``plane="median"`` this is lateral-polar lateral angle.
         colormap : str, default=``jet``
             Matplotlib colormap name used for the heatmap.
         freq_min : float | None, default=None
@@ -1669,13 +1660,12 @@ class HRTFPlots:
         ------
         AttributeError
             If plane is not ``horizontal`` or ``median``, or if
-            elevation_angle is not finite.
+            plane_angle is not finite.
         ValueError
-            If IR data or sample rate is missing, elevation_angle is used
-            with a non-horizontal plane, the selected plane has no positions,
-            frequency bins are invalid, the selected frequency range contains
-            no bins, or frequency-dependent ILD values do not have the expected
-            (positions, frequencies) shape.
+            If IR data or sample rate is missing, the selected plane has no
+            positions, frequency bins are invalid, the selected frequency range
+            contains no bins, or frequency-dependent ILD values do not have the
+            expected (positions, frequencies) shape.
 
         Notes
         -----
@@ -1691,17 +1681,17 @@ class HRTFPlots:
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.plot_ild_plane(
         ...     plane="horizontal",
-        ...     elevation_angle=0.0,
+        ...     plane_angle=0.0,
         ...     freq_max=16000.0,
         ... )
         """
         if plane not in ("horizontal", "median"):
             raise AttributeError("plot_ild_plane plane accepts horizontal or median")
-        if isinstance(elevation_angle, bool):
-            raise AttributeError("elevation_angle must be a finite value")
-        elevation_angle = float(elevation_angle)
-        if not np.isfinite(elevation_angle):
-            raise AttributeError("elevation_angle must be a finite value")
+        if isinstance(plane_angle, bool):
+            raise AttributeError("plane_angle must be a finite value")
+        plane_angle = float(plane_angle)
+        if not np.isfinite(plane_angle):
+            raise AttributeError("plane_angle must be a finite value")
         resolved_margins = Margins()
         azimuth_range_mode = "-180-180"
         heatmap_margin_ratio = 0.0
@@ -1712,13 +1702,6 @@ class HRTFPlots:
             raise ValueError("IR sample_rate is required")
 
         plane_key = str(plane).strip().lower()
-        if plane_key != "horizontal" and not np.isclose(
-            elevation_angle,
-            0.0,
-            atol=1e-8,
-            rtol=0.0,
-        ):
-            raise ValueError("elevation_angle only applies when plane='horizontal'")
 
         figure = Figure(
             Layout_1(
@@ -1728,18 +1711,18 @@ class HRTFPlots:
         )
 
         if plane_key == "horizontal":
-            indices, real_plane_elevation = get_horizontal_plane(
+            indices, real_plane_angle = get_horizontal_plane(
                 hrtf=hrtf,
-                elevation=elevation_angle,
+                plane_angle=plane_angle,
                 angle_unit="degrees",
             )
         else:
-            indices, _ = get_median_plane(
+            indices, real_plane_angle = get_median_plane(
                 hrtf=hrtf,
-                azimuth=0.0,
+                plane_angle=plane_angle,
                 angle_unit="degrees",
             )
-            real_plane_elevation = 0.0
+
         if indices.size == 0:
             raise ValueError("Selected plane does not contain any source positions")
 
@@ -1844,7 +1827,7 @@ class HRTFPlots:
                 figure.figure_title_y,
                 Titles.create_plane_title(
                     plane=plane_key,
-                    elevation_angle=real_plane_elevation,
+                    plane_angle=real_plane_angle,
                 ),
             )
         if show:
@@ -1853,7 +1836,7 @@ class HRTFPlots:
 
     def plot_ild_curve(
         hrtf: Any,
-        elevation_angle: float = 0.0,
+        plane_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -1861,14 +1844,14 @@ class HRTFPlots:
 
         The method computes signed broad-band interaural level difference from
         the current HRIR data, selects the nearest horizontal plane to
-        elevation_angle, and plots ILD in decibels against signed azimuth.
+        plane_angle, and plots ILD in decibels against signed azimuth.
         The curve is sorted by azimuth so the plot follows the horizontal plane
         continuously.
 
         Parameters
         ----------
-        elevation_angle : float, default=0.0
-            Target elevation used to select the horizontal plane. The nearest
+        plane_angle : float, default=0.0
+            Target horizontal-plane elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
         show : bool, default=True
             If True, call matplotlib.pyplot.show() before returning.
@@ -1882,7 +1865,7 @@ class HRTFPlots:
         Raises
         ------
         ValueError
-            If IR data or sample rate is missing, elevation_angle is not
+            If IR data or sample rate is missing, plane_angle is not
             finite, the selected horizontal plane is empty, or the computed ILD
             values do not align with the number of source positions.
 
@@ -1898,7 +1881,7 @@ class HRTFPlots:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.plot_ild_curve(elevation_angle=0.0)
+        >>> hrtf.plot_ild_curve(plane_angle=0.0)
         """
         resolved_margins = Margins()
         azimuth_range_mode = "-180-180"
@@ -1907,11 +1890,11 @@ class HRTFPlots:
             raise ValueError("IR data is not available")
         if hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
-        if isinstance(elevation_angle, bool):
-            raise ValueError("elevation_angle must be a finite value")
-        elevation_angle = float(elevation_angle)
-        if not np.isfinite(elevation_angle):
-            raise ValueError("elevation_angle must be a finite value")
+        if isinstance(plane_angle, bool):
+            raise ValueError("plane_angle must be a finite value")
+        plane_angle = float(plane_angle)
+        if not np.isfinite(plane_angle):
+            raise ValueError("plane_angle must be a finite value")
 
         ild_values = np.asarray(
             ild(
@@ -1925,7 +1908,7 @@ class HRTFPlots:
             ild_values = ild_values.reshape(-1)
         indices, real_elevation = get_horizontal_plane(
             hrtf=hrtf,
-            elevation=elevation_angle,
+            plane_angle=plane_angle,
             angle_unit="degrees",
         )
         if indices.size == 0:
@@ -1982,7 +1965,7 @@ class HRTFPlots:
                 figure.figure_title_y,
                 Titles.create_plane_title(
                     plane="horizontal",
-                    elevation_angle=real_elevation,
+                    plane_angle=real_elevation,
                 ),
             )
         if show:
@@ -1991,7 +1974,7 @@ class HRTFPlots:
 
     def plot_absolute_ild(
         hrtf: Any,
-        elevation_angle: float = 0.0,
+        plane_angle: float = 0.0,
         show: bool = True,
         titles: bool = True,
     ) -> None:
@@ -1999,14 +1982,14 @@ class HRTFPlots:
 
         The method computes absolute broad-band interaural level difference from
         the current HRIR data, selects the nearest horizontal plane to
-        elevation_angle, and displays the resulting cue magnitude in a polar
+        plane_angle, and displays the resulting cue magnitude in a polar
         plot. Azimuth is represented on the angular axis and absolute ILD in
         decibels is represented on the radial axis.
 
         Parameters
         ----------
-        elevation_angle : float, default=0.0
-            Target elevation used to select the horizontal plane. The nearest
+        plane_angle : float, default=0.0
+            Target horizontal-plane elevation used to select the horizontal plane. The nearest
             available elevation in the grid is used.
         show : bool, default=True
             If True, call matplotlib.pyplot.show() before returning.
@@ -2020,7 +2003,7 @@ class HRTFPlots:
         Raises
         ------
         ValueError
-            If IR data or sample rate is missing, elevation_angle is not
+            If IR data or sample rate is missing, plane_angle is not
             finite, or the selected horizontal plane cannot be resolved for the
             current source grid.
 
@@ -2036,7 +2019,7 @@ class HRTFPlots:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.plot_absolute_ild(elevation_angle=0.0)
+        >>> hrtf.plot_absolute_ild(plane_angle=0.0)
         """
         resolved_margins = Margins()
         polar_tick_step = 30.0
@@ -2050,11 +2033,11 @@ class HRTFPlots:
             raise ValueError("IR data is not available")
         if hrtf.IR.sample_rate is None:
             raise ValueError("IR sample_rate is required")
-        if isinstance(elevation_angle, bool):
-            raise ValueError("elevation_angle must be a finite value")
-        elevation_angle = float(elevation_angle)
-        if not np.isfinite(elevation_angle):
-            raise ValueError("elevation_angle must be a finite value")
+        if isinstance(plane_angle, bool):
+            raise ValueError("plane_angle must be a finite value")
+        plane_angle = float(plane_angle)
+        if not np.isfinite(plane_angle):
+            raise ValueError("plane_angle must be a finite value")
 
         ild_values = np.abs(
             np.asarray(
@@ -2069,7 +2052,7 @@ class HRTFPlots:
         theta_values, radial_values, sorted_ild_values, real_elevation = create_horizontal_plane_curve(
             hrtf=hrtf,
             values=ild_values,
-            elevation=elevation_angle,
+            plane_angle=plane_angle,
         )
 
         figure = Figure(
@@ -2107,7 +2090,7 @@ class HRTFPlots:
                 figure.figure_title_y,
                 Titles.create_plane_title(
                     plane="horizontal",
-                    elevation_angle=real_elevation,
+                    plane_angle=real_elevation,
                 ),
             )
         ax.grid(True)
@@ -2356,19 +2339,19 @@ class HRTFPlots:
             if plane_key == "horizontal":
                 indices, _ = get_horizontal_plane(
                     hrtf=hrtf,
-                    elevation=0.0,
+                    plane_angle=0.0,
                     angle_unit="degrees",
                 )
             elif plane_key == "median":
                 indices, _ = get_median_plane(
                     hrtf=hrtf,
-                    azimuth=0.0,
+                    plane_angle=0.0,
                     angle_unit="degrees",
                 )
             else:
                 indices, _ = get_frontal_plane(
                     hrtf=hrtf,
-                    azimuth=90.0,
+                    plane_angle=90.0,
                     angle_unit="degrees",
                 )
             plane_positions = np.asarray(cartesian_positions[indices], dtype=float)

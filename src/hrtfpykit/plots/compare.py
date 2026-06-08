@@ -799,7 +799,7 @@ def compare_amplitude(
 
 def compare_absolute_itd(
     hrtfs: list["HRTF"],
-    elevation_angle: float = 0.0,
+    plane_angle: float = 0.0,
     legends: list[str] | tuple[str, ...] | None = None,
     line_colors: list[str] | tuple[str, ...] | None = None,
     line_styles: list[str] | tuple[str, ...] | None = None,
@@ -812,7 +812,7 @@ def compare_absolute_itd(
 
     This function computes broad-band interaural time difference for each HRTF,
     converts it to an absolute magnitude in seconds, extracts the nearest
-    horizontal-plane curve to elevation_angle, and overlays one polar trace
+    horizontal-plane curve to ``plane_angle``, and overlays one polar trace
     per HRTF. It is intended for comparing timing-cue magnitude across subjects,
     measured datasets, or processing pipelines without preserving ITD sign.
 
@@ -826,7 +826,7 @@ def compare_absolute_itd(
         :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must
         contain at least 2 and at most 5 entries. Every object must contain IR
         data and an IR sample rate.
-    elevation_angle : float, default=0.0
+    plane_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available
         elevation is selected separately for each HRTF.
     legends : list[str] | tuple[str, ...] | None, default=None
@@ -852,7 +852,7 @@ def compare_absolute_itd(
     Raises
     ------
     ValueError
-        If the HRTF list length, elevation_angle, legend/style lengths, IR
+        If the HRTF list length, plane_angle, legend/style lengths, IR
         availability, or sample-rate availability are invalid.
 
     Warns
@@ -877,7 +877,7 @@ def compare_absolute_itd(
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_absolute_itd(
     ...     [hrtf_a, hrtf_b],
-    ...     elevation_angle=0.0,
+    ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
     ...     line_styles=["-", "--"],
     ... )
@@ -889,11 +889,11 @@ def compare_absolute_itd(
         raise ValueError("compare_absolute_itd requires at least 2 HRTFs")
     if hrtf_count > 5:
         raise ValueError("compare_absolute_itd accepts up to 5 HRTFs")
-    if isinstance(elevation_angle, bool):
-        raise ValueError("elevation_angle must be a finite value")
-    resolved_elevation_angle = float(elevation_angle)
-    if not np.isfinite(resolved_elevation_angle):
-        raise ValueError("elevation_angle must be a finite value")
+    if isinstance(plane_angle, bool):
+        raise ValueError("plane_angle must be a finite value")
+    resolved_plane_angle = float(plane_angle)
+    if not np.isfinite(resolved_plane_angle):
+        raise ValueError("plane_angle must be a finite value")
 
     if legends is None:
         resolved_legends = Subjects.create_default_labels(hrtf_count)
@@ -947,7 +947,7 @@ def compare_absolute_itd(
         theta_values, radial_values, sorted_itd_values, real_elevation = create_horizontal_plane_curve(
             hrtf=hrtf,
             values=absolute_itd_values,
-            elevation=resolved_elevation_angle,
+            plane_angle=resolved_plane_angle,
         )
         theta_values_by_subject.append(theta_values)
         radial_values_by_subject.append(radial_values)
@@ -1032,7 +1032,7 @@ def compare_absolute_itd(
             figure.figure_title_y,
             Titles.create_plane_title(
                 plane="horizontal",
-                elevation_angle=reference_real_elevation,
+                plane_angle=reference_real_elevation,
             ),
         )
     if show:
@@ -1041,7 +1041,7 @@ def compare_absolute_itd(
 
 def compare_absolute_ild(
     hrtfs: list["HRTF"],
-    elevation_angle: float = 0.0,
+    plane_angle: float = 0.0,
     legends: list[str] | tuple[str, ...] | None = None,
     line_colors: list[str] | tuple[str, ...] | None = None,
     line_styles: list[str] | tuple[str, ...] | None = None,
@@ -1054,7 +1054,7 @@ def compare_absolute_ild(
 
     This function computes broad-band interaural level difference for each HRTF,
     converts it to an absolute magnitude in decibels, extracts the nearest
-    horizontal-plane curve to elevation_angle, and overlays one polar trace
+    horizontal-plane curve to ``plane_angle``, and overlays one polar trace
     per HRTF. It is intended for comparing level-cue magnitude across subjects,
     measured datasets, or processing pipelines without preserving ILD sign.
 
@@ -1068,7 +1068,7 @@ def compare_absolute_ild(
         :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must
         contain at least 2 and at most 5 entries. Every object must contain IR
         data and an IR sample rate.
-    elevation_angle : float, default=0.0
+    plane_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available
         elevation is selected separately for each HRTF.
     legends : list[str] | tuple[str, ...] | None, default=None
@@ -1094,7 +1094,7 @@ def compare_absolute_ild(
     Raises
     ------
     ValueError
-        If the HRTF list length, elevation_angle, legend/style lengths, IR
+        If the HRTF list length, plane_angle, legend/style lengths, IR
         availability, or sample-rate availability are invalid.
 
     Warns
@@ -1119,7 +1119,7 @@ def compare_absolute_ild(
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_absolute_ild(
     ...     [hrtf_a, hrtf_b],
-    ...     elevation_angle=0.0,
+    ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
     ...     line_styles=["-", "--"],
     ... )
@@ -1131,11 +1131,11 @@ def compare_absolute_ild(
         raise ValueError("compare_absolute_ild requires at least 2 HRTFs")
     if hrtf_count > 5:
         raise ValueError("compare_absolute_ild accepts up to 5 HRTFs")
-    if isinstance(elevation_angle, bool):
-        raise ValueError("elevation_angle must be a finite value")
-    resolved_elevation_angle = float(elevation_angle)
-    if not np.isfinite(resolved_elevation_angle):
-        raise ValueError("elevation_angle must be a finite value")
+    if isinstance(plane_angle, bool):
+        raise ValueError("plane_angle must be a finite value")
+    resolved_plane_angle = float(plane_angle)
+    if not np.isfinite(resolved_plane_angle):
+        raise ValueError("plane_angle must be a finite value")
 
     if legends is None:
         resolved_legends = Subjects.create_default_labels(hrtf_count)
@@ -1190,7 +1190,7 @@ def compare_absolute_ild(
         theta_values, radial_values, sorted_ild_values, real_elevation = create_horizontal_plane_curve(
             hrtf=hrtf,
             values=absolute_ild_values,
-            elevation=resolved_elevation_angle,
+            plane_angle=resolved_plane_angle,
         )
         theta_values_by_subject.append(theta_values)
         radial_values_by_subject.append(radial_values)
@@ -1275,7 +1275,7 @@ def compare_absolute_ild(
             figure.figure_title_y,
             Titles.create_plane_title(
                 plane="horizontal",
-                elevation_angle=reference_real_elevation,
+                plane_angle=reference_real_elevation,
             ),
         )
     if show:
@@ -1284,7 +1284,7 @@ def compare_absolute_ild(
 
 def compare_itd_curve(
     hrtfs: list["HRTF"],
-    elevation_angle: float = 0.0,
+    plane_angle: float = 0.0,
     legends: list[str] | tuple[str, ...] | None = None,
     line_colors: list[str] | tuple[str, ...] | None = None,
     line_styles: list[str] | tuple[str, ...] | None = None,
@@ -1296,7 +1296,7 @@ def compare_itd_curve(
     """Compare signed ITD curves across multiple HRTFs.
 
     This function computes broad-band signed ITD in seconds for each HRTF,
-    extracts the nearest horizontal-plane slice to elevation_angle, sorts
+    extracts the nearest horizontal-plane slice to ``plane_angle``, sorts
     the slice by signed azimuth, and overlays one azimuth-versus-ITD line per
     HRTF. It is intended for inspecting timing-cue directionality across
     subjects, datasets, or processing pipelines.
@@ -1310,7 +1310,7 @@ def compare_itd_curve(
     hrtfs : list[HRTF]
         :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
         entries. Every object must contain IR data and an IR sample rate.
-    elevation_angle : float, default=0.0
+    plane_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available
         elevation is selected separately for each HRTF.
     legends : list[str] | tuple[str, ...] | None, default=None
@@ -1336,7 +1336,7 @@ def compare_itd_curve(
     Raises
     ------
     ValueError
-        If the HRTF list length, elevation_angle, legend/style lengths, IR
+        If the HRTF list length, plane_angle, legend/style lengths, IR
         availability, sample-rate availability, selected plane, or computed ITD
         shape is invalid.
 
@@ -1362,7 +1362,7 @@ def compare_itd_curve(
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_itd_curve(
     ...     [hrtf_a, hrtf_b],
-    ...     elevation_angle=0.0,
+    ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
     ...     line_styles=["-", "--"],
     ... )
@@ -1374,11 +1374,11 @@ def compare_itd_curve(
         raise ValueError("compare_itd_curve requires at least 2 HRTFs")
     if hrtf_count > 5:
         raise ValueError("compare_itd_curve accepts up to 5 HRTFs")
-    if isinstance(elevation_angle, bool):
-        raise ValueError("elevation_angle must be a finite value")
-    resolved_elevation_angle = float(elevation_angle)
-    if not np.isfinite(resolved_elevation_angle):
-        raise ValueError("elevation_angle must be a finite value")
+    if isinstance(plane_angle, bool):
+        raise ValueError("plane_angle must be a finite value")
+    resolved_plane_angle = float(plane_angle)
+    if not np.isfinite(resolved_plane_angle):
+        raise ValueError("plane_angle must be a finite value")
 
     if legends is None:
         resolved_legends = Subjects.create_default_labels(hrtf_count)
@@ -1428,7 +1428,7 @@ def compare_itd_curve(
         ).reshape(-1)
         indices, real_elevation = get_horizontal_plane(
             hrtf=hrtf,
-            elevation=resolved_elevation_angle,
+            plane_angle=resolved_plane_angle,
             angle_unit="degrees",
         )
         if indices.size == 0:
@@ -1513,7 +1513,7 @@ def compare_itd_curve(
             figure.figure_title_y,
             Titles.create_plane_title(
                 plane="horizontal",
-                elevation_angle=reference_real_elevation,
+                plane_angle=reference_real_elevation,
             ),
         )
     if show:
@@ -1522,7 +1522,7 @@ def compare_itd_curve(
 
 def compare_ild_curve(
     hrtfs: list["HRTF"],
-    elevation_angle: float = 0.0,
+    plane_angle: float = 0.0,
     legends: list[str] | tuple[str, ...] | None = None,
     line_colors: list[str] | tuple[str, ...] | None = None,
     line_styles: list[str] | tuple[str, ...] | None = None,
@@ -1534,7 +1534,7 @@ def compare_ild_curve(
     """Compare signed ILD curves across multiple HRTFs.
 
     This function computes broad-band signed ILD in decibels for each HRTF,
-    extracts the nearest horizontal-plane slice to elevation_angle, sorts
+    extracts the nearest horizontal-plane slice to ``plane_angle``, sorts
     the slice by signed azimuth, and overlays one azimuth-versus-ILD line per
     HRTF. It is intended for inspecting level-cue directionality across
     subjects, datasets, or processing pipelines.
@@ -1548,7 +1548,7 @@ def compare_ild_curve(
     hrtfs : list[HRTF]
         :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
         entries. Every object must contain IR data and an IR sample rate.
-    elevation_angle : float, default=0.0
+    plane_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available
         elevation is selected separately for each HRTF.
     legends : list[str] | tuple[str, ...] | None, default=None
@@ -1574,7 +1574,7 @@ def compare_ild_curve(
     Raises
     ------
     ValueError
-        If the HRTF list length, elevation_angle, legend/style lengths, IR
+        If the HRTF list length, plane_angle, legend/style lengths, IR
         availability, sample-rate availability, selected plane, or computed ILD
         shape is invalid.
 
@@ -1600,7 +1600,7 @@ def compare_ild_curve(
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
     >>> compare_ild_curve(
     ...     [hrtf_a, hrtf_b],
-    ...     elevation_angle=0.0,
+    ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
     ...     line_styles=["-", "--"],
     ... )
@@ -1612,11 +1612,11 @@ def compare_ild_curve(
         raise ValueError("compare_ild_curve requires at least 2 HRTFs")
     if hrtf_count > 5:
         raise ValueError("compare_ild_curve accepts up to 5 HRTFs")
-    if isinstance(elevation_angle, bool):
-        raise ValueError("elevation_angle must be a finite value")
-    resolved_elevation_angle = float(elevation_angle)
-    if not np.isfinite(resolved_elevation_angle):
-        raise ValueError("elevation_angle must be a finite value")
+    if isinstance(plane_angle, bool):
+        raise ValueError("plane_angle must be a finite value")
+    resolved_plane_angle = float(plane_angle)
+    if not np.isfinite(resolved_plane_angle):
+        raise ValueError("plane_angle must be a finite value")
 
     if legends is None:
         resolved_legends = Subjects.create_default_labels(hrtf_count)
@@ -1667,7 +1667,7 @@ def compare_ild_curve(
         ).reshape(-1)
         indices, real_elevation = get_horizontal_plane(
             hrtf=hrtf,
-            elevation=resolved_elevation_angle,
+            plane_angle=resolved_plane_angle,
             angle_unit="degrees",
         )
         if indices.size == 0:
@@ -1752,7 +1752,7 @@ def compare_ild_curve(
             figure.figure_title_y,
             Titles.create_plane_title(
                 plane="horizontal",
-                elevation_angle=reference_real_elevation,
+                plane_angle=reference_real_elevation,
             ),
         )
     if show:
@@ -2326,7 +2326,7 @@ def compare_lsd_plane(
     hrtf_b: "HRTF",
     plane: str = "horizontal",
     ear: str = "left",
-    elevation: float = 0.0,
+    plane_angle: float = 0.0,
     epsilon: float = 1e-12,
     x_axis: str = "linear",
     freq_min: float | None = None,
@@ -2364,9 +2364,10 @@ def compare_lsd_plane(
         Ear channel selection passed to :func:`~hrtfpykit.hrtf.lsd`. ``both``
         computes both ear channels and reduces the ear axis inside ``lsd`` so
         the heatmap receives one value per selected direction and frequency bin.
-    elevation : float, default=0.0
-        Requested elevation in degrees when ``plane`` is ``horizontal``.
-        Ignored when ``plane`` is ``median``.
+    plane_angle : float, default=0.0
+        Plane coordinate in degrees. For ``plane="horizontal"`` this is
+        spherical elevation. For ``plane="median"`` this is lateral-polar
+        lateral angle. The nearest measured plane in hrtf_a is used.
     epsilon : float, default=1e-12
         Positive floor passed to :func:`~hrtfpykit.hrtf.lsd` before dB conversion.
     x_axis : {``linear``, ``log``}, default=``linear``
@@ -2417,7 +2418,7 @@ def compare_lsd_plane(
     ...     hrtf_b,
     ...     plane="horizontal",
     ...     ear="right",
-    ...     elevation=0.0,
+    ...     plane_angle=0.0,
     ...     x_axis="log",
     ...     freq_max=16000.0,
     ...     colormap="viridis",
@@ -2436,12 +2437,12 @@ def compare_lsd_plane(
     if plane_key == "horizontal":
         selected_positions, _ = get_horizontal_plane(
             hrtf=hrtf_a,
-            elevation=float(elevation),
+            plane_angle=float(plane_angle),
         )
     else:
         selected_positions, _ = get_median_plane(
             hrtf=hrtf_a,
-            azimuth=0.0,
+            plane_angle=float(plane_angle),
         )
     selected_positions = np.asarray(selected_positions, dtype=int).reshape(-1)
     if selected_positions.size == 0:
@@ -2470,7 +2471,7 @@ def compare_lsd_plane(
             hrtf_b=hrtf_b,
             ear=ear_key,
             plane=plane_key,
-            elevation=elevation,
+            plane_angle=plane_angle,
             frequencies=frequency_bins,
             reduction=reduction,
             epsilon=epsilon,
@@ -2603,13 +2604,17 @@ def compare_lsd_plane(
 
     if titles:
         if plane_key == "horizontal":
-            _, real_elevation = get_horizontal_plane(
+            _, real_plane_angle = get_horizontal_plane(
                 hrtf=hrtf_a,
-                elevation=float(elevation),
+                plane_angle=float(plane_angle),
             )
-            title_text = f"{Titles.compare_lsd_plane} : Horizontal ({real_elevation:.2f}°)"
+            title_text = f"{Titles.compare_lsd_plane} : Horizontal ({real_plane_angle:.2f}°)"
         else:
-            title_text = f"{Titles.compare_lsd_plane} : Median"
+            _, real_plane_angle = get_median_plane(
+                hrtf=hrtf_a,
+                plane_angle=float(plane_angle),
+            )
+            title_text = f"{Titles.compare_lsd_plane} : Median ({real_plane_angle:.2f}°)"
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
