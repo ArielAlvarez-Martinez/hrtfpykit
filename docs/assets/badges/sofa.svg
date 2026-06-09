@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="122" height="20" role="img" aria-label="SOFA: HRTF | HRIR">
+  <title>SOFA: HRTF | HRIR</title>
+  <linearGradient id="s" x2="0" y2="100%">
+    <stop offset="0" stop-color="#fff" stop-opacity=".15"/>
+    <stop offset="1" stop-opacity=".15"/>
+  </linearGradient>
+  <clipPath id="r">
+    <rect width="122" height="20" rx="3" fill="#fff"/>
+  </clipPath>
+  <g clip-path="url(#r)">
+    <rect width="42" height="20" fill="#2f4053"/>
+    <rect x="42" width="80" height="20" fill="#0a9396"/>
+    <rect width="122" height="20" fill="url(#s)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+    <text x="21" y="15" fill="#010101" fill-opacity=".3">SOFA</text>
+    <text x="21" y="14">SOFA</text>
+    <text x="82" y="15" fill="#010101" fill-opacity=".3">HRTF | HRIR</text>
+    <text x="82" y="14">HRTF | HRIR</text>
+  </g>
+</svg>
