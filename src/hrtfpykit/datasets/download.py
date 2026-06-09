@@ -42,6 +42,7 @@ class BaseDownload(ABC):
         self,
         config: type[DatasetConfig] | DatasetConfig,
         root: str | Path,
+        subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         excluded_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         verify_checksum: bool = True,
         download_server: str | None = None,
@@ -75,10 +76,15 @@ class BaseDownload(ABC):
             :meth:`~hrtfpykit.datasets.download.BaseDownload.validate_download_root`
             or :meth:`~hrtfpykit.datasets.download.BaseDownload.download` is
             called.
+        subject_ids : str, int, sequence, or None, default=None
+            Optional subject identifiers or one-based subject numbers used as the
+            initial subject-specific download scope. None uses every configured
+            subject supported by the selected download server.
         excluded_subject_ids : str, int, sequence, or None, default=None
-            Subject identifiers or one-based subject numbers to exclude from
-            subject-specific download jobs. These exclusions are combined with
-            download_exclude_subject_ids declared by the selected download server.
+            Subject identifiers or one-based subject numbers to exclude from the
+            selected subject-specific download scope. These exclusions are combined
+            with download_exclude_subject_ids declared by the selected download
+            server.
         verify_checksum : bool, default=True
             Whether downloaded and existing files are verified against the official
             SHA-256 checksums declared by the dataset configuration. The recommended
@@ -90,6 +96,9 @@ class BaseDownload(ABC):
         ----------
         root : Path
             Resolved dataset root used to compose local download destinations.
+        requested_subject_ids : tuple of str or None
+            Normalized user-requested download subject scope. None means no
+            user-level inclusion filter was requested.
         excluded_subject_ids : tuple of str
             Normalized union of selected-server and user-requested download
             subject exclusions.
@@ -114,10 +123,15 @@ class BaseDownload(ABC):
             tuple(self.download_config.download_exclude_subject_ids),
             tuple(config.subject_ids),
         )
+        requested_subject_ids = None if subject_ids is None else DatasetSplitPlanner.map_subject_ids(
+            subject_ids,
+            tuple(config.subject_ids),
+        )
         requested_excluded_subject_ids = DatasetSplitPlanner.map_subject_ids(
             excluded_subject_ids,
             tuple(config.subject_ids),
         )
+        self.requested_subject_ids = None if requested_subject_ids is None else tuple(requested_subject_ids)
         self.requested_excluded_subject_ids = tuple(requested_excluded_subject_ids)
         self.excluded_subject_ids = tuple(
             dict.fromkeys(server_excluded_subject_ids + requested_excluded_subject_ids)
@@ -175,10 +189,12 @@ class BaseDownload(ABC):
                 f"{self.config.name} download_server {server_name!r} does not support download_resources filtering. "
                 "Set download_resources=None or choose a download server that supports resource filtering."
             )
-        if supports_filter.get("subject", True) is False and len(self.requested_excluded_subject_ids) > 0:
+        if supports_filter.get("subject", True) is False and (
+            self.requested_subject_ids is not None or len(self.requested_excluded_subject_ids) > 0
+        ):
             raise ValueError(
-                f"{self.config.name} download_server {server_name!r} does not support download_exclude_subject_ids because it cannot filter subjects. "
-                "Set download_exclude_subject_ids=None or choose a download server that supports subject filtering."
+                f"{self.config.name} download_server {server_name!r} does not support download_subject_ids or download_exclude_subject_ids because it cannot filter subjects. "
+                "Set download_exclude_subject_ids=None and download_subject_ids=None, or choose a download server that supports subject filtering."
             )
         if supports_filter.get("hrtf_variant", True) is False and download_hrtf_variant not in (None, "all"):
             raise ValueError(
@@ -872,9 +888,13 @@ class BaseDownload(ABC):
         tuple of str
             Subject IDs not excluded from downloads.
         """
+        requested_subject_ids_set = None if self.requested_subject_ids is None else set(self.requested_subject_ids)
         excluded_subject_ids_set = set(self.excluded_subject_ids)
         return tuple(
-            subject_id for subject_id in subject_ids if subject_id not in excluded_subject_ids_set
+            subject_id
+            for subject_id in subject_ids
+            if (requested_subject_ids_set is None or subject_id in requested_subject_ids_set)
+            and subject_id not in excluded_subject_ids_set
         )
 
     def download_file(
@@ -2300,6 +2320,7 @@ class SONICOMEcosystemDownload(BaseDownload):
             mesh_types = available_mesh_types if str(mesh_type).lower() == "all" else {str(mesh_type).lower()}
             mesh_versions = available_mesh_versions if str(mesh_version).lower() == "all" else {str(mesh_version)}
 
+        requested_subject_ids = None if self.requested_subject_ids is None else set(self.requested_subject_ids)
         excluded_subject_ids = set(self.excluded_subject_ids)
         download_jobs: list[dict[str, object]] = []
         for resource in resources:
@@ -2341,6 +2362,8 @@ class SONICOMEcosystemDownload(BaseDownload):
                             subject_id = str(row.get(rule.subject_id_field, ""))
                             values["subject_id"] = subject_id
                         if subject_id not in self.config.subject_ids or subject_id in excluded_subject_ids:
+                            continue
+                        if requested_subject_ids is not None and subject_id not in requested_subject_ids:
                             continue
                         if resource == "hrtf":
                             hrtf_type = str(values.get("type", rule.hrtf_type or ""))

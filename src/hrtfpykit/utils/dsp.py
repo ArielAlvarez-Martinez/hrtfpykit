@@ -161,6 +161,121 @@ def magnitude_to_db(
         return 20.0 * np.log10(magnitude_values / reference_value)
 
 
+def rms(
+    ir: np.ndarray | "IR",
+    output: str = "db",
+    reference: float | str = 1.0,
+    reduction: str | tuple[str, ...] | None = None,
+) -> np.ndarray:
+    """Compute HRIR RMS levels and optionally average them by domain.
+
+    The natural RMS metric is always computed first over the final sample axis:
+    ``sqrt(mean(ir ** 2, over samples))``. For standard HRIR arrays with shape
+    ``(sources, ears, samples)``, this produces one RMS value per source and
+    ear. ``reduction`` then averages those already-computed RMS values over
+    source and/or ear domains. It does not add samples to the reduction because
+    samples are part of the RMS definition itself.
+
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        Time-domain impulse-response values or
+        :class:`~hrtfpykit.hrtf.domain.IR` object with
+        :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`. The final axis is
+        interpreted as samples.
+    output : {``linear``, ``db``}, default=``db``
+        Output representation. ``linear`` returns RMS amplitudes. ``db``
+        converts the per-HRIR RMS amplitudes with
+        :func:`~hrtfpykit.utils.dsp.magnitude_to_db` before domain averaging.
+    reference : float or {``max``}, default=1.0
+        Reference passed to :func:`~hrtfpykit.utils.dsp.magnitude_to_db` when
+        ``output="db"``. ``"max"`` uses the maximum per-HRIR RMS value before
+        domain averaging.
+    reduction : {``sources``, ``ears``, ``global``}, tuple of str, or None, default=None
+        Domain averaging applied after the per-HRIR RMS values are computed.
+        None returns the natural per-source/per-ear RMS array. ``"sources"``
+        averages RMS values through source positions and preserves ears.
+        ``"ears"`` averages RMS values through ears and preserves sources.
+        ``"global"`` averages the per-source/per-ear RMS values through
+        sources and ears and returns one value. Tuples combine domain averages,
+        for example ``("sources", "ears")`` is equivalent to ``"global"``.
+
+    Returns
+    -------
+    np.ndarray
+        RMS values in the selected output representation after the requested
+        domain averaging.
+
+    Raises
+    ------
+    ValueError
+        If IR data are missing, scalar, complex, or not stored as a NumPy
+        array, if output or reduction is unsupported, or if a requested domain
+        axis is unavailable for the input shape.
+    """
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+    else:
+        if not hasattr(ir, "values"):
+            raise ValueError("ir must be a NumPy array or an IR instance")
+        ir_values = cast(Any, ir).values
+    if ir_values is None:
+        raise ValueError("IR data is not available")
+    if not isinstance(ir_values, np.ndarray):
+        raise ValueError("IR data must be a NumPy array")
+    if ir_values.ndim == 0:
+        raise ValueError("IR data must have at least one dimension")
+    if np.iscomplexobj(ir_values):
+        raise ValueError("IR data must be real-valued for RMS calculation")
+
+    output_key = str(output).strip().lower()
+    if output_key not in {"linear", "db"}:
+        raise ValueError("output must be 'linear' or 'db'")
+
+    ir_float = np.asarray(ir_values, dtype=float)
+    rms_values = np.sqrt(np.mean(np.square(ir_float), axis=-1))
+
+    if output_key == "db":
+        rms_values = magnitude_to_db(rms_values, reference=reference)
+
+    if reduction is None:
+        return np.asarray(rms_values)
+
+    if isinstance(reduction, str):
+        reduction_key = reduction.strip().lower()
+        if reduction_key == "global":
+            reduction_axes: tuple[str, ...] = ("sources", "ears")
+        elif reduction_key in {"sources", "ears"}:
+            reduction_axes = (reduction_key,)
+        else:
+            raise ValueError("reduction must be 'sources', 'ears', 'global', a tuple of sources/ears, or None")
+    elif isinstance(reduction, tuple):
+        if len(reduction) == 0:
+            raise ValueError("reduction tuple cannot be empty")
+        reduction_axes = tuple(str(value).strip().lower() for value in reduction)
+        if "global" in reduction_axes:
+            raise ValueError("reduction='global' cannot be combined with other reductions")
+        if len(set(reduction_axes)) != len(reduction_axes):
+            raise ValueError("reduction tuple cannot contain repeated entries")
+        for reduction_axis in reduction_axes:
+            if reduction_axis not in {"sources", "ears"}:
+                raise ValueError("reduction tuple entries must be 'sources' or 'ears'")
+    else:
+        raise ValueError("reduction must be a string, tuple of strings, or None")
+
+    selected_axes: list[int] = []
+    for reduction_axis in reduction_axes:
+        if reduction_axis == "ears":
+            if rms_values.ndim < 1:
+                raise ValueError("reduction='ears' requires an ear axis")
+            selected_axes.append(rms_values.ndim - 1)
+        elif reduction_axis == "sources":
+            if rms_values.ndim < 2:
+                raise ValueError("reduction='sources' requires at least one source axis")
+            selected_axes.extend(range(rms_values.ndim - 1))
+
+    return np.asarray(np.mean(rms_values, axis=tuple(selected_axes)))
+
 def db_to_magnitude(
     magnitude_db: np.ndarray,
     reference: float | str = 1.0,
@@ -742,12 +857,18 @@ def downsampling(
     return resampled_ir, new_sample_rate
 
 
-def window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
+def window(
+    ir: np.ndarray | "IR",
+    window_name: str,
+    start_sample: int | None = None,
+    end_sample: int | None = None,
+) -> np.ndarray:
     """Apply a named time-domain window to IR samples.
 
     Windowing is applied along the final axis and is broadcast over all leading
-    axes. This makes the function suitable for mono signals, binaural HRIRs,
-    and full (positions, ears, samples) HRTF arrays.
+    axes. By default, the window spans the complete sample axis. ``start_sample``
+    and ``end_sample`` can restrict the window to one sample interval while
+    leaving samples outside that interval unchanged.
 
     Parameters
     ----------
@@ -757,6 +878,10 @@ def window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
     window_name : str
         Window identifier. Supported values are hann, hamming,
         blackman, and rectangular.
+    start_sample : int or None, default=None
+        First sample included in the windowed interval. None starts at sample 0.
+    end_sample : int or None, default=None
+        First sample after the windowed interval. None uses the full IR length.
 
     Returns
     -------
@@ -767,7 +892,8 @@ def window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
     ------
     ValueError
         If IR data are missing, scalar, or not stored as a NumPy array, if the
-        final axis contains no samples, or if window_name is unsupported.
+        final axis contains no samples, if window_name is unsupported, or if the
+        requested sample interval is invalid.
     """
     if isinstance(ir, np.ndarray):
         ir_values = ir
@@ -784,20 +910,41 @@ def window(ir: np.ndarray | "IR", window_name: str) -> np.ndarray:
     length = ir_values.shape[-1]
     if length <= 0:
         raise ValueError("IR data must contain at least one sample")
+    if start_sample is None:
+        start = 0
+    else:
+        if isinstance(start_sample, bool) or not isinstance(start_sample, int):
+            raise ValueError("start_sample must be an integer or None")
+        start = start_sample
+    if end_sample is None:
+        end = length
+    else:
+        if isinstance(end_sample, bool) or not isinstance(end_sample, int):
+            raise ValueError("end_sample must be an integer or None")
+        end = end_sample
+    if start < 0 or end < 0:
+        raise ValueError("start_sample and end_sample must be non-negative")
+    if start >= end:
+        raise ValueError("start_sample must be lower than end_sample")
+    if end > length:
+        raise ValueError("end_sample cannot exceed the IR sample length")
+    window_length = end - start
     key = window_name.strip().lower()
     if key in {"hann", "hanning"}:
-        window_values = np.hanning(length)
+        window_values = np.hanning(window_length)
     elif key in {"rectangular"}:
-        window_values = np.ones(length)
+        window_values = np.ones(window_length)
     elif key == "hamming":
-        window_values = np.hamming(length)
+        window_values = np.hamming(window_length)
     elif key == "blackman":
-        window_values = np.blackman(length)
+        window_values = np.blackman(window_length)
     else:
         raise ValueError(
             "window_name must be one of: hann, hamming, blackman, rectangular"
         )
-    return ir_values * window_values
+    windowed_ir = ir_values.copy()
+    windowed_ir[..., start:end] = windowed_ir[..., start:end] * window_values
+    return windowed_ir
 
 def padding(
     ir: np.ndarray | "IR",

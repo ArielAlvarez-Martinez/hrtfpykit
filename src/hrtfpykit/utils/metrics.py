@@ -81,7 +81,7 @@ def itd(
     -----
     Use this function when inspecting absolute ITD values for one HRTF or when
     implementing custom metrics. Use
-    :func:`~hrtfpykit.hrtf.itd_difference` when comparing two
+    :func:`~hrtfpykit.hrtf.abs_itd_diff` when comparing two
     HRTFs over a shared source grid.
     """
     if isinstance(ir, np.ndarray):
@@ -261,7 +261,7 @@ def ild(
     -----
     Use this function when inspecting absolute ILD values for one HRTF or when
     implementing custom metrics. Use
-    :func:`~hrtfpykit.hrtf.ild_difference` when comparing two
+    :func:`~hrtfpykit.hrtf.abs_ild_diff` when comparing two
     HRTFs over a shared source grid.
     """
     ir_object = None
@@ -341,7 +341,7 @@ def ild(
     return magnitude_to_db(ild_linear)
 
 
-def itd_difference(
+def abs_itd_diff(
     hrtf_a: "HRTF",
     hrtf_b: "HRTF",
     method: str = "threshold",
@@ -410,10 +410,10 @@ def itd_difference(
     Compare two HRTFs measured on the same source grid and return one absolute
     timing-difference value per source position:
 
-    >>> from hrtfpykit.hrtf import load_hrtf, itd_difference
+    >>> from hrtfpykit.hrtf import load_hrtf, abs_itd_diff
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> itd_diff = itd_difference(hrtf_a, hrtf_b, output="seconds")
+    >>> itd_diff = abs_itd_diff(hrtf_a, hrtf_b, output="seconds")
     >>> itd_diff.shape
     (793,)
     """
@@ -472,7 +472,7 @@ def itd_difference(
     return np.abs(itd_a - itd_b)
 
 
-def ild_difference(
+def abs_ild_diff(
     hrtf_a: "HRTF",
     hrtf_b: "HRTF",
     mode: str = "broad-band",
@@ -541,10 +541,10 @@ def ild_difference(
     Compare frequency-dependent ILD values for two HRTFs measured on the same
     source grid:
 
-    >>> from hrtfpykit.hrtf import load_hrtf, ild_difference
+    >>> from hrtfpykit.hrtf import load_hrtf, abs_ild_diff
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> ild_diff = ild_difference(
+    >>> ild_diff = abs_ild_diff(
     ...     hrtf_a,
     ...     hrtf_b,
     ...     mode="frequency-dependent",
@@ -642,12 +642,12 @@ def lsd(
     interval in native grid order.
 
     The function first computes the dB magnitude difference for each selected
-    source, ear, and frequency bin. Reductions are explicit axis reductions over
-    ``sources``, ``frequencies``, and optionally ``ear``. Without reduction, the
-    output keeps the selected source and frequency axes and also keeps the ear
-    axis when ``ear="both"``. Reduced values are root-mean-square dB
-    differences over the requested axes. ``reduction="global"`` is shorthand for
-    reducing sources, ears, and frequencies to one scalar score.
+    source, ear, and frequency bin. The natural LSD metric is then computed as
+    the root-mean-square dB difference over the selected frequency bins,
+    producing one LSD value per selected source and ear. ``reduction`` averages
+    those already-computed LSD values over source and/or ear domains.
+    ``reduction="global"`` averages the per-source/per-ear LSD values to one
+    scalar score.
 
     Parameters
     ----------
@@ -660,7 +660,7 @@ def lsd(
     ear : {``left``, ``right``, ``both``}, default=``both``
         Ear channel selection. ``left`` uses ear channel 0, ``right`` uses ear
         channel 1, and ``both`` selects both ear channels. The ear axis is kept
-        unless ``reduction`` includes ``"ear"`` or ``"global"``.
+        unless ``reduction`` includes ``"ears"`` or ``"global"``.
     plane : {``all``, ``horizontal``, ``median``}, default=``all``
         Spatial subset used before comparison. ``all`` uses the current
         full source grid, ``horizontal`` uses the nearest measured
@@ -688,14 +688,13 @@ def lsd(
         inside any requested band is kept in native grid order. Mutually
         exclusive with frequencies.
     reduction : str, tuple[str, ...], list[str], or None, default=``none``
-        Aggregation mode. None or ``"none"`` keeps selected sources and
-        frequencies, and keeps the ear axis when ``ear="both"``. ``"sources"``
-        computes RMS LSD over source positions. ``"frequencies"`` computes RMS
-        LSD over frequency bins. ``"ear"`` computes RMS LSD over the ear axis
-        and is only valid with ``ear="both"``. Multiple axes can be reduced with
-        a tuple or list, for example ``("sources", "frequencies")`` returns one
-        value per selected ear. ``"global"`` reduces sources, ears, and
-        frequencies to one scalar.
+        Aggregation mode applied after the per-source/per-ear LSD metric is
+        computed over frequency. None or ``"none"`` returns the natural LSD
+        array. ``"sources"`` averages LSD values through source positions and
+        preserves ears. ``"ears"`` averages LSD values through ears and is only
+        valid with ``ear="both"``. ``"global"`` averages the per-source/per-ear
+        LSD values through sources and ears to one scalar. Tuples combine domain
+        averages.
     epsilon : float, default=1e-12
         Positive lower bound applied to magnitudes before conversion to dB.
         This avoids invalid values from log10(0).
@@ -704,17 +703,12 @@ def lsd(
     -------
     np.ndarray | float
         LSD values in dB after the requested aggregation. With no reduction and
-        ``ear="both"``, the output shape is
-        (selected_sources, 2, selected_frequencies). With no reduction and
-        ``ear="left"`` or ``ear="right"``, the single selected ear axis is
-        squeezed and the output shape is (selected_sources,
-        selected_frequencies). Reducing ``sources`` removes the source axis,
-        reducing ``frequencies`` removes the frequency axis, and reducing
-        ``ear`` removes the ear axis. For example,
-        ``reduction=("sources", "frequencies")`` with ``ear="both"`` returns
-        one value per ear with shape (2,). ``reduction="global"`` returns one
-        scalar RMS LSD value summarizing all selected sources, ears, and
-        frequencies.
+        ``ear="both"``, the output shape is (selected_sources, 2). With no
+        reduction and ``ear="left"`` or ``ear="right"``, the output shape is
+        (selected_sources,). ``reduction="sources"`` with ``ear="both"``
+        returns one value per ear with shape (2,). ``reduction="ears"`` returns
+        one value per selected source. ``reduction="global"`` returns one
+        scalar average of the per-source/per-ear LSD values.
 
     Raises
     ------
@@ -724,18 +718,17 @@ def lsd(
         shapes, or frequency bins do not match, if TF values are not arranged
         as (positions, ears, frequency_bins), if the ear axis has fewer
         than two channels, if ear, plane, or reduction is
-        unsupported, if ``ear`` reduction is requested without ``ear="both"``,
-        if epsilon is not finite and positive, if selected
-        planes or position filters produce no source positions, if frequency
-        selectors are mutually exclusive, invalid, or select no bins, or if
-        frequency reduction is requested for a single selected frequency.
+        unsupported, if ``ears`` reduction is requested without ``ear="both"``,
+        if epsilon is not finite and positive, if selected planes or position
+        filters produce no source positions, or if frequency selectors are
+        mutually exclusive, invalid, or select no bins.
 
     Notes
     -----
-    Use reduction=``none`` for per-source, per-ear, per-bin diagnostics,
-    reduction=``frequencies`` for one spectral summary per source,
-    reduction=``sources`` for one source-averaged spectral curve, and
-    reduction=``global`` for a single comparison score.
+    Use reduction=``none`` for one LSD value per selected source and ear,
+    reduction=``sources`` for one source-averaged LSD value per ear,
+    reduction=``ears`` for one ear-averaged LSD value per source, and
+    reduction=``global`` for a single average LSD score.
 
     Examples
     --------
@@ -776,13 +769,13 @@ def lsd(
         if reduction_key == "none":
             reduction_axes = ()
         elif reduction_key == "global":
-            reduction_axes = ("sources", "ear", "frequencies")
-        elif reduction_key in {"sources", "frequencies", "ear"}:
+            reduction_axes = ("sources", "ears")
+        elif reduction_key in {"sources", "ears"}:
             reduction_axes = (reduction_key,)
         else:
             raise ValueError(
-                "reduction must be one of: none, sources, frequencies, ear, global, "
-                "or a tuple/list of sources, frequencies, and ear"
+                "reduction must be one of: none, sources, ears, global, "
+                "or a tuple/list of sources and ears"
             )
     elif isinstance(reduction, tuple | list):
         if len(reduction) == 0:
@@ -795,15 +788,15 @@ def lsd(
                     raise ValueError("reduction='none' cannot be combined with other reduction axes")
                 if axis_key == "global":
                     raise ValueError("reduction='global' cannot be combined with other reduction axes")
-                if axis_key not in {"sources", "frequencies", "ear"}:
-                    raise ValueError("reduction axes must be one of: sources, frequencies, ear")
+                if axis_key not in {"sources", "ears"}:
+                    raise ValueError("reduction axes must be one of: sources, ears")
                 if axis_key not in normalized_axes:
                     normalized_axes.append(axis_key)
             reduction_axes = tuple(normalized_axes)
     else:
         raise ValueError(
-            "reduction must be one of: none, sources, frequencies, ear, global, "
-            "or a tuple/list of sources, frequencies, and ear"
+            "reduction must be one of: none, sources, ears, global, "
+            "or a tuple/list of sources and ears"
         )
 
     if isinstance(epsilon, bool):
@@ -851,8 +844,8 @@ def lsd(
         selected_ear_indices = np.array([1], dtype=int)
     else:
         selected_ear_indices = np.array([0, 1], dtype=int)
-    if "ear" in reduction_axes and ear_key != "both":
-        raise ValueError("reduction axis 'ear' can only be used when ear='both'")
+    if "ears" in reduction_axes and ear_key != "both":
+        raise ValueError("reduction axis 'ears' can only be used when ear='both'")
 
     if plane_key == "all":
         selected_positions = np.arange(source_positions_a.shape[0], dtype=int)
@@ -952,26 +945,30 @@ def lsd(
     db_values_a = magnitude_to_db(magnitude_a)
     db_values_b = magnitude_to_db(magnitude_b)
     difference_db = db_values_a - db_values_b
-    squared_difference_db = np.square(difference_db)
-    axis_numbers = {"sources": 0, "ear": 1, "frequencies": 2}
-    reduced_axis_numbers = tuple(axis_numbers[axis] for axis in reduction_axes)
-    if "frequencies" in reduction_axes and difference_db.shape[-1] == 1:
-        raise ValueError("reduction axis 'frequencies' requires multiple selected frequencies")
+    lsd_values = np.sqrt(np.mean(np.square(difference_db), axis=-1))
+    if ear_key != "both":
+        lsd_values = np.squeeze(lsd_values, axis=1)
 
-    if len(reduced_axis_numbers) == 0:
-        lsd_values: np.ndarray | float = np.sqrt(squared_difference_db)
-    else:
-        lsd_values = np.sqrt(np.mean(squared_difference_db, axis=reduced_axis_numbers))
+    if len(reduction_axes) == 0:
+        return np.asarray(lsd_values)
 
-    if np.isscalar(lsd_values):
-        return float(cast(Any, lsd_values))
-    remaining_axes = [
-        axis
-        for axis in ("sources", "ear", "frequencies")
-        if axis not in reduction_axes
-    ]
-    if isinstance(lsd_values, np.ndarray) and ear_key != "both" and "ear" in remaining_axes:
-        lsd_values = np.squeeze(lsd_values, axis=remaining_axes.index("ear"))
-    if isinstance(lsd_values, np.ndarray) and lsd_values.ndim == 0:
-        return float(lsd_values)
-    return lsd_values
+    selected_axes: list[int] = []
+    for reduction_axis in reduction_axes:
+        if reduction_axis == "ears":
+            if lsd_values.ndim < 2:
+                raise ValueError("reduction axis 'ears' can only be used when ear='both'")
+            selected_axes.append(lsd_values.ndim - 1)
+        elif reduction_axis == "sources":
+            if lsd_values.ndim < 1:
+                raise ValueError("reduction='sources' requires a source axis")
+            if ear_key == "both":
+                selected_axes.extend(range(lsd_values.ndim - 1))
+            else:
+                selected_axes.extend(range(lsd_values.ndim))
+
+    reduced_values = np.mean(lsd_values, axis=tuple(selected_axes))
+    if np.isscalar(reduced_values):
+        return float(cast(Any, reduced_values))
+    if isinstance(reduced_values, np.ndarray) and reduced_values.ndim == 0:
+        return float(reduced_values)
+    return reduced_values

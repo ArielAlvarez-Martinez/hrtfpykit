@@ -6,7 +6,7 @@ import pytest
 
 from hrtfpykit.hrtf.hrtf import HRTF
 from hrtfpykit.hrtf import load_hrtf
-from hrtfpykit.utils.metrics import itd, lsd
+from hrtfpykit.utils.metrics import ild, itd, lsd
 from hrtfpykit.sofa import load_sofa
 
 
@@ -326,6 +326,8 @@ def test_save_sofa_convention_with_selected_positions(
     resolved_expected_convention = (
         backed_sofa_convention(real_hrtf) if sofa_convention == "same" else sofa_convention
     )
+    present_variables: tuple[str, ...]
+    absent_variables: tuple[str, ...]
     if resolved_expected_convention == "SimpleFreeFieldHRIR":
         expected_data_type = "FIR"
         present_variables = ("Data.IR", "Data.SamplingRate")
@@ -409,6 +411,24 @@ def test_real_hrtf_metric_itd_runs_on_loaded_file(real_hrtf: HRTF) -> None:
     assert np.all(np.isfinite(values))
 
 
+def test_real_hrtf_metric_ild_domain_wrapper_matches_metric(real_hrtf: HRTF) -> None:
+    broad_band_values = real_hrtf.IR.get_ild(mode="broad-band", output="db")
+    expected_broad_band_values = ild(real_hrtf.IR, mode="broad-band", output="db")
+    frequency_dependent_values = real_hrtf.IR.get_ild(
+        mode="frequency-dependent",
+        output="db",
+    )
+    expected_frequency_dependent_values = ild(
+        real_hrtf.IR,
+        mode="frequency-dependent",
+        output="db",
+        fft_length=real_hrtf.fft_length,
+    )
+
+    np.testing.assert_allclose(broad_band_values, expected_broad_band_values)
+    np.testing.assert_allclose(frequency_dependent_values, expected_frequency_dependent_values)
+
+
 def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
     processed = real_hrtf.transform.apply_gain(-1.0, scale="db")
     frequency_bins = np.asarray(real_hrtf.TF.frequency_bins, dtype=float)
@@ -442,37 +462,37 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
         frequency_bands=band,
         reduction="none",
     )
-    source_frequency_reduced = lsd(
+    source_reduced = lsd(
         real_hrtf,
         processed,
         ear="both",
         positions="front",
         frequency_bands=band,
-        reduction=("frequencies", "sources"),
+        reduction="sources",
     )
-    ear_reduced = lsd(
+    ears_reduced = lsd(
         real_hrtf,
         processed,
         ear="both",
         positions="front",
         frequency_bands=band,
-        reduction=("ear",),
+        reduction=("ears",),
     )
-    left_source_frequency_reduced = lsd(
+    left_source_reduced = lsd(
         real_hrtf,
         processed,
         ear="left",
         positions="front",
         frequency_bands=band,
-        reduction=("frequencies", "sources"),
+        reduction="sources",
     )
 
     assert np.asarray(band_values).shape == np.asarray(explicit_values).shape
-    assert np.asarray(band_values).shape == (1, expected_indices.size)
-    assert np.asarray(both_ear_values).shape == (1, 2, expected_indices.size)
-    assert np.asarray(source_frequency_reduced).shape == (2,)
-    assert np.asarray(ear_reduced).shape == (1, expected_indices.size)
-    assert isinstance(left_source_frequency_reduced, float)
+    assert np.asarray(band_values).shape == (1,)
+    assert np.asarray(both_ear_values).shape == (1, 2)
+    assert np.asarray(source_reduced).shape == (2,)
+    assert np.asarray(ears_reduced).shape == (1,)
+    assert isinstance(left_source_reduced, float)
     np.testing.assert_allclose(band_values, explicit_values)
 
     with pytest.raises(ValueError, match="can only be used when ear='both'"):
@@ -481,7 +501,7 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
             processed,
             ear="left",
             frequency_bands=band,
-            reduction=("ear",),
+            reduction=("ears",),
         )
     with pytest.raises(ValueError, match="mutually exclusive"):
         lsd(

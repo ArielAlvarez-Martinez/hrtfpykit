@@ -17,7 +17,6 @@ from .axis import (
     SampleAxis,
     TimeAxis,
     ElevationAnglesAxis,
-    PolarAnglesAxis,
 )
 from .default import Margins
 from .figure import Figure
@@ -28,8 +27,8 @@ from .titles import Titles
 from ..utils.warnings import HRTFPyKitWarning, warn_user
 from ..utils.coordinates import get_position_queries, get_source_positions
 from ..utils.dsp import magnitude_to_db
-from ..utils.metrics import ild, ild_difference, itd, lsd
-from ..utils.planes import get_horizontal_plane, get_median_plane
+from ..utils.metrics import ild, abs_ild_diff, itd, lsd
+from ..utils.planes import get_horizontal_plane
 from .polar import create_horizontal_plane_curve
 
 
@@ -797,7 +796,7 @@ def compare_amplitude(
         plt.show()
 
 
-def compare_absolute_itd(
+def compare_abs_itd(
     hrtfs: list["HRTF"],
     plane_angle: float = 0.0,
     legends: list[str] | tuple[str, ...] | None = None,
@@ -872,10 +871,10 @@ def compare_absolute_itd(
     Compare absolute ITD on the horizontal plane for two HRTFs:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_absolute_itd
+    >>> from hrtfpykit.plots import compare_abs_itd
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_absolute_itd(
+    >>> compare_abs_itd(
     ...     [hrtf_a, hrtf_b],
     ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
@@ -886,9 +885,9 @@ def compare_absolute_itd(
         raise ValueError("hrtfs must be a list[HRTF]")
     hrtf_count = len(hrtfs)
     if hrtf_count < 2:
-        raise ValueError("compare_absolute_itd requires at least 2 HRTFs")
+        raise ValueError("compare_abs_itd requires at least 2 HRTFs")
     if hrtf_count > 5:
-        raise ValueError("compare_absolute_itd accepts up to 5 HRTFs")
+        raise ValueError("compare_abs_itd accepts up to 5 HRTFs")
     if isinstance(plane_angle, bool):
         raise ValueError("plane_angle must be a finite value")
     resolved_plane_angle = float(plane_angle)
@@ -965,7 +964,7 @@ def compare_absolute_itd(
         ):
             warn_user(
                 (
-                    "compare_absolute_itd resolved different horizontal-plane elevations: "
+                    "compare_abs_itd resolved different horizontal-plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1039,7 +1038,7 @@ def compare_absolute_itd(
         plt.show()
 
 
-def compare_absolute_ild(
+def compare_abs_bb_ild(
     hrtfs: list["HRTF"],
     plane_angle: float = 0.0,
     legends: list[str] | tuple[str, ...] | None = None,
@@ -1114,10 +1113,10 @@ def compare_absolute_ild(
     Compare absolute ILD on the horizontal plane for two HRTFs:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_absolute_ild
+    >>> from hrtfpykit.plots import compare_abs_bb_ild
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_absolute_ild(
+    >>> compare_abs_bb_ild(
     ...     [hrtf_a, hrtf_b],
     ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
@@ -1128,9 +1127,9 @@ def compare_absolute_ild(
         raise ValueError("hrtfs must be a list[HRTF]")
     hrtf_count = len(hrtfs)
     if hrtf_count < 2:
-        raise ValueError("compare_absolute_ild requires at least 2 HRTFs")
+        raise ValueError("compare_abs_bb_ild requires at least 2 HRTFs")
     if hrtf_count > 5:
-        raise ValueError("compare_absolute_ild accepts up to 5 HRTFs")
+        raise ValueError("compare_abs_bb_ild accepts up to 5 HRTFs")
     if isinstance(plane_angle, bool):
         raise ValueError("plane_angle must be a finite value")
     resolved_plane_angle = float(plane_angle)
@@ -1208,7 +1207,7 @@ def compare_absolute_ild(
         ):
             warn_user(
                 (
-                    "compare_absolute_ild resolved different horizontal-plane elevations: "
+                    "compare_abs_bb_ild resolved different horizontal-plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1282,7 +1281,7 @@ def compare_absolute_ild(
         plt.show()
 
 
-def compare_itd_curve(
+def compare_signed_itd(
     hrtfs: list["HRTF"],
     plane_angle: float = 0.0,
     legends: list[str] | tuple[str, ...] | None = None,
@@ -1301,7 +1300,7 @@ def compare_itd_curve(
     HRTF. It is intended for inspecting timing-cue directionality across
     subjects, datasets, or processing pipelines.
 
-    Unlike :func:`~hrtfpykit.plots.compare_absolute_itd`, this function
+    Unlike :func:`~hrtfpykit.plots.compare_abs_itd`, this function
     preserves ITD sign. The x-axis uses the signed -180 .. 180 azimuth
     convention.
 
@@ -1357,10 +1356,10 @@ def compare_itd_curve(
     Compare the signed ITD curve around the horizontal plane:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_itd_curve
+    >>> from hrtfpykit.plots import compare_signed_itd
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_itd_curve(
+    >>> compare_signed_itd(
     ...     [hrtf_a, hrtf_b],
     ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
@@ -1371,9 +1370,9 @@ def compare_itd_curve(
         raise ValueError("hrtfs must be a list[HRTF]")
     hrtf_count = len(hrtfs)
     if hrtf_count < 2:
-        raise ValueError("compare_itd_curve requires at least 2 HRTFs")
+        raise ValueError("compare_signed_itd requires at least 2 HRTFs")
     if hrtf_count > 5:
-        raise ValueError("compare_itd_curve accepts up to 5 HRTFs")
+        raise ValueError("compare_signed_itd accepts up to 5 HRTFs")
     if isinstance(plane_angle, bool):
         raise ValueError("plane_angle must be a finite value")
     resolved_plane_angle = float(plane_angle)
@@ -1454,7 +1453,7 @@ def compare_itd_curve(
         if not np.isclose(compared_real_elevation, reference_real_elevation, atol=1e-8, rtol=0.0):
             warn_user(
                 (
-                    "compare_itd_curve resolved different horizontal-plane elevations: "
+                    "compare_signed_itd resolved different horizontal-plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1520,7 +1519,7 @@ def compare_itd_curve(
         plt.show()
 
 
-def compare_ild_curve(
+def compare_signed_bb_ild(
     hrtfs: list["HRTF"],
     plane_angle: float = 0.0,
     legends: list[str] | tuple[str, ...] | None = None,
@@ -1539,7 +1538,7 @@ def compare_ild_curve(
     HRTF. It is intended for inspecting level-cue directionality across
     subjects, datasets, or processing pipelines.
 
-    Unlike :func:`~hrtfpykit.plots.compare_absolute_ild`, this function
+    Unlike :func:`~hrtfpykit.plots.compare_abs_bb_ild`, this function
     preserves ILD sign. The x-axis uses the signed -180 .. 180 azimuth
     convention.
 
@@ -1595,10 +1594,10 @@ def compare_ild_curve(
     Compare the signed ILD curve around the horizontal plane:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_ild_curve
+    >>> from hrtfpykit.plots import compare_signed_bb_ild
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_ild_curve(
+    >>> compare_signed_bb_ild(
     ...     [hrtf_a, hrtf_b],
     ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
@@ -1609,9 +1608,9 @@ def compare_ild_curve(
         raise ValueError("hrtfs must be a list[HRTF]")
     hrtf_count = len(hrtfs)
     if hrtf_count < 2:
-        raise ValueError("compare_ild_curve requires at least 2 HRTFs")
+        raise ValueError("compare_signed_bb_ild requires at least 2 HRTFs")
     if hrtf_count > 5:
-        raise ValueError("compare_ild_curve accepts up to 5 HRTFs")
+        raise ValueError("compare_signed_bb_ild accepts up to 5 HRTFs")
     if isinstance(plane_angle, bool):
         raise ValueError("plane_angle must be a finite value")
     resolved_plane_angle = float(plane_angle)
@@ -1693,7 +1692,7 @@ def compare_ild_curve(
         if not np.isclose(compared_real_elevation, reference_real_elevation, atol=1e-8, rtol=0.0):
             warn_user(
                 (
-                    "compare_ild_curve resolved different horizontal-plane elevations: "
+                    "compare_signed_bb_ild resolved different horizontal-plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1759,7 +1758,7 @@ def compare_ild_curve(
         plt.show()
 
 
-def compare_itd_difference(
+def plot_abs_itd_diff(
     hrtf_a: "HRTF",
     hrtf_b: "HRTF",
     method: str = "threshold",
@@ -1827,7 +1826,7 @@ def compare_itd_difference(
     Notes
     -----
     This plotting function computes a signed difference directly. That differs
-    from :func:`~hrtfpykit.hrtf.itd_difference`, which returns absolute
+    from :func:`~hrtfpykit.hrtf.abs_itd_diff`, which returns absolute
     per-position differences. Positive and negative colors therefore retain the
     direction of hrtf_a - hrtf_b.
 
@@ -1837,10 +1836,10 @@ def compare_itd_difference(
     grid:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_itd_difference
+    >>> from hrtfpykit.plots import plot_abs_itd_diff
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_itd_difference(
+    >>> plot_abs_itd_diff(
     ...     hrtf_a,
     ...     hrtf_b,
     ...     method="threshold",
@@ -1929,9 +1928,9 @@ def compare_itd_difference(
     )
     ax = figure.get_ax("main")
     colorbar_label = (
-        Labels.compare_itd_difference_seconds
+        Labels.plot_abs_itd_diff_seconds
         if output_key == "seconds"
-        else Labels.compare_itd_difference_samples
+        else Labels.plot_abs_itd_diff_samples
     )
     scatter = ax.scatter(
         transformed_azimuth_values,
@@ -1971,35 +1970,34 @@ def compare_itd_difference(
             figure.fig,
             figure.axes,
             figure.figure_title_y,
-            Titles.compare_itd_difference,
+            Titles.plot_abs_itd_diff,
         )
     if show:
         plt.show()
 
 
-def compare_ild_difference(
+def plot_abs_bb_ild_diff(
     hrtf_a: "HRTF",
     hrtf_b: "HRTF",
-    mode: str = "broad-band",
     output: str = "db",
-    fft_length: int | None = None,
     epsilon: float = 1e-12,
     azimuth_range_mode: str = "-180-180",
     colormap: str = "jet",
     show: bool = True,
     titles: bool = True,
 ) -> None:
-    """Plot absolute ILD differences between two HRTFs across source positions.
+    """Plot absolute broad-band ILD differences across source positions.
 
-    The function computes per-position ILD differences using
-    :func:`~hrtfpykit.hrtf.ild_difference` and displays them as a
-    color-coded scatter map over azimuth and elevation. Marker color encodes
-    the absolute ILD difference in the requested output representation.
+    The function computes one broad-band ILD difference per shared source
+    position using :func:`~hrtfpykit.hrtf.abs_ild_diff` with
+    ``mode="broad-band"`` and displays those scalar values as a color-coded
+    scatter map over azimuth and elevation. Marker color encodes the absolute
+    broad-band ILD difference in the requested output representation.
 
-    The underlying metric validates that the two HRTFs share the same source
-    grid. Broad-band mode produces one value per source position. Frequency-
-    dependent mode delegates to the metric and is only plottable here when the
-    reduced output still aligns one value with each source position.
+    This plot is intentionally broad-band only. A frequency-dependent ILD
+    comparison produces a position-by-frequency matrix, not one scalar per
+    source position, and therefore belongs in a frequency-plane visualization
+    rather than this source-grid map.
 
     Parameters
     ----------
@@ -2009,14 +2007,10 @@ def compare_ild_difference(
     hrtf_b : HRTF
         Second HRTF used for ILD comparison. Must contain IR data and a source
         grid compatible with hrtf_a.
-    mode : {``broad-band``, ``frequency-dependent``}, default=``broad-band``
-        ILD mode passed to :func:`~hrtfpykit.hrtf.ild_difference`.
     output : {``db``, ``linear``}, default=``db``
-        ILD output representation and colorbar label style.
-    fft_length : int | None, default=None
-        Optional FFT length used when ``mode`` is ``frequency-dependent``.
+        Broad-band ILD output representation and colorbar label style.
     epsilon : float, default=1e-12
-        Positive floor passed to :func:`~hrtfpykit.hrtf.ild_difference`.
+        Positive floor passed to :func:`~hrtfpykit.hrtf.abs_ild_diff`.
     azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
         Azimuth convention applied on the x-axis.
     colormap : str, default=``jet``
@@ -2033,15 +2027,16 @@ def compare_ild_difference(
     Raises
     ------
     ValueError
-        If delegated ILD-difference calculation fails, source positions are
-        invalid, or the returned ILD-difference values cannot be aligned with
-        the number of source positions.
+        If delegated broad-band ILD-difference calculation fails, source
+        positions are invalid, or the returned ILD-difference values cannot be
+        aligned with the number of source positions.
 
     Notes
     -----
-    This function visualizes absolute ILD differences returned by
-    :func:`~hrtfpykit.hrtf.ild_difference`. Use lower-level metric
-    functions directly when signed left/right level changes are required.
+    This function visualizes absolute broad-band ILD differences returned by
+    :func:`~hrtfpykit.hrtf.abs_ild_diff`. Use the lower-level metric directly
+    for frequency-dependent ILD difference arrays or signed left/right level
+    changes.
 
     Examples
     --------
@@ -2049,24 +2044,22 @@ def compare_ild_difference(
     grid:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_ild_difference
+    >>> from hrtfpykit.plots import plot_abs_bb_ild_diff
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_ild_difference(
+    >>> plot_abs_bb_ild_diff(
     ...     hrtf_a,
     ...     hrtf_b,
-    ...     mode="broad-band",
     ...     output="db",
     ...     colormap="plasma",
     ... )
     """
     difference_values = np.asarray(
-        ild_difference(
+        abs_ild_diff(
             hrtf_a=hrtf_a,
             hrtf_b=hrtf_b,
-            mode=mode,
+            mode="broad-band",
             output=output,
-            fft_length=fft_length,
             epsilon=epsilon,
         ),
         dtype=float,
@@ -2101,9 +2094,9 @@ def compare_ild_difference(
     ax = figure.get_ax("main")
     output_key = str(output).strip().lower()
     colorbar_label = (
-        Labels.compare_ild_difference_db
+        Labels.plot_abs_bb_ild_diff_db
         if output_key == "db"
-        else Labels.compare_ild_difference_linear
+        else Labels.plot_abs_bb_ild_diff_linear
     )
     scatter = ax.scatter(
         transformed_azimuth_values,
@@ -2143,13 +2136,13 @@ def compare_ild_difference(
             figure.fig,
             figure.axes,
             figure.figure_title_y,
-            Titles.compare_ild_difference,
+            Titles.plot_abs_bb_ild_diff,
         )
     if show:
         plt.show()
 
 
-def compare_lsd(
+def plot_lsd(
     hrtf_a: "HRTF",
     hrtf_b: "HRTF",
     ear: str = "left",
@@ -2161,9 +2154,9 @@ def compare_lsd(
 ) -> None:
     """Plot full-grid LSD across source positions as a spatial scatter map.
 
-    The function computes one LSD value per source position by reducing
-    frequency bins with :func:`~hrtfpykit.hrtf.lsd`. When ``ear="both"``, the
-    delegated LSD call also reduces the ear axis with ``reduction="ear"`` so
+    The function computes one LSD value per source position with
+    :func:`~hrtfpykit.hrtf.lsd`. When ``ear="both"``, the delegated LSD call
+    averages the ear domain with ``reduction="ears"`` so
     each source position still maps to one displayed value. The result is shown
     as an azimuth-elevation scatter map with color representing log-spectral
     distance in decibels.
@@ -2182,7 +2175,7 @@ def compare_lsd(
         grid compatible with hrtf_a.
     ear : {``left``, ``right``, ``both``}, default=``left``
         Ear channel selection passed to :func:`~hrtfpykit.hrtf.lsd`. ``both``
-        computes both ear channels and reduces the ear axis inside ``lsd`` so
+        computes both ear channels and averages the ear domain inside ``lsd`` so
         the scatter plot receives one value per source position.
     epsilon : float, default=1e-12
         Positive floor passed to :func:`~hrtfpykit.hrtf.lsd` before dB conversion.
@@ -2211,19 +2204,18 @@ def compare_lsd(
     This is a spatial summary plot: each source position receives one
     frequency-reduced LSD value. If ``ear="both"``, the displayed value also
     includes the LSD ear-axis reduction. Use
-    :func:`~hrtfpykit.plots.compare_lsd_plane` when you need to
-    inspect how LSD varies with both direction and frequency on a canonical
-    plane.
+    Use :func:`~hrtfpykit.plots.plot_lsd` when you need a full-grid spatial
+    summary of pairwise spectral distance.
 
     Examples
     --------
     Plot a full-grid log-spectral-distance summary for the right ear:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_lsd
+    >>> from hrtfpykit.plots import plot_lsd
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_lsd(
+    >>> plot_lsd(
     ...     hrtf_a,
     ...     hrtf_b,
     ...     ear="right",
@@ -2232,11 +2224,11 @@ def compare_lsd(
     ... )
     """
     ear_key = str(ear).strip().lower()
-    reduction: str | tuple[str, ...]
+    reduction: str | None
     if ear_key == "both":
-        reduction = ("frequencies", "ear")
+        reduction = "ears"
     else:
-        reduction = "frequencies"
+        reduction = None
     difference_values = np.asarray(
         lsd(
             hrtf_a=hrtf_a,
@@ -2288,7 +2280,7 @@ def compare_lsd(
         vmin=float(np.min(difference_values)),
         vmax=float(np.max(difference_values)),
     )
-    figure.fig.colorbar(scatter, ax=ax, label=Labels.compare_lsd_db)
+    figure.fig.colorbar(scatter, ax=ax, label=Labels.plot_lsd_db)
     AzimuthAnglesAxis.apply(
         ax=ax,
         axis="x",
@@ -2315,311 +2307,9 @@ def compare_lsd(
             figure.fig,
             figure.axes,
             figure.figure_title_y,
-            Titles.compare_lsd,
+            Titles.plot_lsd,
         )
     if show:
         plt.show()
 
 
-def compare_lsd_plane(
-    hrtf_a: "HRTF",
-    hrtf_b: "HRTF",
-    plane: str = "horizontal",
-    ear: str = "left",
-    plane_angle: float = 0.0,
-    epsilon: float = 1e-12,
-    x_axis: str = "linear",
-    freq_min: float | None = None,
-    freq_max: float | None = None,
-    colormap: str = "jet",
-    show: bool = True,
-    titles: bool = True,
-) -> None:
-    """Plot plane-restricted LSD as a frequency-angle heatmap.
-
-    This function visualizes log-spectral distance values in decibels for a
-    canonical spatial plane. It calls :func:`~hrtfpykit.hrtf.lsd` without source
-    or frequency reduction so the output keeps one value per selected plane
-    position and selected frequency bin. When ``ear="both"``, the delegated LSD
-    call reduces the ear axis with ``reduction="ear"`` so the heatmap remains a
-    two-dimensional direction-frequency image. Frequency is shown in kilohertz
-    on the x-axis, direction is shown on the y-axis, and color encodes LSD.
-
-    Horizontal-plane plots use signed azimuth in the -180 .. 180 convention
-    on the y-axis. Median-plane plots use lateral-polar polar angle on the
-    y-axis. If multiple source positions map to the same displayed direction,
-    their LSD rows are averaged before rendering the heatmap.
-
-    Parameters
-    ----------
-    hrtf_a : HRTF
-        First HRTF used in the comparison. Must contain TF frequency bins and a
-        source grid compatible with hrtf_b.
-    hrtf_b : HRTF
-        Second HRTF used in the comparison. Must contain comparable TF data and
-        a source grid compatible with hrtf_a.
-    plane : {``horizontal``, ``median``}, default=``horizontal``
-        Canonical plane used to select source positions.
-    ear : {``left``, ``right``, ``both``}, default=``left``
-        Ear channel selection passed to :func:`~hrtfpykit.hrtf.lsd`. ``both``
-        computes both ear channels and reduces the ear axis inside ``lsd`` so
-        the heatmap receives one value per selected direction and frequency bin.
-    plane_angle : float, default=0.0
-        Plane coordinate in degrees. For ``plane="horizontal"`` this is
-        spherical elevation. For ``plane="median"`` this is lateral-polar
-        lateral angle. The nearest measured plane in hrtf_a is used.
-    epsilon : float, default=1e-12
-        Positive floor passed to :func:`~hrtfpykit.hrtf.lsd` before dB conversion.
-    x_axis : {``linear``, ``log``}, default=``linear``
-        Frequency-axis scale used for the heatmap x-axis.
-    freq_min : float | None, default=None
-        Minimum frequency in Hz included in the LSD heatmap. When omitted,
-        defaults to 20 Hz.
-    freq_max : float | None, default=None
-        Maximum frequency in Hz included in the LSD heatmap. When omitted,
-        defaults to 20000 Hz.
-    colormap : str, default=``jet``
-        Matplotlib colormap used for heatmap coloring.
-    show : bool, default=True
-        If True, calls matplotlib.pyplot.show().
-    titles : bool, default=True
-        If True, applies a figure title with plane context.
-
-    Returns
-    -------
-    None
-
-    Raises
-    ------
-    ValueError
-        If plane or x_axis is unsupported, required frequency bins are
-        missing, the selected plane is empty, frequency limits are invalid, the
-        selected frequency range contains too few bins, delegated LSD
-        calculation does not return a 2D plane-frequency matrix, or no finite
-        LSD values are available for heatmap rendering.
-
-    Notes
-    -----
-    freq_min and freq_max are specified in hertz, while the displayed
-    x-axis uses kilohertz. When omitted, the function uses the default LSD band
-    of 20 Hz to 20 kHz before intersecting that range with hrtf_a frequency
-    bins.
-
-    Examples
-    --------
-    Plot a horizontal-plane LSD heatmap from 100 Hz to 16 kHz:
-
-    >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_lsd_plane
-    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_lsd_plane(
-    ...     hrtf_a,
-    ...     hrtf_b,
-    ...     plane="horizontal",
-    ...     ear="right",
-    ...     plane_angle=0.0,
-    ...     x_axis="log",
-    ...     freq_max=16000.0,
-    ...     colormap="viridis",
-    ... )
-    """
-    plane_key = str(plane).strip().lower()
-    if plane_key not in {"horizontal", "median"}:
-        raise ValueError("plane must be one of: horizontal, median")
-    x_axis_key = str(x_axis).strip().lower()
-    if x_axis_key not in {"linear", "log"}:
-        raise ValueError("x_axis must be one of: linear, log")
-    if hrtf_a.TF.frequency_bins is None:
-        raise ValueError("hrtf_a TF frequency_bins are required")
-
-    direction_axis_class: Any
-    if plane_key == "horizontal":
-        selected_positions, _ = get_horizontal_plane(
-            hrtf=hrtf_a,
-            plane_angle=float(plane_angle),
-        )
-    else:
-        selected_positions, _ = get_median_plane(
-            hrtf=hrtf_a,
-            plane_angle=float(plane_angle),
-        )
-    selected_positions = np.asarray(selected_positions, dtype=int).reshape(-1)
-    if selected_positions.size == 0:
-        raise ValueError("Selected plane has no source positions")
-
-    frequency_bins = np.asarray(hrtf_a.TF.frequency_bins, dtype=float).reshape(-1)
-    resolved_freq_min = 20.0 if freq_min is None else float(freq_min)
-    resolved_freq_max = 20000.0 if freq_max is None else float(freq_max)
-    if not np.isfinite(resolved_freq_min) or not np.isfinite(resolved_freq_max):
-        raise ValueError("freq_min and freq_max must be finite values")
-    if resolved_freq_min >= resolved_freq_max:
-        raise ValueError("freq_min must be smaller than freq_max")
-    if x_axis_key == "log" and resolved_freq_min <= 0.0:
-        raise ValueError("freq_min must be positive for logarithmic frequency axis")
-    frequency_bins = frequency_bins[
-        (frequency_bins >= resolved_freq_min) & (frequency_bins <= resolved_freq_max)
-    ]
-    if frequency_bins.size < 2:
-        raise ValueError("Selected frequency range must contain at least two TF bins")
-
-    ear_key = str(ear).strip().lower()
-    reduction: str | tuple[str, ...] | None = "ear" if ear_key == "both" else None
-    lsd_values = np.asarray(
-        lsd(
-            hrtf_a=hrtf_a,
-            hrtf_b=hrtf_b,
-            ear=ear_key,
-            plane=plane_key,
-            plane_angle=plane_angle,
-            frequencies=frequency_bins,
-            reduction=reduction,
-            epsilon=epsilon,
-        ),
-        dtype=float,
-    )
-    if lsd_values.ndim != 2:
-        raise ValueError("compare_lsd_plane expects 2D LSD values after the requested ear selection")
-    if lsd_values.shape[0] != selected_positions.shape[0]:
-        raise ValueError("LSD plane values must match selected positions count")
-
-    if frequency_bins.size != lsd_values.shape[1]:
-        raise ValueError("LSD plane values frequency axis must match TF frequency_bins")
-
-    if plane_key == "horizontal":
-        spherical_positions = np.asarray(
-            get_source_positions(
-                sources=hrtf_a.Sources,
-                coordinate_system="spherical",
-                angle_unit="degrees",
-            ),
-            dtype=float,
-        )
-        selected_spherical_positions = np.asarray(
-            spherical_positions[selected_positions, :],
-            dtype=float,
-        )
-        direction_values = AzimuthAnglesAxis.transform_values(
-            values=np.asarray(selected_spherical_positions[:, 0], dtype=float),
-            range_mode="-180-180",
-        )
-        direction_label = Labels.azimuth
-        direction_axis_class = AzimuthAnglesAxis
-    else:
-        lateral_polar_positions = np.asarray(
-            get_source_positions(
-                sources=hrtf_a.Sources,
-                coordinate_system="lateral-polar",
-                angle_unit="degrees",
-            ),
-            dtype=float,
-        )
-        selected_lateral_polar_positions = np.asarray(
-            lateral_polar_positions[selected_positions, :],
-            dtype=float,
-        )
-        direction_values = np.asarray(selected_lateral_polar_positions[:, 1], dtype=float)
-        direction_label = Labels.polar
-        direction_axis_class = PolarAnglesAxis
-
-    frequency_values_khz = frequency_bins / 1000.0
-    unique_direction_values = np.unique(direction_values)
-    direction_index_map = {
-        float(value): int(index)
-        for index, value in enumerate(unique_direction_values)
-    }
-    heatmap_values_sum = np.zeros(
-        (unique_direction_values.size, frequency_values_khz.size),
-        dtype=float,
-    )
-    heatmap_counts = np.zeros(
-        (unique_direction_values.size, 1),
-        dtype=int,
-    )
-    for position_index, direction_value in enumerate(direction_values):
-        row_index = direction_index_map[float(direction_value)]
-        heatmap_values_sum[row_index, :] += np.asarray(
-            lsd_values[position_index, :],
-            dtype=float,
-        )
-        heatmap_counts[row_index, 0] += 1
-    heatmap_values = np.full_like(heatmap_values_sum, np.nan, dtype=float)
-    valid_rows = heatmap_counts[:, 0] > 0
-    if np.any(valid_rows):
-        heatmap_values[valid_rows, :] = (
-            heatmap_values_sum[valid_rows, :]
-            / heatmap_counts[valid_rows, :]
-        )
-    masked_heatmap_values = np.ma.masked_invalid(heatmap_values)
-    finite_heatmap_values = heatmap_values[np.isfinite(heatmap_values)]
-    if finite_heatmap_values.size == 0:
-        raise ValueError("No finite LSD values available for heatmap rendering")
-
-    figure = Figure(
-        Layout_1(
-            figsize=(8, 6),
-            margins=Margins(),
-        )
-    )
-    ax = figure.get_ax("main")
-    figure.create_heatmap(
-        ax=ax,
-        x=frequency_values_khz,
-        y=unique_direction_values,
-        values=masked_heatmap_values,
-        label=Labels.compare_lsd_db,
-        colormap=colormap,
-        shading="auto",
-        vmin=float(np.min(finite_heatmap_values)),
-        vmax=float(np.max(finite_heatmap_values)),
-    )
-
-    frequency_axis_class = FrequencyLogAxis if x_axis_key == "log" else FrequencyLinearAxis
-    frequency_axis_config = frequency_axis_class.build(
-        frequency_bins=frequency_bins,
-        freq_min=float(np.min(frequency_bins)),
-        freq_max=float(np.max(frequency_bins)),
-        margin_ratio=0.0,
-    )
-    frequency_axis_class.apply(
-        ax=ax,
-        axis="x",
-        label=Labels.frequency,
-        config=frequency_axis_config,
-    )
-
-    if unique_direction_values.size == 1:
-        Axis.apply_label(ax=ax, axis="y", default_label=direction_label)
-        direction_tick = float(unique_direction_values[0])
-        ax.set_yticks((direction_tick,))
-        ax.set_yticklabels((f"{int(np.rint(direction_tick))}",))
-    else:
-        direction_axis_class.apply(
-            ax=ax,
-            axis="y",
-            values=direction_values,
-            **({"range_mode": "-180-180"} if plane_key == "horizontal" else {}),
-        )
-    ax.margins(x=0.0, y=0.0)
-
-    if titles:
-        if plane_key == "horizontal":
-            _, real_plane_angle = get_horizontal_plane(
-                hrtf=hrtf_a,
-                plane_angle=float(plane_angle),
-            )
-            title_text = f"{Titles.compare_lsd_plane} : Horizontal ({real_plane_angle:.2f}°)"
-        else:
-            _, real_plane_angle = get_median_plane(
-                hrtf=hrtf_a,
-                plane_angle=float(plane_angle),
-            )
-            title_text = f"{Titles.compare_lsd_plane} : Median ({real_plane_angle:.2f}°)"
-        Titles.create_figure_title(
-            figure.fig,
-            figure.axes,
-            figure.figure_title_y,
-            title_text,
-        )
-    if show:
-        plt.show()

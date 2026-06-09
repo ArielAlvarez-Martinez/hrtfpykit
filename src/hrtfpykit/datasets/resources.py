@@ -1348,6 +1348,7 @@ class DatasetResources:
     @staticmethod
     def build(
         dataset: "BaseDataset",
+        subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
     ) -> DatasetResourcesPlan:
         """Build the complete resource plan for a dataset instance.
@@ -1373,9 +1374,13 @@ class DatasetResources:
         dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
             Dataset whose state contains configuration, root, selected specs,
             resource variants, selected ears, subject numbers, and cache.
+        subject_ids : str, int, sequence, or None
+            Optional subject references used as the initial resource scanning scope.
+            None uses every configured subject.
         exclude_subject_ids : str, int, sequence, or None
-            Additional subject references excluded before resource scanning and
-            subject intersection. Integer values are one-based subject positions.
+            Additional subject references excluded from the selected scanning scope
+            before subject intersection. Integer values are one-based subject
+            positions.
 
         Returns
         -------
@@ -1396,21 +1401,30 @@ class DatasetResources:
             raise ValueError("Dataset config is not initialized")
         config = state.config
         root = state.root
+        requested_subjects = None if subject_ids is None else DatasetSplitPlanner.map_subject_ids(
+            subject_ids,
+            tuple(config.subject_ids),
+        )
         excluded_subjects = DatasetSplitPlanner.map_subject_ids(
             exclude_subject_ids,
             tuple(config.subject_ids),
         )
+        requested_subject_set = None if requested_subjects is None else set(requested_subjects)
         excluded_subject_set = set(excluded_subjects)
-        resource_subjects: tuple[str, ...] = tuple()
-        if len(resource_subjects) == 0:
-            sorted_subjects = DatasetSplitPlanner.sort_subject_ids(
-                tuple(config.subject_ids)
-            )
-            resource_subjects = tuple(
-                subject_id
-                for subject_id in sorted_subjects
-                if subject_id not in excluded_subject_set
-            )
+        sorted_subjects = DatasetSplitPlanner.sort_subject_ids(
+            tuple(config.subject_ids)
+        )
+        resource_subjects = tuple(
+            subject_id
+            for subject_id in sorted_subjects
+            if (requested_subject_set is None or subject_id in requested_subject_set)
+            and subject_id not in excluded_subject_set
+        )
+        scanner_excluded_subject_set = {
+            subject_id
+            for subject_id in config.subject_ids
+            if subject_id not in set(resource_subjects)
+        }
         subject_numbers = state.subject_numbers
         if len(subject_numbers) == 0:
             subject_numbers = DatasetSplitPlanner.build_subject_number_map(
@@ -1443,7 +1457,7 @@ class DatasetResources:
             config=config,
             root=root,
             dataset_hrtf_variant=state.dataset_hrtf_variant,
-            excluded_subject_ids=excluded_subject_set,
+            excluded_subject_ids=scanner_excluded_subject_set,
             required=has_acoustic_specs,
         )
         if hrtf_summary is None:
@@ -1482,7 +1496,7 @@ class DatasetResources:
                 config=config,
                 root=mesh_root_path,
                 dataset_mesh_variant=state.dataset_mesh_variant,
-                excluded_subject_ids=excluded_subject_set,
+                excluded_subject_ids=scanner_excluded_subject_set,
                 required=has_mesh_specs,
                 extensions=mesh_extensions,
             )

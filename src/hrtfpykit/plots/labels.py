@@ -50,13 +50,13 @@ class Labels:
         corresponding tick positions are defined by the frequency-axis classes.
     three_d_x_label, three_d_y_label, three_d_z_label : str
         Cartesian axis labels used by 3D source-grid visualizations.
-    compare_itd_difference_seconds, compare_itd_difference_samples : str
+    plot_abs_itd_diff_seconds, plot_abs_itd_diff_samples : str
         Colorbar labels for ITD-difference comparison plots in seconds or
         samples.
-    compare_ild_difference_db, compare_ild_difference_linear : str
+    plot_abs_bb_ild_diff_db, plot_abs_bb_ild_diff_linear : str
         Colorbar labels for ILD-difference comparison plots in decibels or
         linear scale.
-    compare_lsd_db : str
+    plot_lsd_db : str
         Label for log-spectral-distance comparison values.
     label_box : dict[str, object]
         Matplotlib text bounding-box style used by orientation annotations in
@@ -104,11 +104,11 @@ class Labels:
     three_d_x_label = "X (m)"
     three_d_y_label = "Y (m)"
     three_d_z_label = "Z (m)"
-    compare_itd_difference_seconds = "ITD Difference (s)"
-    compare_itd_difference_samples = "ITD Difference (samples)"
-    compare_ild_difference_db = "ILD Difference (dB)"
-    compare_ild_difference_linear = "ILD Difference (linear)"
-    compare_lsd_db = "LSD (dB)"
+    plot_abs_itd_diff_seconds = "ITD Difference (s)"
+    plot_abs_itd_diff_samples = "ITD Difference (samples)"
+    plot_abs_bb_ild_diff_db = "ILD Difference (dB)"
+    plot_abs_bb_ild_diff_linear = "ILD Difference (linear)"
+    plot_lsd_db = "LSD (dB)"
     label_box = {
         "boxstyle": "round,pad=0.18",
         "facecolor": "white",

@@ -256,11 +256,12 @@ class DatasetSplitPlanner:
     ) -> tuple[tuple[str, ...], dict[str, int]]:
         """Prepare the non-excluded subject scope for a dataset.
 
-        This method combines configured subject IDs with normalized exclusions and
-        builds the subject-number map used by path formatters. The returned subject
-        tuple is the pre-resource-intersection universe used by later split planning,
-        while the number map is based on the full sorted configuration so path
-        numbering remains stable after exclusions.
+        This method combines the configured subject IDs or user-requested subject
+        scope with normalized exclusions and builds the subject-number map used by
+        path formatters. The returned subject tuple is the pre-resource-intersection
+        universe used by later split planning, while the number map is based on the
+        full sorted configuration so path numbering remains stable after subject
+        selection and exclusions.
 
         Parameters
         ----------
@@ -287,9 +288,14 @@ class DatasetSplitPlanner:
             raise ValueError("Dataset config is not initialized")
         excluded_subjects = set(state.excluded_subjects)
         sorted_subjects = tuple(DatasetSplitPlanner.sort_subject_ids(config.subject_ids))
+        scoped_subjects = (
+            sorted_subjects
+            if state.requested_subjects is None
+            else tuple(DatasetSplitPlanner.sort_subject_ids(state.requested_subjects))
+        )
         available_subjects = tuple(
             subject_id
-            for subject_id in sorted_subjects
+            for subject_id in scoped_subjects
             if subject_id not in excluded_subjects
         )
         subject_numbers = DatasetSplitPlanner.build_subject_number_map(

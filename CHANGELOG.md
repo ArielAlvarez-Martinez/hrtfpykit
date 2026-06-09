@@ -39,7 +39,14 @@ use the `vx.y.z` format.
 - Added `frequency_bands` to `lsd`, matching `HRTFSpec` frequency-band
   selection semantics and remaining mutually exclusive with explicit
   `frequencies` queries.
-- Added `plot_etc` for position-based energy time curve plots from HRIR data. 
+- Added `plot_etc` for position-based energy time curve plots from HRIR data.
+- Added `plot_etc_plane` for plane-based energy time curve heatmaps over
+  horizontal and median HRTF source planes.
+- Added `IR.get_ild()` as a domain-object convenience wrapper for broad-band
+  and frequency-dependent ILD calculations.
+- Added `subject_ids` and `download_subject_ids` to dataset constructors so
+  users can include a small subject scope directly, then apply
+  `exclude_subject_ids` or `download_exclude_subject_ids` on top of that scope.
 
 ### Changed
 
@@ -70,14 +77,26 @@ use the `vx.y.z` format.
 - Renamed horizontal-plane cue plot parameters to `plane_angle` across ITD/ILD
   curve plots, absolute cue plots, comparison plots, and the shared polar curve
   helper.
+- Renamed ITD/ILD/LSD plot and metric APIs for explicit signed, absolute,
+  broad-band, and frequency-dependent semantics: `plot_signed_itd`,
+  `plot_abs_itd`, `plot_signed_bb_ild`, `plot_abs_bb_ild`,
+  `plot_signed_fd_ild`, `compare_signed_itd`, `compare_abs_itd`,
+  `compare_signed_bb_ild`, `compare_abs_bb_ild`, `plot_abs_itd_diff`,
+  `plot_abs_bb_ild_diff`, `plot_lsd`, `abs_itd_diff`, and `abs_ild_diff`
+  replace the older curve/plane/compare-difference names.
 - Changed SOFAcoustics download server configuration to use direct per-dataset
   base URLs instead of a shared base URL plus `path_prefix`.
-- Changed `lsd` reduction semantics so `ear="both"` preserves the ear axis
-  unless the reduction explicitly includes `ear`; reductions can now target
-  `sources`, `frequencies`, `ear`, or use `global` for one scalar LSD score.
-- Changed `compare_lsd` and `compare_lsd_plane` to accept `ear="both"` by
-  delegating the ear-axis reduction to `lsd` with the explicit `ear` reduction
-  axis.
+- Changed `lsd` reduction semantics to compute the natural frequency-reduced
+  LSD per source and ear first, then average those metric values with
+  `reduction="sources"`, `reduction="ears"`, or `reduction="global"`.
+- Changed `IR.get_rms` and `hrtfpykit.utils.dsp.rms` to use the same
+  metric-first reduction semantics: compute per-HRIR RMS over samples first,
+  then average with `sources`, `ears`, or `global`.
+- Changed single-HRTF plots from inherited `HRTF` methods to module-level
+  `hrtfpykit.plots` functions such as `plot_magnitude(hrtf, ...)`,
+  `plot_etc(hrtf, ...)`, and `plot_source_grid(hrtf, ...)`.
+- Changed `plot_lsd` to accept `ear="both"` by delegating ear averaging to
+  `lsd` with an explicit `ears` reduction.
 - Improved `IR`, `TF`, and `Sources` docstrings with task-focused examples for
   inspecting time-domain data, frequency-domain data, and source-grid queries.
 - Changed checksum planning to use an explicit per-job `checksum_key` instead of
@@ -114,6 +133,13 @@ use the `vx.y.z` format.
   missing, empty, NaN, or infinite table fields are removed during dataset
   construction, and that users can exclude incomplete fields with
   `exclude_column` or `exclude_row` depending on table orientation.
+
+### Removed
+
+- Removed redundant `plot_amplitude_and_magnitude`; use `plot_amplitude` and
+  `plot_magnitude` separately.
+- Removed `plot_lsd_plane` because frequency-resolved heatmaps are not strict
+  log-spectral distortion after LSD reduces the frequency axis by definition.
 
 ### Fixed
 

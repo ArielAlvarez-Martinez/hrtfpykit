@@ -35,6 +35,7 @@ class BaseDataset:
         root: str | Path,
         config: type[DatasetConfig] | DatasetConfig | None = None,
         dataset_hrtf_transform: Callable[[object], object] | None = None,
+        subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
@@ -81,10 +82,16 @@ class BaseDataset:
             values are extracted. The same transform is used by direct
             :meth:`~hrtfpykit.datasets.base.BaseDataset.get_subject_hrtf` calls
             and by indexed sample extraction.
+        subject_ids : str, int, sequence, or None, default=None
+            Optional subject references used as the initial construction scope
+            before exclusions, resource intersection, and split planning. Integer
+            references are normalized through the dataset configuration when
+            supported. None uses every configured subject.
         exclude_subject_ids : str, int, sequence, or None, default=None
-            Additional subject references excluded before resource intersection
-            and split planning. Integer references are normalized through the
-            dataset configuration when supported.
+            Additional subject references excluded from the selected construction
+            scope before resource intersection and split planning. Integer
+            references are normalized through the dataset configuration when
+            supported.
         inputs : spec, sequence of specs, or None, default=None
             Dataset specs exposed under sample inputs. Specs are normalized by
             the spec workflow before resource scanning.
@@ -133,6 +140,7 @@ class BaseDataset:
             config=config,
             root=root,
             dataset_hrtf_transform=dataset_hrtf_transform,
+            subject_ids=subject_ids,
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,

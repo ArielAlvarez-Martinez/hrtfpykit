@@ -63,6 +63,7 @@ class DatasetBuilder:
         split: str,
         split_ratio: tuple[float, float, float],
         split_seed: int,
+        subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         verbose: bool = False,
     ) -> None:
@@ -117,9 +118,13 @@ class DatasetBuilder:
             Train, validation, and test ratios used for split planning.
         split_seed : int
             Seed used for deterministic subject shuffling.
+        subject_ids : str, int, sequence, or None
+            Optional subject references used as the initial construction scope
+            before exclusions, resource intersection, and split planning. None
+            uses every configured subject.
         exclude_subject_ids : str, int, sequence, or None
-            Additional subjects excluded before resource intersection and split
-            planning.
+            Additional subjects excluded from the selected construction scope
+            before resource intersection and split planning.
         verbose : bool
             Whether verbose dataset behavior is enabled. The value is stored in
             state for loaders and summaries.
@@ -157,6 +162,10 @@ class DatasetBuilder:
         state.name = str(config.name)
         state.root = Path(root).expanduser()
         state.dataset_hrtf_transform = dataset_hrtf_transform
+        state.requested_subjects = None if subject_ids is None else DatasetSplitPlanner.map_subject_ids(
+            subject_ids,
+            tuple(config.subject_ids),
+        )
         state.verbose = bool(verbose)
 
         state.dataset_hrtf_variant = None
@@ -285,6 +294,7 @@ class DatasetBuilder:
 
         resource_plan = DatasetResources.build(
             dataset,
+            subject_ids=subject_ids,
             exclude_subject_ids=exclude_subject_ids,
         )
         state.hrtf_paths = resource_plan.hrtf_paths

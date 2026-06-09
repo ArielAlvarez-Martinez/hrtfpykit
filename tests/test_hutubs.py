@@ -111,7 +111,7 @@ def _selected_subject_ids(
     inputs: Sequence[object],
     target: Sequence[object],
 ) -> tuple[str, ...]:
-    selected = set(_TEST_SUBJECT_IDS)
+    selected: set[str] = set(_TEST_SUBJECT_IDS)
 
     if _requires_media_path(inputs) or _requires_media_path(target):
         media_subject_ids = _image_subject_ids() | _video_subject_ids()
@@ -120,10 +120,10 @@ def _selected_subject_ids(
         else:
             selected = set()
 
-    return tuple(_sort_subject_ids(selected))
+    return tuple(_sort_subject_ids(tuple(selected)))
 
 
-def _path_exists(path: str | Path) -> bool:
+def _path_exists(path: str | Path | None) -> bool:
     if path is None:
         return False
     if isinstance(path, str):
@@ -159,7 +159,7 @@ def _uses_acoustic_specs(
     inputs: Sequence[object], target: Sequence[object]
 ) -> bool:
     acoustic_specs = (HRTFSpec, ITDSpec, ILDSpec, SHSpec)
-    return any(isinstance(spec, acoustic_specs) for spec in inputs + target)
+    return any(isinstance(spec, acoustic_specs) for spec in tuple(inputs) + tuple(target))
 
 
 def _identity(value: object) -> object:
@@ -550,8 +550,8 @@ if not _RUN_FULL_HUTUBS_TESTS:
         ),
     ]
 
-_SPLIT_VALUES = ("all", "train", "validation", "test")
-_VARIANT_VALUES = ("measured", "simulated")
+_SPLIT_VALUES: tuple[str, ...] = ("all", "train", "validation", "test")
+_VARIANT_VALUES: tuple[str, ...] = ("measured", "simulated")
 if not _RUN_FULL_HUTUBS_TESTS:
     _SPLIT_VALUES = ("all",)
     _VARIANT_VALUES = ("measured",)

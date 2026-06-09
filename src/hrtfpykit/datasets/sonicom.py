@@ -30,7 +30,9 @@ class SONICOM(BaseDataset):
         download_mesh_variant: str | Mapping[str, object] | None =  {"type": "scanned", "version": "watertight"},
         download_server: str = "imperial",
         verify_checksum: bool = True,
+        subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
+        download_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         download_exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         inputs: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
         target: HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec | Sequence[HRTFSpec | ITDSpec | ILDSpec | SHSpec | MeshSpec | AnthropometrySpec | MetadataSpec | ImageSpec | VideoSpec] | None = None,
@@ -149,8 +151,16 @@ class SONICOM(BaseDataset):
             False only when you intentionally want to skip checksum verification;
             file existence, non-empty checks, and archive integrity checks still
             run.
+        subject_ids : str, int, sequence, or None, default=None
+            Optional subjects used as the initial dataset construction scope.
+            Exclusions are applied after this inclusion filter. None uses every
+            configured subject.
         exclude_subject_ids : str, int, sequence, or None, default=None
             SONICOM subjects excluded before scanning and splitting.
+        download_subject_ids : str, int, sequence, or None, default=None
+            Optional subjects used as the initial download scope. Download
+            exclusions are applied after this inclusion filter. None uses every
+            configured subject supported by the selected download server.
         download_exclude_subject_ids : str, int, sequence, or None, default=None
             SONICOM subjects excluded only from the download request. This does
             not change dataset construction; use exclude_subject_ids to exclude
@@ -228,6 +238,7 @@ class SONICOM(BaseDataset):
             downloaded, download_report = downloader_class(
                 config=config,
                 root=root,
+                subject_ids=download_subject_ids,
                 excluded_subject_ids=download_exclude_subject_ids,
                 verify_checksum=verify_checksum,
                 download_server=selected_download_server,
@@ -243,6 +254,7 @@ class SONICOM(BaseDataset):
             root=root,
             config=config,
             dataset_hrtf_transform=dataset_hrtf_transform,
+            subject_ids=subject_ids,
             exclude_subject_ids=exclude_subject_ids,
             inputs=inputs,
             target=target,

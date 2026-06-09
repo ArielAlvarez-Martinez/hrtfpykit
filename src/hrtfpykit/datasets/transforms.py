@@ -173,19 +173,30 @@ class HRTFTransform:
         return transform
 
     @staticmethod
-    def apply_window(window_name: str) -> Callable[[object], object]:
+    def apply_window(
+        window_name: str,
+        start_sample: int | None = None,
+        end_sample: int | None = None,
+    ) -> Callable[[object], object]:
         """Create a callable that applies a named window to each subject HRIR.
 
-        The returned callable forwards window_name to
+        The returned callable forwards window_name and optional sample bounds to
         :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_window`. The transform
-        operates on time-domain IR values, applies the window along the final sample
-        axis, and refreshes the TF representation before dataset specs read values.
+        operates on time-domain IR values, applies the window along the selected
+        interval of the final sample axis, and refreshes the TF representation
+        before dataset specs read values.
 
         Parameters
         ----------
         window_name : str
             Window identifier forwarded to the HRTF transform layer, for example
             ``hann``, ``hamming``, ``blackman``, or ``rectangular``.
+        start_sample : int or None, default=None
+            First sample included in the windowed interval. None starts at
+            sample 0.
+        end_sample : int or None, default=None
+            First sample after the windowed interval. None uses the full IR
+            length.
 
         Returns
         -------
@@ -197,21 +208,30 @@ class HRTFTransform:
         -----
         Windowing is useful when dataset samples should suppress late HRIR samples
         or enforce a consistent time-domain taper before frequency-domain features
-        are computed.
+        are computed. Samples outside the selected interval are not changed.
 
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
         >>> from hrtfpykit.datasets import HRTFSpec
         >>> from hrtfpykit.datasets import HRTFTransform
-        >>> transform = HRTFTransform.apply_window("hann")
+        >>> transform = HRTFTransform.apply_window(
+        ...     "hann",
+        ...     start_sample=0,
+        ...     end_sample=128,
+        ... )
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
         ...     inputs=HRTFSpec(),
         ...     dataset_hrtf_transform=transform,
         ... )
         """
-        return HRTFTransform.build("apply_window", window_name)
+        return HRTFTransform.build(
+            "apply_window",
+            window_name,
+            start_sample=start_sample,
+            end_sample=end_sample,
+        )
 
     @staticmethod
     def apply_padding(

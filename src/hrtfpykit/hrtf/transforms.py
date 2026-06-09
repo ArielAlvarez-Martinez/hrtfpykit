@@ -66,19 +66,32 @@ class Transform:
         """
         self._hrtf = hrtf
 
-    def apply_window(self, window_name: str) -> "HRTF":
+    def apply_window(
+        self,
+        window_name: str,
+        start_sample: int | None = None,
+        end_sample: int | None = None,
+    ) -> "HRTF":
         """Apply a time-domain window to IR values and rebuild TF.
 
-        The window is applied along the final IR sample axis. The returned HRTF
-        keeps the original source and ear layout, stores the windowed IR, and
-        recomputes the frequency-domain representation with the current
-        fft_length.
+        The window is applied along the final IR sample axis. By default, it
+        spans the complete HRIR. ``start_sample`` and ``end_sample`` restrict
+        the window to one interval while samples outside that interval remain
+        unchanged. The returned HRTF keeps the original source and ear layout,
+        stores the windowed IR, and recomputes the frequency-domain
+        representation with the current fft_length.
 
         Parameters
         ----------
         window_name : str
             Window identifier passed to the DSP layer, for example ``hann``,
             ``hamming``, ``blackman``, or ``rectangular``.
+        start_sample : int or None, default=None
+            First sample included in the windowed interval. None starts at
+            sample 0.
+        end_sample : int or None, default=None
+            First sample after the windowed interval. None uses the full IR
+            length.
 
         Returns
         -------
@@ -88,7 +101,8 @@ class Transform:
         Raises
         ------
         ValueError
-            If IR data are unavailable or the requested window is unsupported.
+            If IR data are unavailable, the requested window is unsupported, or
+            the requested sample interval is invalid.
 
         Examples
         --------
@@ -97,7 +111,11 @@ class Transform:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> windowed = hrtf.transform.apply_window("hann")
+        >>> windowed = hrtf.transform.apply_window(
+        ...     "hann",
+        ...     start_sample=0,
+        ...     end_sample=128,
+        ... )
         >>> windowed.IR.values.shape
         (793, 2, 256)
         >>> windowed.TF.values.shape
@@ -105,7 +123,12 @@ class Transform:
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        ir.values = window(ir, window_name)
+        ir.values = window(
+            ir,
+            window_name,
+            start_sample=start_sample,
+            end_sample=end_sample,
+        )
         tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,

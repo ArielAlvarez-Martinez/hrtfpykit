@@ -37,6 +37,7 @@ from hrtfpykit.datasets.specs import (
     VideoSpec,
 )
 from hrtfpykit.hrtf import HRTF, load_hrtf
+from hrtfpykit.plots import plot_magnitude
 from hrtfpykit.utils.metrics import ild, itd
 from hrtfpykit.sofa import load_sofa
 
@@ -132,14 +133,14 @@ def test_selected_transformed_hrtf_feeds_metrics_and_plots(
     assert np.all(np.isfinite(itd_values))
     assert np.all(np.isfinite(ild_values))
 
-    result = transformed_hrtf.plot_magnitude(
+    plot_magnitude(
+        transformed_hrtf,
         positions=selected_positions[0],
         ear="left",
         show=False,
     )
     figure = plt.gcf()
 
-    assert result is None
     assert len(figure.axes) == 1
     assert len(figure.axes[0].lines) == 1
 
@@ -215,12 +216,12 @@ def test_transformed_hrtf_roundtrips_through_sofa_and_reloads(
 
         reloaded_hrtf.Sources.source_coordinate_system = "spherical"
         plot_position = reloaded_hrtf.Sources.get_positions(angle_unit="degrees")[0]
-        result = reloaded_hrtf.plot_magnitude(
+        plot_magnitude(
+            reloaded_hrtf,
             positions=plot_position,
             ear="right",
             show=False,
         )
-        assert result is None
         assert len(plt.gcf().axes) == 1
     finally:
         reloaded_hrtf.Sofa.netCDF4_dataset.close()

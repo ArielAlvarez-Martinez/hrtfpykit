@@ -69,7 +69,7 @@ if _RUN_FULL_SONICOM_TESTS:
         {"type": "measured", "sample_rate": 44100, "version": "Windowed"},
         {"type": "synthetic", "sample_rate": 44100, "version": "generic"},
     )
-_SPLIT_VALUES = ("all", "train", "validation", "test")
+_SPLIT_VALUES: tuple[str, ...] = ("all", "train", "validation", "test")
 if not _RUN_FULL_SONICOM_TESTS:
     _SPLIT_VALUES = ("all",)
 
@@ -99,6 +99,7 @@ def _subject_numbers() -> dict[str, int]:
 
 
 def _format_hrtf_path(subject_id: str, variant: Mapping[str, object]) -> Path:
+    assert SONICOM_ROOT is not None
     hrtf_type = str(variant["type"])
     sample_rate = variant.get("sample_rate")
     version = variant.get("version")
@@ -127,6 +128,7 @@ def _format_hrtf_path(subject_id: str, variant: Mapping[str, object]) -> Path:
 
 
 def _format_mesh_path(subject_id: str, variant: Mapping[str, object]) -> Path:
+    assert SONICOM_ROOT is not None
     mesh_type = str(variant["type"])
     version = variant.get("version")
     mesh_type_config = SONICOMConfig.mesh.types[mesh_type]
@@ -147,6 +149,8 @@ def _format_mesh_path(subject_id: str, variant: Mapping[str, object]) -> Path:
 
 
 def _metadata_path() -> Path:
+    assert SONICOM_ROOT is not None
+    assert SONICOMConfig.metadata is not None
     return Path(SONICOM_ROOT).expanduser() / SONICOMConfig.metadata.path
 
 
@@ -188,7 +192,7 @@ def _selected_subject_ids(
     dataset_hrtf_variant: Mapping[str, object],
     dataset_mesh_variant: Mapping[str, object] = _DEFAULT_MESH_VARIANT,
 ) -> tuple[str, ...]:
-    selected = set(_TEST_SUBJECT_IDS)
+    selected: set[str] = set(_TEST_SUBJECT_IDS)
     specs = tuple(inputs) + tuple(target)
     if _requires_acoustic_specs(specs):
         selected = selected.intersection(_subjects_with_hrtf(dataset_hrtf_variant))
@@ -196,7 +200,7 @@ def _selected_subject_ids(
         selected = selected if _metadata_path().is_file() else set()
     if _requires_mesh_specs(specs):
         selected = selected.intersection(_subjects_with_mesh(dataset_mesh_variant))
-    return tuple(_sort_subject_ids(selected))
+    return tuple(_sort_subject_ids(tuple(selected)))
 
 
 def _paths_available(

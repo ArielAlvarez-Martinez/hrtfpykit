@@ -15,7 +15,6 @@ from ..utils.planes import (
     get_horizontal_plane,
     get_median_plane,
 )
-from ..plots.hrtf import HRTFPlots
 from ..sofa.sofa import SOFA
 from .sources import Sources
 from .domain import IR, TF
@@ -241,7 +240,7 @@ def load_hrtf(
     return hrtf
 
 
-class HRTF(HRTFPlots):
+class HRTF:
     def __init__(
         self,
         Sofa: SOFA | None = None,
@@ -249,7 +248,7 @@ class HRTF(HRTFPlots):
         """Represent an HRTF or HRIR object loaded from SOFA data.
 
         :class:`~hrtfpykit.hrtf.HRTF` is the main in-memory object used
-        to inspect, subset, transform, plot, synchronize, and save HRTF/HRIR
+        to inspect, subset, transform, synchronize, and save HRTF/HRIR
         data loaded from SOFA files. It supports the SimpleFreeFieldHRIR and
         SimpleFreeFieldHRTF conventions and keeps both acoustic representations
         available:
@@ -268,12 +267,8 @@ class HRTF(HRTFPlots):
         Spatial metadata and source-grid operations are exposed through
         :class:`~hrtfpykit.hrtf.sources.Sources`. That object resolves SOFA
         ``SourcePosition`` data, named directions, coordinate-system conversion,
-        and plane-based queries used by both processing and visualization methods.
-
-        The object exposes plotting workflows for HRTF inspection and analysis. This
-        includes source-grid visualizations, spectral views, plane projections, and
-        metric-oriented plots that operate directly on the current in-memory state,
-        including any selection or transformation.
+        and plane-based queries used by processing, metrics, dataset extraction,
+        and :mod:`hrtfpykit.plots` functions.
 
         The object stores the optional SOFA backing object and starts with
         empty metadata fields. Domain interface objects such as
@@ -292,8 +287,8 @@ class HRTF(HRTFPlots):
         :func:`~hrtfpykit.hrtf.load_hrtf`, inspect or subset data with
         :class:`~hrtfpykit.hrtf.sources.Sources` and
         :meth:`~hrtfpykit.hrtf.HRTF.select`, apply transforms through
-        :attr:`~hrtfpykit.hrtf.HRTF.transform`, visualize using plotting
-        methods, then synchronize and export with
+        :attr:`~hrtfpykit.hrtf.HRTF.transform`, visualize by passing the object
+        to :mod:`hrtfpykit.plots` functions, then synchronize and export with
         :meth:`~hrtfpykit.hrtf.HRTF.update_sofa` and
         :meth:`~hrtfpykit.hrtf.HRTF.save`.
 

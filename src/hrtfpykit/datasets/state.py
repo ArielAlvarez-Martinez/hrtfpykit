@@ -61,6 +61,9 @@ class DatasetState:
     dataset_hrtf_transform : callable or None
         Optional transform applied after loading each subject HRTF through dataset
         loading utilities.
+    requested_subjects : tuple of str or None
+        Canonical subject IDs selected as the construction scope before explicit
+        exclusions are applied. None uses the full configured subject list.
     excluded_subjects : tuple of str
         Canonical subject IDs removed from resource and split selection.
     dataset_hrtf_variant : str, dict, or None
@@ -194,6 +197,7 @@ class DatasetState:
     name: str = ""
     root: Path = field(default_factory=Path)
     dataset_hrtf_transform: Callable[[object], object] | None = None
+    requested_subjects: tuple[str, ...] | None = None
     excluded_subjects: tuple[str, ...] = ()
     dataset_hrtf_variant: str | dict[str, object] | None = None
     dataset_mesh_variant: str | dict[str, object] | None = None
