@@ -47,21 +47,21 @@ Content:
    plot_etc_plane
    plot_spectrum_plane
    plot_elevation_spectrum
-   plot_signed_itd
-   plot_abs_itd
-   plot_signed_fd_ild
-   plot_signed_bb_ild
-   plot_abs_bb_ild
+   plot_itd
+   plot_absolute_itd
+   plot_ild_fd
+   plot_ild
+   plot_absolute_ild
    plot_source_grid
    plot_plane_grid
    compare_magnitude
    compare_amplitude
-   compare_abs_itd
-   compare_abs_bb_ild
-   compare_signed_itd
-   compare_signed_bb_ild
-   plot_abs_itd_diff
-   plot_abs_bb_ild_diff
-   plot_lsd
+   compare_absolute_itd
+   compare_absolute_ild
+   compare_itd
+   compare_ild
+   compare_itd_difference
+   compare_ild_difference
+   compare_lsd
    sht_reconstruction_comparison
    sht_reconstruction_error

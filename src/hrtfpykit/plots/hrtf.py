@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,7 +38,7 @@ from ..utils.coordinates import (
     get_source_positions,
     spherical_to_lateral_polar,
 )
-from ..utils.dsp import magnitude_to_db, tf_from_ir
+from ..utils.dsp import magnitude_to_db
 from ..utils.metrics import ild, itd
 from ..utils.planes import (
     get_frontal_plane,
@@ -46,14 +46,11 @@ from ..utils.planes import (
     get_median_plane,
 )
 
-
-# Single-HRTF plotting functions.
-#
-# These functions operate on a loaded hrtfpykit.hrtf.HRTF object but live in the
-# plotting layer so the core HRTF object does not inherit matplotlib behavior.
+if TYPE_CHECKING:
+    from ..hrtf.hrtf import HRTF
 
 def plot_magnitude(
-    hrtf: Any,
+    hrtf: "HRTF",
     positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
     x_axis: str = "linear",
     unit: str = "db",
@@ -62,7 +59,9 @@ def plot_magnitude(
     freq_min: float | None = None,
     freq_max: float | None = None,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot HRTF magnitude responses at selected source positions.
 
@@ -74,7 +73,7 @@ def plot_magnitude(
 
     Position queries are resolved in spherical coordinates in degrees.
     Named positions use hrtfpykit's built-in aliases, while numeric queries
-    should use [azimuth, elevation]. When unit=``db``, magnitudes are
+    use [azimuth, elevation]. When unit=``db``, magnitudes are
     converted with magnitude-to-decibel conversion using either the supplied numeric
     reference or the maximum selected value when reference=``max``.
 
@@ -102,8 +101,12 @@ def plot_magnitude(
         Maximum frequency in Hz included in the plot.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
+    show_titles : bool, default=True
         If False, suppress generated default subplot titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -269,18 +272,20 @@ def plot_magnitude(
         frequency_axis.apply(
             ax=ax,
             axis="x",
-            label=frequency_label,
+            label=frequency_label if show_labels else "",
             config=resolved_frequency_axis,
         )
-        MagnitudeAxis.apply(ax=ax, axis="y", unit=unit)
+        MagnitudeAxis.apply(ax=ax, axis="y", unit=unit, label=None if show_labels else "")
         default_subplot_title = Titles.create_position_title(
             selected_positions=selected_positions,
         )
-        resolved_subplot_title = default_subplot_title if titles else ""
-        Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
+        resolved_subplot_title = default_subplot_title if show_titles else ""
+        if show_titles:
+            Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
         if Figure.shared_x_visible:
             ax.tick_params(axis="x", which="both", labelbottom=True)
-        Ear.apply(ax=ax, ear=ear, location=magnitude_legend_location, labels=None)
+        if show_legends:
+            Ear.apply(ax=ax, ear=ear, location=magnitude_legend_location, labels=None)
         ax.grid(True)
 
     if position_count < figure.axes.size:
@@ -291,12 +296,14 @@ def plot_magnitude(
     return None
 
 def plot_amplitude(
-    hrtf: Any,
+    hrtf: "HRTF",
     positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
     ear: str = "both",
     x_axis: str = "time",
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot HRIR amplitude responses for up to four source positions.
 
@@ -306,9 +313,9 @@ def plot_amplitude(
     provided through named aliases or numeric [azimuth, elevation]
     queries.
 
-    The x-axis can show elapsed time in seconds or raw sample indices. Time
+    The x-axis can show elapsed time in milliseconds or raw sample indices. Time
     mode requires :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` because sample positions are converted
-    to seconds before plotting.
+    to milliseconds before plotting.
 
     Parameters
     ----------
@@ -325,8 +332,12 @@ def plot_amplitude(
         Horizontal axis used for the waveform plot.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
+    show_titles : bool, default=True
         If False, suppress generated default subplot titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -337,10 +348,9 @@ def plot_amplitude(
     AttributeError
         If ear or x_axis is not one of the supported values.
     ValueError
-        If IR data is missing, a time axis is requested without a sample
-        rate, no positions are requested, more than four positions are
-        requested, the IR array has no samples, or the requested ear channel
-        is not available.
+        If IR data is missing, time-axis plotting lacks a sample rate, no
+        positions are requested, more than four positions are requested, the
+        IR array has no samples, or the requested ear channel is unavailable.
 
     Notes
     -----
@@ -408,7 +418,7 @@ def plot_amplitude(
         raise ValueError("IR values must contain at least one sample")
     sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
     if x_axis == "time":
-        x_values = sample_indexes / float(cast(Any, hrtf.IR.sample_rate))
+        x_values = 1000.0 * sample_indexes / float(cast(Any, hrtf.IR.sample_rate))
     else:
         x_values = sample_indexes
 
@@ -452,18 +462,20 @@ def plot_amplitude(
             )
 
         if x_axis == "time":
-            TimeAxis.apply(ax=ax, axis="x")
+            TimeAxis.apply(ax=ax, axis="x", label=None if show_labels else "")
         else:
-            SampleAxis.apply(ax=ax, axis="x")
-        AmplitudeAxis.apply(ax=ax, axis="y")
+            SampleAxis.apply(ax=ax, axis="x", label=None if show_labels else "")
+        AmplitudeAxis.apply(ax=ax, axis="y", label=None if show_labels else "")
         default_subplot_title = Titles.create_position_title(
             selected_positions=selected_positions,
         )
-        resolved_subplot_title = default_subplot_title if titles else ""
-        Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
+        resolved_subplot_title = default_subplot_title if show_titles else ""
+        if show_titles:
+            Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
         if Figure.shared_x_visible:
             ax.tick_params(axis="x", which="both", labelbottom=True)
-        Ear.apply(ax=ax, ear=ear, location="upper right", labels=None)
+        if show_legends:
+            Ear.apply(ax=ax, ear=ear, location="upper right", labels=None)
         ax.grid(True)
 
     if position_count < figure.axes.size:
@@ -474,13 +486,15 @@ def plot_amplitude(
     return None
 
 def plot_etc(
-    hrtf: Any,
+    hrtf: "HRTF",
     positions: str | list | tuple | np.ndarray = ("front", "back", "left", "right"),
     ear: str = "both",
     x_axis: str = "time",
     reference: float | str = "max",
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot energy time curves for up to four source positions.
 
@@ -494,7 +508,7 @@ def plot_etc(
 
     Positions are resolved in spherical coordinates in degrees and may be
     provided through named aliases or numeric [azimuth, elevation] queries.
-    The x-axis can show elapsed time in seconds or raw sample indices. Time
+    The x-axis can show elapsed time in milliseconds or raw sample indices. Time
     mode requires :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>`.
 
     Parameters
@@ -515,8 +529,12 @@ def plot_etc(
         selected ETC traces to their maximum absolute IR value.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
+    show_titles : bool, default=True
         If False, suppress generated default subplot titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -527,15 +545,15 @@ def plot_etc(
     AttributeError
         If ear or x_axis is not one of the supported values.
     ValueError
-        If IR data is missing, a time axis is requested without a sample
-        rate, no positions are requested, more than four positions are
-        requested, the IR array has no samples, no positive reference can be
-        resolved, or the requested ear channel is not available.
+        If IR data is missing, time-axis plotting lacks a sample rate, no
+        positions are requested, more than four positions are requested, the
+        IR array has no samples, the reference is invalid, or the requested
+        ear channel is unavailable.
 
     Notes
     -----
     ``plot_etc`` uses the same position selection, subplot layout, ear
-    overlay, titles, legends, and x-axis handling as
+    overlay, generated titles, legends, and x-axis handling as
     :func:`~hrtfpykit.plots.plot_amplitude`. It differs only
     in the y-values: the raw HRIR amplitude is converted to a dB
     energy-time-curve representation.
@@ -600,7 +618,7 @@ def plot_etc(
         raise ValueError("IR values must contain at least one sample")
     sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
     if x_axis == "time":
-        x_values = sample_indexes / float(cast(Any, hrtf.IR.sample_rate))
+        x_values = 1000.0 * sample_indexes / float(cast(Any, hrtf.IR.sample_rate))
     else:
         x_values = sample_indexes
 
@@ -661,18 +679,20 @@ def plot_etc(
             )
 
         if x_axis == "time":
-            TimeAxis.apply(ax=ax, axis="x")
+            TimeAxis.apply(ax=ax, axis="x", label=None if show_labels else "")
         else:
-            SampleAxis.apply(ax=ax, axis="x")
-        Axis.apply_label(ax=ax, axis="y", default_label=Labels.energy_db)
+            SampleAxis.apply(ax=ax, axis="x", label=None if show_labels else "")
+        Axis.apply_label(ax=ax, axis="y", default_label=Labels.energy_db if show_labels else "", label=None if show_labels else "")
         default_subplot_title = Titles.create_position_title(
             selected_positions=selected_positions,
         )
-        resolved_subplot_title = default_subplot_title if titles else ""
-        Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
+        resolved_subplot_title = default_subplot_title if show_titles else ""
+        if show_titles:
+            Titles.create_subplots_titles(ax=ax, title=resolved_subplot_title)
         if Figure.shared_x_visible:
             ax.tick_params(axis="x", which="both", labelbottom=True)
-        Ear.apply(ax=ax, ear=ear, location="upper right", labels=None)
+        if show_legends:
+            Ear.apply(ax=ax, ear=ear, location="upper right", labels=None)
         ax.grid(True)
 
     if position_count < figure.axes.size:
@@ -683,15 +703,18 @@ def plot_etc(
     return None
 
 def plot_etc_plane(
-    hrtf: Any,
+    hrtf: "HRTF",
     plane: str = "horizontal",
     plane_angle: float = 0.0,
+    azimuth_range_mode: str = "-180-180",
     ear: str = "both",
     x_axis: str = "time",
     reference: float | str = "max",
     colormap: str = "jet",
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot an energy-time-curve heatmap for an HRTF plane.
 
@@ -703,8 +726,8 @@ def plot_etc_plane(
     ``20 * log10(abs(h) / reference)``.
 
     Horizontal planes are selected by the nearest available spherical
-    elevation to ``plane_angle`` and use signed azimuth on the vertical
-    axis. Median-plane plots are selected by the nearest available
+    elevation to ``plane_angle`` and use ``azimuth_range_mode`` on the
+    vertical axis. Median-plane plots are selected by the nearest available
     lateral-polar lateral angle to ``plane_angle`` and use lateral-polar
     polar angle on the vertical axis. With ear=``both``, the method creates
     one heatmap for the left ear and one heatmap for the right ear using
@@ -720,6 +743,8 @@ def plot_etc_plane(
         Plane coordinate in degrees used to resolve the nearest measured
         plane. For ``plane="horizontal"`` this is spherical elevation. For
         ``plane="median"`` this is lateral-polar lateral angle.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+        Azimuth convention used for horizontal-plane azimuth values.
     ear : {``left``, ``right``, ``both``}, default=``both``
         Ear channel to display. When ``both`` is selected, a separate
         heatmap is created for each ear.
@@ -733,8 +758,12 @@ def plot_etc_plane(
         Matplotlib colormap name used for the heatmap.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
+    show_titles : bool, default=True
         If False, suppress generated default subplot and figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -746,10 +775,10 @@ def plot_etc_plane(
         If plane, ear, or x_axis is not one of the supported values, or if
         plane_angle is not finite.
     ValueError
-        If IR data is missing, a time axis is requested without a sample
-        rate, the selected plane has no positions, the IR array has no
-        samples, no positive reference can be resolved, or the requested ear
-        channel is not available.
+        If IR data is missing, time-axis plotting lacks a sample rate, the
+        azimuth range is invalid, the selected plane has no positions, the IR
+        array has no samples, the reference is invalid, or the requested ear
+        channel is unavailable.
 
     Notes
     -----
@@ -791,8 +820,8 @@ def plot_etc_plane(
     if x_axis == "time" and hrtf.IR.sample_rate is None:
         raise ValueError("IR sample_rate is required when x_axis='time'")
 
+    azimuth_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=azimuth_range_mode)
     resolved_margins = Margins()
-    azimuth_range_mode = "-180-180"
     plane_key = str(plane).strip().lower()
     resolved_layout: Any
     if ear == "both":
@@ -827,7 +856,7 @@ def plot_etc_plane(
         raise ValueError("IR values must contain at least one sample")
     sample_indexes = np.arange(ir_values.shape[-1], dtype=float)
     if x_axis == "time":
-        x_values = sample_indexes / float(cast(Any, hrtf.IR.sample_rate))
+        x_values = 1000.0 * sample_indexes / float(cast(Any, hrtf.IR.sample_rate))
     else:
         x_values = sample_indexes
 
@@ -909,7 +938,7 @@ def plot_etc_plane(
             x=x_values,
             y=sorted_subplot_plane_axis_values,
             values=sorted_etc_matrix,
-            label=Labels.energy_db,
+            label=Labels.energy_db if show_labels else "",
             colormap=colormap,
             shading="auto",
             vmin=vmin,
@@ -917,26 +946,29 @@ def plot_etc_plane(
         )
         ax.margins(x=0.0, y=0.0)
         if x_axis == "time":
-            TimeAxis.apply(ax=ax, axis="x")
+            TimeAxis.apply(ax=ax, axis="x", label=None if show_labels else "")
         else:
-            SampleAxis.apply(ax=ax, axis="x")
+            SampleAxis.apply(ax=ax, axis="x", label=None if show_labels else "")
         if plane_key == "horizontal":
             AzimuthAnglesAxis.apply(
                 ax=ax,
                 axis="y",
                 values=sorted_subplot_plane_axis_values,
                 range_mode=azimuth_range_mode,
+                label=None if show_labels else "",
             )
         else:
             PolarAnglesAxis.apply(
                 ax=ax,
                 axis="y",
                 values=sorted_subplot_plane_axis_values,
+                label=None if show_labels else "",
             )
-        resolved_title = default_subplot_title if titles else ""
-        Titles.create_subplots_titles(ax=ax, title=resolved_title)
+        resolved_title = default_subplot_title if show_titles else ""
+        if show_titles:
+            Titles.create_subplots_titles(ax=ax, title=resolved_title)
 
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -951,9 +983,10 @@ def plot_etc_plane(
     return None
 
 def plot_spectrum_plane(
-    hrtf: Any,
+    hrtf: "HRTF",
     plane: str = "horizontal",
     plane_angle: float = 0.0,
+    azimuth_range_mode: str = "-180-180",
     x_axis: str = "linear",
     unit: str = "db",
     ear: str = "both",
@@ -962,7 +995,9 @@ def plot_spectrum_plane(
     freq_min: float | None = None,
     freq_max: float | None = None,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot a frequency-angle spectrum heatmap for an HRTF plane.
 
@@ -988,6 +1023,8 @@ def plot_spectrum_plane(
         Plane coordinate in degrees used to resolve the nearest measured
         plane. For ``plane="horizontal"`` this is spherical elevation. For
         ``plane="median"`` this is lateral-polar lateral angle.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+        Azimuth convention used for horizontal-plane azimuth values.
     x_axis : {``linear``, ``log``}, default=``linear``
         Frequency scale used on the x axis.
     unit : {``db``, ``linear``}, default=``db``
@@ -1006,8 +1043,12 @@ def plot_spectrum_plane(
         Maximum frequency in Hz included in the plot.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
+    show_titles : bool, default=True
         If False, suppress generated default subplot and figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -1019,14 +1060,15 @@ def plot_spectrum_plane(
         If plane, unit, x_axis, or ear is not one of the
         supported values, or if plane_angle is not finite.
     ValueError
-        If TF data is missing, the selected plane has no positions,
-        frequency bins are invalid, the selected frequency range contains no
-        bins, or the requested ear channel is not available.
+        If TF data is missing, the azimuth range is invalid, the selected
+        plane has no positions, frequency bins are invalid, the selected
+        frequency range contains no bins, or the requested ear channel is not
+        available.
 
     Notes
     -----
-    Horizontal-plane azimuths are displayed in the signed -180 .. 180
-    convention. When unit=``db`` and reference=``max``, normalization
+    Horizontal-plane azimuths use ``azimuth_range_mode``. When
+    unit=``db`` and reference=``max``, normalization
     is computed over the plotted plane and selected ear channels before
     conversion to decibels.
 
@@ -1067,8 +1109,8 @@ def plot_spectrum_plane(
         raise AttributeError(
             "ear accepts left, right or both"
         )
+    azimuth_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=azimuth_range_mode)
     resolved_margins = Margins()
-    azimuth_range_mode = "-180-180"
     heatmap_margin_ratio = 0.0
 
     if hrtf.TF.values is None or hrtf.TF.frequency_bins is None:
@@ -1205,7 +1247,7 @@ def plot_spectrum_plane(
             x=frequency_khz,
             y=sorted_subplot_plane_axis_values,
             values=sorted_spectrum_matrix,
-            label=colorbar_label,
+            label=colorbar_label if show_labels else "",
             colormap=colormap,
             shading="auto",
             vmin=vmin,
@@ -1216,7 +1258,7 @@ def plot_spectrum_plane(
         frequency_axis.apply(
             ax=ax,
             axis="x",
-            label=frequency_label,
+            label=frequency_label if show_labels else "",
             config=resolved_frequency_axis,
         )
         if plane_key == "horizontal":
@@ -1225,16 +1267,19 @@ def plot_spectrum_plane(
                 axis="y",
                 values=sorted_subplot_plane_axis_values,
                 range_mode=azimuth_range_mode,
+                label=None if show_labels else "",
             )
         else:
             PolarAnglesAxis.apply(
                 ax=ax,
                 axis="y",
                 values=sorted_subplot_plane_axis_values,
+                label=None if show_labels else "",
             )
-        resolved_title = default_subplot_title if titles else ""
-        Titles.create_subplots_titles(ax=ax, title=resolved_title)
-    if titles:
+        resolved_title = default_subplot_title if show_titles else ""
+        if show_titles:
+            Titles.create_subplots_titles(ax=ax, title=resolved_title)
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -1249,7 +1294,7 @@ def plot_spectrum_plane(
     return None
 
 def plot_elevation_spectrum(
-    hrtf: Any,
+    hrtf: "HRTF",
     azimuth: float | str = 0.0,
     x_axis: str = "linear",
     unit: str = "db",
@@ -1259,7 +1304,9 @@ def plot_elevation_spectrum(
     freq_min: float | None = None,
     freq_max: float | None = None,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot a fixed-azimuth elevation spectrum heatmap.
 
@@ -1267,7 +1314,7 @@ def plot_elevation_spectrum(
     and renders HRTF magnitude as a frequency-by-elevation heatmap.
     Frequency is shown in kilohertz, elevation is shown in degrees, and
     the selected real azimuth is reported in the generated title when
-    titles are enabled.
+    show_titles is True.
 
     Numeric azimuths are interpreted in degrees. Named position aliases use
     their spherical azimuth component, so ``front``, ``back``,
@@ -1299,8 +1346,12 @@ def plot_elevation_spectrum(
         Maximum frequency in Hz included in the plot.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
+    show_titles : bool, default=True
         If False, suppress generated default subplot and figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -1486,7 +1537,7 @@ def plot_elevation_spectrum(
             x=frequency_khz,
             y=sorted_elevation_values,
             values=spectrum_matrix,
-            label=colorbar_label,
+            label=colorbar_label if show_labels else "",
             colormap=colormap,
             shading="auto",
             vmin=vmin,
@@ -1497,17 +1548,19 @@ def plot_elevation_spectrum(
         frequency_axis.apply(
             ax=ax,
             axis="x",
-            label=frequency_label,
+            label=frequency_label if show_labels else "",
             config=resolved_frequency_axis,
         )
         ElevationAnglesAxis.apply(
             ax=ax,
             axis="y",
             values=sorted_elevation_values,
+            label=None if show_labels else "",
         )
-        resolved_title = default_subplot_title if titles else ""
-        Titles.create_subplots_titles(ax=ax, title=resolved_title)
-    if titles:
+        resolved_title = default_subplot_title if show_titles else ""
+        if show_titles:
+            Titles.create_subplots_titles(ax=ax, title=resolved_title)
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -1518,17 +1571,20 @@ def plot_elevation_spectrum(
         plt.show()
     return None
 
-def plot_signed_itd(
-    hrtf: Any,
+def plot_itd(
+    hrtf: "HRTF",
     plane_angle: float = 0.0,
+    azimuth_range_mode: str = "-180-180",
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot signed ITD over a horizontal plane as azimuth versus time delay.
 
     The method computes signed interaural time difference from the current
     HRIR data, selects the nearest horizontal plane to ``plane_angle``,
-    and plots ITD in seconds against signed azimuth. The curve is sorted by
+    and plots ITD in microseconds against azimuth. The curve is sorted by
     azimuth so the plot follows the horizontal plane continuously.
 
     Parameters
@@ -1536,10 +1592,16 @@ def plot_signed_itd(
     plane_angle : float, default=0.0
         Target horizontal-plane elevation used to select the horizontal plane. The nearest
         available elevation in the grid is used.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+        Azimuth convention used on the x-axis.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
-        If False, suppress the generated default figure title.
+    show_titles : bool, default=True
+        If False, suppress generated default figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -1548,27 +1610,25 @@ def plot_signed_itd(
     Raises
     ------
     ValueError
-        If IR data or sample rate is missing, plane_angle is not
-        finite, the selected horizontal plane is empty, or the computed ITD
-        values do not align with the number of source positions.
+        If IR data or sample rate is missing, plane_angle is invalid, the
+        azimuth range is invalid, the selected horizontal plane is empty, or
+        the ITD value count differs from the number of source positions.
 
     Notes
     -----
-    Azimuth is displayed in the signed -180 .. 180 convention, where
-    positive azimuth values correspond to the left side and negative values
-    correspond to the right side.
+    Azimuth uses ``azimuth_range_mode``.
 
     Examples
     --------
     Plot signed ITD around the horizontal plane:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import plot_signed_itd
+    >>> from hrtfpykit.plots import plot_itd
     >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> plot_signed_itd(hrtf, plane_angle=0.0)
+    >>> plot_itd(hrtf, plane_angle=0.0)
     """
+    azimuth_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=azimuth_range_mode)
     resolved_margins = Margins()
-    azimuth_range_mode = "-180-180"
 
     if hrtf.IR.values is None:
         raise ValueError("IR data is not available")
@@ -1582,8 +1642,8 @@ def plot_signed_itd(
 
     itd_values = np.asarray(
         itd(
-            hrtf.IR,
-            output="seconds",
+            hrtf,
+            output="time",
         ),
         dtype=float,
     )
@@ -1634,14 +1694,16 @@ def plot_signed_itd(
         axis="x",
         values=sorted_azimuth_values,
         range_mode=azimuth_range_mode,
+        label=None if show_labels else "",
     )
     Axis.apply_label(
         ax=ax,
         axis="y",
         default_label=Labels.itd,
+        label=None if show_labels else "",
     )
     ax.grid(True)
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -1655,18 +1717,20 @@ def plot_signed_itd(
         plt.show()
     return None
 
-def plot_abs_itd(
-    hrtf: Any,
+def plot_absolute_itd(
+    hrtf: "HRTF",
     plane_angle: float = 0.0,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot absolute ITD over a horizontal plane in polar coordinates.
 
     The method computes absolute interaural time difference from the current
     HRIR data, selects the nearest horizontal plane to ``plane_angle``,
     and displays the resulting cue magnitude in a polar plot. Azimuth is
-    represented on the angular axis and absolute ITD in seconds is
+    represented on the angular axis and absolute ITD in microseconds is
     represented on the radial axis.
 
     Parameters
@@ -1676,8 +1740,12 @@ def plot_abs_itd(
         available elevation in the grid is used.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
-        If False, suppress the generated default figure title.
+    show_titles : bool, default=True
+        If False, suppress generated default figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -1686,29 +1754,29 @@ def plot_abs_itd(
     Raises
     ------
     ValueError
-        If IR data or sample rate is missing, plane_angle is not
-        finite, or the selected horizontal plane cannot be resolved for the
-        current source grid.
+        If IR data or sample rate is missing, plane_angle is not finite,
+        or the selected horizontal plane cannot be resolved for the current
+        source grid.
 
     Notes
     -----
     The polar azimuth axis uses 30-degree ticks with a north-up orientation.
-    The radial label defaults to Labels.itd_seconds and radial ticks use
-    the decimal-comma style configured by the polar-axis helper.
+    The radial label defaults to Labels.itd_time and radial ticks use
+    integer microsecond labels.
 
     Examples
     --------
     Plot the absolute ITD cue around the horizontal plane in polar form:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import plot_abs_itd
+    >>> from hrtfpykit.plots import plot_absolute_itd
     >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> plot_abs_itd(hrtf, plane_angle=0.0)
+    >>> plot_absolute_itd(hrtf, plane_angle=0.0)
     """
     resolved_margins = Margins()
     polar_tick_step = 30.0
-    radial_tick_step = 2e-4
-    radial_tick_label_style = "decimal_comma_4"
+    radial_tick_step = 200.0
+    radial_tick_label_style = "integer"
     radial_label_position = 350.0
     polar_curve_color = "steelblue"
     polar_curve_linewidth = 2.0
@@ -1723,14 +1791,13 @@ def plot_abs_itd(
     if not np.isfinite(plane_angle):
         raise ValueError("plane_angle must be a finite value")
 
-    itd_values = np.abs(
-        np.asarray(
-            itd(
-                hrtf.IR,
-                output="seconds",
-            ),
-            dtype=float,
-        )
+    itd_values = np.asarray(
+        itd(
+            hrtf,
+            output="time",
+            absolute=True,
+        ),
+        dtype=float,
     )
     theta_values, radial_values, sorted_itd_values, real_elevation = create_horizontal_plane_curve(
         hrtf=hrtf,
@@ -1761,12 +1828,13 @@ def plot_abs_itd(
     RadialAxisPolarProjection.apply(
         ax=ax,
         radial_values=sorted_itd_values,
-        radial_label_default=Labels.itd_seconds,
+        radial_label_default=Labels.itd_time if show_labels else "",
         tick_step=radial_tick_step,
         tick_label_style=radial_tick_label_style,
         label_position=radial_label_position,
+        label=None if show_labels else "",
     )
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -1781,27 +1849,31 @@ def plot_abs_itd(
         plt.show()
     return None
 
-def plot_signed_fd_ild(
-    hrtf: Any,
+def plot_ild_fd(
+    hrtf: "HRTF",
     plane: str = "horizontal",
     plane_angle: float = 0.0,
+    azimuth_range_mode: str = "-180-180",
     colormap: str = "jet",
     freq_min: float | None = None,
     freq_max: float | None = None,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot a frequency-dependent ILD heatmap for an HRTF plane.
 
     The method computes frequency-dependent interaural level difference
-    from the current HRIR data and renders it as a frequency-by-angle
-    heatmap. Frequency is shown in kilohertz. The vertical axis is azimuth
-    for horizontal planes and lateral-polar angle for the median plane.
+    from the current TF data and renders it as a heatmap with frequency on
+    one axis and angle on the other. Frequency is shown in kilohertz.
+    The vertical axis is azimuth for horizontal planes and lateral-polar
+    angle for the median plane.
 
     Horizontal planes are selected by the nearest available spherical
     elevation to ``plane_angle``. Median-plane plots are selected by the
     nearest available lateral-polar lateral angle to ``plane_angle``. The
-    ILD values are computed in decibels from the current impulse responses
+    ILD values are computed in decibels from the current transfer functions
     before plotting.
 
     Parameters
@@ -1814,6 +1886,8 @@ def plot_signed_fd_ild(
         Plane coordinate in degrees used to resolve the nearest measured
         plane. For ``plane="horizontal"`` this is spherical elevation. For
         ``plane="median"`` this is lateral-polar lateral angle.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+        Azimuth convention used for horizontal-plane azimuth values.
     colormap : str, default=``jet``
         Matplotlib colormap name used for the heatmap.
     freq_min : float | None, default=None
@@ -1822,8 +1896,12 @@ def plot_signed_fd_ild(
         Maximum frequency in Hz included in the plot.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
-        If False, suppress the generated default figure title.
+    show_titles : bool, default=True
+        If False, suppress generated default figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -1835,15 +1913,15 @@ def plot_signed_fd_ild(
         If plane is not ``horizontal`` or ``median``, or if
         plane_angle is not finite.
     ValueError
-        If IR data or sample rate is missing, the selected plane has no
-        positions, frequency bins are invalid, the selected frequency range
-        contains no bins, or frequency-dependent ILD values do not have the
-        expected (positions, frequencies) shape.
+        If TF data or frequency bins are missing, the azimuth range is
+        invalid, the selected plane has no positions, frequency bins are
+        invalid, the selected frequency range is empty, or the
+        frequency-dependent ILD shape is invalid.
 
     Notes
     -----
-    Horizontal-plane azimuths are displayed in the signed -180 .. 180
-    convention. The frequency axis is always linear for this plot because
+    Horizontal-plane azimuths use ``azimuth_range_mode``. The
+    frequency axis is always linear for this plot because
     the method currently builds a :class:`~hrtfpykit.plots.axis.FrequencyLinearAxis` configuration.
 
     Examples
@@ -1851,9 +1929,9 @@ def plot_signed_fd_ild(
     Plot frequency-dependent ILD over the horizontal plane:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import plot_signed_fd_ild
+    >>> from hrtfpykit.plots import plot_ild_fd
     >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> plot_signed_fd_ild(
+    >>> plot_ild_fd(
     ...     hrtf,
     ...     plane="horizontal",
     ...     plane_angle=0.0,
@@ -1861,20 +1939,18 @@ def plot_signed_fd_ild(
     ... )
     """
     if plane not in ("horizontal", "median"):
-        raise AttributeError("plot_signed_fd_ild plane accepts horizontal or median")
+        raise AttributeError("plot_ild_fd plane accepts horizontal or median")
     if isinstance(plane_angle, bool):
         raise AttributeError("plane_angle must be a finite value")
     plane_angle = float(plane_angle)
     if not np.isfinite(plane_angle):
         raise AttributeError("plane_angle must be a finite value")
+    azimuth_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=azimuth_range_mode)
     resolved_margins = Margins()
-    azimuth_range_mode = "-180-180"
     heatmap_margin_ratio = 0.0
 
-    if hrtf.IR.values is None:
-        raise ValueError("IR data is not available")
-    if hrtf.IR.sample_rate is None:
-        raise ValueError("IR sample_rate is required")
+    if hrtf.TF.values is None:
+        raise ValueError("TF data is not available")
 
     plane_key = str(plane).strip().lower()
 
@@ -1915,12 +1991,9 @@ def plot_signed_fd_ild(
         )
         plane_axis_values = np.asarray(lateral_polar_positions[:, 1], dtype=float)
 
-    _, frequency_bins_hz, _ = tf_from_ir(
-        np.asarray(hrtf.IR.values, dtype=float),
-        sample_rate=hrtf.IR.sample_rate,
-        fft_length=hrtf.fft_length,
-    )
-    frequency_bins_hz = np.asarray(frequency_bins_hz, dtype=float)
+    if hrtf.TF.frequency_bins is None:
+        raise ValueError("TF frequency bins are not available")
+    frequency_bins_hz = np.asarray(hrtf.TF.frequency_bins, dtype=float)
     if frequency_bins_hz.ndim != 1 or frequency_bins_hz.size == 0:
         raise ValueError("TF frequency bins must be a non-empty 1D array")
     resolved_frequency_axis = FrequencyLinearAxis.build(
@@ -1939,11 +2012,8 @@ def plot_signed_fd_ild(
 
     ild_values = np.asarray(
         ild(
-            hrtf.IR,
-            sample_rate=hrtf.IR.sample_rate,
-            fft_length=hrtf.fft_length,
+            hrtf,
             mode="frequency-dependent",
-            output="db",
         ),
         dtype=float,
     )
@@ -1968,7 +2038,7 @@ def plot_signed_fd_ild(
         x=frequency_khz,
         y=sorted_subplot_plane_axis_values,
         values=sorted_plane_matrix,
-        label=Labels.ild,
+        label=Labels.ild if show_labels else "",
         colormap=colormap,
         shading="auto",
         vmin=float(np.min(sorted_plane_matrix)),
@@ -1979,7 +2049,7 @@ def plot_signed_fd_ild(
     FrequencyLinearAxis.apply(
         ax=ax,
         axis="x",
-        label=frequency_label,
+        label=frequency_label if show_labels else "",
         config=resolved_frequency_axis,
     )
     if plane_key == "horizontal":
@@ -1988,14 +2058,16 @@ def plot_signed_fd_ild(
             axis="y",
             values=sorted_subplot_plane_axis_values,
             range_mode=azimuth_range_mode,
+            label=None if show_labels else "",
         )
     else:
         PolarAnglesAxis.apply(
             ax=ax,
             axis="y",
             values=sorted_subplot_plane_axis_values,
+            label=None if show_labels else "",
         )
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -2009,17 +2081,20 @@ def plot_signed_fd_ild(
         plt.show()
     return None
 
-def plot_signed_bb_ild(
-    hrtf: Any,
+def plot_ild(
+    hrtf: "HRTF",
     plane_angle: float = 0.0,
+    azimuth_range_mode: str = "-180-180",
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot signed ILD over a horizontal plane as azimuth versus level difference.
 
     The method computes signed broad-band interaural level difference from
     the current HRIR data, selects the nearest horizontal plane to
-    plane_angle, and plots ILD in decibels against signed azimuth.
+    plane_angle, and plots ILD in decibels against azimuth.
     The curve is sorted by azimuth so the plot follows the horizontal plane
     continuously.
 
@@ -2028,10 +2103,16 @@ def plot_signed_bb_ild(
     plane_angle : float, default=0.0
         Target horizontal-plane elevation used to select the horizontal plane. The nearest
         available elevation in the grid is used.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+        Azimuth convention used on the x-axis.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
-        If False, suppress the generated default figure title.
+    show_titles : bool, default=True
+        If False, suppress generated default figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -2040,32 +2121,28 @@ def plot_signed_bb_ild(
     Raises
     ------
     ValueError
-        If IR data or sample rate is missing, plane_angle is not
-        finite, the selected horizontal plane is empty, or the computed ILD
-        values do not align with the number of source positions.
+        If IR data is missing, plane_angle is invalid, the azimuth range is
+        invalid, the selected horizontal plane is empty, or the ILD value
+        count differs from the number of source positions.
 
     Notes
     -----
-    Azimuth is displayed in the signed -180 .. 180 convention, where
-    positive azimuth values correspond to the left side and negative values
-    correspond to the right side.
+    Azimuth uses ``azimuth_range_mode``.
 
     Examples
     --------
     Plot signed broad-band ILD around the horizontal plane:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import plot_signed_bb_ild
+    >>> from hrtfpykit.plots import plot_ild
     >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> plot_signed_bb_ild(hrtf, plane_angle=0.0)
+    >>> plot_ild(hrtf, plane_angle=0.0)
     """
+    azimuth_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=azimuth_range_mode)
     resolved_margins = Margins()
-    azimuth_range_mode = "-180-180"
 
     if hrtf.IR.values is None:
         raise ValueError("IR data is not available")
-    if hrtf.IR.sample_rate is None:
-        raise ValueError("IR sample_rate is required")
     if isinstance(plane_angle, bool):
         raise ValueError("plane_angle must be a finite value")
     plane_angle = float(plane_angle)
@@ -2074,8 +2151,7 @@ def plot_signed_bb_ild(
 
     ild_values = np.asarray(
         ild(
-            hrtf.IR,
-            output="db",
+            hrtf,
             mode="broad-band",
         ),
         dtype=float,
@@ -2127,14 +2203,16 @@ def plot_signed_bb_ild(
         axis="x",
         values=sorted_azimuth_values,
         range_mode=azimuth_range_mode,
+        label=None if show_labels else "",
     )
     Axis.apply_label(
         ax=ax,
         axis="y",
-        default_label=Labels.ild,
+        default_label=Labels.ild if show_labels else "",
+        label=None if show_labels else "",
     )
     ax.grid(True)
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -2148,19 +2226,21 @@ def plot_signed_bb_ild(
         plt.show()
     return None
 
-def plot_abs_bb_ild(
-    hrtf: Any,
+def plot_absolute_ild(
+    hrtf: "HRTF",
     plane_angle: float = 0.0,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
-    """Plot absolute ILD over a horizontal plane in polar coordinates.
+    """Plot unsigned broad-band ILD over a horizontal plane in polar coordinates.
 
-    The method computes absolute broad-band interaural level difference from
-    the current HRIR data, selects the nearest horizontal plane to
-    plane_angle, and displays the resulting cue magnitude in a polar
-    plot. Azimuth is represented on the angular axis and absolute ILD in
-    decibels is represented on the radial axis.
+    The method computes broad-band interaural level difference from the current
+    HRIR data, removes side from the ILD values, selects the nearest
+    horizontal plane to plane_angle, and displays the result in a polar plot.
+    Azimuth is represented on the angular axis and unsigned ILD in decibels is
+    represented on the radial axis.
 
     Parameters
     ----------
@@ -2169,8 +2249,12 @@ def plot_abs_bb_ild(
         available elevation in the grid is used.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
-        If False, suppress the generated default figure title.
+    show_titles : bool, default=True
+        If False, suppress generated default figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -2179,9 +2263,8 @@ def plot_abs_bb_ild(
     Raises
     ------
     ValueError
-        If IR data or sample rate is missing, plane_angle is not
-        finite, or the selected horizontal plane cannot be resolved for the
-        current source grid.
+        If IR data is missing, plane_angle is not finite, or the selected
+        horizontal plane cannot be resolved for the current source grid.
 
     Notes
     -----
@@ -2191,12 +2274,12 @@ def plot_abs_bb_ild(
 
     Examples
     --------
-    Plot the absolute broad-band ILD cue around the horizontal plane:
+    Plot the unsigned broad-band ILD cue around the horizontal plane:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import plot_abs_bb_ild
+    >>> from hrtfpykit.plots import plot_absolute_ild
     >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> plot_abs_bb_ild(hrtf, plane_angle=0.0)
+    >>> plot_absolute_ild(hrtf, plane_angle=0.0)
     """
     resolved_margins = Margins()
     polar_tick_step = 30.0
@@ -2208,23 +2291,19 @@ def plot_abs_bb_ild(
 
     if hrtf.IR.values is None:
         raise ValueError("IR data is not available")
-    if hrtf.IR.sample_rate is None:
-        raise ValueError("IR sample_rate is required")
     if isinstance(plane_angle, bool):
         raise ValueError("plane_angle must be a finite value")
     plane_angle = float(plane_angle)
     if not np.isfinite(plane_angle):
         raise ValueError("plane_angle must be a finite value")
 
-    ild_values = np.abs(
-        np.asarray(
-            ild(
-                hrtf.IR,
-                output="db",
-                mode="broad-band",
-            ),
-            dtype=float,
-        )
+    ild_values = np.asarray(
+        ild(
+            hrtf,
+            mode="broad-band",
+            absolute=True,
+        ),
+        dtype=float,
     )
     theta_values, radial_values, sorted_ild_values, real_elevation = create_horizontal_plane_curve(
         hrtf=hrtf,
@@ -2255,12 +2334,13 @@ def plot_abs_bb_ild(
     RadialAxisPolarProjection.apply(
         ax=ax,
         radial_values=sorted_ild_values,
-        radial_label_default=Labels.ild_db,
+        radial_label_default=Labels.ild_db if show_labels else "",
         tick_step=radial_tick_step,
         tick_label_style=radial_tick_label_style,
         label_position=radial_label_position,
+        label=None if show_labels else "",
     )
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -2276,9 +2356,11 @@ def plot_abs_bb_ild(
     return None
 
 def plot_source_grid(
-    hrtf: Any,
+    hrtf: "HRTF",
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot the source grid as an interactive three-dimensional scatter.
 
@@ -2295,8 +2377,12 @@ def plot_source_grid(
     ----------
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
-        If False, suppress the generated default figure title.
+    show_titles : bool, default=True
+        If False, suppress generated default figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -2365,26 +2451,30 @@ def plot_source_grid(
         ax=ax,
         center=x_center,
         half_span=axis_half_span,
-        )
+        label=None if show_labels else "",
+    )
     YAxis.apply(
         ax=ax,
         center=y_center,
         half_span=axis_half_span,
-        )
+        label=None if show_labels else "",
+    )
     ZAxis.apply(
         ax=ax,
         center=z_center,
         half_span=axis_half_span,
-        )
-    cast(Any, ax).set_box_aspect((1.0, 1.0, 1.0))
-    create_sources_grid_direction_markers(
-        ax=ax,
-        sources=hrtf.Sources,
-        axis_half_span=axis_half_span,
+        label=None if show_labels else "",
     )
+    cast(Any, ax).set_box_aspect((1.0, 1.0, 1.0))
+    if show_labels:
+        create_sources_grid_direction_markers(
+            ax=ax,
+            sources=hrtf.Sources,
+            axis_half_span=axis_half_span,
+        )
 
     ax.grid(True)
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -2396,10 +2486,12 @@ def plot_source_grid(
     return None
 
 def plot_plane_grid(
-    hrtf: Any,
+    hrtf: "HRTF",
     plane: str | list[str] | tuple[str, ...] = "horizontal",
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot the source grid and highlight canonical spatial planes in 3D.
 
@@ -2419,8 +2511,12 @@ def plot_plane_grid(
         figure.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
-    titles : bool, default=True
-        If False, suppress the generated default figure title.
+    show_titles : bool, default=True
+        If False, suppress generated default figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -2554,27 +2650,32 @@ def plot_plane_grid(
         ax=ax,
         center=x_center,
         half_span=axis_half_span,
-        )
+        label=None if show_labels else "",
+    )
     YAxis.apply(
         ax=ax,
         center=y_center,
         half_span=axis_half_span,
-        )
+        label=None if show_labels else "",
+    )
     ZAxis.apply(
         ax=ax,
         center=z_center,
         half_span=axis_half_span,
-        )
-    cast(Any, ax).set_box_aspect((1.0, 1.0, 1.0))
-    create_sources_grid_direction_markers(
-        ax=ax,
-        sources=hrtf.Sources,
-        axis_half_span=axis_half_span,
+        label=None if show_labels else "",
     )
+    cast(Any, ax).set_box_aspect((1.0, 1.0, 1.0))
+    if show_labels:
+        create_sources_grid_direction_markers(
+            ax=ax,
+            sources=hrtf.Sources,
+            axis_half_span=axis_half_span,
+        )
 
     ax.grid(True)
-    ax.legend(loc="upper right")
-    if titles:
+    if show_legends:
+        ax.legend(loc="upper right")
+    if show_titles:
         if len(resolved_planes) == 1:
             resolved_figure_title = plane_titles[resolved_planes[0]]
         else:

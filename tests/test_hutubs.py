@@ -336,7 +336,6 @@ _ALL_COMBINATIONS: list[tuple[tuple[object, ...], tuple[object, ...]]] = [
             ILDSpec(
                 index_by=("subject",),
                 mode="broad-band",
-                output="db",
                 transform=_identity,
             ),
          ),

@@ -11,7 +11,6 @@ from .coordinates import get_source_positions
 from .dsp import magnitude_to_db
 
 if TYPE_CHECKING:
-    from ..hrtf.domain import TF
     from ..hrtf.hrtf import HRTF
 
 
@@ -94,7 +93,7 @@ class SH:
 
 
 def sht(
-    tf: "TF | HRTF",
+    hrtf: "HRTF",
     sh_order: int,
     ear: str = "left",
     epsilon: float = 1e-6,
@@ -102,12 +101,11 @@ def sht(
     """Compute a spherical-harmonic decomposition of HRTF magnitudes.
 
     The function projects linear HRTF magnitudes from the source grid into a
-    real-valued spherical-harmonic basis. It accepts either an
-    :class:`~hrtfpykit.hrtf.HRTF` object or its linked
-    :class:`~hrtfpykit.hrtf.domain.TF` domain object. In both cases, the linked
-    HRTF source grid is used to evaluate the basis. The complex transfer functions
-    stored in :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` are decomposed
-    by magnitude.
+    real-valued spherical-harmonic basis. It accepts an
+    :class:`~hrtfpykit.hrtf.HRTF` object and uses the current HRTF source grid
+    to evaluate the basis. The complex transfer functions stored in
+    :attr:`hrtf.TF.values <hrtfpykit.hrtf.domain.TF.values>` are decomposed by
+    magnitude.
 
     The source coordinates are read as spherical positions in radians. The
     implementation maps SOFA-style azimuth/elevation to spherical-harmonic
@@ -117,15 +115,12 @@ def sht(
 
     Parameters
     ----------
-    tf : TF | HRTF
-        Input frequency-domain domain object or
-        :class:`~hrtfpykit.hrtf.HRTF` object.
-        The values stored in
-        :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` must have shape
-        (positions, ears, frequency_bins) and contain at least two ear channels.
-        The bins stored in
-        :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>` must
-        match the final TF axis.
+    hrtf : HRTF
+        HRTF object used for the decomposition.
+        :attr:`hrtf.TF.values <hrtfpykit.hrtf.domain.TF.values>` must have
+        shape (positions, ears, frequency_bins) and contain at least two ear
+        channels. :attr:`hrtf.TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`
+        must match the final TF axis.
     sh_order : int
         Non-negative spherical-harmonic order. The coefficient count is
         (sh_order + 1) ** 2.
@@ -149,9 +144,9 @@ def sht(
     Raises
     ------
     ValueError
-        If tf is not an HRTF or linked TF object, TF values or frequency
-        bins are missing, TF shape is incompatible, the source grid does not
-        match the TF position axis, ear is invalid, sh_order is not a
+        If hrtf is not an HRTF object, TF values or frequency bins are missing,
+        TF shape is incompatible, the source grid does not match the TF
+        position axis, ear is invalid, sh_order is not a
         non-negative integer, or epsilon is not finite and positive.
 
     Examples
@@ -165,14 +160,9 @@ def sht(
     >>> sh.get_coefficients().shape
     (16, 2, 129)
     """
-    if hasattr(tf, "TF") and hasattr(tf, "Sources"):
-        hrtf = tf
-        tf_domain = hrtf.TF
-    elif hasattr(tf, "values") and hasattr(tf, "frequency_bins") and hasattr(tf, "_hrtf"):
-        tf_domain = tf
-        hrtf = tf._hrtf
-    else:
-        raise ValueError("tf must be a TF or HRTF instance")
+    if not hasattr(hrtf, "TF") or not hasattr(hrtf, "Sources"):
+        raise ValueError("hrtf must be an HRTF instance")
+    tf_domain = hrtf.TF
 
     if tf_domain.values is None:
         raise ValueError("TF values are not available")

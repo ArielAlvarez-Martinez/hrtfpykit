@@ -521,12 +521,13 @@ class DatasetSampleValueSelector:
             selected_hrtf = cast(Any, hrtf if transformed_hrtf is None else transformed_hrtf)
             value = np.asarray(
                 itd(
-                    selected_hrtf.IR,
+                    selected_hrtf,
                     method=spec.method,
                     output=spec.output,
                     thresh_level=spec.thresh_level,
                     upper_cut_freq=spec.upper_cut_freq,
                     filter_order=spec.filter_order,
+                    absolute=spec.absolute,
                 )
             )
             state.cache[metric_cache_key] = value
@@ -578,8 +579,8 @@ class DatasetSampleValueSelector:
         KeyError
             If subject_id cannot be loaded through the dataset HRTF path index.
         ValueError
-            If ILD calculation fails because the underlying HRIR data, sample rate,
-            FFT length, mode, or output parameters are invalid.
+            If ILD calculation fails because the underlying HRTF data, mode, or
+            epsilon parameters are invalid.
         IndexError
             If row position_index or frequency_index is outside the calculated ILD
             array.
@@ -607,11 +608,8 @@ class DatasetSampleValueSelector:
             selected_hrtf = cast(Any, hrtf if transformed_hrtf is None else transformed_hrtf)
             value = np.asarray(
                 ild(
-                    selected_hrtf.IR,
-                    sample_rate=state.sample_rate,
-                    fft_length=spec.fft_length,
+                    selected_hrtf,
                     mode=spec.mode,
-                    output=spec.output,
                     epsilon=spec.epsilon,
                 )
             )

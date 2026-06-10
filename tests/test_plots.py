@@ -13,25 +13,25 @@ import pytest
 from hrtfpykit.hrtf.hrtf import HRTF
 from hrtfpykit.hrtf import load_hrtf
 from hrtfpykit.plots import (
-    compare_abs_bb_ild,
-    compare_abs_itd,
+    compare_absolute_ild,
+    compare_absolute_itd,
     compare_amplitude,
-    compare_signed_bb_ild,
-    compare_signed_itd,
-    plot_abs_bb_ild,
-    plot_abs_bb_ild_diff,
-    plot_abs_itd,
-    plot_abs_itd_diff,
+    compare_ild,
+    compare_ild_difference,
+    compare_itd,
+    compare_itd_difference,
+    compare_lsd,
+    plot_absolute_ild,
+    plot_absolute_itd,
     plot_amplitude,
     plot_elevation_spectrum,
     plot_etc,
     plot_etc_plane,
-    plot_lsd,
     plot_magnitude,
     plot_plane_grid,
-    plot_signed_bb_ild,
-    plot_signed_fd_ild,
-    plot_signed_itd,
+    plot_ild,
+    plot_ild_fd,
+    plot_itd,
     plot_source_grid,
     plot_spectrum_plane,
     compare_magnitude,
@@ -174,33 +174,33 @@ def test_plot_magnitude_accepts_real_hrtf_file(real_hrtf: HRTF) -> None:
             ),
         ),
         (
-            "plot_signed_itd",
-            lambda hrtf: plot_signed_itd(hrtf, 
+            "plot_itd",
+            lambda hrtf: plot_itd(hrtf, 
                 show=False,
             ),
         ),
         (
-            "plot_abs_itd",
-            lambda hrtf: plot_abs_itd(hrtf, 
+            "plot_absolute_itd",
+            lambda hrtf: plot_absolute_itd(hrtf, 
                 show=False,
             ),
         ),
         (
-            "plot_signed_fd_ild",
-            lambda hrtf: plot_signed_fd_ild(hrtf, 
+            "plot_ild_fd",
+            lambda hrtf: plot_ild_fd(hrtf, 
                 plane="horizontal",
                 show=False,
             ),
         ),
         (
-            "plot_signed_bb_ild",
-            lambda hrtf: plot_signed_bb_ild(hrtf, 
+            "plot_ild",
+            lambda hrtf: plot_ild(hrtf, 
                 show=False,
             ),
         ),
         (
-            "plot_abs_bb_ild",
-            lambda hrtf: plot_abs_bb_ild(hrtf, 
+            "plot_absolute_ild",
+            lambda hrtf: plot_absolute_ild(hrtf, 
                 show=False,
             ),
         ),
@@ -225,11 +225,11 @@ def test_plot_magnitude_accepts_real_hrtf_file(real_hrtf: HRTF) -> None:
         "plot_etc_plane",
         "plot_spectrum_plane",
         "plot_elevation_spectrum",
-        "plot_signed_itd",
-        "plot_abs_itd",
-        "plot_signed_fd_ild",
-        "plot_signed_bb_ild",
-        "plot_abs_bb_ild",
+        "plot_itd",
+        "plot_absolute_itd",
+        "plot_ild_fd",
+        "plot_ild",
+        "plot_absolute_ild",
         "plot_source_grid",
         "plot_plane_grid",
     ],
@@ -267,36 +267,36 @@ def test_real_hrtf_plot_methods_create_matplotlib_figures(
             ),
         ),
         (
-            "compare_abs_itd",
-            lambda hrtfs: compare_abs_itd(
+            "compare_absolute_itd",
+            lambda hrtfs: compare_absolute_itd(
                 hrtfs,
                 show=False,
             ),
         ),
         (
-            "compare_abs_bb_ild",
-            lambda hrtfs: compare_abs_bb_ild(
+            "compare_absolute_ild",
+            lambda hrtfs: compare_absolute_ild(
                 hrtfs,
                 show=False,
             ),
         ),
         (
-            "compare_signed_itd",
-            lambda hrtfs: compare_signed_itd(
+            "compare_itd",
+            lambda hrtfs: compare_itd(
                 hrtfs,
                 show=False,
             ),
         ),
         (
-            "compare_signed_bb_ild",
-            lambda hrtfs: compare_signed_bb_ild(
+            "compare_ild",
+            lambda hrtfs: compare_ild(
                 hrtfs,
                 show=False,
             ),
         ),
         (
-            "plot_abs_itd_diff",
-            lambda hrtfs: plot_abs_itd_diff(
+            "compare_itd_difference",
+            lambda hrtfs: compare_itd_difference(
                 hrtfs[0],
                 hrtfs[1],
                 method="maxiacce",
@@ -304,16 +304,16 @@ def test_real_hrtf_plot_methods_create_matplotlib_figures(
             ),
         ),
         (
-            "plot_abs_bb_ild_diff",
-            lambda hrtfs: plot_abs_bb_ild_diff(
+            "compare_ild_difference",
+            lambda hrtfs: compare_ild_difference(
                 hrtfs[0],
                 hrtfs[1],
                 show=False,
             ),
         ),
         (
-            "plot_lsd",
-            lambda hrtfs: plot_lsd(
+            "compare_lsd",
+            lambda hrtfs: compare_lsd(
                 hrtfs[0],
                 hrtfs[1],
                 ear="both",
@@ -324,13 +324,13 @@ def test_real_hrtf_plot_methods_create_matplotlib_figures(
     ids=[
         "compare_magnitude",
         "compare_amplitude",
-        "compare_abs_itd",
-        "compare_abs_bb_ild",
-        "compare_signed_itd",
-        "compare_signed_bb_ild",
-        "plot_abs_itd_diff",
-        "plot_abs_bb_ild_diff",
-        "plot_lsd",
+        "compare_absolute_itd",
+        "compare_absolute_ild",
+        "compare_itd",
+        "compare_ild",
+        "compare_itd_difference",
+        "compare_ild_difference",
+        "compare_lsd",
     ],
 )
 def test_real_hrtf_compare_plot_functions_create_matplotlib_figures(

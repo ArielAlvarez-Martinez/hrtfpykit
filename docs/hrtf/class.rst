@@ -14,10 +14,10 @@ In normal use, users do not create those interface objects directly. They load
 or receive an HRTF instance and access each working surface from that instance:
 :attr:`~hrtfpykit.hrtf.HRTF.IR` for the :class:`~hrtfpykit.hrtf.domain.IR`
 object with time-domain HRIR values, sample-rate metadata,
-:attr:`~hrtfpykit.hrtf.domain.IR.ir_duration`,
-:meth:`~hrtfpykit.hrtf.domain.IR.get_itd`,
-:meth:`~hrtfpykit.hrtf.domain.IR.get_ild`, and
-:meth:`~hrtfpykit.hrtf.domain.IR.get_rms`; :attr:`~hrtfpykit.hrtf.HRTF.TF` for
+:attr:`~hrtfpykit.hrtf.domain.IR.ir_duration`; use :func:`~hrtfpykit.hrtf.itd`
+for interaural time difference metrics, :func:`~hrtfpykit.hrtf.ild` for
+interaural level difference metrics, and :func:`~hrtfpykit.hrtf.rms` for RMS
+levels. :attr:`~hrtfpykit.hrtf.HRTF.TF` for
 the :class:`~hrtfpykit.hrtf.domain.TF` object with frequency-domain HRTF values,
 frequency bins, :attr:`~hrtfpykit.hrtf.domain.TF.magnitude`,
 :attr:`~hrtfpykit.hrtf.domain.TF.phase`, :attr:`~hrtfpykit.hrtf.domain.TF.real`,

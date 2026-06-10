@@ -342,20 +342,20 @@ class HRTF:
         This object stores :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`
         and :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` for
         the parent :class:`~hrtfpykit.hrtf.HRTF` object and exposes
-        time-domain inspection helpers such as sample length, duration, and
-        ITD calculation.
+        time-domain inspection helpers such as sample length and duration.
 
         Examples
         --------
         Load a SOFA file and access the HRIR samples, sample-rate metadata,
-        signal length, duration, and ITD values through ``hrtf.IR``:
+        signal length, and duration through ``hrtf.IR``, then compute ITD
+        with the public metric:
 
-        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> from hrtfpykit.hrtf import load_hrtf, itd
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> ir_values = hrtf.IR.values
         >>> sample_rate = hrtf.IR.sample_rate
         >>> first_position_left_ir = hrtf.IR.values[0, 0, :]
-        >>> itd_samples = hrtf.IR.get_itd(output="samples")
+        >>> itd_samples = itd(hrtf, output="samples")
         >>> ir_values.shape
         (793, 2, 256)
         >>> sample_rate
@@ -364,8 +364,8 @@ class HRTF:
         (256,)
         >>> hrtf.IR.ir_length
         256
-        >>> hrtf.IR.ir_duration
-        0.005804988662131519
+        >>> round(hrtf.IR.ir_duration, 3)
+        5.805
         >>> itd_samples.shape
         (793,)
         """

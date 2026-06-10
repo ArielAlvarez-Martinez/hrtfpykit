@@ -318,7 +318,7 @@ _ALL_COMBINATIONS: list[tuple[tuple[object, ...], tuple[object, ...]]] = [
     ((SHSpec(sh_order=3, index_by=("subject",), transform=_identity),), ()),
     ((SHSpec(sh_order=2, index_by=("subject", "ear"), ears=("left",), ear_index=True, ear_one_hot=True, transform=_identity),), ()),
     ((ITDSpec(index_by=("subject",), plane=("horizontal", 0, "degrees"), output="samples", transform=_identity),), ()),
-    ((ILDSpec(index_by=("subject",), mode="broad-band", output="db", transform=_identity),), ()),
+    ((ILDSpec(index_by=("subject",), mode="broad-band", transform=_identity),), ()),
     ((MetadataSpec(transform=_to_array), MeshSpec(transform=_filename_only)), ()),
     ((HRTFSpec(index_by=("subject",), transform=_identity),), (ITDSpec(index_by=("subject",), transform=_identity),)),
     ((HRTFSpec(index_by=("subject",), name="hrtf_input"),), (HRTFSpec(index_by=("subject",), name="hrtf_target"),)),

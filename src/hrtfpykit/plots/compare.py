@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from scipy.interpolate import griddata
 
 from .axis import (
     AmplitudeAxis,
@@ -24,10 +26,11 @@ from .labels import Labels
 from .layouts import Layout_1, Layout_2Horizontal, Layout_2Vertical, Layout_3
 from .legends import Subjects
 from .titles import Titles
+from .types import Heatmap
 from ..utils.warnings import HRTFPyKitWarning, warn_user
 from ..utils.coordinates import get_position_queries, get_source_positions
 from ..utils.dsp import magnitude_to_db
-from ..utils.metrics import ild, abs_ild_diff, itd, lsd
+from ..utils.metrics import ild, ild_difference, itd, itd_difference, lsd
 from ..utils.planes import get_horizontal_plane
 from .polar import create_horizontal_plane_curve
 
@@ -51,7 +54,9 @@ def compare_magnitude(
     freq_min: float | None = None,
     freq_max: float | None = None,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Compare HRTF magnitude responses across multiple :class:`~hrtfpykit.hrtf.HRTF` objects.
 
@@ -109,8 +114,12 @@ def compare_magnitude(
         Maximum frequency in Hz. If omitted, resolved from all HRTFs.
     show : bool, default=True
         If True, calls matplotlib.pyplot.show().
-    titles : bool, default=True
-        Controls subplot titles in single-ear mode.
+    show_titles : bool, default=True
+        Controls generated subplot and figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -398,17 +407,19 @@ def compare_magnitude(
             resolved_frequency_axis_class.apply(
                 ax=ax,
                 axis="x",
-                label=Labels.frequency,
+                label=Labels.frequency if show_labels else "",
                 config=resolved_frequency_axis,
             )
-            MagnitudeAxis.apply(ax=ax, axis="y", unit=unit)
-            Titles.create_subplots_titles(ax=ax, title=subplot_title)
-            Subjects.apply(
-                ax=ax,
-                labels=resolved_legends,
-                location=resolved_legend_location,
-                bbox_to_anchor=resolved_legend_bbox_to_anchor,
-            )
+            MagnitudeAxis.apply(ax=ax, axis="y", unit=unit, label=None if show_labels else "")
+            if show_titles:
+                Titles.create_subplots_titles(ax=ax, title=subplot_title)
+            if show_legends:
+                Subjects.apply(
+                    ax=ax,
+                    labels=resolved_legends,
+                    location=resolved_legend_location,
+                    bbox_to_anchor=resolved_legend_bbox_to_anchor,
+                )
             ax.grid(True)
     else:
         for position_index in range(position_count):
@@ -440,27 +451,26 @@ def compare_magnitude(
             resolved_frequency_axis_class.apply(
                 ax=ax,
                 axis="x",
-                label=Labels.frequency,
+                label=Labels.frequency if show_labels else "",
                 config=resolved_frequency_axis,
             )
-            MagnitudeAxis.apply(ax=ax, axis="y", unit=unit)
-            if titles:
+            MagnitudeAxis.apply(ax=ax, axis="y", unit=unit, label=None if show_labels else "")
+            if show_titles:
                 Titles.create_subplots_titles(
                     ax=ax,
                     title=Titles.create_position_title(
                         selected_positions=reference_positions[position_index],
                     ),
                 )
-            else:
-                Titles.create_subplots_titles(ax=ax, title="")
             if Figure.shared_x_visible:
                 ax.tick_params(axis="x", which="both", labelbottom=True)
-            Subjects.apply(
-                ax=ax,
-                labels=resolved_legends,
-                location=resolved_legend_location,
-                bbox_to_anchor=resolved_legend_bbox_to_anchor,
-            )
+            if show_legends:
+                Subjects.apply(
+                    ax=ax,
+                    labels=resolved_legends,
+                    location=resolved_legend_location,
+                    bbox_to_anchor=resolved_legend_bbox_to_anchor,
+                )
             ax.grid(True)
 
     if ear != "both" and position_count < figure.axes.size:
@@ -481,7 +491,9 @@ def compare_amplitude(
     legend_location: str | None = None,
     legend_bbox_to_anchor: tuple[float, float] | None = None,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Compare HRIR amplitude curves across multiple HRTF instances.
 
@@ -492,7 +504,7 @@ def compare_amplitude(
     warning is emitted when the real resolved source coordinate differs across
     inputs.
 
-    The horizontal axis can show seconds or sample indices. Time mode requires
+    The horizontal axis can show milliseconds or sample indices. Time mode requires
     every input HRTF to provide
     :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>`; sample mode
     only requires the impulse-response array.
@@ -512,7 +524,7 @@ def compare_amplitude(
         creates separate left-ear and right-ear subplots.
     x_axis : {``time``, ``samples``}, default=``time``
         Horizontal axis mode for waveforms. ``time`` converts samples to
-        seconds using each HRTF's sample rate.
+        milliseconds using each HRTF's sample rate.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
@@ -525,8 +537,12 @@ def compare_amplitude(
         Optional legend anchor tuple (x, y).
     show : bool, default=True
         If True, calls matplotlib.pyplot.show().
-    titles : bool, default=True
-        Controls subplot titles in single-ear mode.
+    show_titles : bool, default=True
+        Controls generated subplot and figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -656,7 +672,7 @@ def compare_amplitude(
 
         subject_sample_indexes = np.arange(subject_ir_values.shape[-1], dtype=float)
         if x_axis == "time":
-            x_values_by_subject.append(subject_sample_indexes / float(cast(Any, hrtf.IR.sample_rate)))
+            x_values_by_subject.append(1000.0 * subject_sample_indexes / float(cast(Any, hrtf.IR.sample_rate)))
         else:
             x_values_by_subject.append(subject_sample_indexes)
 
@@ -730,17 +746,19 @@ def compare_amplitude(
                     linewidth=2.0,
                 )
             if x_axis == "time":
-                TimeAxis.apply(ax=ax, axis="x")
+                TimeAxis.apply(ax=ax, axis="x", label=None if show_labels else "")
             else:
-                SampleAxis.apply(ax=ax, axis="x")
-            AmplitudeAxis.apply(ax=ax, axis="y")
-            Titles.create_subplots_titles(ax=ax, title=subplot_title)
-            Subjects.apply(
-                ax=ax,
-                labels=resolved_legends,
-                location=resolved_legend_location,
-                bbox_to_anchor=resolved_legend_bbox_to_anchor,
-            )
+                SampleAxis.apply(ax=ax, axis="x", label=None if show_labels else "")
+            AmplitudeAxis.apply(ax=ax, axis="y", label=None if show_labels else "")
+            if show_titles:
+                Titles.create_subplots_titles(ax=ax, title=subplot_title)
+            if show_legends:
+                Subjects.apply(
+                    ax=ax,
+                    labels=resolved_legends,
+                    location=resolved_legend_location,
+                    bbox_to_anchor=resolved_legend_bbox_to_anchor,
+                )
             ax.grid(True)
     else:
         for position_index in range(position_count):
@@ -766,27 +784,26 @@ def compare_amplitude(
                     linewidth=2.0,
                 )
             if x_axis == "time":
-                TimeAxis.apply(ax=ax, axis="x")
+                TimeAxis.apply(ax=ax, axis="x", label=None if show_labels else "")
             else:
-                SampleAxis.apply(ax=ax, axis="x")
-            AmplitudeAxis.apply(ax=ax, axis="y")
-            if titles:
+                SampleAxis.apply(ax=ax, axis="x", label=None if show_labels else "")
+            AmplitudeAxis.apply(ax=ax, axis="y", label=None if show_labels else "")
+            if show_titles:
                 Titles.create_subplots_titles(
                     ax=ax,
                     title=Titles.create_position_title(
                         selected_positions=reference_positions[position_index],
                     ),
                 )
-            else:
-                Titles.create_subplots_titles(ax=ax, title="")
             if Figure.shared_x_visible:
                 ax.tick_params(axis="x", which="both", labelbottom=True)
-            Subjects.apply(
-                ax=ax,
-                labels=resolved_legends,
-                location=resolved_legend_location,
-                bbox_to_anchor=resolved_legend_bbox_to_anchor,
-            )
+            if show_legends:
+                Subjects.apply(
+                    ax=ax,
+                    labels=resolved_legends,
+                    location=resolved_legend_location,
+                    bbox_to_anchor=resolved_legend_bbox_to_anchor,
+                )
             ax.grid(True)
 
     if ear != "both" and position_count < figure.axes.size:
@@ -796,7 +813,7 @@ def compare_amplitude(
         plt.show()
 
 
-def compare_abs_itd(
+def compare_absolute_itd(
     hrtfs: list["HRTF"],
     plane_angle: float = 0.0,
     legends: list[str] | tuple[str, ...] | None = None,
@@ -805,15 +822,18 @@ def compare_abs_itd(
     legend_location: str | None = None,
     legend_bbox_to_anchor: tuple[float, float] | None = None,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Compare absolute ITD polar curves across multiple HRTF instances.
 
     This function computes broad-band interaural time difference for each HRTF,
-    converts it to an absolute magnitude in seconds, extracts the nearest
+    converts it to an absolute magnitude in microseconds, extracts the nearest
     horizontal-plane curve to ``plane_angle``, and overlays one polar trace
     per HRTF. It is intended for comparing timing-cue magnitude across subjects,
-    measured datasets, or processing pipelines without preserving ITD sign.
+    measured datasets, or processing pipelines. The plotted values are ITD
+    magnitudes.
 
     Each HRTF resolves the requested horizontal plane independently. The figure
     title uses the real resolved elevation from the first HRTF, and the function
@@ -840,9 +860,12 @@ def compare_abs_itd(
         Legend anchor tuple (x, y). Defaults to (1.08, 1.08).
     show : bool, default=True
         If True, calls matplotlib.pyplot.show().
-    titles : bool, default=True
-        If True, renders a figure title using the resolved elevation from
-        the first HRTF.
+    show_titles : bool, default=True
+        If False, suppress generated figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -863,18 +886,17 @@ def compare_abs_itd(
     Notes
     -----
     The polar theta axis uses a north-up orientation with 30-degree ticks. The
-    radial axis uses Labels.itd_seconds and a decimal tick style suitable
-    for small ITD values.
+    radial axis uses Labels.itd_time and integer microsecond tick labels.
 
     Examples
     --------
     Compare absolute ITD on the horizontal plane for two HRTFs:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_abs_itd
+    >>> from hrtfpykit.plots import compare_absolute_itd
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_abs_itd(
+    >>> compare_absolute_itd(
     ...     [hrtf_a, hrtf_b],
     ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
@@ -885,9 +907,9 @@ def compare_abs_itd(
         raise ValueError("hrtfs must be a list[HRTF]")
     hrtf_count = len(hrtfs)
     if hrtf_count < 2:
-        raise ValueError("compare_abs_itd requires at least 2 HRTFs")
+        raise ValueError("compare_absolute_itd requires at least 2 HRTFs")
     if hrtf_count > 5:
-        raise ValueError("compare_abs_itd accepts up to 5 HRTFs")
+        raise ValueError("compare_absolute_itd accepts up to 5 HRTFs")
     if isinstance(plane_angle, bool):
         raise ValueError("plane_angle must be a finite value")
     resolved_plane_angle = float(plane_angle)
@@ -934,14 +956,13 @@ def compare_abs_itd(
         if hrtf.IR.sample_rate is None:
             raise ValueError(f"HRTF at index {subject_index} requires IR sample_rate")
 
-        absolute_itd_values = np.abs(
-            np.asarray(
-                itd(
-                    hrtf.IR,
-                    output="seconds",
-                ),
-                dtype=float,
-            )
+        absolute_itd_values = np.asarray(
+            itd(
+                hrtf,
+                output="time",
+                absolute=True,
+            ),
+            dtype=float,
         )
         theta_values, radial_values, sorted_itd_values, real_elevation = create_horizontal_plane_curve(
             hrtf=hrtf,
@@ -964,7 +985,7 @@ def compare_abs_itd(
         ):
             warn_user(
                 (
-                    "compare_abs_itd resolved different horizontal-plane elevations: "
+                    "compare_absolute_itd resolved different horizontal-plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1002,10 +1023,11 @@ def compare_abs_itd(
     RadialAxisPolarProjection.apply(
         ax=ax,
         radial_values=combined_sorted_itd_values,
-        radial_label_default=Labels.itd_seconds,
-        tick_step=2e-4,
-        tick_label_style="decimal_comma_4",
+        radial_label_default=Labels.itd_time if show_labels else "",
+        tick_step=200.0,
+        tick_label_style="integer",
         label_position=350.0,
+        label=None if show_labels else "",
     )
     resolved_legend_location = Subjects.location if legend_location is None else str(legend_location)
     resolved_legend_bbox_to_anchor = (
@@ -1016,15 +1038,16 @@ def compare_abs_itd(
             float(legend_bbox_to_anchor[1]),
         )
     )
-    Subjects.apply(
-        ax=ax,
-        labels=resolved_legends,
-        location=resolved_legend_location,
-        bbox_to_anchor=resolved_legend_bbox_to_anchor,
-    )
+    if show_legends:
+        Subjects.apply(
+            ax=ax,
+            labels=resolved_legends,
+            location=resolved_legend_location,
+            bbox_to_anchor=resolved_legend_bbox_to_anchor,
+        )
     ax.grid(True)
 
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -1038,7 +1061,7 @@ def compare_abs_itd(
         plt.show()
 
 
-def compare_abs_bb_ild(
+def compare_absolute_ild(
     hrtfs: list["HRTF"],
     plane_angle: float = 0.0,
     legends: list[str] | tuple[str, ...] | None = None,
@@ -1047,15 +1070,17 @@ def compare_abs_bb_ild(
     legend_location: str | None = None,
     legend_bbox_to_anchor: tuple[float, float] | None = None,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
-    """Compare absolute ILD polar curves across multiple HRTF instances.
+    """Compare absolute broad-band ILD polar curves across multiple HRTF instances.
 
-    This function computes broad-band interaural level difference for each HRTF,
-    converts it to an absolute magnitude in decibels, extracts the nearest
-    horizontal-plane curve to ``plane_angle``, and overlays one polar trace
-    per HRTF. It is intended for comparing level-cue magnitude across subjects,
-    measured datasets, or processing pipelines without preserving ILD sign.
+    This function computes absolute broad-band interaural level difference for
+    each HRTF, extracts the nearest horizontal-plane curve to ``plane_angle``,
+    and overlays one polar trace per HRTF. It is intended for comparing
+    absolute level cues across subjects, measured datasets, or processing
+    pipelines.
 
     Each HRTF resolves the requested horizontal plane independently. The figure
     title uses the real resolved elevation from the first HRTF, and the function
@@ -1066,7 +1091,7 @@ def compare_abs_bb_ild(
     hrtfs : list[HRTF]
         :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must
         contain at least 2 and at most 5 entries. Every object must contain IR
-        data and an IR sample rate.
+        data.
     plane_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available
         elevation is selected separately for each HRTF.
@@ -1082,9 +1107,12 @@ def compare_abs_bb_ild(
         Legend anchor tuple (x, y). Defaults to (1.08, 1.08).
     show : bool, default=True
         If True, calls matplotlib.pyplot.show().
-    titles : bool, default=True
-        If True, renders a figure title using the resolved elevation from
-        the first HRTF.
+    show_titles : bool, default=True
+        If False, suppress generated figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -1093,8 +1121,8 @@ def compare_abs_bb_ild(
     Raises
     ------
     ValueError
-        If the HRTF list length, plane_angle, legend/style lengths, IR
-        availability, or sample-rate availability are invalid.
+        If the HRTF list length, plane_angle, legend/style lengths, or IR
+        availability is invalid.
 
     Warns
     -----
@@ -1110,13 +1138,13 @@ def compare_abs_bb_ild(
 
     Examples
     --------
-    Compare absolute ILD on the horizontal plane for two HRTFs:
+    Compare absolute broad-band ILD on the horizontal plane for two HRTFs:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_abs_bb_ild
+    >>> from hrtfpykit.plots import compare_absolute_ild
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_abs_bb_ild(
+    >>> compare_absolute_ild(
     ...     [hrtf_a, hrtf_b],
     ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
@@ -1127,9 +1155,9 @@ def compare_abs_bb_ild(
         raise ValueError("hrtfs must be a list[HRTF]")
     hrtf_count = len(hrtfs)
     if hrtf_count < 2:
-        raise ValueError("compare_abs_bb_ild requires at least 2 HRTFs")
+        raise ValueError("compare_absolute_ild requires at least 2 HRTFs")
     if hrtf_count > 5:
-        raise ValueError("compare_abs_bb_ild accepts up to 5 HRTFs")
+        raise ValueError("compare_absolute_ild accepts up to 5 HRTFs")
     if isinstance(plane_angle, bool):
         raise ValueError("plane_angle must be a finite value")
     resolved_plane_angle = float(plane_angle)
@@ -1173,18 +1201,13 @@ def compare_abs_bb_ild(
     for subject_index, hrtf in enumerate(hrtfs):
         if hrtf.IR.values is None:
             raise ValueError(f"HRTF at index {subject_index} does not contain IR data")
-        if hrtf.IR.sample_rate is None:
-            raise ValueError(f"HRTF at index {subject_index} requires IR sample_rate")
-
-        absolute_ild_values = np.abs(
-            np.asarray(
-                ild(
-                    hrtf.IR,
-                    output="db",
-                    mode="broad-band",
-                ),
-                dtype=float,
-            )
+        absolute_ild_values = np.asarray(
+            ild(
+                hrtf,
+                mode="broad-band",
+                absolute=True,
+            ),
+            dtype=float,
         )
         theta_values, radial_values, sorted_ild_values, real_elevation = create_horizontal_plane_curve(
             hrtf=hrtf,
@@ -1207,7 +1230,7 @@ def compare_abs_bb_ild(
         ):
             warn_user(
                 (
-                    "compare_abs_bb_ild resolved different horizontal-plane elevations: "
+                    "compare_absolute_ild resolved different horizontal-plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1245,10 +1268,11 @@ def compare_abs_bb_ild(
     RadialAxisPolarProjection.apply(
         ax=ax,
         radial_values=combined_sorted_ild_values,
-        radial_label_default=Labels.ild_db,
+        radial_label_default=Labels.ild_db if show_labels else "",
         tick_step=5.0,
         tick_label_style="integer",
         label_position=350.0,
+        label=None if show_labels else "",
     )
     resolved_legend_location = Subjects.location if legend_location is None else str(legend_location)
     resolved_legend_bbox_to_anchor = (
@@ -1259,15 +1283,16 @@ def compare_abs_bb_ild(
             float(legend_bbox_to_anchor[1]),
         )
     )
-    Subjects.apply(
-        ax=ax,
-        labels=resolved_legends,
-        location=resolved_legend_location,
-        bbox_to_anchor=resolved_legend_bbox_to_anchor,
-    )
+    if show_legends:
+        Subjects.apply(
+            ax=ax,
+            labels=resolved_legends,
+            location=resolved_legend_location,
+            bbox_to_anchor=resolved_legend_bbox_to_anchor,
+        )
     ax.grid(True)
 
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -1281,28 +1306,30 @@ def compare_abs_bb_ild(
         plt.show()
 
 
-def compare_signed_itd(
+def compare_itd(
     hrtfs: list["HRTF"],
     plane_angle: float = 0.0,
+    azimuth_range_mode: str = "-180-180",
     legends: list[str] | tuple[str, ...] | None = None,
     line_colors: list[str] | tuple[str, ...] | None = None,
     line_styles: list[str] | tuple[str, ...] | None = None,
     legend_location: str | None = None,
     legend_bbox_to_anchor: tuple[float, float] | None = None,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Compare signed ITD curves across multiple HRTFs.
 
-    This function computes broad-band signed ITD in seconds for each HRTF,
+    This function computes broad-band signed ITD in microseconds for each HRTF,
     extracts the nearest horizontal-plane slice to ``plane_angle``, sorts
-    the slice by signed azimuth, and overlays one azimuth-versus-ITD line per
+    the slice by azimuth, and overlays one azimuth-versus-ITD line per
     HRTF. It is intended for inspecting timing-cue directionality across
     subjects, datasets, or processing pipelines.
 
-    Unlike :func:`~hrtfpykit.plots.compare_abs_itd`, this function
-    preserves ITD sign. The x-axis uses the signed -180 .. 180 azimuth
-    convention.
+    The plotted values preserve ITD sign. The x-axis uses
+    ``azimuth_range_mode``.
 
     Parameters
     ----------
@@ -1312,6 +1339,8 @@ def compare_signed_itd(
     plane_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available
         elevation is selected separately for each HRTF.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+        Azimuth convention used on the x-axis.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
@@ -1324,9 +1353,12 @@ def compare_signed_itd(
         Optional legend anchor tuple (x, y).
     show : bool, default=True
         If True, calls matplotlib.pyplot.show().
-    titles : bool, default=True
-        If True, renders a figure title using the resolved elevation from
-        the first HRTF.
+    show_titles : bool, default=True
+        If False, suppress generated figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -1335,9 +1367,9 @@ def compare_signed_itd(
     Raises
     ------
     ValueError
-        If the HRTF list length, plane_angle, legend/style lengths, IR
-        availability, sample-rate availability, selected plane, or computed ITD
-        shape is invalid.
+        If the HRTF list length, plane_angle, azimuth range, legend/style
+        lengths, IR availability, sample-rate availability, selected plane, or
+        computed ITD shape is invalid.
 
     Warns
     -----
@@ -1356,10 +1388,10 @@ def compare_signed_itd(
     Compare the signed ITD curve around the horizontal plane:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_signed_itd
+    >>> from hrtfpykit.plots import compare_itd
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_signed_itd(
+    >>> compare_itd(
     ...     [hrtf_a, hrtf_b],
     ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
@@ -1370,14 +1402,17 @@ def compare_signed_itd(
         raise ValueError("hrtfs must be a list[HRTF]")
     hrtf_count = len(hrtfs)
     if hrtf_count < 2:
-        raise ValueError("compare_signed_itd requires at least 2 HRTFs")
+        raise ValueError("compare_itd requires at least 2 HRTFs")
     if hrtf_count > 5:
-        raise ValueError("compare_signed_itd accepts up to 5 HRTFs")
+        raise ValueError("compare_itd accepts up to 5 HRTFs")
     if isinstance(plane_angle, bool):
         raise ValueError("plane_angle must be a finite value")
     resolved_plane_angle = float(plane_angle)
     if not np.isfinite(resolved_plane_angle):
         raise ValueError("plane_angle must be a finite value")
+    resolved_azimuth_range_mode = AzimuthAnglesAxis.get_range_mode(
+        range_mode=azimuth_range_mode,
+    )
 
     if legends is None:
         resolved_legends = Subjects.create_default_labels(hrtf_count)
@@ -1420,8 +1455,8 @@ def compare_signed_itd(
 
         itd_values = np.asarray(
             itd(
-                hrtf.IR,
-                output="seconds",
+                hrtf,
+                output="time",
             ),
             dtype=float,
         ).reshape(-1)
@@ -1437,7 +1472,7 @@ def compare_signed_itd(
         azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
         transformed_azimuth_values = AzimuthAnglesAxis.transform_values(
             values=azimuth_values,
-            range_mode="-180-180",
+            range_mode=resolved_azimuth_range_mode,
         )
         if itd_values.shape[0] != source_positions.shape[0]:
             raise ValueError(f"ITD values must match source count for HRTF at index {subject_index}")
@@ -1453,7 +1488,7 @@ def compare_signed_itd(
         if not np.isclose(compared_real_elevation, reference_real_elevation, atol=1e-8, rtol=0.0):
             warn_user(
                 (
-                    "compare_signed_itd resolved different horizontal-plane elevations: "
+                    "compare_itd resolved different horizontal-plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1481,12 +1516,14 @@ def compare_signed_itd(
         ax=ax,
         axis="x",
         values=np.concatenate(sorted_azimuths_by_subject),
-        range_mode="-180-180",
+        range_mode=resolved_azimuth_range_mode,
+        label=None if show_labels else "",
     )
     Axis.apply_label(
         ax=ax,
         axis="y",
         default_label=Labels.itd,
+        label=None if show_labels else "",
     )
     resolved_legend_location = Subjects.location if legend_location is None else str(legend_location)
     resolved_legend_bbox_to_anchor = (
@@ -1497,15 +1534,16 @@ def compare_signed_itd(
             float(legend_bbox_to_anchor[1]),
         )
     )
-    Subjects.apply(
-        ax=ax,
-        labels=resolved_legends,
-        location=resolved_legend_location,
-        bbox_to_anchor=resolved_legend_bbox_to_anchor,
-    )
+    if show_legends:
+        Subjects.apply(
+            ax=ax,
+            labels=resolved_legends,
+            location=resolved_legend_location,
+            bbox_to_anchor=resolved_legend_bbox_to_anchor,
+        )
     ax.grid(True)
 
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -1519,37 +1557,41 @@ def compare_signed_itd(
         plt.show()
 
 
-def compare_signed_bb_ild(
+def compare_ild(
     hrtfs: list["HRTF"],
     plane_angle: float = 0.0,
+    azimuth_range_mode: str = "-180-180",
     legends: list[str] | tuple[str, ...] | None = None,
     line_colors: list[str] | tuple[str, ...] | None = None,
     line_styles: list[str] | tuple[str, ...] | None = None,
     legend_location: str | None = None,
     legend_bbox_to_anchor: tuple[float, float] | None = None,
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Compare signed ILD curves across multiple HRTFs.
 
     This function computes broad-band signed ILD in decibels for each HRTF,
     extracts the nearest horizontal-plane slice to ``plane_angle``, sorts
-    the slice by signed azimuth, and overlays one azimuth-versus-ILD line per
+    the slice by azimuth, and overlays one azimuth-versus-ILD line per
     HRTF. It is intended for inspecting level-cue directionality across
     subjects, datasets, or processing pipelines.
 
-    Unlike :func:`~hrtfpykit.plots.compare_abs_bb_ild`, this function
-    preserves ILD sign. The x-axis uses the signed -180 .. 180 azimuth
-    convention.
+    The plotted values preserve ILD sign. The x-axis uses
+    ``azimuth_range_mode``.
 
     Parameters
     ----------
     hrtfs : list[HRTF]
         :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
-        entries. Every object must contain IR data and an IR sample rate.
+        entries. Every object must contain IR data.
     plane_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available
         elevation is selected separately for each HRTF.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+        Azimuth convention used on the x-axis.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
@@ -1562,9 +1604,12 @@ def compare_signed_bb_ild(
         Optional legend anchor tuple (x, y).
     show : bool, default=True
         If True, calls matplotlib.pyplot.show().
-    titles : bool, default=True
-        If True, renders a figure title using the resolved elevation from
-        the first HRTF.
+    show_titles : bool, default=True
+        If False, suppress generated figure titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -1573,9 +1618,9 @@ def compare_signed_bb_ild(
     Raises
     ------
     ValueError
-        If the HRTF list length, plane_angle, legend/style lengths, IR
-        availability, sample-rate availability, selected plane, or computed ILD
-        shape is invalid.
+        If the HRTF list length, plane_angle, azimuth range, legend/style
+        lengths, IR availability, selected plane, or computed ILD shape is
+        invalid.
 
     Warns
     -----
@@ -1594,10 +1639,10 @@ def compare_signed_bb_ild(
     Compare the signed ILD curve around the horizontal plane:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_signed_bb_ild
+    >>> from hrtfpykit.plots import compare_ild
     >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_signed_bb_ild(
+    >>> compare_ild(
     ...     [hrtf_a, hrtf_b],
     ...     plane_angle=0.0,
     ...     legends=["P0001", "P0002"],
@@ -1608,14 +1653,17 @@ def compare_signed_bb_ild(
         raise ValueError("hrtfs must be a list[HRTF]")
     hrtf_count = len(hrtfs)
     if hrtf_count < 2:
-        raise ValueError("compare_signed_bb_ild requires at least 2 HRTFs")
+        raise ValueError("compare_ild requires at least 2 HRTFs")
     if hrtf_count > 5:
-        raise ValueError("compare_signed_bb_ild accepts up to 5 HRTFs")
+        raise ValueError("compare_ild accepts up to 5 HRTFs")
     if isinstance(plane_angle, bool):
         raise ValueError("plane_angle must be a finite value")
     resolved_plane_angle = float(plane_angle)
     if not np.isfinite(resolved_plane_angle):
         raise ValueError("plane_angle must be a finite value")
+    resolved_azimuth_range_mode = AzimuthAnglesAxis.get_range_mode(
+        range_mode=azimuth_range_mode,
+    )
 
     if legends is None:
         resolved_legends = Subjects.create_default_labels(hrtf_count)
@@ -1653,13 +1701,9 @@ def compare_signed_bb_ild(
     for subject_index, hrtf in enumerate(hrtfs):
         if hrtf.IR.values is None:
             raise ValueError(f"HRTF at index {subject_index} does not contain IR data")
-        if hrtf.IR.sample_rate is None:
-            raise ValueError(f"HRTF at index {subject_index} requires IR sample_rate")
-
         ild_values = np.asarray(
             ild(
-                hrtf.IR,
-                output="db",
+                hrtf,
                 mode="broad-band",
             ),
             dtype=float,
@@ -1676,7 +1720,7 @@ def compare_signed_bb_ild(
         azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
         transformed_azimuth_values = AzimuthAnglesAxis.transform_values(
             values=azimuth_values,
-            range_mode="-180-180",
+            range_mode=resolved_azimuth_range_mode,
         )
         if ild_values.shape[0] != source_positions.shape[0]:
             raise ValueError(f"ILD values must match source count for HRTF at index {subject_index}")
@@ -1692,7 +1736,7 @@ def compare_signed_bb_ild(
         if not np.isclose(compared_real_elevation, reference_real_elevation, atol=1e-8, rtol=0.0):
             warn_user(
                 (
-                    "compare_signed_bb_ild resolved different horizontal-plane elevations: "
+                    "compare_ild resolved different horizontal-plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1720,12 +1764,14 @@ def compare_signed_bb_ild(
         ax=ax,
         axis="x",
         values=np.concatenate(sorted_azimuths_by_subject),
-        range_mode="-180-180",
+        range_mode=resolved_azimuth_range_mode,
+        label=None if show_labels else "",
     )
     Axis.apply_label(
         ax=ax,
         axis="y",
-        default_label=Labels.ild,
+        default_label=Labels.ild if show_labels else "",
+        label=None if show_labels else "",
     )
     resolved_legend_location = Subjects.location if legend_location is None else str(legend_location)
     resolved_legend_bbox_to_anchor = (
@@ -1736,15 +1782,16 @@ def compare_signed_bb_ild(
             float(legend_bbox_to_anchor[1]),
         )
     )
-    Subjects.apply(
-        ax=ax,
-        labels=resolved_legends,
-        location=resolved_legend_location,
-        bbox_to_anchor=resolved_legend_bbox_to_anchor,
-    )
+    if show_legends:
+        Subjects.apply(
+            ax=ax,
+            labels=resolved_legends,
+            location=resolved_legend_location,
+            bbox_to_anchor=resolved_legend_bbox_to_anchor,
+        )
     ax.grid(True)
 
-    if titles:
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
@@ -1758,57 +1805,88 @@ def compare_signed_bb_ild(
         plt.show()
 
 
-def plot_abs_itd_diff(
-    hrtf_a: "HRTF",
-    hrtf_b: "HRTF",
+def compare_itd_difference(
+    hrtf_reference: "HRTF",
+    hrtfs: "HRTF | list[HRTF] | tuple[HRTF, ...]",
     method: str = "threshold",
-    output: str = "seconds",
+    output: str = "time",
     thresh_level: float = -10.0,
     upper_cut_freq: float = 3000.0,
     filter_order: int = 10,
-    azimuth_range_mode: str = "0-360",
+    absolute: bool = True,
+    reduction_method: str = "mean",
+    azimuth_range_mode: str = "-180-180",
+    plot_type: str = "heatmap",
     colormap: str = "jet",
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
-    """Plot signed ITD differences between two HRTFs across source positions.
+    """Plot ITD differences between a reference HRTF and compared HRTFs.
 
-    The function computes per-position ITD for both inputs and plots the signed
-    difference itd_a - itd_b as a color-coded spatial scatter map. Azimuth
-    is shown on the x-axis, elevation is shown on the y-axis, and marker color
-    encodes the timing difference in the requested output unit.
+    The function computes interaural time difference (ITD) values for
+    ``hrtf_reference`` and for each HRTF in ``hrtfs`` using
+    :func:`~hrtfpykit.hrtf.itd_difference`. The reference ITD values are
+    subtracted from the compared values on matching source positions. When
+    ``hrtfs`` contains several HRTFs, the compared-HRTF axis is reduced with
+    ``reduction_method`` to produce one ITD difference value per source.
 
-    This plot requires both HRTFs to expose the same source grid in the same
-    order. It is useful for inspecting where a transformation, model, or
-    measurement changes ITD and whether that change is localized to specific
-    source directions.
+    Source coordinates are taken from ``hrtf_reference`` in spherical degrees.
+    The x-axis shows azimuth, the y-axis shows elevation, and color encodes
+    the ITD difference at each source position. With ``absolute=True``, colors
+    encode ITD difference magnitudes. With ``absolute=False``, colors encode
+    signed ``compared - reference`` values.
+
+    ``plot_type`` controls the source-map representation. ``"scatter"`` draws
+    measured source positions as colored markers. ``"heatmap"`` interpolates
+    the source values onto a regular azimuth/elevation image grid and renders
+    the result as a continuous color field. Single source positions at the top
+    or bottom elevation pole are treated as pole values across azimuth during
+    heatmap interpolation.
 
     Parameters
     ----------
-    hrtf_a : HRTF
-        First HRTF used in the signed subtraction. Must contain IR data, an IR
-        sample rate, and a source grid matching hrtf_b.
-    hrtf_b : HRTF
-        Second HRTF used in the signed subtraction. Must contain IR data, an IR
-        sample rate, and a source grid matching hrtf_a.
+    hrtf_reference : HRTF
+        Reference HRTF. It must provide IR data, an IR sample rate, and the
+        source grid used for the plot coordinates.
+    hrtfs : HRTF or sequence of HRTF
+        Compared HRTF object or objects. Every compared HRTF must use the same
+        source positions as ``hrtf_reference``. Several compared HRTFs are
+        reduced into one source map with ``reduction_method``.
     method : {``threshold``, ``maxiacce``}, default=``threshold``
-        ITD estimator passed to :func:`~hrtfpykit.hrtf.metrics.itd`.
-    output : {``seconds``, ``samples``}, default=``seconds``
-        Unit of ITD values and colorbar label.
+        ITD estimator passed to :func:`~hrtfpykit.hrtf.itd_difference`.
+    output : {``time``, ``samples``}, default=``time``
+        Unit used for ITD values and the colorbar label. ``time`` returns
+        microseconds. ``samples`` returns sample offsets.
     thresh_level : float, default=-10.0
-        Threshold offset in dB when ``method`` is ``threshold``.
+        Threshold offset passed to the threshold ITD estimator.
     upper_cut_freq : float, default=3000.0
-        Low-pass cutoff in Hz used before ITD estimation.
+        Low-pass cutoff frequency in hertz used by the ITD estimator.
     filter_order : int, default=10
-        Butterworth low-pass filter order used in ITD estimation.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
-        Azimuth convention applied on the x-axis.
+        Filter order used by the ITD estimator.
+    absolute : bool, default=True
+        Difference sign handling. ``True`` plots absolute ITD differences;
+        ``False`` plots signed ``compared - reference`` differences.
+    reduction_method : {``mean``, ``rms``}, default=``mean``
+        Method used to reduce the compared-HRTF axis when ``hrtfs`` contains
+        several HRTFs.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+        Azimuth convention applied to the x-axis.
+    plot_type : {``scatter``, ``heatmap``}, default=``heatmap``
+        Source-map renderer. ``scatter`` plots measured sources as colored
+        markers. ``heatmap`` plots an interpolated azimuth/elevation color
+        image.
     colormap : str, default=``jet``
-        Matplotlib colormap name used for marker coloring.
+        Matplotlib colormap name used for source-map coloring.
     show : bool, default=True
         If True, calls matplotlib.pyplot.show().
-    titles : bool, default=True
-        If True, applies the figure title.
+    show_titles : bool, default=True
+        If True, adds the default figure title.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -1817,92 +1895,47 @@ def plot_abs_itd_diff(
     Raises
     ------
     ValueError
-        If either input is not HRTF-like, IR data or sample rates are missing,
-        output is unsupported, sample output is requested with unequal
-        sample rates, source grids differ, calculated ITD arrays have different
-        shapes, source positions are invalid, or the ITD differences cannot be
-        aligned with source positions.
-
-    Notes
-    -----
-    This plotting function computes a signed difference directly. That differs
-    from :func:`~hrtfpykit.hrtf.abs_itd_diff`, which returns absolute
-    per-position differences. Positive and negative colors therefore retain the
-    direction of hrtf_a - hrtf_b.
+        If ITD difference calculation fails, source positions are invalid, or
+        the number of ITD difference values differs from the number of source
+        positions.
 
     Examples
     --------
-    Plot the signed ITD difference between two HRTFs that share the same source
-    grid:
+    Plot an interpolated ITD-difference heatmap:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import plot_abs_itd_diff
-    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> plot_abs_itd_diff(
-    ...     hrtf_a,
-    ...     hrtf_b,
+    >>> from hrtfpykit.plots import compare_itd_difference
+    >>> hrtf_reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_compared = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
+    >>> compare_itd_difference(
+    ...     hrtf_reference,
+    ...     hrtf_compared,
     ...     method="threshold",
-    ...     output="seconds",
-    ...     azimuth_range_mode="-180-180",
+    ...     output="time",
+    ...     absolute=True,
+    ...     plot_type="heatmap",
     ...     colormap="viridis",
     ... )
     """
-    for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
-        if not hasattr(hrtf, "IR") or not hasattr(hrtf, "Sources"):
-            raise ValueError(f"{label} must be an HRTF instance")
-        if hrtf.IR.values is None:
-            raise ValueError(f"{label} IR data is not available")
-        if hrtf.IR.sample_rate is None:
-            raise ValueError(f"{label} IR sample_rate is required")
-
-    output_key = str(output).strip().lower()
-    if output_key not in {"seconds", "samples"}:
-        raise ValueError("output must be one of: seconds, samples")
-    if output_key == "samples" and not np.isclose(
-        float(cast(Any, hrtf_a.IR.sample_rate)),
-        float(cast(Any, hrtf_b.IR.sample_rate)),
-        atol=1e-12,
-        rtol=0.0,
-    ):
-        raise ValueError("output='samples' requires equal sample_rate in both HRTFs")
-
-    source_positions_a = np.asarray(hrtf_a.Sources.get_positions(angle_unit="degrees"), dtype=float)
-    source_positions_b = np.asarray(hrtf_b.Sources.get_positions(angle_unit="degrees"), dtype=float)
-    if source_positions_a.shape != source_positions_b.shape:
-        raise ValueError("HRTFs must have the same number of source positions")
-    if not np.allclose(source_positions_a, source_positions_b, atol=1e-8, rtol=0.0):
-        raise ValueError("HRTFs must share the same source positions for ITD difference")
-
-    itd_a = np.asarray(
-        itd(
-            hrtf_a.IR,
+    difference_values = np.asarray(
+        itd_difference(
+            hrtf_reference=hrtf_reference,
+            hrtfs=hrtfs,
             method=method,
-            output=output_key,
+            output=output,
             thresh_level=thresh_level,
             upper_cut_freq=upper_cut_freq,
             filter_order=filter_order,
+            absolute=absolute,
+            reduction_axis="itds",
+            reduction_method=reduction_method,
         ),
         dtype=float,
-    )
-    itd_b = np.asarray(
-        itd(
-            hrtf_b.IR,
-            method=method,
-            output=output_key,
-            thresh_level=thresh_level,
-            upper_cut_freq=upper_cut_freq,
-            filter_order=filter_order,
-        ),
-        dtype=float,
-    )
-    if itd_a.shape != itd_b.shape:
-        raise ValueError("Calculated ITD arrays must have matching shapes")
-    difference_values = np.asarray(itd_a - itd_b, dtype=float).reshape(-1)
+    ).reshape(-1)
 
     spherical_positions = np.asarray(
         get_source_positions(
-            sources=hrtf_a.Sources,
+            sources=hrtf_reference.Sources,
             coordinate_system="spherical",
             angle_unit="degrees",
         ),
@@ -1927,98 +1960,270 @@ def plot_abs_itd_diff(
         )
     )
     ax = figure.get_ax("main")
+    output_key = str(output).strip().lower()
     colorbar_label = (
-        Labels.plot_abs_itd_diff_seconds
-        if output_key == "seconds"
-        else Labels.plot_abs_itd_diff_samples
+        Labels.compare_itd_difference_time
+        if output_key == "time"
+        else Labels.compare_itd_difference_samples
     )
-    scatter = ax.scatter(
-        transformed_azimuth_values,
-        elevation_values,
-        c=difference_values,
-        cmap=colormap,
-        s=32.0,
-        edgecolors="black",
-        linewidths=0.25,
-        vmin=float(np.min(difference_values)),
-        vmax=float(np.max(difference_values)),
+    resolved_plot_type = str(plot_type).strip().lower()
+    if resolved_plot_type not in {"scatter", "heatmap"}:
+        raise ValueError("plot_type accepts scatter or heatmap")
+    value_min = float(np.min(difference_values))
+    value_max = float(np.max(difference_values))
+    source_map: Any
+    if resolved_plot_type == "scatter":
+        source_map = ax.scatter(
+            transformed_azimuth_values,
+            elevation_values,
+            c=difference_values,
+            cmap=colormap,
+            s=32.0,
+            edgecolors="black",
+            linewidths=0.25,
+            vmin=value_min,
+            vmax=value_max,
+        )
+    else:
+        source_coordinates = np.column_stack((transformed_azimuth_values, elevation_values))
+        unique_coordinates, inverse_indices = np.unique(
+            source_coordinates,
+            axis=0,
+            return_inverse=True,
+        )
+        if unique_coordinates.shape[0] < 3:
+            raise ValueError("heatmap plot_type requires at least three source positions")
+        heatmap_values = np.zeros(unique_coordinates.shape[0], dtype=float)
+        heatmap_counts = np.zeros(unique_coordinates.shape[0], dtype=float)
+        np.add.at(heatmap_values, inverse_indices, difference_values)
+        np.add.at(heatmap_counts, inverse_indices, 1.0)
+        heatmap_values = heatmap_values / heatmap_counts
+        azimuth_grid_values = np.linspace(
+            float(np.min(unique_coordinates[:, 0])),
+            float(np.max(unique_coordinates[:, 0])),
+            361,
+            dtype=float,
+        )
+        elevation_grid_values = np.linspace(
+            float(np.min(unique_coordinates[:, 1])),
+            float(np.max(unique_coordinates[:, 1])),
+            181,
+            dtype=float,
+        )
+        pole_mask = np.ones(unique_coordinates.shape[0], dtype=bool)
+        pole_coordinate_blocks: list[np.ndarray] = []
+        pole_value_blocks: list[np.ndarray] = []
+        max_elevation = float(np.max(unique_coordinates[:, 1]))
+        max_elevation_indices = np.where(
+            np.isclose(unique_coordinates[:, 1], max_elevation)
+        )[0]
+        if max_elevation_indices.size == 1:
+            max_elevation_index = int(max_elevation_indices[0])
+            pole_mask[max_elevation_index] = False
+            pole_coordinate_blocks.append(
+                np.column_stack(
+                    (
+                        azimuth_grid_values,
+                        np.full(azimuth_grid_values.shape, max_elevation, dtype=float),
+                    )
+                )
+            )
+            pole_value_blocks.append(
+                np.full(
+                    azimuth_grid_values.shape,
+                    heatmap_values[max_elevation_index],
+                    dtype=float,
+                )
+            )
+        min_elevation = float(np.min(unique_coordinates[:, 1]))
+        min_elevation_indices = np.where(
+            np.isclose(unique_coordinates[:, 1], min_elevation)
+        )[0]
+        if min_elevation_indices.size == 1 and not np.isclose(min_elevation, max_elevation):
+            min_elevation_index = int(min_elevation_indices[0])
+            pole_mask[min_elevation_index] = False
+            pole_coordinate_blocks.append(
+                np.column_stack(
+                    (
+                        azimuth_grid_values,
+                        np.full(azimuth_grid_values.shape, min_elevation, dtype=float),
+                    )
+                )
+            )
+            pole_value_blocks.append(
+                np.full(
+                    azimuth_grid_values.shape,
+                    heatmap_values[min_elevation_index],
+                    dtype=float,
+                )
+            )
+        interpolation_coordinates = np.vstack(
+            [unique_coordinates[pole_mask], *pole_coordinate_blocks]
+        )
+        interpolation_values = np.concatenate([heatmap_values[pole_mask], *pole_value_blocks])
+        azimuth_grid, elevation_grid = np.meshgrid(
+            azimuth_grid_values,
+            elevation_grid_values,
+        )
+        try:
+            heatmap_grid = griddata(
+                interpolation_coordinates,
+                interpolation_values,
+                (azimuth_grid, elevation_grid),
+                method="linear",
+            )
+        except (RuntimeError, ValueError) as exc:
+            raise ValueError(
+                "heatmap plot_type requires at least three non-collinear source positions"
+            ) from exc
+        heatmap_grid = np.asarray(heatmap_grid, dtype=float)
+        nearest_heatmap_grid = np.asarray(
+            griddata(
+                interpolation_coordinates,
+                interpolation_values,
+                (azimuth_grid, elevation_grid),
+                method="nearest",
+            ),
+            dtype=float,
+        )
+        heatmap_grid = np.where(
+            np.isnan(heatmap_grid),
+            nearest_heatmap_grid,
+            heatmap_grid,
+        )
+        source_map = ax.imshow(
+            heatmap_grid,
+            origin="lower",
+            extent=(
+                float(azimuth_grid_values[0]),
+                float(azimuth_grid_values[-1]),
+                float(elevation_grid_values[0]),
+                float(elevation_grid_values[-1]),
+            ),
+            aspect="auto",
+            interpolation="bicubic",
+            cmap=colormap,
+            vmin=value_min,
+            vmax=value_max,
+        )
+    colorbar_size = f"{Heatmap.colorbar_fraction * 100.0:.1f}%"
+    colorbar_axis = make_axes_locatable(ax).append_axes(
+        Heatmap.colorbar_location,
+        size=colorbar_size,
+        pad=Heatmap.colorbar_pad,
     )
-    figure.fig.colorbar(scatter, ax=ax, label=colorbar_label)
+    figure.fig.colorbar(source_map, cax=colorbar_axis, label=colorbar_label if show_labels else "")
     AzimuthAnglesAxis.apply(
         ax=ax,
         axis="x",
         values=transformed_azimuth_values,
         range_mode=azimuth_range_mode,
+        label=None if show_labels else "",
     )
     x_min = float(np.min(transformed_azimuth_values))
     x_max = float(np.max(transformed_azimuth_values))
-    x_span = x_max - x_min
-    x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
-    ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    if resolved_plot_type == "scatter":
+        x_span = x_max - x_min
+        x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
+        ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    else:
+        ax.set_xlim(x_min, x_max)
     ElevationAnglesAxis.apply(
         ax=ax,
         axis="y",
         values=elevation_values,
+        label=None if show_labels else "",
     )
     y_min = float(np.min(elevation_values))
     y_max = float(np.max(elevation_values))
-    y_span = y_max - y_min
-    y_padding = 2.0 if np.isclose(y_span, 0.0) else max(2.0, 0.04 * y_span)
-    ax.set_ylim(y_min - y_padding, y_max + y_padding)
-    if titles:
+    if resolved_plot_type == "scatter":
+        y_span = y_max - y_min
+        y_padding = 2.0 if np.isclose(y_span, 0.0) else max(2.0, 0.04 * y_span)
+        ax.set_ylim(y_min - y_padding, y_max + y_padding)
+    else:
+        ax.set_ylim(y_min, y_max)
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
             figure.figure_title_y,
-            Titles.plot_abs_itd_diff,
+            Titles.compare_itd_difference,
         )
     if show:
         plt.show()
 
 
-def plot_abs_bb_ild_diff(
-    hrtf_a: "HRTF",
-    hrtf_b: "HRTF",
-    output: str = "db",
+def compare_ild_difference(
+    hrtf_reference: "HRTF",
+    hrtfs: "HRTF | list[HRTF] | tuple[HRTF, ...]",
     epsilon: float = 1e-12,
+    absolute: bool = True,
+    reduction_method: str = "mean",
     azimuth_range_mode: str = "-180-180",
+    plot_type: str = "heatmap",
     colormap: str = "jet",
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
-    """Plot absolute broad-band ILD differences across source positions.
+    """Plot broad-band ILD differences across source positions.
 
-    The function computes one broad-band ILD difference per shared source
-    position using :func:`~hrtfpykit.hrtf.abs_ild_diff` with
-    ``mode="broad-band"`` and displays those scalar values as a color-coded
-    scatter map over azimuth and elevation. Marker color encodes the absolute
-    broad-band ILD difference in the requested output representation.
+    The function computes broad-band interaural level difference (ILD) values
+    for ``hrtf_reference`` and for each HRTF in ``hrtfs`` using
+    :func:`~hrtfpykit.hrtf.ild_difference`. The reference ILD values are
+    subtracted from the compared values on matching source positions. When
+    ``hrtfs`` contains several HRTFs, the compared-HRTF axis is reduced with
+    ``reduction_method`` to produce one ILD difference value in decibels per
+    source.
 
-    This plot is intentionally broad-band only. A frequency-dependent ILD
-    comparison produces a position-by-frequency matrix, not one scalar per
-    source position, and therefore belongs in a frequency-plane visualization
-    rather than this source-grid map.
+    Source coordinates are taken from ``hrtf_reference`` in spherical degrees.
+    The x-axis shows azimuth, the y-axis shows elevation, and color encodes
+    the broad-band ILD difference at each source position. With
+    ``absolute=True``, colors encode ILD difference magnitudes. With
+    ``absolute=False``, colors encode signed ``compared - reference`` values.
+
+    ``plot_type`` controls the source-map representation. ``"scatter"`` draws
+    measured source positions as colored markers. ``"heatmap"`` interpolates
+    the source values onto a regular azimuth/elevation image grid and renders
+    the result as a continuous color field. Single source positions at the top
+    or bottom elevation pole are treated as pole values across azimuth during
+    heatmap interpolation.
 
     Parameters
     ----------
-    hrtf_a : HRTF
-        First HRTF used for ILD comparison. Must contain IR data and a source
-        grid compatible with hrtf_b.
-    hrtf_b : HRTF
-        Second HRTF used for ILD comparison. Must contain IR data and a source
-        grid compatible with hrtf_a.
-    output : {``db``, ``linear``}, default=``db``
-        Broad-band ILD output representation and colorbar label style.
+    hrtf_reference : HRTF
+        Reference HRTF. It must provide IR data and the source grid used for
+        the plot coordinates.
+    hrtfs : HRTF or sequence of HRTF
+        Compared HRTF object or objects. Every compared HRTF must use the same
+        source positions as ``hrtf_reference``. Several compared HRTFs are
+        reduced into one source map with ``reduction_method``.
     epsilon : float, default=1e-12
-        Positive floor passed to :func:`~hrtfpykit.hrtf.abs_ild_diff`.
+        Positive floor passed to :func:`~hrtfpykit.hrtf.ild_difference` before
+        level-ratio conversion.
+    absolute : bool, default=True
+        Difference sign handling. ``True`` plots absolute ILD differences;
+        ``False`` plots signed ``compared - reference`` differences.
+    reduction_method : {``mean``, ``rms``}, default=``mean``
+        Method used to reduce the compared-HRTF axis when ``hrtfs`` contains
+        several HRTFs.
     azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
-        Azimuth convention applied on the x-axis.
+        Azimuth convention applied to the x-axis.
+    plot_type : {``scatter``, ``heatmap``}, default=``heatmap``
+        Source-map renderer. ``scatter`` plots measured sources as colored
+        markers. ``heatmap`` plots an interpolated azimuth/elevation color
+        image.
     colormap : str, default=``jet``
-        Matplotlib colormap name used for marker coloring.
+        Matplotlib colormap name used for source-map coloring.
     show : bool, default=True
         If True, calls matplotlib.pyplot.show().
-    titles : bool, default=True
-        If True, applies the figure title.
+    show_titles : bool, default=True
+        If True, adds the default figure title.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -2027,47 +2232,42 @@ def plot_abs_bb_ild_diff(
     Raises
     ------
     ValueError
-        If delegated broad-band ILD-difference calculation fails, source
-        positions are invalid, or the returned ILD-difference values cannot be
-        aligned with the number of source positions.
-
-    Notes
-    -----
-    This function visualizes absolute broad-band ILD differences returned by
-    :func:`~hrtfpykit.hrtf.abs_ild_diff`. Use the lower-level metric directly
-    for frequency-dependent ILD difference arrays or signed left/right level
-    changes.
+        If ILD difference calculation fails, source positions are invalid, or
+        the number of ILD difference values differs from the number of source
+        positions.
 
     Examples
     --------
-    Plot broad-band ILD differences between two HRTFs across the shared source
-    grid:
+    Plot broad-band ILD difference magnitudes as measured source markers:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import plot_abs_bb_ild_diff
-    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> plot_abs_bb_ild_diff(
-    ...     hrtf_a,
-    ...     hrtf_b,
-    ...     output="db",
+    >>> from hrtfpykit.plots import compare_ild_difference
+    >>> hrtf_reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_compared = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
+    >>> compare_ild_difference(
+    ...     hrtf_reference,
+    ...     hrtf_compared,
+    ...     absolute=True,
+    ...     plot_type="scatter",
     ...     colormap="plasma",
     ... )
     """
     difference_values = np.asarray(
-        abs_ild_diff(
-            hrtf_a=hrtf_a,
-            hrtf_b=hrtf_b,
+        ild_difference(
+            hrtf_reference=hrtf_reference,
+            hrtfs=hrtfs,
             mode="broad-band",
-            output=output,
             epsilon=epsilon,
+            absolute=absolute,
+            reduction_axis="ilds",
+            reduction_method=reduction_method,
         ),
         dtype=float,
     ).reshape(-1)
 
     spherical_positions = np.asarray(
         get_source_positions(
-            sources=hrtf_a.Sources,
+            sources=hrtf_reference.Sources,
             coordinate_system="spherical",
             angle_unit="degrees",
         ),
@@ -2087,106 +2287,278 @@ def plot_abs_bb_ild_diff(
 
     figure = Figure(
         Layout_1(
-            figsize=(12, 6),
+            figsize=(8, 6),
             margins=Margins(),
         )
     )
     ax = figure.get_ax("main")
-    output_key = str(output).strip().lower()
-    colorbar_label = (
-        Labels.plot_abs_bb_ild_diff_db
-        if output_key == "db"
-        else Labels.plot_abs_bb_ild_diff_linear
+    resolved_plot_type = str(plot_type).strip().lower()
+    if resolved_plot_type not in {"scatter", "heatmap"}:
+        raise ValueError("plot_type accepts scatter or heatmap")
+    value_min = float(np.min(difference_values))
+    value_max = float(np.max(difference_values))
+    colorbar_label = Labels.compare_ild_difference_db
+    source_map: Any
+    if resolved_plot_type == "scatter":
+        source_map = ax.scatter(
+            transformed_azimuth_values,
+            elevation_values,
+            c=difference_values,
+            cmap=colormap,
+            s=32.0,
+            edgecolors="black",
+            linewidths=0.25,
+            vmin=value_min,
+            vmax=value_max,
+        )
+    else:
+        source_coordinates = np.column_stack((transformed_azimuth_values, elevation_values))
+        unique_coordinates, inverse_indices = np.unique(
+            source_coordinates,
+            axis=0,
+            return_inverse=True,
+        )
+        if unique_coordinates.shape[0] < 3:
+            raise ValueError("heatmap plot_type requires at least three source positions")
+        heatmap_values = np.zeros(unique_coordinates.shape[0], dtype=float)
+        heatmap_counts = np.zeros(unique_coordinates.shape[0], dtype=float)
+        np.add.at(heatmap_values, inverse_indices, difference_values)
+        np.add.at(heatmap_counts, inverse_indices, 1.0)
+        heatmap_values = heatmap_values / heatmap_counts
+        azimuth_grid_values = np.linspace(
+            float(np.min(unique_coordinates[:, 0])),
+            float(np.max(unique_coordinates[:, 0])),
+            361,
+            dtype=float,
+        )
+        elevation_grid_values = np.linspace(
+            float(np.min(unique_coordinates[:, 1])),
+            float(np.max(unique_coordinates[:, 1])),
+            181,
+            dtype=float,
+        )
+        pole_mask = np.ones(unique_coordinates.shape[0], dtype=bool)
+        pole_coordinate_blocks: list[np.ndarray] = []
+        pole_value_blocks: list[np.ndarray] = []
+        max_elevation = float(np.max(unique_coordinates[:, 1]))
+        max_elevation_indices = np.where(
+            np.isclose(unique_coordinates[:, 1], max_elevation)
+        )[0]
+        if max_elevation_indices.size == 1:
+            max_elevation_index = int(max_elevation_indices[0])
+            pole_mask[max_elevation_index] = False
+            pole_coordinate_blocks.append(
+                np.column_stack(
+                    (
+                        azimuth_grid_values,
+                        np.full(azimuth_grid_values.shape, max_elevation, dtype=float),
+                    )
+                )
+            )
+            pole_value_blocks.append(
+                np.full(
+                    azimuth_grid_values.shape,
+                    heatmap_values[max_elevation_index],
+                    dtype=float,
+                )
+            )
+        min_elevation = float(np.min(unique_coordinates[:, 1]))
+        min_elevation_indices = np.where(
+            np.isclose(unique_coordinates[:, 1], min_elevation)
+        )[0]
+        if min_elevation_indices.size == 1 and not np.isclose(min_elevation, max_elevation):
+            min_elevation_index = int(min_elevation_indices[0])
+            pole_mask[min_elevation_index] = False
+            pole_coordinate_blocks.append(
+                np.column_stack(
+                    (
+                        azimuth_grid_values,
+                        np.full(azimuth_grid_values.shape, min_elevation, dtype=float),
+                    )
+                )
+            )
+            pole_value_blocks.append(
+                np.full(
+                    azimuth_grid_values.shape,
+                    heatmap_values[min_elevation_index],
+                    dtype=float,
+                )
+            )
+        interpolation_coordinates = np.vstack(
+            [unique_coordinates[pole_mask], *pole_coordinate_blocks]
+        )
+        interpolation_values = np.concatenate([heatmap_values[pole_mask], *pole_value_blocks])
+        azimuth_grid, elevation_grid = np.meshgrid(
+            azimuth_grid_values,
+            elevation_grid_values,
+        )
+        try:
+            heatmap_grid = griddata(
+                interpolation_coordinates,
+                interpolation_values,
+                (azimuth_grid, elevation_grid),
+                method="linear",
+            )
+        except (RuntimeError, ValueError) as exc:
+            raise ValueError(
+                "heatmap plot_type requires at least three non-collinear source positions"
+            ) from exc
+        heatmap_grid = np.asarray(heatmap_grid, dtype=float)
+        nearest_heatmap_grid = np.asarray(
+            griddata(
+                interpolation_coordinates,
+                interpolation_values,
+                (azimuth_grid, elevation_grid),
+                method="nearest",
+            ),
+            dtype=float,
+        )
+        heatmap_grid = np.where(
+            np.isnan(heatmap_grid),
+            nearest_heatmap_grid,
+            heatmap_grid,
+        )
+        source_map = ax.imshow(
+            heatmap_grid,
+            origin="lower",
+            extent=(
+                float(azimuth_grid_values[0]),
+                float(azimuth_grid_values[-1]),
+                float(elevation_grid_values[0]),
+                float(elevation_grid_values[-1]),
+            ),
+            aspect="auto",
+            interpolation="bicubic",
+            cmap=colormap,
+            vmin=value_min,
+            vmax=value_max,
+        )
+    colorbar_size = f"{Heatmap.colorbar_fraction * 100.0:.1f}%"
+    colorbar_axis = make_axes_locatable(ax).append_axes(
+        Heatmap.colorbar_location,
+        size=colorbar_size,
+        pad=Heatmap.colorbar_pad,
     )
-    scatter = ax.scatter(
-        transformed_azimuth_values,
-        elevation_values,
-        c=difference_values,
-        cmap=colormap,
-        s=32.0,
-        edgecolors="black",
-        linewidths=0.25,
-        vmin=float(np.min(difference_values)),
-        vmax=float(np.max(difference_values)),
-    )
-    figure.fig.colorbar(scatter, ax=ax, label=colorbar_label)
+    figure.fig.colorbar(source_map, cax=colorbar_axis, label=colorbar_label if show_labels else "")
     AzimuthAnglesAxis.apply(
         ax=ax,
         axis="x",
         values=transformed_azimuth_values,
         range_mode=azimuth_range_mode,
+        label=None if show_labels else "",
     )
     x_min = float(np.min(transformed_azimuth_values))
     x_max = float(np.max(transformed_azimuth_values))
-    x_span = x_max - x_min
-    x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
-    ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    if resolved_plot_type == "scatter":
+        x_span = x_max - x_min
+        x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
+        ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    else:
+        ax.set_xlim(x_min, x_max)
     ElevationAnglesAxis.apply(
         ax=ax,
         axis="y",
         values=elevation_values,
+        label=None if show_labels else "",
     )
     y_min = float(np.min(elevation_values))
     y_max = float(np.max(elevation_values))
-    y_span = y_max - y_min
-    y_padding = 2.0 if np.isclose(y_span, 0.0) else max(2.0, 0.04 * y_span)
-    ax.set_ylim(y_min - y_padding, y_max + y_padding)
-    if titles:
+    if resolved_plot_type == "scatter":
+        y_span = y_max - y_min
+        y_padding = 2.0 if np.isclose(y_span, 0.0) else max(2.0, 0.04 * y_span)
+        ax.set_ylim(y_min - y_padding, y_max + y_padding)
+    else:
+        ax.set_ylim(y_min, y_max)
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
             figure.figure_title_y,
-            Titles.plot_abs_bb_ild_diff,
+            Titles.compare_ild_difference,
         )
     if show:
         plt.show()
 
 
-def plot_lsd(
-    hrtf_a: "HRTF",
-    hrtf_b: "HRTF",
+def compare_lsd(
+    hrtf_reference: "HRTF",
+    hrtfs: "HRTF | list[HRTF] | tuple[HRTF, ...]",
     ear: str = "left",
+    frequencies: float | list[float] | tuple[float, ...] | np.ndarray | None = None,
+    frequency_bands: tuple[float, float] | list[tuple[float, float]] | tuple[tuple[float, float], ...] | np.ndarray | None = None,
     epsilon: float = 1e-12,
+    reduction_method: str = "mean",
     azimuth_range_mode: str = "-180-180",
+    plot_type: str = "heatmap",
     colormap: str = "jet",
     show: bool = True,
-    titles: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
-    """Plot full-grid LSD across source positions as a spatial scatter map.
+    """Plot log-spectral distortion across source positions.
 
-    The function computes one LSD value per source position with
-    :func:`~hrtfpykit.hrtf.lsd`. When ``ear="both"``, the delegated LSD call
-    averages the ear domain with ``reduction="ears"`` so
-    each source position still maps to one displayed value. The result is shown
-    as an azimuth-elevation scatter map with color representing log-spectral
-    distance in decibels.
+    The function compares ``hrtf_reference`` with one HRTF or several HRTFs
+    using :func:`~hrtfpykit.hrtf.lsd`. The metric computes log-spectral
+    distance in decibels over the selected frequency bins or frequency bands,
+    then returns one LSD value per source and selected ear. This plot reduces
+    the compared-HRTF axis with ``reduction_method``. For ``ear="both"``, it
+    also reduces the ear axis so each source position is represented by one
+    color value.
 
-    Frequency selection is delegated to the metric. With frequencies=None,
-    the metric uses its default LSD band from 20 Hz to 20 kHz and validates that
-    both HRTFs can be compared over the requested source grid and ear channel.
+    Source coordinates are taken from ``hrtf_reference`` in spherical degrees.
+    The x-axis shows azimuth, the y-axis shows elevation, and color encodes
+    the LSD value at each source position. Frequency selection is controlled
+    by ``frequencies`` or ``frequency_bands``. The default metric behavior uses
+    the library LSD frequency range.
+
+    ``plot_type`` controls the source-map representation. ``"scatter"`` draws
+    measured source positions as colored markers. ``"heatmap"`` interpolates
+    the source values onto a regular azimuth/elevation image grid and renders
+    the result as a continuous color field. Single source positions at the top
+    or bottom elevation pole are treated as pole values across azimuth during
+    heatmap interpolation.
 
     Parameters
     ----------
-    hrtf_a : HRTF
-        First HRTF used in the comparison. Must contain TF data and a source
-        grid compatible with hrtf_b.
-    hrtf_b : HRTF
-        Second HRTF used in the comparison. Must contain TF data and a source
-        grid compatible with hrtf_a.
+    hrtf_reference : HRTF
+        Reference HRTF. It must provide TF data, frequency bins, and the source
+        grid used for the plot coordinates.
+    hrtfs : HRTF or sequence of HRTF
+        Compared HRTF object or objects. Every compared HRTF must use the same
+        source positions, TF shape, and TF frequency bins as
+        ``hrtf_reference``. Several compared HRTFs are reduced into one source
+        map with ``reduction_method``.
     ear : {``left``, ``right``, ``both``}, default=``left``
-        Ear channel selection passed to :func:`~hrtfpykit.hrtf.lsd`. ``both``
-        computes both ear channels and averages the ear domain inside ``lsd`` so
-        the scatter plot receives one value per source position.
+        Ear channel selection passed to :func:`~hrtfpykit.hrtf.lsd`.
+        ``both`` computes both ears and reduces the ear axis before plotting.
+    frequencies : float, sequence of float, numpy.ndarray, or None, default=None
+        Frequency selector in hertz passed to :func:`~hrtfpykit.hrtf.lsd`.
+        Each requested value is mapped to the nearest available TF bin.
+    frequency_bands : pair, sequence of pairs, numpy.ndarray, or None, default=None
+        Inclusive frequency band or bands in hertz passed to
+        :func:`~hrtfpykit.hrtf.lsd`.
     epsilon : float, default=1e-12
-        Positive floor passed to :func:`~hrtfpykit.hrtf.lsd` before dB conversion.
+        Positive floor passed to :func:`~hrtfpykit.hrtf.lsd` before dB
+        conversion.
+    reduction_method : {``mean``, ``rms``}, default=``mean``
+        Method used to reduce compared HRTFs and, for ``ear="both"``, ears.
     azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
-        Azimuth convention applied to the x-axis values.
+        Azimuth convention applied to the x-axis.
+    plot_type : {``scatter``, ``heatmap``}, default=``heatmap``
+        Source-map renderer. ``scatter`` plots measured sources as colored
+        markers. ``heatmap`` plots an interpolated azimuth/elevation color
+        image.
     colormap : str, default=``jet``
-        Matplotlib colormap used to encode LSD values.
+        Matplotlib colormap name used for source-map coloring.
     show : bool, default=True
         If True, calls matplotlib.pyplot.show().
-    titles : bool, default=True
-        If True, applies the figure title.
+    show_titles : bool, default=True
+        If True, adds the default figure title.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels and colorbar labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -2195,48 +2567,41 @@ def plot_lsd(
     Raises
     ------
     ValueError
-        If delegated LSD calculation fails, source positions are invalid, or
-        the returned LSD values cannot be aligned with the number of source
-        positions.
-
-    Notes
-    -----
-    This is a spatial summary plot: each source position receives one
-    frequency-reduced LSD value. If ``ear="both"``, the displayed value also
-    includes the LSD ear-axis reduction. Use
-    Use :func:`~hrtfpykit.plots.plot_lsd` when you need a full-grid spatial
-    summary of pairwise spectral distance.
+        If LSD calculation fails, source positions are invalid, or the number
+        of LSD values differs from the number of source positions.
 
     Examples
     --------
-    Plot a full-grid log-spectral-distance summary for the right ear:
+    Plot an LSD heatmap for the right ear:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import plot_lsd
-    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> plot_lsd(
-    ...     hrtf_a,
-    ...     hrtf_b,
+    >>> from hrtfpykit.plots import compare_lsd
+    >>> hrtf_reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> hrtf_compared = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
+    >>> compare_lsd(
+    ...     hrtf_reference,
+    ...     hrtf_compared,
     ...     ear="right",
-    ...     azimuth_range_mode="-180-180",
+    ...     plot_type="heatmap",
     ...     colormap="viridis",
     ... )
     """
     ear_key = str(ear).strip().lower()
-    reduction: str | None
+    reduction_axis: str | tuple[str, str]
     if ear_key == "both":
-        reduction = "ears"
+        reduction_axis = ("lsds", "ears")
     else:
-        reduction = None
-    difference_values = np.asarray(
+        reduction_axis = "lsds"
+    lsd_values = np.asarray(
         lsd(
-            hrtf_a=hrtf_a,
-            hrtf_b=hrtf_b,
+            hrtf_reference=hrtf_reference,
+            hrtfs=hrtfs,
             ear=ear_key,
             plane="all",
-            frequencies=None,
-            reduction=reduction,
+            frequencies=frequencies,
+            frequency_bands=frequency_bands,
+            reduction_axis=reduction_axis,
+            reduction_method=reduction_method,
             epsilon=epsilon,
         ),
         dtype=float,
@@ -2244,7 +2609,7 @@ def plot_lsd(
 
     spherical_positions = np.asarray(
         get_source_positions(
-            sources=hrtf_a.Sources,
+            sources=hrtf_reference.Sources,
             coordinate_system="spherical",
             angle_unit="degrees",
         ),
@@ -2252,7 +2617,7 @@ def plot_lsd(
     )
     if spherical_positions.ndim != 2 or spherical_positions.shape[1] < 2:
         raise ValueError("Source positions must have shape (N, 3) in spherical coordinates")
-    if spherical_positions.shape[0] != difference_values.shape[0]:
+    if spherical_positions.shape[0] != lsd_values.shape[0]:
         raise ValueError("LSD values must match number of source positions")
 
     azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
@@ -2264,52 +2629,194 @@ def plot_lsd(
 
     figure = Figure(
         Layout_1(
-            figsize=(12, 6),
+            figsize=(8, 6),
             margins=Margins(),
         )
     )
     ax = figure.get_ax("main")
-    scatter = ax.scatter(
-        transformed_azimuth_values,
-        elevation_values,
-        c=difference_values,
-        cmap=colormap,
-        s=32.0,
-        edgecolors="black",
-        linewidths=0.25,
-        vmin=float(np.min(difference_values)),
-        vmax=float(np.max(difference_values)),
+    resolved_plot_type = str(plot_type).strip().lower()
+    if resolved_plot_type not in {"scatter", "heatmap"}:
+        raise ValueError("plot_type accepts scatter or heatmap")
+    value_min = float(np.min(lsd_values))
+    value_max = float(np.max(lsd_values))
+    colorbar_label = Labels.compare_lsd_db
+    source_map: Any
+    if resolved_plot_type == "scatter":
+        source_map = ax.scatter(
+            transformed_azimuth_values,
+            elevation_values,
+            c=lsd_values,
+            cmap=colormap,
+            s=32.0,
+            edgecolors="black",
+            linewidths=0.25,
+            vmin=value_min,
+            vmax=value_max,
+        )
+    else:
+        source_coordinates = np.column_stack((transformed_azimuth_values, elevation_values))
+        unique_coordinates, inverse_indices = np.unique(
+            source_coordinates,
+            axis=0,
+            return_inverse=True,
+        )
+        if unique_coordinates.shape[0] < 3:
+            raise ValueError("heatmap plot_type requires at least three source positions")
+        heatmap_values = np.zeros(unique_coordinates.shape[0], dtype=float)
+        heatmap_counts = np.zeros(unique_coordinates.shape[0], dtype=float)
+        np.add.at(heatmap_values, inverse_indices, lsd_values)
+        np.add.at(heatmap_counts, inverse_indices, 1.0)
+        heatmap_values = heatmap_values / heatmap_counts
+        azimuth_grid_values = np.linspace(
+            float(np.min(unique_coordinates[:, 0])),
+            float(np.max(unique_coordinates[:, 0])),
+            361,
+            dtype=float,
+        )
+        elevation_grid_values = np.linspace(
+            float(np.min(unique_coordinates[:, 1])),
+            float(np.max(unique_coordinates[:, 1])),
+            181,
+            dtype=float,
+        )
+        pole_mask = np.ones(unique_coordinates.shape[0], dtype=bool)
+        pole_coordinate_blocks: list[np.ndarray] = []
+        pole_value_blocks: list[np.ndarray] = []
+        max_elevation = float(np.max(unique_coordinates[:, 1]))
+        max_elevation_indices = np.where(
+            np.isclose(unique_coordinates[:, 1], max_elevation)
+        )[0]
+        if max_elevation_indices.size == 1:
+            max_elevation_index = int(max_elevation_indices[0])
+            pole_mask[max_elevation_index] = False
+            pole_coordinate_blocks.append(
+                np.column_stack(
+                    (
+                        azimuth_grid_values,
+                        np.full(azimuth_grid_values.shape, max_elevation, dtype=float),
+                    )
+                )
+            )
+            pole_value_blocks.append(
+                np.full(
+                    azimuth_grid_values.shape,
+                    heatmap_values[max_elevation_index],
+                    dtype=float,
+                )
+            )
+        min_elevation = float(np.min(unique_coordinates[:, 1]))
+        min_elevation_indices = np.where(
+            np.isclose(unique_coordinates[:, 1], min_elevation)
+        )[0]
+        if min_elevation_indices.size == 1 and not np.isclose(min_elevation, max_elevation):
+            min_elevation_index = int(min_elevation_indices[0])
+            pole_mask[min_elevation_index] = False
+            pole_coordinate_blocks.append(
+                np.column_stack(
+                    (
+                        azimuth_grid_values,
+                        np.full(azimuth_grid_values.shape, min_elevation, dtype=float),
+                    )
+                )
+            )
+            pole_value_blocks.append(
+                np.full(
+                    azimuth_grid_values.shape,
+                    heatmap_values[min_elevation_index],
+                    dtype=float,
+                )
+            )
+        interpolation_coordinates = np.vstack(
+            [unique_coordinates[pole_mask], *pole_coordinate_blocks]
+        )
+        interpolation_values = np.concatenate([heatmap_values[pole_mask], *pole_value_blocks])
+        azimuth_grid, elevation_grid = np.meshgrid(
+            azimuth_grid_values,
+            elevation_grid_values,
+        )
+        try:
+            heatmap_grid = griddata(
+                interpolation_coordinates,
+                interpolation_values,
+                (azimuth_grid, elevation_grid),
+                method="linear",
+            )
+        except (RuntimeError, ValueError) as exc:
+            raise ValueError(
+                "heatmap plot_type requires at least three non-collinear source positions"
+            ) from exc
+        heatmap_grid = np.asarray(heatmap_grid, dtype=float)
+        nearest_heatmap_grid = np.asarray(
+            griddata(
+                interpolation_coordinates,
+                interpolation_values,
+                (azimuth_grid, elevation_grid),
+                method="nearest",
+            ),
+            dtype=float,
+        )
+        heatmap_grid = np.where(
+            np.isnan(heatmap_grid),
+            nearest_heatmap_grid,
+            heatmap_grid,
+        )
+        source_map = ax.imshow(
+            heatmap_grid,
+            origin="lower",
+            extent=(
+                float(azimuth_grid_values[0]),
+                float(azimuth_grid_values[-1]),
+                float(elevation_grid_values[0]),
+                float(elevation_grid_values[-1]),
+            ),
+            aspect="auto",
+            interpolation="bicubic",
+            cmap=colormap,
+            vmin=value_min,
+            vmax=value_max,
+        )
+    colorbar_size = f"{Heatmap.colorbar_fraction * 100.0:.1f}%"
+    colorbar_axis = make_axes_locatable(ax).append_axes(
+        Heatmap.colorbar_location,
+        size=colorbar_size,
+        pad=Heatmap.colorbar_pad,
     )
-    figure.fig.colorbar(scatter, ax=ax, label=Labels.plot_lsd_db)
+    figure.fig.colorbar(source_map, cax=colorbar_axis, label=colorbar_label if show_labels else "")
     AzimuthAnglesAxis.apply(
         ax=ax,
         axis="x",
         values=transformed_azimuth_values,
         range_mode=azimuth_range_mode,
+        label=None if show_labels else "",
     )
     x_min = float(np.min(transformed_azimuth_values))
     x_max = float(np.max(transformed_azimuth_values))
-    x_span = x_max - x_min
-    x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
-    ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    if resolved_plot_type == "scatter":
+        x_span = x_max - x_min
+        x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
+        ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    else:
+        ax.set_xlim(x_min, x_max)
     ElevationAnglesAxis.apply(
         ax=ax,
         axis="y",
         values=elevation_values,
+        label=None if show_labels else "",
     )
     y_min = float(np.min(elevation_values))
     y_max = float(np.max(elevation_values))
-    y_span = y_max - y_min
-    y_padding = 2.0 if np.isclose(y_span, 0.0) else max(2.0, 0.04 * y_span)
-    ax.set_ylim(y_min - y_padding, y_max + y_padding)
-    if titles:
+    if resolved_plot_type == "scatter":
+        y_span = y_max - y_min
+        y_padding = 2.0 if np.isclose(y_span, 0.0) else max(2.0, 0.04 * y_span)
+        ax.set_ylim(y_min - y_padding, y_max + y_padding)
+    else:
+        ax.set_ylim(y_min, y_max)
+    if show_titles:
         Titles.create_figure_title(
             figure.fig,
             figure.axes,
             figure.figure_title_y,
-            Titles.plot_lsd,
+            Titles.compare_lsd,
         )
     if show:
         plt.show()
-
-

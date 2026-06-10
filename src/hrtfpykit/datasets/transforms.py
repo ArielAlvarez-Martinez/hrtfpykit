@@ -944,8 +944,8 @@ class HRTFTransform:
         itd : float
             Interaural time difference added to each loaded HRTF. Positive values
             delay the left ear and negative values delay the right ear.
-        unit : {``samples``, ``seconds``}, default=``samples``
-            Unit used by itd.
+        unit : {``samples``, ``time``}, default=``samples``
+            Unit used by itd. ``time`` is interpreted in microseconds.
 
         Returns
         -------

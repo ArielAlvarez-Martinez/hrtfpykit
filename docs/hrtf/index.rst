@@ -51,10 +51,13 @@ Content:
 .. toctree::
    :maxdepth: 1
 
-   load_hrtf <loading>
    HRTF <class>
-   abs_itd_diff
-   abs_ild_diff
+   load_hrtf <loading>
+   rms
+   itd
+   ild
+   itd_difference
+   ild_difference
    lsd
    SH
    sht

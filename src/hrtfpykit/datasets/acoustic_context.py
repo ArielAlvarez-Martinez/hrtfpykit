@@ -404,12 +404,9 @@ class DatasetAcousticContext:
                         raise ValueError("Frequency-indexed specs require available HRTF frequency bins")
                     current_frequency_axis = tuple(range(int(np.asarray(sample_hrtf.TF.frequency_bins).reshape(-1).shape[0])))
                 elif isinstance(acoustic_spec, ILDSpec):
-                    fft_length = (
-                        int(acoustic_spec.fft_length)
-                        if acoustic_spec.fft_length is not None
-                        else int(sample_ir_values.shape[-1])
-                    )
-                    current_frequency_axis = tuple(range(int(fft_length // 2 + 1)))
+                    if sample_hrtf.TF.frequency_bins is None:
+                        raise ValueError("Frequency-indexed ILDSpec requires available HRTF frequency bins")
+                    current_frequency_axis = tuple(range(int(np.asarray(sample_hrtf.TF.frequency_bins).reshape(-1).shape[0])))
                 else:
                     continue
                 if frequency_axis is None:

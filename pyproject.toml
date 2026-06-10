@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hrtfpykit"
-version = "0.1.3.dev0"
+version = "0.2.0.dev0"
 description = "A Python library for complete HRTF workflows, from SOFA file inspection and acoustic processing to visualization, comparison, and reproducible dataset pipelines construction."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -77,6 +77,10 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["hrtfpykit*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100

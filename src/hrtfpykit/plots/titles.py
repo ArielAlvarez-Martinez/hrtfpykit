@@ -39,7 +39,7 @@ class Titles:
         Template for elevation-spectrum figure titles.
     left_ear, right_ear : str
         Standard ear labels used by comparison plots.
-    plot_abs_itd_diff, plot_abs_bb_ild_diff, plot_lsd : str
+    compare_itd_difference, compare_ild_difference, compare_lsd : str
         Figure-title labels used by comparison metric plots.
     """
 
@@ -56,9 +56,9 @@ class Titles:
     elevation_spectrum = "Elevation Spectrum : [Azimuth= {angle}°]"
     left_ear = "Left Ear"
     right_ear = "Right Ear"
-    plot_abs_itd_diff = "ITD Difference"
-    plot_abs_bb_ild_diff = "ILD Difference"
-    plot_lsd = "LSD"
+    compare_itd_difference = "ITD Difference"
+    compare_ild_difference = "ILD Difference"
+    compare_lsd = "LSD"
 
     @staticmethod
     def create_position_title(

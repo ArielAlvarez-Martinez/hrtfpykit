@@ -1142,8 +1142,8 @@ class Transform:
         itd : float
             ITD value to apply. Positive values delay the left ear and
             negative values delay the right ear.
-        unit : {``seconds``, ``samples``}, default=``samples``
-            Unit used by itd.
+        unit : {``time``, ``samples``}, default=``samples``
+            Unit used by itd. ``time`` is interpreted in microseconds.
 
         Returns
         -------
@@ -1155,19 +1155,19 @@ class Transform:
         ValueError
             If IR data do not contain two ear channels, delay values are
             non-finite, delay-array shape is incompatible with the IR layout,
-            seconds are requested without sample-rate metadata, or the absolute
+            time values are requested without sample-rate metadata, or the absolute
             delay is not smaller than the IR length.
 
         Examples
         --------
         Add a two-sample delay to the left ear for every source position:
 
-        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> from hrtfpykit.hrtf import load_hrtf, itd
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.IR.get_itd(output="samples")[:5]
+        >>> itd(hrtf, output="samples")[:5]
         array([-3, -4, -3, -4, -4])
         >>> delayed = hrtf.transform.add_itd(2, unit="samples")
-        >>> delayed.IR.get_itd(output="samples")[:5]
+        >>> itd(delayed, output="samples")[:5]
         array([-1, -2, -1, -2, -2])
         >>> delayed.IR.values.shape
         (793, 2, 256)
@@ -1184,8 +1184,8 @@ class Transform:
             raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
 
         unit_key = str(unit).strip().lower()
-        if unit_key not in {"seconds", "samples"}:
-            raise ValueError("unit must be one of: seconds, samples")
+        if unit_key not in {"time", "samples"}:
+            raise ValueError("unit must be one of: time, samples")
 
         if isinstance(itd, bool):
             raise ValueError("itd must be finite value(s)")
@@ -1195,10 +1195,10 @@ class Transform:
         if not np.all(np.isfinite(itd_values)):
             raise ValueError("itd must be finite value(s)")
 
-        if unit_key == "seconds":
+        if unit_key == "time":
             if ir.sample_rate is None:
-                raise ValueError("IR sample_rate is required when unit='seconds'")
-            itd_samples = np.rint(itd_values * float(ir.sample_rate)).astype(int)
+                raise ValueError("IR sample_rate is required when unit='time'")
+            itd_samples = np.rint(itd_values * float(ir.sample_rate) / 1_000_000.0).astype(int)
         else:
             itd_samples = np.rint(itd_values).astype(int)
 
@@ -1296,12 +1296,12 @@ class Transform:
         Estimate and remove ITD from each source position before comparing
         magnitude-focused features:
 
-        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> from hrtfpykit.hrtf import load_hrtf, itd
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> hrtf.IR.get_itd(output="samples")[:5]
+        >>> itd(hrtf, output="samples")[:5]
         array([-3, -4, -3, -4, -4])
         >>> no_itd = hrtf.transform.delete_itd()
-        >>> no_itd.IR.get_itd(output="samples")[:5]
+        >>> itd(no_itd, output="samples")[:5]
         array([0, 0, 0, 0, 0])
         >>> no_itd.IR.values.shape
         (793, 2, 256)
@@ -1318,7 +1318,7 @@ class Transform:
             raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
 
         itd_samples = itd(
-            ir,
+            transformed_hrtf,
             method=method,
             output="samples",
             thresh_level=thresh_level,

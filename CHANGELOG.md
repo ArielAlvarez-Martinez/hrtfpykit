@@ -5,7 +5,7 @@ This file tracks released tags and upcoming release work for `hrtfpykit`.
 Historical baseline tags keep their original names. Future release tags should
 use the `vx.y.z` format.
 
-## [v0.1.3.dev0] - Unreleased
+## [v0.2.0.dev0] - Unreleased
 
 ### Added
 
@@ -42,8 +42,8 @@ use the `vx.y.z` format.
 - Added `plot_etc` for position-based energy time curve plots from HRIR data.
 - Added `plot_etc_plane` for plane-based energy time curve heatmaps over
   horizontal and median HRTF source planes.
-- Added `IR.get_ild()` as a domain-object convenience wrapper for broad-band
-  and frequency-dependent ILD calculations.
+- Added public HRTF metric documentation pages for RMS, ITD, ILD, ITD
+  difference, ILD difference.
 - Added `subject_ids` and `download_subject_ids` to dataset constructors so
   users can include a small subject scope directly, then apply
   `exclude_subject_ids` or `download_exclude_subject_ids` on top of that scope.
@@ -77,26 +77,69 @@ use the `vx.y.z` format.
 - Renamed horizontal-plane cue plot parameters to `plane_angle` across ITD/ILD
   curve plots, absolute cue plots, comparison plots, and the shared polar curve
   helper.
-- Renamed ITD/ILD/LSD plot and metric APIs for explicit signed, absolute,
-  broad-band, and frequency-dependent semantics: `plot_signed_itd`,
-  `plot_abs_itd`, `plot_signed_bb_ild`, `plot_abs_bb_ild`,
-  `plot_signed_fd_ild`, `compare_signed_itd`, `compare_abs_itd`,
-  `compare_signed_bb_ild`, `compare_abs_bb_ild`, `plot_abs_itd_diff`,
-  `plot_abs_bb_ild_diff`, `plot_lsd`, `abs_itd_diff`, and `abs_ild_diff`
-  replace the older curve/plane/compare-difference names.
+- Renamed ITD/ILD/LSD plot APIs for explicit signed, absolute, broad-band, and
+  frequency-dependent semantics: `plot_itd`,
+  `plot_absolute_itd`, `plot_ild`, `plot_absolute_ild`,
+  `plot_ild_fd`, `compare_absolute_itd`, `compare_absolute_ild`,
+  `compare_itd`, `compare_ild`, `compare_itd_difference`,
+  `compare_ild_difference`, and `compare_lsd` replace the older curve, plane, and
+  comparison-plot names. Metric difference functions are now
+  `itd_difference` and `ild_difference`.
+- Changed compare plots that use azimuth axes so `compare_itd` and
+  `compare_ild` expose `azimuth_range_mode`, while source-map comparison plots
+  `compare_itd_difference`, `compare_ild_difference`, and `compare_lsd` now
+  default to `azimuth_range_mode="-180-180"` and `plot_type="heatmap"`.
+  Quickstart LSD comparison images were regenerated for the scatter and heatmap
+  examples.
+- Changed `itd_difference`, `ild_difference`, and `lsd` to compare
+  `hrtf_reference` against one HRTF or a sequence of HRTFs. A single compared
+  HRTF returns the natural metric shape, while several compared HRTF metric
+  arrays keep a leading comparison axis.
+- Changed `itd_difference`, `ild_difference`, and `lsd` reduction controls to
+  use `reduction_axis` and `reduction_method`, with metric-specific axes such
+  as `itds`, `ilds`, `lsds`, `sources`, `ears`, and `global`.
+- Changed `ild` and `ild_difference` to return decibel values only.
+- Changed `itd` into an HRTF-level metric exported from `hrtfpykit.hrtf`.
+  It now reads `hrtf.IR.values` and `hrtf.IR.sample_rate` directly and supports
+  `absolute=True` for unsigned ITD values.
+- Changed ITD time outputs from `output="seconds"` to `output="time"`;
+  `itd`, `itd_difference`, ITD plots, and ITD difference plots now report
+  time values in microseconds. `Transform.add_itd(unit="time")` and
+  `HRTFTransform.add_itd(unit="time")` also interpret time values as
+  microseconds.
+- Changed HRIR duration helpers and time-domain plot axes to milliseconds:
+  `signal_duration`, `hrtf.IR.ir_duration`, `plot_amplitude`,
+  `compare_amplitude`, and ETC time axes use ms.
+- Changed `ITDSpec` to expose the `absolute` ITD metric option for dataset
+  feature extraction.
 - Changed SOFAcoustics download server configuration to use direct per-dataset
   base URLs instead of a shared base URL plus `path_prefix`.
 - Changed `lsd` reduction semantics to compute the natural frequency-reduced
-  LSD per source and ear first, then average those metric values with
-  `reduction="sources"`, `reduction="ears"`, or `reduction="global"`.
-- Changed `IR.get_rms` and `hrtfpykit.utils.dsp.rms` to use the same
-  metric-first reduction semantics: compute per-HRIR RMS over samples first,
-  then average with `sources`, `ears`, or `global`.
+  LSD per compared HRTF, source, and ear first, then reduce those metric values
+  with `reduction_axis`.
+- Changed `rms` into an HRTF-level metric exported from `hrtfpykit.hrtf`.
+  It computes per-HRIR RMS over samples first, then applies
+  `reduction_axis` and `reduction_method` over source and ear axes.
+- Changed `sht` to require an `HRTF` object and reject standalone `TF` domain
+  inputs, keeping spherical-harmonic decomposition tied to the active HRTF
+  source grid and frequency metadata.
+- Removed redundant `plot_amplitude_and_magnitude`; use `plot_amplitude` and
+  `plot_magnitude` separately.
+- Removed `plot_lsd_plane` .
+- Removed `IR.get_itd()` and `IR.get_rms()` because ITD and RMS are exposed
+  through the public `hrtfpykit.hrtf` metric API.
+- Removed `IR.get_ild()` because ILD is exposed through the public
+  `hrtfpykit.hrtf.ild` metric.
+- Removed `hrtfpykit.utils.dsp.rms`; use `hrtfpykit.hrtf.rms` for HRTF RMS
+  metrics.
+- Removed the `output` parameter from `ild`, `ild_difference`, `ILDSpec`, and
+  `compare_ild_difference`, and removed stale `fft_length` from `ILDSpec`; ILD
+  values and ILD differences are always in dB.
 - Changed single-HRTF plots from inherited `HRTF` methods to module-level
   `hrtfpykit.plots` functions such as `plot_magnitude(hrtf, ...)`,
   `plot_etc(hrtf, ...)`, and `plot_source_grid(hrtf, ...)`.
-- Changed `plot_lsd` to accept `ear="both"` by delegating ear averaging to
-  `lsd` with an explicit `ears` reduction.
+- Changed `compare_lsd` to accept `ear="both"` by delegating ear averaging to
+  `lsd` with an explicit `ears` reduction axis.
 - Improved `IR`, `TF`, and `Sources` docstrings with task-focused examples for
   inspecting time-domain data, frequency-domain data, and source-grid queries.
 - Changed checksum planning to use an explicit per-job `checksum_key` instead of
@@ -133,13 +176,6 @@ use the `vx.y.z` format.
   missing, empty, NaN, or infinite table fields are removed during dataset
   construction, and that users can exclude incomplete fields with
   `exclude_column` or `exclude_row` depending on table orientation.
-
-### Removed
-
-- Removed redundant `plot_amplitude_and_magnitude`; use `plot_amplitude` and
-  `plot_magnitude` separately.
-- Removed `plot_lsd_plane` because frequency-resolved heatmaps are not strict
-  log-spectral distortion after LSD reduces the frequency axis by definition.
 
 ### Fixed
 

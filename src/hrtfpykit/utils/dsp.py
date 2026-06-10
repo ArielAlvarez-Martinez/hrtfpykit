@@ -35,7 +35,7 @@ def signal_duration(
     Returns
     -------
     float
-        Duration in seconds, computed from the final sample axis and
+        Duration in milliseconds, computed from the final sample axis and
         ``sample_rate``.
 
     Raises
@@ -71,7 +71,7 @@ def signal_duration(
     if not np.isfinite(resolved_sample_rate) or resolved_sample_rate <= 0.0:
         raise ValueError("sample_rate must be a finite, positive value.")
 
-    return float(signal_values.shape[-1]) / resolved_sample_rate
+    return 1000.0 * float(signal_values.shape[-1]) / resolved_sample_rate
 
 
 def magnitude(tf: np.ndarray | "TF") -> np.ndarray:
@@ -161,120 +161,6 @@ def magnitude_to_db(
         return 20.0 * np.log10(magnitude_values / reference_value)
 
 
-def rms(
-    ir: np.ndarray | "IR",
-    output: str = "db",
-    reference: float | str = 1.0,
-    reduction: str | tuple[str, ...] | None = None,
-) -> np.ndarray:
-    """Compute HRIR RMS levels and optionally average them by domain.
-
-    The natural RMS metric is always computed first over the final sample axis:
-    ``sqrt(mean(ir ** 2, over samples))``. For standard HRIR arrays with shape
-    ``(sources, ears, samples)``, this produces one RMS value per source and
-    ear. ``reduction`` then averages those already-computed RMS values over
-    source and/or ear domains. It does not add samples to the reduction because
-    samples are part of the RMS definition itself.
-
-    Parameters
-    ----------
-    ir : np.ndarray | IR
-        Time-domain impulse-response values or
-        :class:`~hrtfpykit.hrtf.domain.IR` object with
-        :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>`. The final axis is
-        interpreted as samples.
-    output : {``linear``, ``db``}, default=``db``
-        Output representation. ``linear`` returns RMS amplitudes. ``db``
-        converts the per-HRIR RMS amplitudes with
-        :func:`~hrtfpykit.utils.dsp.magnitude_to_db` before domain averaging.
-    reference : float or {``max``}, default=1.0
-        Reference passed to :func:`~hrtfpykit.utils.dsp.magnitude_to_db` when
-        ``output="db"``. ``"max"`` uses the maximum per-HRIR RMS value before
-        domain averaging.
-    reduction : {``sources``, ``ears``, ``global``}, tuple of str, or None, default=None
-        Domain averaging applied after the per-HRIR RMS values are computed.
-        None returns the natural per-source/per-ear RMS array. ``"sources"``
-        averages RMS values through source positions and preserves ears.
-        ``"ears"`` averages RMS values through ears and preserves sources.
-        ``"global"`` averages the per-source/per-ear RMS values through
-        sources and ears and returns one value. Tuples combine domain averages,
-        for example ``("sources", "ears")`` is equivalent to ``"global"``.
-
-    Returns
-    -------
-    np.ndarray
-        RMS values in the selected output representation after the requested
-        domain averaging.
-
-    Raises
-    ------
-    ValueError
-        If IR data are missing, scalar, complex, or not stored as a NumPy
-        array, if output or reduction is unsupported, or if a requested domain
-        axis is unavailable for the input shape.
-    """
-    if isinstance(ir, np.ndarray):
-        ir_values = ir
-    else:
-        if not hasattr(ir, "values"):
-            raise ValueError("ir must be a NumPy array or an IR instance")
-        ir_values = cast(Any, ir).values
-    if ir_values is None:
-        raise ValueError("IR data is not available")
-    if not isinstance(ir_values, np.ndarray):
-        raise ValueError("IR data must be a NumPy array")
-    if ir_values.ndim == 0:
-        raise ValueError("IR data must have at least one dimension")
-    if np.iscomplexobj(ir_values):
-        raise ValueError("IR data must be real-valued for RMS calculation")
-
-    output_key = str(output).strip().lower()
-    if output_key not in {"linear", "db"}:
-        raise ValueError("output must be 'linear' or 'db'")
-
-    ir_float = np.asarray(ir_values, dtype=float)
-    rms_values = np.sqrt(np.mean(np.square(ir_float), axis=-1))
-
-    if output_key == "db":
-        rms_values = magnitude_to_db(rms_values, reference=reference)
-
-    if reduction is None:
-        return np.asarray(rms_values)
-
-    if isinstance(reduction, str):
-        reduction_key = reduction.strip().lower()
-        if reduction_key == "global":
-            reduction_axes: tuple[str, ...] = ("sources", "ears")
-        elif reduction_key in {"sources", "ears"}:
-            reduction_axes = (reduction_key,)
-        else:
-            raise ValueError("reduction must be 'sources', 'ears', 'global', a tuple of sources/ears, or None")
-    elif isinstance(reduction, tuple):
-        if len(reduction) == 0:
-            raise ValueError("reduction tuple cannot be empty")
-        reduction_axes = tuple(str(value).strip().lower() for value in reduction)
-        if "global" in reduction_axes:
-            raise ValueError("reduction='global' cannot be combined with other reductions")
-        if len(set(reduction_axes)) != len(reduction_axes):
-            raise ValueError("reduction tuple cannot contain repeated entries")
-        for reduction_axis in reduction_axes:
-            if reduction_axis not in {"sources", "ears"}:
-                raise ValueError("reduction tuple entries must be 'sources' or 'ears'")
-    else:
-        raise ValueError("reduction must be a string, tuple of strings, or None")
-
-    selected_axes: list[int] = []
-    for reduction_axis in reduction_axes:
-        if reduction_axis == "ears":
-            if rms_values.ndim < 1:
-                raise ValueError("reduction='ears' requires an ear axis")
-            selected_axes.append(rms_values.ndim - 1)
-        elif reduction_axis == "sources":
-            if rms_values.ndim < 2:
-                raise ValueError("reduction='sources' requires at least one source axis")
-            selected_axes.extend(range(rms_values.ndim - 1))
-
-    return np.asarray(np.mean(rms_values, axis=tuple(selected_axes)))
 
 def db_to_magnitude(
     magnitude_db: np.ndarray,

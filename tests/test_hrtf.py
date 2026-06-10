@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 from hrtfpykit.hrtf.hrtf import HRTF
-from hrtfpykit.hrtf import load_hrtf
-from hrtfpykit.utils.metrics import ild, itd, lsd
+from hrtfpykit.hrtf import ild, load_hrtf
+from hrtfpykit.utils.metrics import itd, lsd
 from hrtfpykit.sofa import load_sofa
 
 
@@ -405,28 +405,27 @@ def test_real_hrtf_selects_numeric_positions_crop_and_right_ear(
 
 
 def test_real_hrtf_metric_itd_runs_on_loaded_file(real_hrtf: HRTF) -> None:
-    values = itd(real_hrtf.IR, sample_rate=real_hrtf.IR.sample_rate)
+    values = itd(real_hrtf)
 
     assert np.asarray(values).shape[0] == real_hrtf.IR.values.shape[0]
     assert np.all(np.isfinite(values))
 
 
-def test_real_hrtf_metric_ild_domain_wrapper_matches_metric(real_hrtf: HRTF) -> None:
-    broad_band_values = real_hrtf.IR.get_ild(mode="broad-band", output="db")
-    expected_broad_band_values = ild(real_hrtf.IR, mode="broad-band", output="db")
-    frequency_dependent_values = real_hrtf.IR.get_ild(
+def test_real_hrtf_metric_ild_runs_on_loaded_file(real_hrtf: HRTF) -> None:
+    broad_band_values = ild(real_hrtf, mode="broad-band")
+    frequency_dependent_values = ild(
+        real_hrtf,
         mode="frequency-dependent",
-        output="db",
     )
-    expected_frequency_dependent_values = ild(
-        real_hrtf.IR,
-        mode="frequency-dependent",
-        output="db",
-        fft_length=real_hrtf.fft_length,
-    )
+    absolute_values = ild(real_hrtf, mode="broad-band", absolute=True)
 
-    np.testing.assert_allclose(broad_band_values, expected_broad_band_values)
-    np.testing.assert_allclose(frequency_dependent_values, expected_frequency_dependent_values)
+    assert broad_band_values.shape == real_hrtf.IR.values.shape[:-2]
+    assert frequency_dependent_values.shape == (
+        real_hrtf.TF.values.shape[:-2] + (real_hrtf.TF.values.shape[-1],)
+    )
+    assert np.all(np.isfinite(broad_band_values))
+    assert np.all(np.isfinite(frequency_dependent_values))
+    np.testing.assert_allclose(absolute_values, np.abs(broad_band_values))
 
 
 def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
@@ -444,7 +443,6 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
         ear="left",
         positions="front",
         frequency_bands=band,
-        reduction="none",
     )
     explicit_values = lsd(
         real_hrtf,
@@ -452,7 +450,6 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
         ear="left",
         positions="front",
         frequencies=frequency_bins[expected_indices],
-        reduction="none",
     )
     both_ear_values = lsd(
         real_hrtf,
@@ -460,7 +457,6 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
         ear="both",
         positions="front",
         frequency_bands=band,
-        reduction="none",
     )
     source_reduced = lsd(
         real_hrtf,
@@ -468,7 +464,7 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
         ear="both",
         positions="front",
         frequency_bands=band,
-        reduction="sources",
+        reduction_axis="sources",
     )
     ears_reduced = lsd(
         real_hrtf,
@@ -476,7 +472,7 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
         ear="both",
         positions="front",
         frequency_bands=band,
-        reduction=("ears",),
+        reduction_axis="ears",
     )
     left_source_reduced = lsd(
         real_hrtf,
@@ -484,7 +480,7 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
         ear="left",
         positions="front",
         frequency_bands=band,
-        reduction="sources",
+        reduction_axis="sources",
     )
 
     assert np.asarray(band_values).shape == np.asarray(explicit_values).shape
@@ -501,7 +497,7 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
             processed,
             ear="left",
             frequency_bands=band,
-            reduction=("ears",),
+            reduction_axis="ears",
         )
     with pytest.raises(ValueError, match="mutually exclusive"):
         lsd(

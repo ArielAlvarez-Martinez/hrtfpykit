@@ -162,6 +162,7 @@ class ITDSpec:
         thresh_level: float = -10.0,
         upper_cut_freq: float = 3000.0,
         filter_order: int = 10,
+        absolute: bool = False,
         transform: Callable | None = None,
         name: str | None = None,
     ) -> None:
@@ -189,7 +190,8 @@ class ITDSpec:
         per selected source position. With ``index_by=("subject", "position")``,
         each dataset row selects one source position and the output is a 0D array.
         ``position_index`` and ``position_one_hot`` add the
-        same row context to sample inputs when requested.
+        same row context to sample inputs when requested. By default, signed ITD
+        values are returned. Set ``absolute=True`` to return unsigned ITD values.
 
         Parameters
         ----------
@@ -211,6 +213,8 @@ class ITDSpec:
             Upper cutoff frequency used by filtered ITD methods.
         filter_order : int, default=10
             Filter order used by filtered ITD methods.
+        absolute : bool, default=False
+            Whether to request unsigned ITD values from the ITD metric.
         transform : callable or None, default=None
             Optional HRTF transform applied before ITD calculation. This transform
             receives the loaded HRTF object, not the calculated ITD value.
@@ -256,6 +260,7 @@ class ITDSpec:
         self.thresh_level = thresh_level
         self.upper_cut_freq = upper_cut_freq
         self.filter_order = filter_order
+        self.absolute = absolute
         self.transform = transform
         self.name = name
 
@@ -270,8 +275,6 @@ class ILDSpec:
         frequency_one_hot: bool = False,
         frequency_index: bool = False,
         mode: str = "broad-band",
-        output: str = "db",
-        fft_length: int | None = None,
         epsilon: float = 1e-12,
         transform: Callable | None = None,
         name: str | None = None,
@@ -316,10 +319,6 @@ class ILDSpec:
             Whether frequency context encodings are exposed in sample inputs.
         mode : str, default=``broad-band``
             ILD mode forwarded to the DSP metric.
-        output : str, default=``db``
-            Output scale or representation requested from the ILD metric.
-        fft_length : int or None, default=None
-            FFT length used for frequency dependent ILD calculation.
         epsilon : float, default=1e-12
             Numerical floor used by level ratio calculations.
         transform : callable or None, default=None
@@ -365,8 +364,6 @@ class ILDSpec:
         self.frequency_one_hot = frequency_one_hot
         self.frequency_index = frequency_index
         self.mode = mode
-        self.output = output
-        self.fft_length = fft_length
         self.epsilon = epsilon
         self.transform = transform
         self.name = name

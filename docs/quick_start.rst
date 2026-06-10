@@ -43,9 +43,9 @@ dataset specs, and batching utilities.
    from hrtfpykit.hrtf import load_hrtf
    from hrtfpykit.hrtf import SH, sht, sht_inverse, sht_error
    
-   from hrtfpykit.plots import plot_amplitude, plot_magnitude, plot_abs_itd, plot_signed_bb_ild
+   from hrtfpykit.plots import plot_amplitude, plot_magnitude, plot_absolute_itd, plot_ild
    from hrtfpykit.plots import plot_source_grid, plot_spectrum_plane
-   from hrtfpykit.plots import compare_amplitude, compare_magnitude, compare_abs_itd
+   from hrtfpykit.plots import compare_amplitude, compare_magnitude, compare_absolute_itd, compare_lsd
    from hrtfpykit.plots import sht_reconstruction_comparison, sht_reconstruction_error
    
    from hrtfpykit.datasets import HUTUBS, SONICOM
@@ -283,10 +283,10 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 .. code-block:: python
 
    from hrtfpykit.hrtf import load_hrtf
-   from hrtfpykit.plots import plot_abs_itd
+   from hrtfpykit.plots import plot_absolute_itd
 
    hrtf = load_hrtf(hrtf_path_a)
-   plot_abs_itd(hrtf, plane_angle=0.0)
+   plot_absolute_itd(hrtf, plane_angle=0.0)
 
 .. image:: assets/images/quickstart-plot-absolute-itd.png
    :alt: Absolute ITD polar plot
@@ -298,10 +298,10 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 .. code-block:: python
 
    from hrtfpykit.hrtf import load_hrtf
-   from hrtfpykit.plots import plot_signed_bb_ild
+   from hrtfpykit.plots import plot_ild
 
    hrtf = load_hrtf(hrtf_path_a)
-   plot_signed_bb_ild(hrtf, plane_angle=0.0)
+   plot_ild(hrtf, plane_angle=0.0)
 
 .. image:: assets/images/quickstart-plot-ild-curve.png
    :alt: ILD curve plot
@@ -399,11 +399,11 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 .. code-block:: python
 
    from hrtfpykit.hrtf import load_hrtf
-   from hrtfpykit.plots import compare_abs_itd
+   from hrtfpykit.plots import compare_absolute_itd
 
    hrtf_a = load_hrtf(hrtf_path_a)
    hrtf_b = load_hrtf(hrtf_path_b)
-   compare_abs_itd(
+   compare_absolute_itd(
        [hrtf_a, hrtf_b],
        plane_angle=0.0,
        legends=["P0001", "P0002"],
@@ -412,6 +412,48 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 
 .. image:: assets/images/quickstart-compare-absolute-itd.png
    :alt: Absolute ITD comparison plot
+   :width: 720px
+   :align: center
+
+|
+
+.. code-block:: python
+
+   from hrtfpykit.hrtf import load_hrtf
+   from hrtfpykit.plots import compare_lsd
+
+   hrtf_a = load_hrtf(hrtf_path_a)
+   hrtf_b = load_hrtf(hrtf_path_b)
+   compare_lsd(
+       hrtf_a,
+       hrtf_b,
+       ear="left",
+       plot_type="scatter",
+   )
+
+.. image:: assets/images/quickstart-compare-lsd-scatter.png
+   :alt: HRTF LSD comparison scatter plot
+   :width: 720px
+   :align: center
+
+|
+
+.. code-block:: python
+
+   from hrtfpykit.hrtf import load_hrtf
+   from hrtfpykit.plots import compare_lsd
+
+   hrtf_a = load_hrtf(hrtf_path_a)
+   hrtf_b = load_hrtf(hrtf_path_b)
+   compare_lsd(
+       hrtf_a,
+       hrtf_b,
+       ear="left",
+       plot_type="heatmap",
+   )
+
+.. image:: assets/images/quickstart-compare-lsd-heatmap.png
+   :alt: HRTF LSD comparison heatmap
    :width: 720px
    :align: center
 

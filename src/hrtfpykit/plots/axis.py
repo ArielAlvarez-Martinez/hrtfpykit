@@ -622,10 +622,10 @@ class AmplitudeAxis(Axis):
 
 
 class TimeAxis(Axis):
-    """Axis-label formatter for HRIR time values in seconds.
+    """Axis-label formatter for HRIR time values in milliseconds.
 
     TimeAxis is used by impulse-response plots when the horizontal
-    coordinate has already been converted from sample indices to seconds.
+    coordinate has already been converted from sample indices to milliseconds.
     """
 
     @staticmethod
@@ -901,7 +901,7 @@ class AzimuthAnglesAxis(DirectionAxis):
         Default axis limits for ``-180-180`` mode.
     """
 
-    direction_tick_step: float = 20.0
+    direction_tick_step: float = 40.0
     azimuth_range_modes: tuple[str, str] = ("0-360", "-180-180")
     azimuth_limits_unsigned: tuple[float, float] = (0.0, 360.0)
     azimuth_limits_signed: tuple[float, float] = (-180.0, 180.0)
@@ -925,7 +925,7 @@ class AzimuthAnglesAxis(DirectionAxis):
         Parameters
         ----------
         range_mode : str | None, default=None
-            Requested azimuth convention. None resolves to ``0-360``.
+            Requested azimuth convention. None resolves to ``-180-180``.
 
         Returns
         -------
@@ -939,7 +939,7 @@ class AzimuthAnglesAxis(DirectionAxis):
 
         """
         resolved_range_mode = (
-            AzimuthAnglesAxis.azimuth_range_modes[0]
+            AzimuthAnglesAxis.azimuth_range_modes[1]
             if range_mode is None
             else str(range_mode).strip()
         )
@@ -1207,7 +1207,7 @@ class ElevationAnglesAxis(DirectionAxis):
         Default elevation tick spacing in degrees.
     """
 
-    elevation_tick_step: float = 10.0
+    elevation_tick_step: float = 20.0
 
     @classmethod
     def get_tick_step(cls) -> float:

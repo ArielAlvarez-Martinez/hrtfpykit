@@ -27,6 +27,9 @@ def sht_reconstruction_comparison(
     freq_min: float | None = None,
     freq_max: float | None = None,
     show: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Compare original and SH-reconstructed HRTF magnitude spectra.
 
@@ -95,6 +98,12 @@ def sht_reconstruction_comparison(
         frequency bin is used.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
+    show_titles : bool, default=True
+        If False, suppress generated subplot titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -288,13 +297,16 @@ def sht_reconstruction_comparison(
         ax=ax,
         axis="y",
         unit=resolved_unit,
+        label=None if show_labels else "",
     )
 
-    Titles.create_subplots_titles(
-        ax=ax,
-        title=Titles.create_position_title(np.asarray(selected_position, dtype=float)[:2]),
-    )
-    ax.legend(labels=["Original", "Reconstructed"], loc="upper right")
+    if show_titles:
+        Titles.create_subplots_titles(
+            ax=ax,
+            title=Titles.create_position_title(np.asarray(selected_position, dtype=float)[:2]),
+        )
+    if show_legends:
+        ax.legend(labels=["Original", "Reconstructed"], loc="upper right")
     if show:
         plt.show()
 
@@ -310,6 +322,9 @@ def sht_reconstruction_error(
     freq_min: float | None = None,
     freq_max: float | None = None,
     show: bool = True,
+    show_titles: bool = True,
+    show_labels: bool = True,
+    show_legends: bool = True,
 ) -> None:
     """Plot SH reconstruction magnitude error for one direction and ear.
 
@@ -381,6 +396,12 @@ def sht_reconstruction_error(
         frequency bin is used.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
+    show_titles : bool, default=True
+        If False, suppress generated subplot titles.
+    show_labels : bool, default=True
+        If False, suppress generated axis labels.
+    show_legends : bool, default=True
+        If False, suppress generated legends.
 
     Returns
     -------
@@ -571,13 +592,15 @@ def sht_reconstruction_error(
         ax=ax,
         axis="y",
         default_label=y_label,
+        label=None if show_labels else "",
     )
-    Titles.create_subplots_titles(
-        ax=ax,
-        title=(
-            f"{Titles.create_position_title(np.asarray(selected_position, dtype=float)[:2])}"
-            f" | Error | {rms_label}={rms_error:.6f}{rms_unit}"
-        ),
-    )
+    if show_titles:
+        Titles.create_subplots_titles(
+            ax=ax,
+            title=(
+                f"{Titles.create_position_title(np.asarray(selected_position, dtype=float)[:2])}"
+                f" | Error | {rms_label}={rms_error:.6f}{rms_unit}"
+            ),
+        )
     if show:
         plt.show()

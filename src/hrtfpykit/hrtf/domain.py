@@ -10,10 +10,8 @@ from ..utils.dsp import (
     magnitude_db,
     phase,
     real,
-    rms,
     signal_duration,
 )
-from ..utils.metrics import ild, itd
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
@@ -107,7 +105,7 @@ class IR:
 
     @property
     def ir_duration(self) -> float:
-        """Return the current HRIR duration in seconds.
+        """Return the current HRIR duration in milliseconds.
 
         Duration is computed from the sample count and
         :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` using the
@@ -117,7 +115,7 @@ class IR:
         Returns
         -------
         float
-            Duration in seconds, computed from
+            Duration in milliseconds, computed from
             :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` and
             :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>`.
 
@@ -135,213 +133,10 @@ class IR:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> round(hrtf.IR.ir_duration, 6)
-        0.005805
+        >>> round(hrtf.IR.ir_duration, 3)
+        5.805
         """
         return signal_duration(self)
-
-    def get_rms(
-        self,
-        output: str = "db",
-        reference: float | str = 1.0,
-        reduction: str | tuple[str, ...] | None = None,
-    ) -> np.ndarray:
-        """Compute root-mean-square levels for the loaded HRIRs.
-
-        This method summarizes the amplitude level of each impulse response in
-        the current time-domain representation. For standard HRTF data with
-        shape ``(sources, ears, samples)``, each source/ear HRIR is summarized
-        across its sample axis, so the unreduced result contains one RMS level
-        per source and ear. The optional ``reduction`` argument then averages
-        those per-HRIR RMS levels across source positions, ears, or both.
-
-        Parameters
-        ----------
-        output : {``linear``, ``db``}, default=``db``
-            Output representation. ``linear`` returns RMS amplitudes. ``db``
-            converts the per-HRIR RMS amplitudes with
-            :func:`~hrtfpykit.utils.dsp.magnitude_to_db` before domain
-            averaging.
-        reference : float or {``max``}, default=1.0
-            Reference used when ``output="db"``. ``"max"`` uses the maximum
-            per-HRIR RMS value before domain averaging.
-        reduction : {``sources``, ``ears``, ``global``}, tuple of str, or None, default=None
-            Domain averaging applied after per-HRIR RMS values are computed.
-            None returns one RMS value per source and ear. ``"sources"``
-            averages through source positions and preserves ears. ``"ears"``
-            averages through ears and preserves sources. ``"global"`` averages
-            the per-source/per-ear RMS values through sources and ears and
-            returns one value. Tuples combine domain averages.
-
-        Returns
-        -------
-        numpy.ndarray
-            RMS values in the selected output representation after the
-            requested domain averaging.
-
-        Raises
-        ------
-        ValueError
-            If :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is
-            unavailable, output or reduction is unsupported, or a requested
-            domain axis is unavailable.
-
-        Examples
-        --------
-        Compute one RMS level per source and ear, then compute the average RMS
-        dB value across sources and ears using the same metric-first reduction
-        convention used by SONICOM metadata summaries:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> rms_values = hrtf.IR.get_rms()
-        >>> rms_values.shape
-        (793, 2)
-        >>> avg_rms_db = hrtf.IR.get_rms(
-        ...     output="db",
-        ...     reference=1.0,
-        ...     reduction="global",
-        ... )
-        >>> avg_rms_db.shape
-        ()
-        """
-        return rms(
-            self,
-            output=output,
-            reference=reference,
-            reduction=reduction,
-        )
-
-    def get_itd(
-        self,
-        method: str = "threshold",
-        output: str = "samples",
-        thresh_level: float = -10.0,
-        upper_cut_freq: float = 3000.0,
-        filter_order: int = 10,
-    ) -> np.ndarray:
-        """Compute interaural time difference from the current IR values.
-
-        This is the domain-object convenience wrapper around
-        :func:`~hrtfpykit.hrtf.metrics.itd`. It estimates ITD from
-        :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` using
-        :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` and
-        preserves any leading source axes before the final (ear, samples)
-        layout. The ear convention is 0=left and 1=right.
-
-        Parameters
-        ----------
-        method : {``threshold``, ``maxiacce``}, default=``threshold``
-            ITD estimator. ``threshold`` detects per-ear onset samples after
-            low-pass filtering, while ``maxiacce`` uses envelope
-            cross-correlation.
-        output : {``seconds``, ``samples``}, default=``samples``
-            Unit used for the returned ITD values.
-        thresh_level : float, default=-10.0
-            Threshold offset in decibels used when ``method`` is ``threshold``.
-        upper_cut_freq : float, default=3000.0
-            Low-pass cutoff frequency in hertz applied before estimation.
-        filter_order : int, default=10
-            Positive IIR Butterworth filter order used during preprocessing.
-
-        Returns
-        -------
-        numpy.ndarray
-            ITD values in the selected unit. The output shape is
-            IR.values.shape[:-2]. Positive values indicate a left-ear delay
-            relative to the right ear.
-
-        Raises
-        ------
-        ValueError
-            If :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` or :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is unavailable, the IR array
-            does not contain at least two ears and two samples, the estimator
-            configuration is invalid, or the threshold estimator cannot find a
-            valid onset.
-
-        Examples
-        --------
-        Estimate one ITD value per source position using the loaded HRIR data:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> itd_values = hrtf.IR.get_itd(output="samples")
-        >>> itd_values.shape
-        (793,)
-        """
-        return itd(
-            self,
-            method=method,
-            output=output,
-            thresh_level=thresh_level,
-            upper_cut_freq=upper_cut_freq,
-            filter_order=filter_order,
-        )
-
-    def get_ild(
-        self,
-        mode: str = "broad-band",
-        output: str = "db",
-        epsilon: float = 1e-12,
-    ) -> np.ndarray:
-        """Compute interaural level difference from the current IR values.
-
-        This is the domain-object convenience wrapper around
-        :func:`~hrtfpykit.hrtf.metrics.ild`. It computes ILD from
-        :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` using
-        :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` and the
-        parent :attr:`~hrtfpykit.hrtf.HRTF.fft_length` when
-        frequency-dependent conversion is requested. The ear convention is
-        0=left and 1=right.
-
-        Parameters
-        ----------
-        mode : {``broad-band``, ``frequency-dependent``}, default=``broad-band``
-            ILD mode. ``broad-band`` returns one value per leading IR entry.
-            ``frequency-dependent`` first derives a one-sided transfer function
-            from the IR data and returns one value per frequency bin.
-        output : {``db``, ``linear``}, default=``db``
-            Output representation. ``linear`` returns the left/right level
-            ratio; ``db`` returns 20 * log10(left / right).
-        epsilon : float, default=1e-12
-            Positive floor added to left and right magnitudes before division.
-
-        Returns
-        -------
-        numpy.ndarray
-            ILD values in the selected representation. ``mode="broad-band"``
-            returns shape ``IR.values.shape[:-2]``.
-            ``mode="frequency-dependent"`` appends the one-sided frequency-bin
-            axis. In dB output, positive values mean the left-ear level is
-            greater than the right-ear level.
-
-        Raises
-        ------
-        ValueError
-            If :attr:`IR.values <hrtfpykit.hrtf.domain.IR.values>` is
-            unavailable, the IR array does not contain at least two ears, mode
-            or output is unsupported, epsilon is not finite and positive, or
-            frequency-dependent mode cannot resolve a valid sample rate or FFT
-            conversion.
-
-        Examples
-        --------
-        Compute one broad-band ILD value per source position from the loaded
-        HRIR data:
-
-        >>> from hrtfpykit.hrtf import load_hrtf
-        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-        >>> ild_values = hrtf.IR.get_ild(mode="broad-band", output="db")
-        >>> ild_values.shape
-        (793,)
-        """
-        return ild(
-            self,
-            mode=mode,
-            output=output,
-            fft_length=self._hrtf.fft_length,
-            epsilon=epsilon,
-        )
 
 
 class TF:

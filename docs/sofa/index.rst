@@ -36,7 +36,7 @@ Content:
 .. toctree::
    :maxdepth: 1
 
-   load_sofa <loading>
    SOFA <class>
+   load_sofa <loading>
    check_sofa_against_conventions <check_sofa_against_conventions>
    check_sofa_security <check_sofa_security>

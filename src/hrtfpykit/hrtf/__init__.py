@@ -1,6 +1,6 @@
 from .hrtf import HRTF, load_hrtf
 from ..utils.directivity import hrtf_from_dtf_and_ctf
-from ..utils.metrics import abs_ild_diff, abs_itd_diff, lsd
+from ..utils.metrics import ild, ild_difference, itd, itd_difference, lsd, rms
 from ..utils.sh import SH, sht, sht_error, sht_inverse
 
 
@@ -8,10 +8,13 @@ from ..utils.sh import SH, sht, sht_error, sht_inverse
 __all__ = [
     "HRTF",
     "hrtf_from_dtf_and_ctf",
-    "abs_ild_diff",
-    "abs_itd_diff",
+    "ild",
+    "ild_difference",
+    "itd",
+    "itd_difference",
     "load_hrtf",
     "lsd",
+    "rms",
     "SH",
     "sht",
     "sht_error",

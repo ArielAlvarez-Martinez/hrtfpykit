@@ -36,9 +36,9 @@ from hrtfpykit.datasets.specs import (
     SHSpec,
     VideoSpec,
 )
-from hrtfpykit.hrtf import HRTF, load_hrtf
+from hrtfpykit.hrtf import HRTF, ild, load_hrtf
 from hrtfpykit.plots import plot_magnitude
-from hrtfpykit.utils.metrics import ild, itd
+from hrtfpykit.utils.metrics import itd
 from hrtfpykit.sofa import load_sofa
 
 
@@ -119,13 +119,11 @@ def test_selected_transformed_hrtf_feeds_metrics_and_plots(
     )
 
     itd_values = itd(
-        transformed_hrtf.IR,
-        sample_rate=transformed_hrtf.IR.sample_rate,
+        transformed_hrtf,
         method="maxiacce",
     )
     ild_values = ild(
-        transformed_hrtf.IR,
-        sample_rate=transformed_hrtf.IR.sample_rate,
+        transformed_hrtf,
     )
 
     assert np.asarray(itd_values).shape == (3,)
@@ -207,8 +205,7 @@ def test_transformed_hrtf_roundtrips_through_sofa_and_reloads(
         )
 
         itd_values = itd(
-            reloaded_hrtf.IR,
-            sample_rate=reloaded_hrtf.IR.sample_rate,
+            reloaded_hrtf,
             method="maxiacce",
         )
         assert np.asarray(itd_values).shape == (3,)

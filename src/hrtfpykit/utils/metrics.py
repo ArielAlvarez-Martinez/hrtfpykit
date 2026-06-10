@@ -5,52 +5,51 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 from scipy import signal
 
-from .dsp import iir_filter, magnitude_to_db, tf_from_ir
+from .dsp import iir_filter, magnitude_to_db
 from .coordinates import get_position_queries
 from .planes import get_horizontal_plane, get_median_plane
 
 if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
-    from ..hrtf.domain import IR
 
 
 def itd(
-    ir: np.ndarray | "IR",
+    hrtf: "HRTF",
     method: str = "threshold",
-    sample_rate: float | None = None,
     output: str = "samples",
     thresh_level: float = -10.0,
     upper_cut_freq: float = 3000.0,
     filter_order: int = 10,
+    absolute: bool = False,
 ) -> np.ndarray:
-    """Estimate interaural time difference from binaural HRIR data.
+    """Estimate interaural time difference for an HRTF.
 
-    itd operates on the time-domain representation of an HRTF. It accepts
-    either a raw NumPy array or an :class:`~hrtfpykit.hrtf.domain.IR` domain object and expects the final
-    two axes to be (ear, samples). The first two ear channels are treated
-    as left and right, respectively; any leading axes are preserved in the
-    returned ITD array.
+    ``itd`` is an HRTF-level metric. It reads the time-domain HRIR data and
+    sample rate from ``hrtf.IR`` and expects the final two IR axes to be
+    ``(ear, samples)``. The first two ear channels are treated as left and
+    right, respectively; any leading source axes are preserved in the returned
+    ITD array.
+
+    The default output is signed: positive values mean that the left-ear
+    response is delayed relative to the right-ear response. Set
+    ``absolute=True`` when only cue magnitude is needed.
 
     Before estimation, both ear signals are low-pass filtered with a
     Butterworth IIR filter. The ``threshold`` method returns the first
     left/right onset difference whose level exceeds the per-ear peak level
-    plus thresh_level dB. The ``maxiacce`` method estimates delay from
-    the peak of the cross-correlation between Hilbert envelopes.
+    plus ``thresh_level`` dB. The ``maxiacce`` method estimates delay from the
+    peak of the cross-correlation between Hilbert envelopes.
 
     Parameters
     ----------
-    ir : np.ndarray | IR
-        Time-domain impulse-response data or :class:`~hrtfpykit.hrtf.domain.IR` object with layout
-        (..., ear, samples). The ear convention is 0=left and
-        1=right.
+    hrtf : HRTF
+        HRTF object that provides an ``IR`` domain with ``values`` laid out as
+        ``(..., ear, samples)`` and a finite positive ``sample_rate``.
     method : {``threshold``, ``maxiacce``}, default=``threshold``
         Estimator used to resolve the left/right delay. ``threshold`` is an
         onset detector, while ``maxiacce`` uses envelope cross-correlation.
-    sample_rate : float | None, default=None
-        Sample rate in hertz. Required for NumPy input. When ir is an
-        :class:`~hrtfpykit.hrtf.domain.IR` object and this value is omitted, :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is used.
-    output : {``seconds``, ``samples``}, default=``samples``
-        Unit used for the returned ITD values.
+    output : {``time``, ``samples``}, default=``samples``
+        Unit used for the returned ITD values. ``time`` returns microseconds.
     thresh_level : float, default=-10.0
         Threshold offset in decibels used by method=``threshold``. The
         effective threshold is computed independently for each ear as
@@ -60,38 +59,52 @@ def itd(
         value must be between zero and the Nyquist frequency.
     filter_order : int, default=10
         Positive Butterworth filter order used in the preprocessing stage.
+    absolute : bool, default=False
+        If False, return signed ITD. If True, return ``abs(ITD)`` in the
+        selected output unit.
 
     Returns
     -------
     np.ndarray
-        ITD values with shape ir.shape[:-2] for NumPy input, or
-        IR.values.shape[:-2] for :class:`~hrtfpykit.hrtf.domain.IR` input. Positive values mean the
-        left-ear response is delayed relative to the right-ear response.
+        ITD values with shape ``hrtf.IR.values.shape[:-2]``. Positive signed
+        values mean the left-ear response is delayed relative to the right-ear
+        response.
 
     Raises
     ------
     ValueError
-        If IR data are missing, empty, not array-like, do not contain ear and
-        sample axes, have fewer than two ear channels or fewer than two
-        samples, if sample_rate is missing or invalid, if method or
-        output is unsupported, if the filter configuration is invalid, or
-        if threshold mode cannot find a valid onset in either ear.
+        If the input is not an HRTF-like object, IR data are missing, empty,
+        not array-like, do not contain ear and sample axes, have fewer than
+        two ear channels or fewer than two samples, if sample rate is missing
+        or invalid, if method or output is unsupported, if absolute is not a
+        boolean, if the filter configuration is invalid, or if threshold mode
+        cannot find a valid onset in either ear.
 
-    Notes
-    -----
-    Use this function when inspecting absolute ITD values for one HRTF or when
-    implementing custom metrics. Use
-    :func:`~hrtfpykit.hrtf.abs_itd_diff` when comparing two
-    HRTFs over a shared source grid.
+    Examples
+    --------
+    Estimate one signed ITD value per source position:
+
+    >>> from hrtfpykit.hrtf import load_hrtf, itd
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> itd_samples = itd(hrtf, output="samples")
+    >>> itd_samples.shape
+    (793,)
+
+    Return ITD magnitude in microseconds:
+
+    >>> abs_itd_time = itd(hrtf, output="time", absolute=True)
+    >>> abs_itd_time.shape
+    (793,)
+
     """
-    if isinstance(ir, np.ndarray):
-        ir_values = ir
-        resolved_sample_rate = sample_rate
-    else:
-        if not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
-            raise ValueError("ir must be a NumPy array or an IR instance")
-        ir_values = cast(Any, ir).values
-        resolved_sample_rate = sample_rate if sample_rate is not None else cast(Any, ir).sample_rate
+    if not hasattr(hrtf, "IR"):
+        raise ValueError("hrtf must be an HRTF instance")
+
+    ir = cast(Any, hrtf).IR
+    if not hasattr(ir, "values") or not hasattr(ir, "sample_rate"):
+        raise ValueError("hrtf must provide an IR domain with values and sample_rate")
+    ir_values = ir.values
+    resolved_sample_rate = ir.sample_rate
 
     if ir_values is None:
         raise ValueError("IR data is not available")
@@ -103,7 +116,7 @@ def itd(
         raise ValueError("IR data must include at least channel and time axes")
 
     if resolved_sample_rate is None:
-        raise ValueError("sample_rate is required")
+        raise ValueError("IR sample_rate is required")
     if isinstance(resolved_sample_rate, bool):
         raise ValueError("sample_rate must be a finite, positive value.")
     try:
@@ -117,8 +130,10 @@ def itd(
     if method_key not in {"threshold", "maxiacce"}:
         raise ValueError("method must be one of: threshold, maxiacce")
     output_key = str(output).strip().lower()
-    if output_key not in {"seconds", "samples"}:
-        raise ValueError("output must be one of: seconds, samples")
+    if output_key not in {"time", "samples"}:
+        raise ValueError("output must be one of: time, samples")
+    if not isinstance(absolute, bool):
+        raise ValueError("absolute must be a boolean")
 
     ir_channel_last = ir_values
     channel_count = ir_channel_last.shape[-2]
@@ -185,619 +200,968 @@ def itd(
             peak_lag = lags[int(np.argmax(np.abs(cross_corr)))]
             itd_values[index] = int(-peak_lag)
 
-    if output_key == "seconds":
-        itd_values = itd_values.astype(float) / resolved_sample_rate
+    if output_key == "time":
+        itd_values = 1_000_000.0 * itd_values.astype(float) / resolved_sample_rate
+    if absolute:
+        itd_values = np.abs(itd_values)
     output_shape = ir_channel_last.shape[:-2]
     return itd_values.reshape(output_shape)
 
 
 def ild(
-    ir: np.ndarray | "IR",
-    sample_rate: float | None = None,
-    fft_length: int | None = None,
+    hrtf: "HRTF",
     mode: str = "broad-band",
-    output: str = "db",
     epsilon: float = 1e-12,
+    absolute: bool = False,
 ) -> np.ndarray:
-    """Compute interaural level difference from binaural HRIR data.
+    """Compute interaural level difference for an HRTF.
 
-    ild measures the level ratio between the left and right ears from a
-    time-domain HRIR array. It accepts raw NumPy data or an :class:`~hrtfpykit.hrtf.domain.IR` domain
-    object and expects the final two axes to be (ear, samples). The first
-    two ear channels are treated as left and right, respectively; any leading
-    axes are preserved in the returned ILD array.
+    ``ild`` is an HRTF-level metric. It reads the active domain data from
+    ``hrtf`` and returns interaural level differences in decibels between the
+    first two ear channels, where ear index 0 is the left ear and ear index 1
+    is the right ear. Any leading source or batch axes are preserved in the
+    output.
 
-    In ``broad-band`` mode, the function computes the ratio between left and
-    right RMS levels over the time axis. In ``frequency-dependent`` mode, it
-    first converts the IR to a one-sided transfer function with
-    real FFT conversion, then computes the left/right
-    magnitude ratio per frequency bin.
+    In ``mode="broad-band"``, ILD is calculated from the time-domain
+    impulse responses in ``hrtf.IR.values`` by comparing the RMS level of the
+    left and right ears over the final sample axis. In
+    ``mode="frequency-dependent"``, ILD is calculated directly from
+    ``hrtf.TF.values`` by comparing left and right magnitudes at each
+    frequency bin.
+
+    By default, the result is signed. Positive values mean the left ear has a
+    greater level than the right ear. Negative values mean the right ear has a
+    greater level than the left ear. Use ``absolute=True`` to return
+    ``abs(ILD_db)``.
 
     Parameters
     ----------
-    ir : np.ndarray | IR
-        Time-domain impulse-response data or :class:`~hrtfpykit.hrtf.domain.IR` object with layout
-        (..., ear, samples). The ear convention is 0=left and
-        1=right.
-    sample_rate : float | None, default=None
-        Sample rate in hertz used when mode=``frequency-dependent``. For
-        :class:`~hrtfpykit.hrtf.domain.IR` input, :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>` is used when this value is omitted.
-    fft_length : int | None, default=None
-        FFT length used for the internal IR-to-TF conversion in
-        mode=``frequency-dependent``. When omitted, the IR sample length is
-        used by the conversion helper.
-    mode : {``broad-band``, ``frequency-dependent``}, default=``broad-band``
-        Level-difference mode. ``broad-band`` returns one value per leading
-        IR entry; ``frequency-dependent`` returns one value per leading IR
-        entry and frequency bin.
-    output : {``db``, ``linear``}, default=``db``
-        Output representation. ``linear`` returns the raw left/right level
-        ratio; ``db`` returns 20 * log10(left / right).
+    hrtf : HRTF
+        HRTF object that provides ``IR`` and ``TF`` domain views. Broad-band
+        mode requires ``hrtf.IR.values`` with layout ``(..., ear, samples)``.
+        Frequency-dependent mode requires ``hrtf.TF.values`` with layout
+        ``(..., ear, frequency)``.
+    mode : {``"broad-band"``, ``"frequency-dependent"``}, default=``"broad-band"``
+        ILD calculation mode. ``"broad-band"`` returns one ILD value per
+        leading entry. ``"frequency-dependent"`` returns one ILD value per
+        leading entry and frequency bin.
     epsilon : float, default=1e-12
-        Positive floor added to left and right magnitudes before division to
-        avoid division by zero.
+        Positive floor added to left and right levels before division to avoid
+        division by zero.
+    absolute : bool, default=False
+        If False, return signed ILD values in dB. If True, return
+        ``abs(ILD_db)``.
 
     Returns
     -------
-    np.ndarray
-        ILD values in the requested representation. mode=``broad-band``
-        returns shape ir.shape[:-2] for NumPy input, or
-        IR.values.shape[:-2] for :class:`~hrtfpykit.hrtf.domain.IR` input.
-        mode=``frequency-dependent`` appends the one-sided frequency-bin
-        axis. In dB output, positive values mean the left-ear level is greater
-        than the right-ear level; in linear output, values greater than
-        1.0 have the same meaning.
+    numpy.ndarray
+        ILD values in dB. Broad-band mode returns
+        shape ``hrtf.IR.values.shape[:-2]``. Frequency-dependent mode returns
+        shape ``hrtf.TF.values.shape[:-2] + (hrtf.TF.values.shape[-1],)``.
 
     Raises
     ------
     ValueError
-        If IR data are missing, empty, not array-like, do not contain ear and
-        sample axes, have fewer than two ear channels, if mode or
-        output is unsupported, if epsilon is not finite and positive,
-        or if frequency-dependent mode cannot resolve a valid sample rate or
-        FFT conversion.
+        If ``hrtf`` is not an HRTF-like object with ``IR`` and ``TF`` domains,
+        if the selected domain values are missing, empty, not NumPy arrays, do
+        not contain ear and sample/frequency axes, or contain fewer than two ear
+        channels; if ``mode`` is unsupported; if ``epsilon`` is not finite and
+        positive; or if ``absolute`` is not a boolean.
 
-    Notes
-    -----
-    Use this function when inspecting absolute ILD values for one HRTF or when
-    implementing custom metrics. Use
-    :func:`~hrtfpykit.hrtf.abs_ild_diff` when comparing two
-    HRTFs over a shared source grid.
+    Examples
+    --------
+    Compute signed broad-band ILD for every source position in a loaded HRTF:
+
+    >>> from hrtfpykit.hrtf import ild, load_hrtf
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> broad_band = ild(hrtf, mode="broad-band")
+    >>> broad_band.shape
+    (793,)
+
+    Compute a frequency-dependent ILD matrix:
+
+    >>> frequency_dependent = ild(hrtf, mode="frequency-dependent")
+    >>> frequency_dependent.shape
+    (793, 129)
+
+    Return unsigned broad-band ILD when side is not needed:
+
+    >>> unsigned_ild = ild(hrtf, mode="broad-band", absolute=True)
+    >>> unsigned_ild.shape
+    (793,)
+
     """
-    ir_object = None
-    if isinstance(ir, np.ndarray):
-        ir_values = ir
-    elif hasattr(ir, "values"):
-        ir_object = cast(Any, ir)
-        ir_values = cast(Any, ir).values
-    else:
-        raise ValueError("ir must be a NumPy array or an IR instance")
+    if not hasattr(hrtf, "IR") or not hasattr(hrtf, "TF"):
+        raise ValueError("hrtf must be an HRTF instance")
 
+    mode_key = str(mode).strip().lower()
+    if mode_key not in {"broad-band", "frequency-dependent"}:
+        raise ValueError("mode must be one of: broad-band, frequency-dependent")
+
+    if isinstance(epsilon, bool):
+        raise ValueError("epsilon must be a finite, positive value.")
+    try:
+        epsilon = float(epsilon)
+    except (TypeError, ValueError):
+        raise ValueError("epsilon must be a finite, positive value.") from None
+    if not np.isfinite(epsilon) or epsilon <= 0.0:
+        raise ValueError("epsilon must be a finite, positive value.")
+    if not isinstance(absolute, bool):
+        raise ValueError("absolute must be a boolean")
+
+    if mode_key == "broad-band":
+        ir = cast(Any, hrtf).IR
+        if not hasattr(ir, "values"):
+            raise ValueError("hrtf must provide an IR domain with values")
+        ir_values = ir.values
+        if ir_values is None:
+            raise ValueError("IR data is not available")
+        if not isinstance(ir_values, np.ndarray):
+            raise ValueError("IR data must be a NumPy array")
+        if ir_values.size == 0:
+            raise ValueError("IR data must be non-empty")
+        if ir_values.ndim < 2:
+            raise ValueError("IR data must include at least ear and time axes")
+        if ir_values.shape[-2] < 2:
+            raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
+        left_values = np.asarray(ir_values[..., 0, :], dtype=float)
+        right_values = np.asarray(ir_values[..., 1, :], dtype=float)
+        left_rms = np.sqrt(np.mean(np.square(left_values), axis=-1))
+        right_rms = np.sqrt(np.mean(np.square(right_values), axis=-1))
+        ild_linear = (left_rms + epsilon) / (right_rms + epsilon)
+    else:
+        tf = cast(Any, hrtf).TF
+        if not hasattr(tf, "values"):
+            raise ValueError("hrtf must provide a TF domain with values")
+        tf_values = tf.values
+        if tf_values is None:
+            raise ValueError("TF data is not available")
+        if not isinstance(tf_values, np.ndarray):
+            raise ValueError("TF data must be a NumPy array")
+        if tf_values.size == 0:
+            raise ValueError("TF data must be non-empty")
+        if tf_values.ndim < 2:
+            raise ValueError("TF data must include at least ear and frequency axes")
+        if tf_values.shape[-2] < 2:
+            raise ValueError("TF ear axis must contain at least two channels (0=left, 1=right)")
+        left_magnitude = np.abs(tf_values[..., 0, :])
+        right_magnitude = np.abs(tf_values[..., 1, :])
+        ild_linear = (left_magnitude + epsilon) / (right_magnitude + epsilon)
+
+    ild_values = magnitude_to_db(ild_linear)
+    if absolute:
+        ild_values = np.abs(ild_values)
+    return ild_values
+
+
+def rms(
+    hrtf: "HRTF",
+    output: str = "db",
+    reference: float | str = 1.0,
+    reduction_axis: str | tuple[str, ...] | None = None,
+    reduction_method: str = "mean",
+) -> np.ndarray:
+    """Compute RMS values for an HRTF.
+
+    ``rms`` is an HRTF metric. It reads HRIR data from ``hrtf.IR.values``
+    and always computes the first RMS over the final sample axis. For standard
+    HRTF data with shape ``(sources, ears, samples)``, this returns one RMS
+    value for each source and ear.
+
+    ``reduction_axis`` applies only after the sample axis RMS is computed. It
+    selects remaining HRTF axes such as source positions and ears.
+    ``reduction_method`` then chooses how those RMS values are reduced:
+    ``"mean"`` averages them, while ``"rms"`` applies a second RMS over the
+    selected axes.
+
+    Reduction is applied in the selected output representation. With
+    ``output="db"``, RMS values are converted to dB before reduction, so
+    ``reduction_method="mean"`` averages dB values. With
+    ``output="linear"``, reduction is applied to linear RMS amplitudes.
+
+    Parameters
+    ----------
+    hrtf : HRTF
+        HRTF object that provides ``IR.values`` with the final axis interpreted
+        as time samples. Standard data use layout ``(..., ear, samples)``.
+    output : {"db", "linear"}
+        Output representation. The default is ``"db"``. ``"linear"`` returns
+        RMS amplitudes. ``"db"`` converts RMS amplitudes to dB values.
+    reference : float or "max"
+        Reference used when ``output="db"``. The default is 1.0. ``"max"``
+        uses the maximum RMS value before output conversion and domain
+        reduction.
+    reduction_axis : {"source", "ear", "global"}, tuple of str, or None
+        HRTF axis or axes reduced after the first RMS calculation. The default
+        is None, which returns the natural source by ear RMS array.
+        ``"source"`` reduces all leading source axes and preserves ears.
+        ``"ear"`` reduces the ear axis and preserves source axes.
+        ``"global"`` reduces source and ear axes. The plural aliases
+        ``"sources"`` and ``"ears"`` are also accepted.
+    reduction_method : {"mean", "rms"}
+        Method used for ``reduction_axis``. The default is ``"mean"``.
+        ``"mean"`` computes the arithmetic average of the RMS values in the
+        selected output representation. ``"rms"`` computes a second RMS over
+        the selected axes. This parameter never changes the first RMS over the
+        sample axis.
+
+    Returns
+    -------
+    numpy.ndarray
+        RMS values in the selected output representation after the requested
+        reduction.
+
+    Raises
+    ------
+    ValueError
+        If the HRTF object or IR data are invalid; if ``output``,
+        ``reduction_axis``, or ``reduction_method`` is unsupported; or if a
+        requested domain axis is unavailable for the RMS array shape.
+
+    Examples
+    --------
+    Compute one RMS value per source and ear:
+
+    >>> from hrtfpykit.hrtf import load_hrtf, rms
+    >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> rms_values = rms(hrtf, output="db")
+    >>> rms_values.shape
+    (793, 2)
+
+    Average dB RMS values across source positions and ears:
+
+    >>> average_level = rms(hrtf, output="db", reduction_axis="global")
+    >>> average_level.shape
+    ()
+
+    Apply a second RMS reduction across ears after the sample axis RMS:
+
+    >>> ear_reduced = rms(hrtf, output="linear", reduction_axis="ear", reduction_method="rms")
+    >>> ear_reduced.shape
+    (793,)
+
+    """
+    if not hasattr(hrtf, "IR"):
+        raise ValueError("hrtf must be an HRTF instance")
+
+    ir = cast(Any, hrtf).IR
+    if not hasattr(ir, "values"):
+        raise ValueError("hrtf must provide an IR domain with values")
+    ir_values = ir.values
     if ir_values is None:
         raise ValueError("IR data is not available")
     if not isinstance(ir_values, np.ndarray):
         raise ValueError("IR data must be a NumPy array")
     if ir_values.size == 0:
         raise ValueError("IR data must be non-empty")
-    if ir_values.ndim < 2:
-        raise ValueError("IR data must include at least ear and time axes")
+    if ir_values.ndim == 0:
+        raise ValueError("IR data must have at least one dimension")
+    if np.iscomplexobj(ir_values):
+        raise ValueError("IR data must be real-valued for RMS calculation")
 
     output_key = str(output).strip().lower()
-    if output_key not in {"db", "linear"}:
+    if output_key not in {"linear", "db"}:
         raise ValueError("output must be one of: db, linear")
 
-    mode_key = str(mode).strip().lower()
-    if mode_key not in {"broad-band", "frequency-dependent"}:
-        raise ValueError("mode must be one of: broad-band, frequency-dependent")
+    reduction_method_key = str(reduction_method).strip().lower()
+    if reduction_method_key not in {"mean", "rms"}:
+        raise ValueError("reduction_method must be one of: mean, rms")
 
-    if isinstance(epsilon, bool):
-        raise ValueError("epsilon must be a finite, positive value.")
-    try:
-        epsilon = float(epsilon)
-    except (TypeError, ValueError):
-        raise ValueError("epsilon must be a finite, positive value.") from None
-    if not np.isfinite(epsilon) or epsilon <= 0.0:
-        raise ValueError("epsilon must be a finite, positive value.")
-
-    if ir_object is not None and hasattr(ir_object, "sample_rate"):
-        resolved_sample_rate = (
-            sample_rate if sample_rate is not None else ir_object.sample_rate
-        )
+    reduction_axes: tuple[str, ...]
+    if reduction_axis is None:
+        reduction_axes = ()
+    elif isinstance(reduction_axis, str):
+        reduction_axis_key = reduction_axis.strip().lower()
+        if reduction_axis_key == "global":
+            reduction_axes = ("source", "ear")
+        elif reduction_axis_key in {"source", "sources"}:
+            reduction_axes = ("source",)
+        elif reduction_axis_key in {"ear", "ears"}:
+            reduction_axes = ("ear",)
+        else:
+            raise ValueError("reduction_axis must be source, ear, global, a tuple of source/ear, or None")
+    elif isinstance(reduction_axis, tuple):
+        if len(reduction_axis) == 0:
+            raise ValueError("reduction_axis tuple cannot be empty")
+        reduction_axes_list: list[str] = []
+        for reduction_axis_value in reduction_axis:
+            reduction_axis_key = str(reduction_axis_value).strip().lower()
+            if reduction_axis_key == "global":
+                raise ValueError("reduction_axis='global' cannot be combined with other axes")
+            if reduction_axis_key in {"source", "sources"}:
+                reduction_axes_list.append("source")
+            elif reduction_axis_key in {"ear", "ears"}:
+                reduction_axes_list.append("ear")
+            else:
+                raise ValueError("reduction_axis tuple entries must be source or ear")
+        if len(set(reduction_axes_list)) != len(reduction_axes_list):
+            raise ValueError("reduction_axis tuple cannot contain repeated entries")
+        reduction_axes = tuple(reduction_axes_list)
     else:
-        resolved_sample_rate = sample_rate
+        raise ValueError("reduction_axis must be a string, tuple of strings, or None")
 
-    if ir_values.shape[-2] < 2:
-        raise ValueError("Ear axis must contain at least two channels (0=left, 1=right)")
+    ir_float = np.asarray(ir_values, dtype=float)
+    rms_values = np.sqrt(np.mean(np.square(ir_float), axis=-1))
+    resolved_reference = reference
+    if isinstance(reference, str) and reference.strip().lower() == "max":
+        resolved_reference = float(np.max(rms_values))
+        if not np.isfinite(resolved_reference) or resolved_reference <= 0.0:
+            raise ValueError("reference='max' requires at least one positive RMS value")
 
-    if mode_key == "frequency-dependent":
-        if resolved_sample_rate is None:
-            raise ValueError("sample_rate is required for IR NumPy inputs")
-        tf_values, _, _ = tf_from_ir(
-            ir_values,
-            sample_rate=resolved_sample_rate,
-            fft_length=fft_length,
-        )
-    else:
-        tf_values = None
+    if output_key == "db":
+        rms_values = magnitude_to_db(rms_values, reference=resolved_reference)
 
-    if mode_key == "broad-band":
-        left_values = np.asarray(ir_values[..., 0, :], dtype=float)
-        right_values = np.asarray(ir_values[..., 1, :], dtype=float)
-        left_rms = np.sqrt(np.mean(np.square(left_values), axis=-1))
-        right_rms = np.sqrt(np.mean(np.square(right_values), axis=-1))
-        ild_linear = (left_rms + epsilon) / (right_rms + epsilon)
-        if output_key == "linear":
-            return ild_linear
-        return magnitude_to_db(ild_linear)
+    selected_axes: list[int] = []
+    for reduction_axis_key in reduction_axes:
+        if reduction_axis_key == "ear":
+            if rms_values.ndim < 1:
+                raise ValueError("reduction_axis='ear' requires an ear axis")
+            selected_axes.append(rms_values.ndim - 1)
+        elif reduction_axis_key == "source":
+            if rms_values.ndim < 2:
+                raise ValueError("reduction_axis='source' requires at least one source axis")
+            selected_axes.extend(range(rms_values.ndim - 1))
 
-    if tf_values is None:
-        raise ValueError("TF data is not available")
-    left_magnitude = np.abs(tf_values[..., 0, :])
-    right_magnitude = np.abs(tf_values[..., 1, :])
-    ild_linear = (left_magnitude + epsilon) / (right_magnitude + epsilon)
+    if selected_axes:
+        selected_axes_tuple = tuple(selected_axes)
+        if reduction_method_key == "mean":
+            rms_values = np.mean(rms_values, axis=selected_axes_tuple)
+        else:
+            rms_values = np.sqrt(np.mean(np.square(rms_values), axis=selected_axes_tuple))
 
-    if output_key == "linear":
-        return ild_linear
-    return magnitude_to_db(ild_linear)
+    return np.asarray(rms_values)
 
 
-def abs_itd_diff(
-    hrtf_a: "HRTF",
-    hrtf_b: "HRTF",
+def itd_difference(
+    hrtf_reference: "HRTF",
+    hrtfs: "HRTF | list[HRTF] | tuple[HRTF, ...]",
     method: str = "threshold",
-    output: str = "seconds",
+    output: str = "time",
     thresh_level: float = -10.0,
     upper_cut_freq: float = 3000.0,
     filter_order: int = 10,
+    absolute: bool = False,
+    reduction_axis: str | None = None,
+    reduction_method: str = "mean",
 ) -> np.ndarray:
-    """Compute absolute per-position ITD differences between two HRTFs.
+    """Compute ITD differences from a reference HRTF.
 
-    The metric estimates interaural time difference for each input HRTF,
-    validates that both HRTFs expose the same source positions, and returns
-    ``abs(itd_a - itd_b)``. Here, ``itd_a`` and ``itd_b`` are the per-position
-    ITD arrays estimated from ``hrtf_a`` and ``hrtf_b``. The result is an
-    unsigned timing-change magnitude for each source position in the current
-    HRTF view.
+    ``itd_difference`` compares one reference HRTF against one or more HRTFs.
+    It first estimates signed ITD values with :func:`itd`, then subtracts the
+    reference values from each compared HRTF. If ``hrtfs`` is one HRTF, no
+    leading comparison axis is added. If ``hrtfs`` contains several HRTFs, the
+    first axis indexes the compared
+    HRTF ITD arrays, so standard HRTF data returns shape
+    ``(len(itds), sources)``.
 
-    Source positions are compared through :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` in degrees.
-    If either input already represents a selected spatial subset, both HRTFs
-    must expose the same selected source grid in the same order.
+    The default result is signed. Positive values mean the compared HRTF has a
+    greater ITD value than the reference at the same source position. Set
+    ``absolute=True`` to return difference magnitudes.
+
+    With a selected ``reduction_axis``, use ``absolute=True`` and
+    ``reduction_method="mean"`` to compute ITD MAE over the selected axes.
+    Use ``reduction_method="rms"`` to compute RMS ITD error. With
+    ``absolute=False`` and ``reduction_method="mean"``, signs are kept and
+    the result is mean signed ITD error.
 
     Parameters
     ----------
-    hrtf_a : HRTF
-        First :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide IR data,
-        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_b``.
-    hrtf_b : HRTF
-        Second :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide IR data,
-        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_a``.
-    method : {``threshold``, ``maxiacce``}, default=``threshold``
-        ITD estimator used for both HRTFs.
-    output : {``seconds``, ``samples``}, default=``seconds``
-        Unit of returned absolute ITD differences. ``samples`` requires
-        equal sample rates in both HRTFs. ``seconds`` converts each ITD with
-        that HRTF's own sample rate before subtraction.
+    hrtf_reference : HRTF
+        Reference HRTF. It must provide IR data, an IR sample rate, and source
+        positions.
+    hrtfs : HRTF or sequence of HRTF
+        HRTF object or objects compared against ``hrtf_reference``. Every HRTF
+        must use the same source grid as the reference.
+    method : {``"threshold"``, ``"maxiacce"``}, default=``"threshold"``
+        ITD estimator passed to :func:`itd`.
+    output : {``"time"``, ``"samples"``}, default=``"time"``
+        Unit used before subtraction. ``"time"`` returns microseconds.
+        ``"samples"`` requires matching sample rates across the reference and all compared HRTFs.
     thresh_level : float, default=-10.0
-        Threshold offset in decibels used when ``method`` is ``threshold``.
+        Threshold offset passed to :func:`itd` when ``method="threshold"``.
     upper_cut_freq : float, default=3000.0
-        Low-pass cutoff frequency in hertz used by filtered ITD estimation.
+        Low-pass cutoff frequency passed to :func:`itd`.
     filter_order : int, default=10
-        Positive Butterworth low-pass order used by filtered ITD estimation.
+        Filter order passed to :func:`itd`.
+    absolute : bool, default=False
+        If False, return signed differences ``compared - reference``. If True,
+        return ``abs(compared - reference)``.
+    reduction_axis : {``"itds"``, ``"sources"``, ``"global"``} or None, default=None
+        Axis reduced after differences are computed. None returns every compared
+        ITD difference array. ``"itds"`` reduces the compared HRTF ITD axis and
+        preserves source positions. ``"sources"`` reduces source positions and
+        preserves the compared HRTF ITD axis when several HRTF ITD arrays are provided.
+        ``"global"`` reduces all axes.
+    reduction_method : {``"mean"``, ``"rms"``}, default=``"mean"``
+        Reduction method. ``"mean"`` computes the arithmetic mean over the
+        selected axes. Use it with ``absolute=True`` to compute MAE. Use
+        ``"rms"`` to compute RMS error over the selected axes.
 
     Returns
     -------
-    np.ndarray
-        Absolute ITD differences per source position. For standard HRTF data
-        with shape (positions, ears, samples), the result has shape
-        (positions,).
+    numpy.ndarray
+        ITD differences after the requested reduction. Without reduction, a
+        single compared HRTF returns ``(sources,)`` for standard data. Several
+        compared HRTF ITD arrays return ``(len(itds), sources)``.
 
     Raises
     ------
     ValueError
-        If either input is not an HRTF-like object with :class:`~hrtfpykit.hrtf.domain.IR` and :class:`~hrtfpykit.hrtf.sources.Sources`,
-        if IR values or sample rates are missing, if output or ITD estimator
-        options are invalid, if sample-domain output is requested for unequal
-        sample rates, if source grids differ in shape or values, or if the
-        calculated ITD arrays do not have matching shapes.
-
-    Notes
-    -----
-    This function intentionally returns absolute differences, so the sign of
-    the timing change is not retained.
+        If any input is not an HRTF object, if ``hrtfs`` is empty, if IR data
+        or sample rates are missing, if source grids differ, if sample output is
+        requested for different sample rates, if calculated ITD arrays have
+        different shapes, or if an option value is unsupported.
 
     Examples
     --------
-    Compare two HRTFs measured on the same source grid and return one absolute
-    timing-difference value per source position:
+    Compare one processed HRTF against a reference and keep one value per source:
 
-    >>> from hrtfpykit.hrtf import load_hrtf, abs_itd_diff
-    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> itd_diff = abs_itd_diff(hrtf_a, hrtf_b, output="seconds")
-    >>> itd_diff.shape
+    >>> from hrtfpykit.hrtf import itd_difference, load_hrtf
+    >>> reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> processed = reference.transform.add_itd(20, unit="samples")
+    >>> values = itd_difference(
+    ...     reference,
+    ...     processed,
+    ...     output="samples",
+    ...     absolute=True,
+    ...     reduction_axis="itds",
+    ... )
+    >>> values.shape
     (793,)
+
+    Return one global RMS score in microseconds:
+
+    >>> score = itd_difference(
+    ...     reference,
+    ...     processed,
+    ...     output="time",
+    ...     absolute=True,
+    ...     reduction_axis="global",
+    ...     reduction_method="rms",
+    ... )
+    >>> score.shape
+    ()
     """
-    for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
-        if not hasattr(hrtf, "IR") or not hasattr(hrtf, "Sources"):
-            raise ValueError(f"{label} must be an HRTF instance")
-        if hrtf.IR.values is None:
-            raise ValueError(f"{label} IR data is not available")
-        if hrtf.IR.sample_rate is None:
-            raise ValueError(f"{label} IR sample_rate is required")
-
     output_key = str(output).strip().lower()
-    if output_key not in {"seconds", "samples"}:
-        raise ValueError("output must be one of: seconds, samples")
-    if output_key == "samples" and not np.isclose(
-        float(cast(Any, hrtf_a.IR.sample_rate)),
-        float(cast(Any, hrtf_b.IR.sample_rate)),
-        atol=1e-12,
-        rtol=0.0,
-    ):
-        raise ValueError(
-            "output='samples' requires equal sample_rate in both HRTFs"
+    if output_key not in {"time", "samples"}:
+        raise ValueError("output must be one of: time, samples")
+    if not isinstance(absolute, bool):
+        raise ValueError("absolute must be a boolean")
+
+    reduction_method_key = str(reduction_method).strip().lower()
+    if reduction_method_key not in {"mean", "rms"}:
+        raise ValueError("reduction_method must be one of: mean, rms")
+
+    if reduction_axis is None:
+        reduction_axis_key = None
+    else:
+        reduction_axis_key = str(reduction_axis).strip().lower()
+        if reduction_axis_key in {"", "none"}:
+            reduction_axis_key = None
+        elif reduction_axis_key not in {"itd", "itds", "source", "sources", "global"}:
+            raise ValueError("reduction_axis must be itds, sources, global, or None")
+
+    if isinstance(hrtfs, (list, tuple)):
+        compared_hrtfs = tuple(hrtfs)
+    else:
+        compared_hrtfs = (hrtfs,)
+    if len(compared_hrtfs) == 0:
+        raise ValueError("hrtfs must contain at least one HRTF")
+
+    if not hasattr(hrtf_reference, "IR") or not hasattr(hrtf_reference, "Sources"):
+        raise ValueError("hrtf_reference must be an HRTF instance")
+    if hrtf_reference.IR.values is None:
+        raise ValueError("hrtf_reference IR data is not available")
+    if hrtf_reference.IR.sample_rate is None:
+        raise ValueError("hrtf_reference IR sample_rate is required")
+
+    reference_sample_rate = hrtf_reference.IR.sample_rate
+    if isinstance(reference_sample_rate, bool):
+        raise ValueError("hrtf_reference IR sample_rate must be a finite, positive value")
+    try:
+        reference_sample_rate = float(reference_sample_rate)
+    except (TypeError, ValueError):
+        raise ValueError("hrtf_reference IR sample_rate must be a finite, positive value") from None
+    if not np.isfinite(reference_sample_rate) or reference_sample_rate <= 0.0:
+        raise ValueError("hrtf_reference IR sample_rate must be a finite, positive value")
+
+    for compared_index, hrtf in enumerate(compared_hrtfs):
+        if not hasattr(hrtf, "IR") or not hasattr(hrtf, "Sources"):
+            raise ValueError(f"hrtfs[{compared_index}] must be an HRTF instance")
+        if hrtf.IR.values is None:
+            raise ValueError(f"hrtfs[{compared_index}] IR data is not available")
+        if hrtf.IR.sample_rate is None:
+            raise ValueError(f"hrtfs[{compared_index}] IR sample_rate is required")
+        compared_sample_rate = hrtf.IR.sample_rate
+        if isinstance(compared_sample_rate, bool):
+            raise ValueError(f"hrtfs[{compared_index}] IR sample_rate must be a finite, positive value")
+        try:
+            compared_sample_rate = float(compared_sample_rate)
+        except (TypeError, ValueError):
+            raise ValueError(f"hrtfs[{compared_index}] IR sample_rate must be a finite, positive value") from None
+        if not np.isfinite(compared_sample_rate) or compared_sample_rate <= 0.0:
+            raise ValueError(f"hrtfs[{compared_index}] IR sample_rate must be a finite, positive value")
+        if output_key == "samples" and not np.isclose(
+            reference_sample_rate,
+            compared_sample_rate,
+            atol=1e-12,
+            rtol=0.0,
+        ):
+            raise ValueError("output='samples' requires equal sample_rate in all HRTFs")
+
+    reference_positions = np.asarray(hrtf_reference.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    for compared_index, hrtf in enumerate(compared_hrtfs):
+        compared_positions = np.asarray(hrtf.Sources.get_positions(angle_unit="degrees"), dtype=float)
+        if reference_positions.shape != compared_positions.shape:
+            raise ValueError("HRTFs must have the same number of source positions")
+        if not np.allclose(reference_positions, compared_positions, atol=1e-8, rtol=0.0):
+            raise ValueError("HRTFs must share the same source positions for ITD difference")
+
+    reference_itd = np.asarray(
+        itd(
+            hrtf_reference,
+            method=method,
+            output=output_key,
+            thresh_level=thresh_level,
+            upper_cut_freq=upper_cut_freq,
+            filter_order=filter_order,
+        ),
+        dtype=float,
+    )
+    difference_arrays: list[np.ndarray] = []
+    for compared_index, hrtf in enumerate(compared_hrtfs):
+        compared_itd = np.asarray(
+            itd(
+                hrtf,
+                method=method,
+                output=output_key,
+                thresh_level=thresh_level,
+                upper_cut_freq=upper_cut_freq,
+                filter_order=filter_order,
+            ),
+            dtype=float,
         )
+        if reference_itd.shape != compared_itd.shape:
+            raise ValueError("Calculated ITD arrays must have matching shapes")
+        difference_arrays.append(compared_itd - reference_itd)
 
-    source_positions_a = np.asarray(hrtf_a.Sources.get_positions(angle_unit="degrees"), dtype=float)
-    source_positions_b = np.asarray(hrtf_b.Sources.get_positions(angle_unit="degrees"), dtype=float)
-    if source_positions_a.shape != source_positions_b.shape:
-        raise ValueError("HRTFs must have the same number of source positions")
-    if not np.allclose(source_positions_a, source_positions_b, atol=1e-8, rtol=0.0):
-        raise ValueError("HRTFs must share the same source positions for ITD difference")
+    difference_values = np.stack(difference_arrays, axis=0)
+    if absolute:
+        difference_values = np.abs(difference_values)
 
-    itd_a = np.asarray(
-        itd(
-            hrtf_a.IR,
-            method=method,
-            output=output_key,
-            thresh_level=thresh_level,
-            upper_cut_freq=upper_cut_freq,
-            filter_order=filter_order,
-        ),
-        dtype=float,
-    )
-    itd_b = np.asarray(
-        itd(
-            hrtf_b.IR,
-            method=method,
-            output=output_key,
-            thresh_level=thresh_level,
-            upper_cut_freq=upper_cut_freq,
-            filter_order=filter_order,
-        ),
-        dtype=float,
-    )
-    if itd_a.shape != itd_b.shape:
-        raise ValueError("Calculated ITD arrays must have matching shapes")
-    return np.abs(itd_a - itd_b)
+    reduction_axes: tuple[int, ...]
+    if reduction_axis_key is None:
+        if len(compared_hrtfs) == 1:
+            return np.asarray(difference_values[0])
+        return np.asarray(difference_values)
+    if reduction_axis_key in {"itd", "itds"}:
+        reduction_axes = (0,)
+    elif reduction_axis_key in {"source", "sources"}:
+        reduction_axes = tuple(range(1, difference_values.ndim))
+        if len(reduction_axes) == 0:
+            raise ValueError("reduction_axis='sources' requires a source axis")
+    else:
+        reduction_axes = tuple(range(difference_values.ndim))
+
+    if reduction_method_key == "mean":
+        reduced_values = np.asarray(np.mean(difference_values, axis=reduction_axes))
+    else:
+        reduced_values = np.asarray(np.sqrt(np.mean(np.square(difference_values), axis=reduction_axes)))
+    if len(compared_hrtfs) == 1 and reduced_values.ndim > 0 and reduced_values.shape[0] == 1:
+        reduced_values = np.squeeze(reduced_values, axis=0)
+    return np.asarray(reduced_values)
 
 
-def abs_ild_diff(
-    hrtf_a: "HRTF",
-    hrtf_b: "HRTF",
+def ild_difference(
+    hrtf_reference: "HRTF",
+    hrtfs: "HRTF | list[HRTF] | tuple[HRTF, ...]",
     mode: str = "broad-band",
-    output: str = "db",
-    fft_length: int | None = None,
     epsilon: float = 1e-12,
+    absolute: bool = False,
+    reduction_axis: str | None = None,
+    reduction_method: str = "mean",
 ) -> np.ndarray:
-    """Compute absolute per-position ILD differences between two HRTFs.
+    """Compute ILD differences from a reference HRTF.
 
-    The metric estimates interaural level difference for each input HRTF,
-    validates that both HRTFs expose the same source positions, and returns
-    ``abs(ild_a - ild_b)``. Here, ``ild_a`` and ``ild_b`` are the ILD arrays
-    estimated from ``hrtf_a`` and ``hrtf_b``. The result is an unsigned
-    level-ratio change magnitude for each source position, and optionally for
-    each frequency bin.
+    ``ild_difference`` compares one reference HRTF against one or more HRTFs.
+    It first computes signed ILD values with :func:`ild`, then subtracts the
+    reference values from each compared HRTF. If ``hrtfs`` is one HRTF, no
+    leading comparison axis is added. If ``hrtfs`` contains several HRTFs, the
+    first axis indexes the compared
+    HRTF ILD arrays. Broad-band mode then returns shape
+    ``(len(ilds), sources)`` for standard data, and frequency-dependent mode
+    returns shape ``(len(ilds), sources, frequency_bins)``.
 
-    Source positions are compared through :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` in degrees.
-    If either input already represents a selected spatial subset, both HRTFs
-    must expose the same selected source grid in the same order.
+    The default result is signed. Positive values mean the compared HRTF has a
+    greater ILD value than the reference at the same source position. Set
+    ``absolute=True`` to return difference magnitudes.
+
+    With a selected ``reduction_axis``, use ``absolute=True`` and
+    ``reduction_method="mean"`` to compute ILD MAE over the selected axes.
+    Use ``reduction_method="rms"`` to compute RMS ILD error. With
+    ``absolute=False`` and ``reduction_method="mean"``, signs are kept and
+    the result is mean signed ILD error.
 
     Parameters
     ----------
-    hrtf_a : HRTF
-        First :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide IR data,
-        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_b``.
-    hrtf_b : HRTF
-        Second :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide IR data,
-        an IR sample rate, and a :class:`~hrtfpykit.hrtf.sources.Sources` grid matching ``hrtf_a``.
-    mode : {``broad-band``, ``frequency-dependent``}, default=``broad-band``
-        ILD mode used for both HRTFs. Broad-band mode compares RMS level ratios,
-        while frequency-dependent mode compares per-bin magnitude ratios after
-        IR-to-TF conversion.
-    output : {``db``, ``linear``}, default=``db``
-        Output representation used for both HRTFs. ``db`` compares dB ILD
-        values; ``linear`` compares raw left/right ratios.
-    fft_length : int | None, default=None
-        FFT length used by the internal IR-to-TF conversion when
-        ``mode`` is ``frequency-dependent``.
+    hrtf_reference : HRTF
+        Reference HRTF. It must provide source positions and the domains needed
+        by the selected ILD mode.
+    hrtfs : HRTF or sequence of HRTF
+        HRTF object or objects compared against ``hrtf_reference``. Every HRTF
+        must use the same source grid as the reference. Frequency-dependent mode
+        also requires matching TF frequency bins.
+    mode : {``"broad-band"``, ``"frequency-dependent"``}, default=``"broad-band"``
+        ILD mode passed to :func:`ild`.
     epsilon : float, default=1e-12
-        Positive floor used before left/right division.
+        Positive floor passed to :func:`ild`.
+    absolute : bool, default=False
+        If False, return signed differences ``compared - reference``. If True,
+        return ``abs(compared - reference)``.
+    reduction_axis : {``"ilds"``, ``"sources"``, ``"global"``} or None, default=None
+        Axis reduced after differences are computed. None returns every compared
+        ILD difference array. ``"ilds"`` reduces the compared HRTF ILD axis and
+        preserves source positions. ``"sources"`` reduces source positions and
+        preserves the compared HRTF ILD axis when several HRTF ILD arrays are provided.
+        ``"global"`` reduces all axes.
+    reduction_method : {``"mean"``, ``"rms"``}, default=``"mean"``
+        Reduction method. ``"mean"`` computes the arithmetic mean over the
+        selected axes. Use it with ``absolute=True`` to compute MAE. Use
+        ``"rms"`` to compute RMS error over the selected axes.
 
     Returns
     -------
-    np.ndarray
-        Absolute ILD differences. For standard HRTF data, broad-band mode
-        returns shape (positions,) and frequency-dependent mode returns
-        shape (positions, frequency_bins).
+    numpy.ndarray
+        ILD differences after the requested reduction. Without reduction, a
+        single compared HRTF returns ``(sources,)`` in broad-band mode and
+        ``(sources, frequency_bins)`` in frequency-dependent mode. Several
+        compared HRTF ILD arrays keep a leading ILD comparison axis.
 
     Raises
     ------
     ValueError
-        If either input is not an HRTF-like object with :class:`~hrtfpykit.hrtf.domain.IR` and :class:`~hrtfpykit.hrtf.sources.Sources`,
-        if IR values or sample rates are missing, if mode or output is
-        unsupported, if source grids differ in shape or values, if
-        frequency-dependent mode is requested with unequal sample rates, if
-        epsilon or FFT conversion settings are invalid, or if calculated
-        ILD arrays do not have matching shapes.
-
-    Notes
-    -----
-    This function intentionally returns absolute differences, so the sign of
-    the level-ratio change is not retained.
+        If any input is not an HRTF object, if ``hrtfs`` is empty, if the
+        source grids differ, if frequency-dependent mode is requested with
+        missing or different frequency bins, if ILD arrays have different
+        shapes, or if an option value is unsupported.
 
     Examples
     --------
-    Compare frequency-dependent ILD values for two HRTFs measured on the same
-    source grid:
+    Compare one processed HRTF against a reference and keep one value per source:
 
-    >>> from hrtfpykit.hrtf import load_hrtf, abs_ild_diff
-    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> ild_diff = abs_ild_diff(
-    ...     hrtf_a,
-    ...     hrtf_b,
-    ...     mode="frequency-dependent",
-    ...     output="db",
+    >>> from hrtfpykit.hrtf import ild_difference, load_hrtf
+    >>> reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> processed = reference.transform.apply_gain(-1.0, scale="db")
+    >>> values = ild_difference(reference, processed, absolute=True, reduction_axis="ilds")
+    >>> values.shape
+    (793,)
+
+    Average absolute ILD differences from several HRTFs into one source curve:
+
+    >>> values = ild_difference(
+    ...     reference,
+    ...     [processed, processed],
+    ...     absolute=True,
+    ...     reduction_axis="ilds",
     ... )
-    >>> ild_diff.shape
-    (793, 129)
-    """
-    for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
-        if not hasattr(hrtf, "IR") or not hasattr(hrtf, "Sources"):
-            raise ValueError(f"{label} must be an HRTF instance")
-        if hrtf.IR.values is None:
-            raise ValueError(f"{label} IR data is not available")
-        if hrtf.IR.sample_rate is None:
-            raise ValueError(f"{label} IR sample_rate is required")
+    >>> values.shape
+    (793,)
 
+    Return one global RMS score:
+
+    >>> score = ild_difference(
+    ...     reference,
+    ...     processed,
+    ...     absolute=True,
+    ...     reduction_axis="global",
+    ...     reduction_method="rms",
+    ... )
+    >>> score.shape
+    ()
+    """
     mode_key = str(mode).strip().lower()
     if mode_key not in {"broad-band", "frequency-dependent"}:
         raise ValueError("mode must be one of: broad-band, frequency-dependent")
-    output_key = str(output).strip().lower()
-    if output_key not in {"db", "linear"}:
-        raise ValueError("output must be one of: db, linear")
+    if not isinstance(absolute, bool):
+        raise ValueError("absolute must be a boolean")
 
-    source_positions_a = np.asarray(hrtf_a.Sources.get_positions(angle_unit="degrees"), dtype=float)
-    source_positions_b = np.asarray(hrtf_b.Sources.get_positions(angle_unit="degrees"), dtype=float)
-    if source_positions_a.shape != source_positions_b.shape:
-        raise ValueError("HRTFs must have the same number of source positions")
-    if not np.allclose(source_positions_a, source_positions_b, atol=1e-8, rtol=0.0):
-        raise ValueError("HRTFs must share the same source positions for ILD difference")
+    reduction_method_key = str(reduction_method).strip().lower()
+    if reduction_method_key not in {"mean", "rms"}:
+        raise ValueError("reduction_method must be one of: mean, rms")
 
-    if mode_key == "frequency-dependent" and not np.isclose(
-        float(cast(Any, hrtf_a.IR.sample_rate)),
-        float(cast(Any, hrtf_b.IR.sample_rate)),
-        atol=1e-12,
-        rtol=0.0,
-    ):
-        raise ValueError(
-            "mode='frequency-dependent' requires equal sample_rate in both HRTFs"
+    if reduction_axis is None:
+        reduction_axis_key = None
+    else:
+        reduction_axis_key = str(reduction_axis).strip().lower()
+        if reduction_axis_key in {"", "none"}:
+            reduction_axis_key = None
+        elif reduction_axis_key not in {"ild", "ilds", "source", "sources", "global"}:
+            raise ValueError("reduction_axis must be ilds, sources, global, or None")
+
+    if isinstance(hrtfs, (list, tuple)):
+        compared_hrtfs = tuple(hrtfs)
+    else:
+        compared_hrtfs = (hrtfs,)
+    if len(compared_hrtfs) == 0:
+        raise ValueError("hrtfs must contain at least one HRTF")
+
+    if not hasattr(hrtf_reference, "Sources") or not hasattr(hrtf_reference, "IR") or not hasattr(hrtf_reference, "TF"):
+        raise ValueError("hrtf_reference must be an HRTF instance")
+    for compared_index, hrtf in enumerate(compared_hrtfs):
+        if not hasattr(hrtf, "Sources") or not hasattr(hrtf, "IR") or not hasattr(hrtf, "TF"):
+            raise ValueError(f"hrtfs[{compared_index}] must be an HRTF instance")
+
+    reference_positions = np.asarray(hrtf_reference.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    for compared_index, hrtf in enumerate(compared_hrtfs):
+        compared_positions = np.asarray(hrtf.Sources.get_positions(angle_unit="degrees"), dtype=float)
+        if reference_positions.shape != compared_positions.shape:
+            raise ValueError("HRTFs must have the same number of source positions")
+        if not np.allclose(reference_positions, compared_positions, atol=1e-8, rtol=0.0):
+            raise ValueError("HRTFs must share the same source positions for ILD difference")
+
+    if mode_key == "frequency-dependent":
+        if hrtf_reference.TF.frequency_bins is None:
+            raise ValueError("hrtf_reference TF frequency_bins are required")
+        reference_frequency_bins = np.asarray(hrtf_reference.TF.frequency_bins, dtype=float)
+        for compared_index, hrtf in enumerate(compared_hrtfs):
+            if hrtf.TF.frequency_bins is None:
+                raise ValueError(f"hrtfs[{compared_index}] TF frequency_bins are required")
+            compared_frequency_bins = np.asarray(hrtf.TF.frequency_bins, dtype=float)
+            if reference_frequency_bins.shape != compared_frequency_bins.shape:
+                raise ValueError("HRTFs must have matching TF frequency bins for frequency-dependent ILD difference")
+            if not np.allclose(reference_frequency_bins, compared_frequency_bins, atol=1e-8, rtol=0.0):
+                raise ValueError("HRTFs must share the same TF frequency bins for frequency-dependent ILD difference")
+
+    reference_ild = np.asarray(
+        ild(
+            hrtf_reference,
+            mode=mode_key,
+            epsilon=epsilon,
+        ),
+        dtype=float,
+    )
+    difference_arrays: list[np.ndarray] = []
+    for compared_index, hrtf in enumerate(compared_hrtfs):
+        compared_ild = np.asarray(
+            ild(
+                hrtf,
+                mode=mode_key,
+                epsilon=epsilon,
+            ),
+            dtype=float,
         )
+        if reference_ild.shape != compared_ild.shape:
+            raise ValueError("Calculated ILD arrays must have matching shapes")
+        difference_arrays.append(compared_ild - reference_ild)
 
-    ild_a = np.asarray(
-        ild(
-            hrtf_a.IR,
-            sample_rate=float(cast(Any, hrtf_a.IR.sample_rate)),
-            fft_length=fft_length,
-            mode=mode_key,
-            output=output_key,
-            epsilon=epsilon,
-        ),
-        dtype=float,
-    )
-    ild_b = np.asarray(
-        ild(
-            hrtf_b.IR,
-            sample_rate=float(cast(Any, hrtf_b.IR.sample_rate)),
-            fft_length=fft_length,
-            mode=mode_key,
-            output=output_key,
-            epsilon=epsilon,
-        ),
-        dtype=float,
-    )
-    if ild_a.shape != ild_b.shape:
-        raise ValueError("Calculated ILD arrays must have matching shapes")
-    return np.abs(ild_a - ild_b)
+    difference_values = np.stack(difference_arrays, axis=0)
+    if absolute:
+        difference_values = np.abs(difference_values)
+
+    reduction_axes: tuple[int, ...]
+    if reduction_axis_key is None:
+        if len(compared_hrtfs) == 1:
+            return np.asarray(difference_values[0])
+        return np.asarray(difference_values)
+    if reduction_axis_key in {"ild", "ilds"}:
+        reduction_axes = (0,)
+    elif reduction_axis_key in {"source", "sources"}:
+        if mode_key == "frequency-dependent":
+            reduction_axes = tuple(range(1, difference_values.ndim - 1))
+        else:
+            reduction_axes = tuple(range(1, difference_values.ndim))
+        if len(reduction_axes) == 0:
+            raise ValueError("reduction_axis='sources' requires a source axis")
+    else:
+        reduction_axes = tuple(range(difference_values.ndim))
+
+    if reduction_method_key == "mean":
+        reduced_values = np.asarray(np.mean(difference_values, axis=reduction_axes))
+    else:
+        reduced_values = np.asarray(np.sqrt(np.mean(np.square(difference_values), axis=reduction_axes)))
+    if len(compared_hrtfs) == 1 and reduced_values.ndim > 0 and reduced_values.shape[0] == 1:
+        reduced_values = np.squeeze(reduced_values, axis=0)
+    return np.asarray(reduced_values)
 
 
 def lsd(
-    hrtf_a: "HRTF",
-    hrtf_b: "HRTF",
+    hrtf_reference: "HRTF",
+    hrtfs: "HRTF | list[HRTF] | tuple[HRTF, ...]",
     ear: str = "both",
     plane: str = "all",
     plane_angle: float = 0.0,
     positions: np.ndarray | list | tuple | str | None = None,
     frequencies: float | list[float] | tuple[float, ...] | np.ndarray | None = None,
     frequency_bands: tuple[float, float] | list[tuple[float, float]] | tuple[tuple[float, float], ...] | np.ndarray | None = None,
-    reduction: str | tuple[str, ...] | list[str] | None = "none",
+    reduction_axis: str | tuple[str, ...] | list[str] | None = None,
+    reduction_method: str = "mean",
     epsilon: float = 1e-12,
 ) -> np.ndarray | float:
-    """Compute log-spectral distortion (LSD) between two HRTFs in dB.
+    """Compute log-spectral distortion from a reference HRTF.
 
-    LSD compares two frequency-domain HRTFs in the logarithmic magnitude
-    domain. Both inputs must provide :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>` with shape
-    (positions, ears, frequency_bins), matching :attr:`TF.frequency_bins <hrtfpykit.hrtf.domain.TF.frequency_bins>`, and
-    matching source positions from :meth:`~hrtfpykit.hrtf.sources.Sources.get_positions` in degrees.
+    ``lsd`` compares one reference HRTF against one or more HRTFs in the
+    logarithmic magnitude domain. The metric first computes dB magnitude
+    differences for each selected source, ear, and frequency bin. It then
+    applies RMS over frequency, producing one LSD value per selected source and
+    selected ear.
 
-    The comparison can be restricted to one ear, both ears, all source
-    positions, a measured horizontal or median plane, explicit source-position
-    queries, explicit frequency queries, inclusive frequency bands, or a reduced
-    scalar. Position queries are resolved against
-    :attr:`~hrtfpykit.hrtf.HRTF.Sources` in spherical degrees and then
-    intersected with the selected plane. Frequency queries are mapped to the
-    nearest available TF bins and duplicate bin selections are removed.
-    Frequency bands keep every available TF bin inside any requested inclusive
-    interval in native grid order.
-
-    The function first computes the dB magnitude difference for each selected
-    source, ear, and frequency bin. The natural LSD metric is then computed as
-    the root-mean-square dB difference over the selected frequency bins,
-    producing one LSD value per selected source and ear. ``reduction`` averages
-    those already-computed LSD values over source and/or ear domains.
-    ``reduction="global"`` averages the per-source/per-ear LSD values to one
-    scalar score.
+    If ``hrtfs`` is one HRTF, no leading comparison axis is added. If ``hrtfs``
+    contains several HRTFs, the first axis indexes the compared HRTF LSD arrays.
+    With ``ear="both"`` and no reduction, one compared HRTF returns
+    ``(selected_sources, 2)`` and several compared HRTF LSD arrays return
+    ``(len(lsds), selected_sources, 2)``.
 
     Parameters
     ----------
-    hrtf_a : HRTF
-        First :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide TF values,
-        frequency bins, and a source grid matching hrtf_b.
-    hrtf_b : HRTF
-        Second :class:`~hrtfpykit.hrtf.HRTF` object used in the comparison. It must provide TF values,
-        frequency bins, and a source grid matching hrtf_a.
-    ear : {``left``, ``right``, ``both``}, default=``both``
-        Ear channel selection. ``left`` uses ear channel 0, ``right`` uses ear
-        channel 1, and ``both`` selects both ear channels. The ear axis is kept
-        unless ``reduction`` includes ``"ears"`` or ``"global"``.
-    plane : {``all``, ``horizontal``, ``median``}, default=``all``
-        Spatial subset used before comparison. ``all`` uses the current
-        full source grid, ``horizontal`` uses the nearest measured
-        horizontal plane at spherical elevation, and ``median`` uses the nearest
-        measured median plane at lateral-polar lateral angle.
+    hrtf_reference : HRTF
+        Reference HRTF. It must provide TF values, frequency bins, and source
+        positions.
+    hrtfs : HRTF or sequence of HRTF
+        HRTF object or objects compared against ``hrtf_reference``. Every HRTF
+        must use the same source grid, TF shape, and frequency bins as the
+        reference.
+    ear : {``"left"``, ``"right"``, ``"both"``}, default=``"both"``
+        Ear channel selection. ``"left"`` uses ear channel 0, ``"right"`` uses
+        ear channel 1, and ``"both"`` keeps both ears unless the ear axis is
+        reduced.
+    plane : {``"all"``, ``"horizontal"``, ``"median"``}, default=``"all"``
+        Spatial subset used before comparison.
     plane_angle : float, default=0.0
         Plane coordinate in degrees. For ``plane="horizontal"`` this is
         spherical elevation. For ``plane="median"`` this is lateral-polar
-        lateral angle. The nearest measured plane in hrtf_a is used.
+        lateral angle.
     positions : np.ndarray | list | tuple | str | None, default=None
-        Optional source-position selector. Accepts one query or a collection
-        of queries in the format accepted by
-        :func:`~hrtfpykit.hrtf.coordinates.get_position_queries`, including
-        named positions such as ``front`` and numeric spherical queries with
-        shape (2,) or (3,). Resolved position indices are intersected
-        with the selected plane.
-    frequencies : float | list[float] | tuple[float, ...] | np.ndarray | None, default=None
+        Optional source-position selector. Queries are resolved on the
+        reference source grid and intersected with the selected plane.
+    frequencies : float, sequence of float, numpy.ndarray, or None, default=None
         Optional frequency selector in hertz. Each requested frequency is
-        mapped to the nearest available TF bin and duplicate resolved bins are
-        removed while preserving query order. None selects all available bins
-        from 20 Hz through 20 kHz, inclusive, unless frequency_bands is
-        provided. Mutually exclusive with frequency_bands.
-    frequency_bands : (float, float), sequence of (float, float), numpy.ndarray, or None, default=None
-        Optional inclusive frequency bands in hertz. Every available TF bin
-        inside any requested band is kept in native grid order. Mutually
-        exclusive with frequencies.
-    reduction : str, tuple[str, ...], list[str], or None, default=``none``
-        Aggregation mode applied after the per-source/per-ear LSD metric is
-        computed over frequency. None or ``"none"`` returns the natural LSD
-        array. ``"sources"`` averages LSD values through source positions and
-        preserves ears. ``"ears"`` averages LSD values through ears and is only
-        valid with ``ear="both"``. ``"global"`` averages the per-source/per-ear
-        LSD values through sources and ears to one scalar. Tuples combine domain
-        averages.
+        mapped to the nearest available TF bin. Mutually exclusive with
+        ``frequency_bands``.
+    frequency_bands : pair, sequence of pairs, numpy.ndarray, or None, default=None
+        Optional inclusive frequency band or bands in hertz. Mutually exclusive
+        with ``frequencies``.
+    reduction_axis : {``"lsds"``, ``"sources"``, ``"ears"``, ``"global"``}, sequence, or None, default=None
+        Axis or axes reduced after LSD values are computed. None returns the
+        natural LSD array. ``"lsds"`` reduces the compared HRTF LSD axis and
+        preserves sources and ears. ``"sources"`` reduces source positions.
+        ``"ears"`` reduces ears and requires ``ear="both"``. ``"global"``
+        reduces all axes.
+    reduction_method : {``"mean"``, ``"rms"``}, default=``"mean"``
+        Reduction method. ``"mean"`` computes the arithmetic mean of LSD values.
+        ``"rms"`` computes the root mean square over the selected axis.
     epsilon : float, default=1e-12
         Positive lower bound applied to magnitudes before conversion to dB.
-        This avoids invalid values from log10(0).
 
     Returns
     -------
-    np.ndarray | float
-        LSD values in dB after the requested aggregation. With no reduction and
-        ``ear="both"``, the output shape is (selected_sources, 2). With no
-        reduction and ``ear="left"`` or ``ear="right"``, the output shape is
-        (selected_sources,). ``reduction="sources"`` with ``ear="both"``
-        returns one value per ear with shape (2,). ``reduction="ears"`` returns
-        one value per selected source. ``reduction="global"`` returns one
-        scalar average of the per-source/per-ear LSD values.
+    numpy.ndarray or float
+        LSD values in dB after the requested reduction. A single compared HRTF
+        has no leading comparison axis. Several compared HRTF LSD arrays keep
+        that axis unless ``reduction_axis`` includes ``"lsds"`` or ``"global"``. A
+        full global reduction returns a scalar float.
 
     Raises
     ------
     ValueError
-        If either input is not an HRTF-like object with :class:`~hrtfpykit.hrtf.domain.TF` and :class:`~hrtfpykit.hrtf.sources.Sources`,
-        if TF values or frequency bins are missing, if source positions, TF
-        shapes, or frequency bins do not match, if TF values are not arranged
-        as (positions, ears, frequency_bins), if the ear axis has fewer
-        than two channels, if ear, plane, or reduction is
-        unsupported, if ``ears`` reduction is requested without ``ear="both"``,
-        if epsilon is not finite and positive, if selected planes or position
-        filters produce no source positions, or if frequency selectors are
-        mutually exclusive, invalid, or select no bins.
-
-    Notes
-    -----
-    Use reduction=``none`` for one LSD value per selected source and ear,
-    reduction=``sources`` for one source-averaged LSD value per ear,
-    reduction=``ears`` for one ear-averaged LSD value per source, and
-    reduction=``global`` for a single average LSD score.
+        If any input is not an HRTF object, if ``hrtfs`` is empty, if TF values
+        or frequency bins are missing, if source grids, TF shapes, or frequency
+        bins differ, if selected data are not arranged as
+        ``(positions, ears, frequency_bins)``, if option values are unsupported,
+        if ``ears`` reduction is requested without ``ear="both"``, if epsilon
+        is not finite and positive, or if source or frequency selectors produce
+        no data.
 
     Examples
     --------
-    Compare an HRTF with a +10 dB gain-transformed copy on the horizontal
-    plane from 0 through 16 kHz, then reduce the result to one global score:
+    Compare one processed HRTF against a reference and keep one value per source:
 
     >>> from hrtfpykit.hrtf import load_hrtf, lsd
-    >>> hrtf_a = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> hrtf_b = hrtf_a.transform.apply_gain(gain=10, scale="db")
-    >>> spectral_error = lsd(
-    ...     hrtf_a,
-    ...     hrtf_b,
+    >>> reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> processed = reference.transform.apply_gain(gain=10, scale="db")
+    >>> values = lsd(reference, processed, ear="left")
+    >>> values.shape
+    (793,)
+
+    Return one global RMS score from two compared HRTF LSD arrays:
+
+    >>> score = lsd(
+    ...     reference,
+    ...     [processed, processed],
     ...     ear="both",
-    ...     plane="horizontal",
-    ...     plane_angle=0.0,
-    ...     frequency_bands=(0.0, 16000.0),
-    ...     reduction="global",
+    ...     reduction_axis="global",
+    ...     reduction_method="rms",
     ... )
-    >>> spectral_error
-    10.0
+    >>> isinstance(score, float)
+    True
     """
-    for label, hrtf in (("hrtf_a", hrtf_a), ("hrtf_b", hrtf_b)):
+    if isinstance(hrtfs, (list, tuple)):
+        compared_hrtfs = tuple(hrtfs)
+    else:
+        compared_hrtfs = (hrtfs,)
+    if len(compared_hrtfs) == 0:
+        raise ValueError("hrtfs must contain at least one HRTF")
+
+    if not hasattr(hrtf_reference, "TF") or not hasattr(hrtf_reference, "Sources"):
+        raise ValueError("hrtf_reference must be an HRTF instance")
+    if hrtf_reference.TF.values is None:
+        raise ValueError("hrtf_reference TF data is not available")
+    if hrtf_reference.TF.frequency_bins is None:
+        raise ValueError("hrtf_reference TF frequency_bins are required")
+    for compared_index, hrtf in enumerate(compared_hrtfs):
         if not hasattr(hrtf, "TF") or not hasattr(hrtf, "Sources"):
-            raise ValueError(f"{label} must be an HRTF instance")
+            raise ValueError(f"hrtfs[{compared_index}] must be an HRTF instance")
         if hrtf.TF.values is None:
-            raise ValueError(f"{label} TF data is not available")
+            raise ValueError(f"hrtfs[{compared_index}] TF data is not available")
         if hrtf.TF.frequency_bins is None:
-            raise ValueError(f"{label} TF frequency_bins are required")
+            raise ValueError(f"hrtfs[{compared_index}] TF frequency_bins are required")
 
     plane_key = str(plane).strip().lower()
     if plane_key not in {"all", "horizontal", "median"}:
         raise ValueError("plane must be one of: all, horizontal, median")
 
-    if reduction is None:
+    reduction_method_key = str(reduction_method).strip().lower()
+    if reduction_method_key not in {"mean", "rms"}:
+        raise ValueError("reduction_method must be one of: mean, rms")
+
+    global_reduction = False
+    if reduction_axis is None:
         reduction_axes: tuple[str, ...] = ()
-    elif isinstance(reduction, str):
-        reduction_key = reduction.strip().lower()
-        if reduction_key == "none":
+    elif isinstance(reduction_axis, str):
+        reduction_axis_key = reduction_axis.strip().lower()
+        if reduction_axis_key in {"", "none"}:
             reduction_axes = ()
-        elif reduction_key == "global":
-            reduction_axes = ("sources", "ears")
-        elif reduction_key in {"sources", "ears"}:
-            reduction_axes = (reduction_key,)
+        elif reduction_axis_key == "global":
+            global_reduction = True
+            reduction_axes = ("lsds", "sources", "ears")
+        elif reduction_axis_key in {"lsd", "lsds"}:
+            reduction_axes = ("lsds",)
+        elif reduction_axis_key in {"source", "sources"}:
+            reduction_axes = ("sources",)
+        elif reduction_axis_key in {"ear", "ears"}:
+            reduction_axes = ("ears",)
         else:
-            raise ValueError(
-                "reduction must be one of: none, sources, ears, global, "
-                "or a tuple/list of sources and ears"
-            )
-    elif isinstance(reduction, tuple | list):
-        if len(reduction) == 0:
-            reduction_axes = ()
-        else:
-            normalized_axes: list[str] = []
-            for axis in reduction:
-                axis_key = str(axis).strip().lower()
-                if axis_key == "none":
-                    raise ValueError("reduction='none' cannot be combined with other reduction axes")
-                if axis_key == "global":
-                    raise ValueError("reduction='global' cannot be combined with other reduction axes")
-                if axis_key not in {"sources", "ears"}:
-                    raise ValueError("reduction axes must be one of: sources, ears")
-                if axis_key not in normalized_axes:
-                    normalized_axes.append(axis_key)
-            reduction_axes = tuple(normalized_axes)
+            raise ValueError("reduction_axis must be lsds, sources, ears, global, a sequence of axes, or None")
+    elif isinstance(reduction_axis, tuple | list):
+        normalized_axes: list[str] = []
+        for axis in reduction_axis:
+            axis_key = str(axis).strip().lower()
+            if axis_key in {"", "none"}:
+                raise ValueError("reduction_axis='none' cannot be combined with other axes")
+            if axis_key == "global":
+                raise ValueError("reduction_axis='global' cannot be combined with other axes")
+            if axis_key in {"lsd", "lsds"}:
+                normalized_axis = "lsds"
+            elif axis_key in {"source", "sources"}:
+                normalized_axis = "sources"
+            elif axis_key in {"ear", "ears"}:
+                normalized_axis = "ears"
+            else:
+                raise ValueError("reduction_axis entries must be lsds, sources, or ears")
+            if normalized_axis not in normalized_axes:
+                normalized_axes.append(normalized_axis)
+        reduction_axes = tuple(normalized_axes)
     else:
-        raise ValueError(
-            "reduction must be one of: none, sources, ears, global, "
-            "or a tuple/list of sources and ears"
-        )
+        raise ValueError("reduction_axis must be a string, sequence of strings, or None")
 
     if isinstance(epsilon, bool):
         raise ValueError("epsilon must be a finite, positive value.")
@@ -808,32 +1172,36 @@ def lsd(
     if not np.isfinite(epsilon) or epsilon <= 0.0:
         raise ValueError("epsilon must be a finite, positive value.")
 
-    source_positions_a = np.asarray(hrtf_a.Sources.get_positions(angle_unit="degrees"), dtype=float)
-    source_positions_b = np.asarray(hrtf_b.Sources.get_positions(angle_unit="degrees"), dtype=float)
-    if source_positions_a.shape != source_positions_b.shape:
-        raise ValueError("HRTFs must have the same number of source positions")
-    if not np.allclose(source_positions_a, source_positions_b, atol=1e-8, rtol=0.0):
-        raise ValueError("HRTFs must share the same source positions for LSD")
+    reference_positions = np.asarray(hrtf_reference.Sources.get_positions(angle_unit="degrees"), dtype=float)
+    for compared_index, hrtf in enumerate(compared_hrtfs):
+        compared_positions = np.asarray(hrtf.Sources.get_positions(angle_unit="degrees"), dtype=float)
+        if reference_positions.shape != compared_positions.shape:
+            raise ValueError("HRTFs must have the same number of source positions")
+        if not np.allclose(reference_positions, compared_positions, atol=1e-8, rtol=0.0):
+            raise ValueError("HRTFs must share the same source positions for LSD")
 
-    tf_a = np.asarray(hrtf_a.TF.values)
-    tf_b = np.asarray(hrtf_b.TF.values)
-    if tf_a.ndim != 3 or tf_b.ndim != 3:
+    reference_tf = np.asarray(hrtf_reference.TF.values)
+    if reference_tf.ndim != 3:
         raise ValueError("TF values must have shape (positions, ears, frequency_bins)")
-    if tf_a.shape != tf_b.shape:
-        raise ValueError("HRTFs must have matching TF shapes for LSD")
-    if tf_a.shape[0] != source_positions_a.shape[0]:
+    if reference_tf.shape[0] != reference_positions.shape[0]:
         raise ValueError("TF positions axis must match source positions count")
-    if tf_a.shape[1] < 2:
+    if reference_tf.shape[1] < 2:
         raise ValueError("TF ear axis must contain at least two channels (0=left, 1=right)")
 
-    frequency_bins_a = np.asarray(hrtf_a.TF.frequency_bins, dtype=float).reshape(-1)
-    frequency_bins_b = np.asarray(hrtf_b.TF.frequency_bins, dtype=float).reshape(-1)
-    if frequency_bins_a.shape != frequency_bins_b.shape:
-        raise ValueError("HRTFs must have matching TF frequency_bins")
-    if not np.allclose(frequency_bins_a, frequency_bins_b, atol=1e-8, rtol=0.0):
-        raise ValueError("HRTFs must share the same TF frequency_bins for LSD")
-    if frequency_bins_a.size != tf_a.shape[-1]:
+    reference_frequency_bins = np.asarray(hrtf_reference.TF.frequency_bins, dtype=float).reshape(-1)
+    if reference_frequency_bins.size != reference_tf.shape[-1]:
         raise ValueError("TF frequency axis length must match frequency_bins length")
+    for compared_index, hrtf in enumerate(compared_hrtfs):
+        compared_tf = np.asarray(hrtf.TF.values)
+        if compared_tf.ndim != 3:
+            raise ValueError("TF values must have shape (positions, ears, frequency_bins)")
+        if reference_tf.shape != compared_tf.shape:
+            raise ValueError("HRTFs must have matching TF shapes for LSD")
+        compared_frequency_bins = np.asarray(hrtf.TF.frequency_bins, dtype=float).reshape(-1)
+        if reference_frequency_bins.shape != compared_frequency_bins.shape:
+            raise ValueError("HRTFs must have matching TF frequency_bins")
+        if not np.allclose(reference_frequency_bins, compared_frequency_bins, atol=1e-8, rtol=0.0):
+            raise ValueError("HRTFs must share the same TF frequency_bins for LSD")
 
     ear_key = str(ear).strip().lower()
     if ear_key not in {"left", "right", "both"}:
@@ -845,14 +1213,17 @@ def lsd(
     else:
         selected_ear_indices = np.array([0, 1], dtype=int)
     if "ears" in reduction_axes and ear_key != "both":
-        raise ValueError("reduction axis 'ears' can only be used when ear='both'")
+        if global_reduction:
+            reduction_axes = tuple(axis for axis in reduction_axes if axis != "ears")
+        else:
+            raise ValueError("reduction axis 'ears' can only be used when ear='both'")
 
     if plane_key == "all":
-        selected_positions = np.arange(source_positions_a.shape[0], dtype=int)
+        selected_positions = np.arange(reference_positions.shape[0], dtype=int)
     elif plane_key == "horizontal":
-        selected_positions, _ = get_horizontal_plane(hrtf=hrtf_a, plane_angle=float(plane_angle))
+        selected_positions, _ = get_horizontal_plane(hrtf=hrtf_reference, plane_angle=float(plane_angle))
     else:
-        selected_positions, _ = get_median_plane(hrtf=hrtf_a, plane_angle=float(plane_angle))
+        selected_positions, _ = get_median_plane(hrtf=hrtf_reference, plane_angle=float(plane_angle))
     selected_positions = np.asarray(selected_positions, dtype=int).reshape(-1)
     if selected_positions.size == 0:
         raise ValueError("Selected plane has no source positions")
@@ -861,7 +1232,7 @@ def lsd(
         position_queries = get_position_queries(positions)
         selected_from_queries: list[int] = []
         for query in position_queries:
-            position_index, _ = hrtf_a.Sources.get_position_index(
+            position_index, _ = hrtf_reference.Sources.get_position_index(
                 query,
                 coordinate_system="spherical",
             )
@@ -879,13 +1250,10 @@ def lsd(
         raise ValueError("frequencies and frequency_bands are mutually exclusive")
     if frequencies is None and frequency_bands is None:
         selected_frequency_indices = np.where(
-            (frequency_bins_a >= 20.0) & (frequency_bins_a <= 20000.0)
+            (reference_frequency_bins >= 20.0) & (reference_frequency_bins <= 20000.0)
         )[0]
-
         if selected_frequency_indices.size == 0:
-            raise ValueError(
-                "No frequency bins available in the default LSD range [20.0, 20000.0] Hz"
-            )
+            raise ValueError("No frequency bins available in the default LSD range [20.0, 20000.0] Hz")
     elif frequencies is not None:
         raw_frequency_values = np.asarray(frequencies, dtype=object).reshape(-1)
         if any(isinstance(value, bool | np.bool_) for value in raw_frequency_values.tolist()):
@@ -899,13 +1267,10 @@ def lsd(
         if not np.all(np.isfinite(frequency_values)) or np.any(frequency_values < 0.0):
             raise ValueError("frequencies must contain finite, non-negative value(s)")
         nearest_frequency_indices = [
-            int(np.argmin(np.abs(frequency_bins_a - float(target_frequency))))
+            int(np.argmin(np.abs(reference_frequency_bins - float(target_frequency))))
             for target_frequency in frequency_values
         ]
-        selected_frequency_indices = np.asarray(
-            tuple(dict.fromkeys(nearest_frequency_indices)),
-            dtype=int,
-        )
+        selected_frequency_indices = np.asarray(tuple(dict.fromkeys(nearest_frequency_indices)), dtype=int)
     else:
         raw_bands = np.asarray(frequency_bands, dtype=object)
         if any(isinstance(value, bool | np.bool_) for value in raw_bands.reshape(-1).tolist()):
@@ -922,53 +1287,57 @@ def lsd(
             raise ValueError("frequency_bands must contain finite, non-negative values")
         if np.any(bands[:, 0] > bands[:, 1]):
             raise ValueError("frequency_bands minimum must not exceed maximum")
-        selected_mask = np.zeros(frequency_bins_a.shape, dtype=bool)
+        selected_mask = np.zeros(reference_frequency_bins.shape, dtype=bool)
         for minimum, maximum in bands:
-            selected_mask |= (frequency_bins_a >= float(minimum)) & (frequency_bins_a <= float(maximum))
+            selected_mask |= (reference_frequency_bins >= float(minimum)) & (reference_frequency_bins <= float(maximum))
         selected_frequency_indices = np.flatnonzero(selected_mask).astype(int)
         if selected_frequency_indices.size == 0:
             raise ValueError("frequency_bands selected no available TF bins")
 
-    tf_values_a = np.asarray(
-        tf_a[np.ix_(selected_positions, selected_ear_indices, selected_frequency_indices)],
+    reference_slice = np.asarray(
+        reference_tf[np.ix_(selected_positions, selected_ear_indices, selected_frequency_indices)],
         dtype=complex,
     )
-    tf_values_b = np.asarray(
-        tf_b[np.ix_(selected_positions, selected_ear_indices, selected_frequency_indices)],
-        dtype=complex,
-    )
-    if tf_values_a.shape != tf_values_b.shape:
-        raise ValueError("Selected TF slices must have matching shapes")
+    reference_db = magnitude_to_db(np.maximum(np.abs(reference_slice), epsilon))
+    lsd_arrays: list[np.ndarray] = []
+    for hrtf in compared_hrtfs:
+        compared_tf = np.asarray(hrtf.TF.values)
+        compared_slice = np.asarray(
+            compared_tf[np.ix_(selected_positions, selected_ear_indices, selected_frequency_indices)],
+            dtype=complex,
+        )
+        if reference_slice.shape != compared_slice.shape:
+            raise ValueError("Selected TF slices must have matching shapes")
+        compared_db = magnitude_to_db(np.maximum(np.abs(compared_slice), epsilon))
+        difference_db = reference_db - compared_db
+        lsd_values = np.sqrt(np.mean(np.square(difference_db), axis=-1))
+        if ear_key != "both":
+            lsd_values = np.squeeze(lsd_values, axis=1)
+        lsd_arrays.append(np.asarray(lsd_values, dtype=float))
 
-    magnitude_a = np.maximum(np.abs(tf_values_a), epsilon)
-    magnitude_b = np.maximum(np.abs(tf_values_b), epsilon)
-    db_values_a = magnitude_to_db(magnitude_a)
-    db_values_b = magnitude_to_db(magnitude_b)
-    difference_db = db_values_a - db_values_b
-    lsd_values = np.sqrt(np.mean(np.square(difference_db), axis=-1))
-    if ear_key != "both":
-        lsd_values = np.squeeze(lsd_values, axis=1)
-
+    lsd_output = np.stack(lsd_arrays, axis=0)
     if len(reduction_axes) == 0:
-        return np.asarray(lsd_values)
+        if len(compared_hrtfs) == 1:
+            return np.asarray(lsd_output[0])
+        return np.asarray(lsd_output)
 
     selected_axes: list[int] = []
-    for reduction_axis in reduction_axes:
-        if reduction_axis == "ears":
-            if lsd_values.ndim < 2:
+    for reduction_axis_key in reduction_axes:
+        if reduction_axis_key == "lsds":
+            selected_axes.append(0)
+        elif reduction_axis_key == "sources":
+            selected_axes.append(1)
+        elif reduction_axis_key == "ears":
+            if ear_key != "both":
                 raise ValueError("reduction axis 'ears' can only be used when ear='both'")
-            selected_axes.append(lsd_values.ndim - 1)
-        elif reduction_axis == "sources":
-            if lsd_values.ndim < 1:
-                raise ValueError("reduction='sources' requires a source axis")
-            if ear_key == "both":
-                selected_axes.extend(range(lsd_values.ndim - 1))
-            else:
-                selected_axes.extend(range(lsd_values.ndim))
-
-    reduced_values = np.mean(lsd_values, axis=tuple(selected_axes))
-    if np.isscalar(reduced_values):
-        return float(cast(Any, reduced_values))
-    if isinstance(reduced_values, np.ndarray) and reduced_values.ndim == 0:
+            selected_axes.append(lsd_output.ndim - 1)
+    selected_axes_tuple = tuple(dict.fromkeys(selected_axes))
+    if reduction_method_key == "mean":
+        reduced_values = np.asarray(np.mean(lsd_output, axis=selected_axes_tuple))
+    else:
+        reduced_values = np.asarray(np.sqrt(np.mean(np.square(lsd_output), axis=selected_axes_tuple)))
+    if len(compared_hrtfs) == 1 and reduced_values.ndim > 0 and reduced_values.shape[0] == 1:
+        reduced_values = np.squeeze(reduced_values, axis=0)
+    if reduced_values.ndim == 0:
         return float(reduced_values)
-    return reduced_values
+    return np.asarray(reduced_values)
