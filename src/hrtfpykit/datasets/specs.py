@@ -69,8 +69,11 @@ class HRTFSpec:
         domain : {``time``, ``frequency``}, default=``time``
             Acoustic domain to return. ``time`` returns HRIR sample data;
             ``frequency`` returns HRTF frequency data.
-        signal : str, default=``ir``
-            Signal component to extract from the loaded :class:`~hrtfpykit.hrtf.HRTF` object.
+        signal : {``ir``, ``tf_complex``, ``tf_real``, ``tf_imag``, ``tf_magnitude``, ``tf_magnitude_db``, ``tf_phase``}, default=``ir``
+            Signal component to extract from the loaded
+            :class:`~hrtfpykit.hrtf.HRTF` object. ``ir`` is valid only when
+            ``domain="time"``. Frequency-domain specs must use one of the
+            ``tf_*`` signal names.
         positions : {``all``} or sequence of int, default=``all``
             Source position indices to include.
         plane : str, tuple, dict, or None, default=None
@@ -158,7 +161,7 @@ class ITDSpec:
         position_one_hot: bool = False,
         position_index: bool = False,
         method: str = "threshold",
-        output: str = "samples",
+        output: str = "time",
         thresh_level: float = -10.0,
         upper_cut_freq: float = 3000.0,
         filter_order: int = 10,
@@ -205,8 +208,8 @@ class ITDSpec:
             Whether position context encodings are exposed in sample inputs.
         method : str, default=``threshold``
             ITD estimation method forwarded to the DSP metric.
-        output : str, default=``samples``
-            Output unit or representation requested from the ITD metric.
+        output : str, default=``time``
+            Output unit requested from the ITD metric. ``time`` returns microseconds.
         thresh_level : float, default=-10.0
             Threshold level used by threshold based ITD methods.
         upper_cut_freq : float, default=3000.0

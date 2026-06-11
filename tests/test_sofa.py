@@ -2,6 +2,7 @@ import os
 import warnings
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -22,13 +23,25 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def _wrap_value(container: Any, name: str) -> Any:
+    wrapper = container.get(name)
+    assert wrapper is not None
+    return wrapper.value
+
+
+def _close_sofa_dataset(sofa: SOFA) -> None:
+    dataset = sofa.netCDF4_dataset
+    assert dataset is not None
+    dataset.close()
+
+
 @pytest.fixture
 def real_sofa() -> Generator[SOFA, None, None]:
     sofa = load_sofa(SOFA_PATH, check_sofa_against_conventions=True)
     try:
         yield sofa
     finally:
-        sofa.netCDF4_dataset.close()
+        _close_sofa_dataset(sofa)
 
 
 def test_real_sofa_file_loads(real_sofa: SOFA) -> None:
@@ -76,11 +89,11 @@ def test_real_sofa_clone_mutates_variables_attributes_and_saves(real_sofa: SOFA,
     editable = real_sofa.clone()
     try:
         editable.create_dimension("Q", 3)
-        assert editable.Dimensions.get("Q").value == 3
+        assert _wrap_value(editable.Dimensions, "Q") == 3
 
         editable.create_global_attribute("IntegrationNote", "initial")
         editable.modify_global_attribute("IntegrationNote", "modified")
-        assert editable.GlobalAttributes.get("IntegrationNote").value == "modified"
+        assert _wrap_value(editable.GlobalAttributes, "IntegrationNote") == "modified"
 
         editable.create_global_attribute("TemporaryNote", "delete-me")
         editable.delete_global_attribute("TemporaryNote")
@@ -93,20 +106,20 @@ def test_real_sofa_clone_mutates_variables_attributes_and_saves(real_sofa: SOFA,
             attributes={"Units": "1"},
         )
         np.testing.assert_allclose(
-            editable.Variables.get("IntegrationVector").value,
+            _wrap_value(editable.Variables, "IntegrationVector"),
             np.array([1.0, 2.0, 3.0]),
         )
-        assert editable.VariableAttributes.get("IntegrationVector:Units").value == "1"
+        assert _wrap_value(editable.VariableAttributes, "IntegrationVector:Units") == "1"
 
         editable.modify_variable("IntegrationVector", [4.0, 5.0, 6.0])
         np.testing.assert_allclose(
-            editable.Variables.get("IntegrationVector").value,
+            _wrap_value(editable.Variables, "IntegrationVector"),
             np.array([4.0, 5.0, 6.0]),
         )
 
         editable.create_variable_attribute("IntegrationVector:Description", "initial")
         editable.modify_variable_attribute("IntegrationVector:Description", "modified")
-        assert editable.VariableAttributes.get("IntegrationVector:Description").value == "modified"
+        assert _wrap_value(editable.VariableAttributes, "IntegrationVector:Description") == "modified"
 
         editable.create_variable_attribute("IntegrationVector:Temporary", "delete-me")
         editable.delete_variable_attribute("IntegrationVector:Temporary")
@@ -127,19 +140,19 @@ def test_real_sofa_clone_mutates_variables_attributes_and_saves(real_sofa: SOFA,
 
     saved_sofa = load_sofa(destination, check_sofa_against_conventions=False)
     try:
-        assert saved_sofa.Dimensions.get("Q").value == 3
-        assert saved_sofa.GlobalAttributes.get("IntegrationNote").value == "modified"
+        assert _wrap_value(saved_sofa.Dimensions, "Q") == 3
+        assert _wrap_value(saved_sofa.GlobalAttributes, "IntegrationNote") == "modified"
         assert "TemporaryNote" not in saved_sofa.GlobalAttributes.get_names()
         np.testing.assert_allclose(
-            saved_sofa.Variables.get("IntegrationVector").value,
+            _wrap_value(saved_sofa.Variables, "IntegrationVector"),
             np.array([4.0, 5.0, 6.0]),
         )
-        assert saved_sofa.VariableAttributes.get("IntegrationVector:Units").value == "1"
-        assert saved_sofa.VariableAttributes.get("IntegrationVector:Description").value == "modified"
+        assert _wrap_value(saved_sofa.VariableAttributes, "IntegrationVector:Units") == "1"
+        assert _wrap_value(saved_sofa.VariableAttributes, "IntegrationVector:Description") == "modified"
         assert "IntegrationVector:Temporary" not in saved_sofa.VariableAttributes.get_names()
         assert "TemporaryVector" not in saved_sofa.Variables.get_names()
     finally:
-        saved_sofa.netCDF4_dataset.close()
+        _close_sofa_dataset(saved_sofa)
 
 
 def test_real_sofa_save_refuses_overwrite_unless_requested(real_sofa: SOFA, tmp_path: Path) -> None:
@@ -160,10 +173,12 @@ def test_real_sofa_convention_check_reports_file_context() -> None:
     try:
         with warnings.catch_warnings(record=True) as record:
             warnings.simplefilter("always")
-            result = check_sofa_against_conventions(sofa.netCDF4_dataset)
+            dataset = sofa.netCDF4_dataset
+            assert dataset is not None
+            result = check_sofa_against_conventions(dataset)
 
         assert result["convention"]["name"] == getattr(
-            sofa.netCDF4_dataset,
+            dataset,
             "SOFAConventions",
             None,
         )
@@ -172,7 +187,7 @@ def test_real_sofa_convention_check_reports_file_context() -> None:
             for warning in record
         )
     finally:
-        sofa.netCDF4_dataset.close()
+        _close_sofa_dataset(sofa)
 
 
 def test_real_sofa_security_check_runs_on_file() -> None:

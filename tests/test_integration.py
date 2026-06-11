@@ -2,6 +2,7 @@ import os
 import shutil
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any, cast
 
 import matplotlib
 
@@ -72,6 +73,59 @@ def sofa_path() -> Path:
     return Path(RESOLVED_SOFA_PATH)
 
 
+def _ir_values(hrtf: HRTF) -> np.ndarray:
+    values = hrtf.IR.values
+    assert values is not None
+    return values
+
+
+def _tf_values(hrtf: HRTF) -> np.ndarray:
+    values = hrtf.TF.values
+    assert values is not None
+    return values
+
+
+def _frequency_bins(hrtf: HRTF) -> np.ndarray:
+    values = hrtf.TF.frequency_bins
+    assert values is not None
+    return values
+
+
+def _sample_rate(hrtf: HRTF) -> float:
+    sample_rate = hrtf.IR.sample_rate
+    assert sample_rate is not None
+    return float(sample_rate)
+
+
+def _source_coordinate_system(hrtf: HRTF) -> str:
+    coordinate_system = hrtf.Sources.source_coordinate_system
+    assert coordinate_system is not None
+    return coordinate_system
+
+
+def _wrap_value(container: Any, name: str) -> Any:
+    wrapper = container.get(name)
+    assert wrapper is not None
+    return wrapper.value
+
+
+def _close_sofa_dataset(sofa: Any) -> None:
+    dataset = sofa.netCDF4_dataset
+    assert dataset is not None
+    dataset.close()
+
+
+def _close_hrtf_sofa(hrtf: HRTF) -> None:
+    sofa = hrtf.Sofa
+    assert sofa is not None
+    _close_sofa_dataset(sofa)
+
+
+def _mapping(value: object) -> dict[str, Any]:
+    assert isinstance(value, dict)
+    return cast(dict[str, Any], value)
+
+
 @pytest.fixture
 def real_hrtf(sofa_path: Path) -> Generator[HRTF, None, None]:
     hrtf = load_hrtf(sofa_path)
@@ -90,7 +144,7 @@ def test_selected_transformed_hrtf_feeds_metrics_and_plots(
         pytest.skip(
             reason="Integration SOFA fixture requires at least three source positions"
         )
-    sample_count = int(real_hrtf.IR.values.shape[-1])
+    sample_count = int(_ir_values(real_hrtf).shape[-1])
     if sample_count < 2:
         pytest.skip(reason="Integration SOFA fixture requires at least two IR samples")
     selected_positions = np.asarray(source_positions[:3], dtype=float)
@@ -98,24 +152,27 @@ def test_selected_transformed_hrtf_feeds_metrics_and_plots(
 
     selected_hrtf = real_hrtf.select(
         positions=selected_positions,
-        position_coordinate_system=real_hrtf.Sources.source_coordinate_system,
+        position_coordinate_system=_source_coordinate_system(real_hrtf),
         start_sample=0,
         end_sample=crop_end,
     )
     transformed_hrtf = selected_hrtf.transform.apply_window("hann")
 
-    assert transformed_hrtf.IR.values.shape == (3, 2, crop_end)
-    assert transformed_hrtf.TF.values.shape[:2] == (3, 2)
+    assert _ir_values(transformed_hrtf).shape == (3, 2, crop_end)
+    assert _tf_values(transformed_hrtf).shape[:2] == (3, 2)
     assert (
-        transformed_hrtf.TF.values.shape[-1]
-        == transformed_hrtf.TF.frequency_bins.shape[0]
+        _tf_values(transformed_hrtf).shape[-1]
+        == _frequency_bins(transformed_hrtf).shape[0]
+    )
+    fft_length = transformed_hrtf.fft_length
+    assert fft_length is not None
+    expected_frequency_bins = np.fft.rfftfreq(
+        fft_length,
+        d=1.0 / _sample_rate(transformed_hrtf),
     )
     np.testing.assert_allclose(
-        transformed_hrtf.TF.frequency_bins,
-        np.fft.rfftfreq(
-            transformed_hrtf.fft_length,
-            d=1.0 / transformed_hrtf.IR.sample_rate,
-        ),
+        cast(Any, _frequency_bins(transformed_hrtf)),
+        cast(Any, expected_frequency_bins),
     )
 
     itd_values = itd(
@@ -156,7 +213,7 @@ def test_transformed_hrtf_roundtrips_through_sofa_and_reloads(
 
     selected_hrtf = real_hrtf.select(
         positions=selected_positions,
-        position_coordinate_system=real_hrtf.Sources.source_coordinate_system,
+        position_coordinate_system=_source_coordinate_system(real_hrtf),
     )
     transformed_hrtf = selected_hrtf.transform.apply_gain(-3.0, scale="db")
     destination = tmp_path / "transformed_roundtrip.sofa"
@@ -175,33 +232,33 @@ def test_transformed_hrtf_roundtrips_through_sofa_and_reloads(
     try:
         saved_variables = set(saved_sofa.Variables.get_names())
         assert (
-            saved_sofa.GlobalAttributes.get("SOFAConventions").value
+            _wrap_value(saved_sofa.GlobalAttributes, "SOFAConventions")
             == "SimpleFreeFieldHRTF"
         )
-        assert saved_sofa.GlobalAttributes.get("DataType").value == "TF"
+        assert _wrap_value(saved_sofa.GlobalAttributes, "DataType") == "TF"
         assert {"Data.Real", "Data.Imag", "N", "SourcePosition"}.issubset(saved_variables)
         assert "Data.IR" not in saved_variables
         assert "Data.SamplingRate" not in saved_variables
-        assert np.asarray(saved_sofa.Variables.get("Data.Real").value).shape[:2] == (
+        assert np.asarray(_wrap_value(saved_sofa.Variables, "Data.Real")).shape[:2] == (
             3,
             2,
         )
-        assert np.asarray(saved_sofa.Variables.get("SourcePosition").value).shape == (3, 3)
+        assert np.asarray(_wrap_value(saved_sofa.Variables, "SourcePosition")).shape == (3, 3)
     finally:
-        saved_sofa.netCDF4_dataset.close()
+        _close_sofa_dataset(saved_sofa)
 
     reloaded_hrtf = load_hrtf(saved_path)
     try:
         assert reloaded_hrtf.SOFAConventions == "SimpleFreeFieldHRTF"
-        assert reloaded_hrtf.IR.values.shape[:2] == (3, 2)
-        assert reloaded_hrtf.TF.values.shape[:2] == (3, 2)
+        assert _ir_values(reloaded_hrtf).shape[:2] == (3, 2)
+        assert _tf_values(reloaded_hrtf).shape[:2] == (3, 2)
         np.testing.assert_allclose(
-            reloaded_hrtf.TF.frequency_bins,
-            transformed_hrtf.TF.frequency_bins,
+            _frequency_bins(reloaded_hrtf),
+            _frequency_bins(transformed_hrtf),
         )
         np.testing.assert_allclose(
-            reloaded_hrtf.TF.values,
-            transformed_hrtf.TF.values,
+            _tf_values(reloaded_hrtf),
+            _tf_values(transformed_hrtf),
         )
 
         itd_values = itd(
@@ -221,7 +278,7 @@ def test_transformed_hrtf_roundtrips_through_sofa_and_reloads(
         )
         assert len(plt.gcf().axes) == 1
     finally:
-        reloaded_hrtf.Sofa.netCDF4_dataset.close()
+        _close_hrtf_sofa(reloaded_hrtf)
 
 
 def test_dataset_pipeline_resolves_all_spec_families(
@@ -230,8 +287,8 @@ def test_dataset_pipeline_resolves_all_spec_families(
 ) -> None:
     source_hrtf = load_hrtf(sofa_path)
     try:
-        source_count = int(source_hrtf.IR.values.shape[0])
-        frequency_count = int(source_hrtf.TF.frequency_bins.shape[0])
+        source_count = int(_ir_values(source_hrtf).shape[0])
+        frequency_count = int(_frequency_bins(source_hrtf).shape[0])
     finally:
         if (
             source_hrtf.Sofa is not None
@@ -349,7 +406,8 @@ def test_dataset_pipeline_resolves_all_spec_families(
     assert dataset.dataset_hrtf_variant == "measured"
     assert dataset.dataset_mesh_variant == "default"
 
-    sample = dataset[0]
+    sample = cast(dict[str, Any], dataset[0])
+    inputs = _mapping(sample["inputs"])
     assert sample["target"] is None
     assert sample["meta"] == {
         "dataset": "AllSpecIntegrationDataset",
@@ -360,7 +418,7 @@ def test_dataset_pipeline_resolves_all_spec_families(
         "frequency_index": None,
         "sample_index": None,
     }
-    assert set(sample["inputs"]) == {
+    assert set(inputs) == {
         "hrtf",
         "itd",
         "ild",
@@ -372,22 +430,22 @@ def test_dataset_pipeline_resolves_all_spec_families(
         "video",
     }
 
-    assert np.asarray(sample["inputs"]["hrtf"]).shape == (2, frequency_count)
-    assert np.asarray(sample["inputs"]["itd"]).shape == (2,)
-    assert np.asarray(sample["inputs"]["ild"]).shape == (2,)
-    assert np.asarray(sample["inputs"]["sh"]).shape == (4, frequency_count)
-    assert np.all(np.isfinite(sample["inputs"]["hrtf"]))
-    assert np.all(np.isfinite(sample["inputs"]["itd"]))
-    assert np.all(np.isfinite(sample["inputs"]["ild"]))
-    assert np.all(np.isfinite(sample["inputs"]["sh"]))
+    assert np.asarray(inputs["hrtf"]).shape == (2, frequency_count)
+    assert np.asarray(inputs["itd"]).shape == (2,)
+    assert np.asarray(inputs["ild"]).shape == (2,)
+    assert np.asarray(inputs["sh"]).shape == (4, frequency_count)
+    assert np.all(np.isfinite(inputs["hrtf"]))
+    assert np.all(np.isfinite(inputs["itd"]))
+    assert np.all(np.isfinite(inputs["ild"]))
+    assert np.all(np.isfinite(inputs["sh"]))
 
-    assert Path(sample["inputs"]["mesh"]).name == "S001.ply"
-    assert sample["inputs"]["anthropometry"]["head_width"] == pytest.approx(14.1)
-    assert sample["inputs"]["anthropometry"]["pinna_height"] == pytest.approx(5.1)
-    assert sample["inputs"]["metadata"]["age_group"] == "adult"
-    assert sample["inputs"]["metadata"]["session"] == "A"
-    assert Path(sample["inputs"]["image"]).name == "frame_001.png"
-    assert Path(sample["inputs"]["video"]).name == "clip_001.mp4"
+    assert Path(inputs["mesh"]).name == "S001.ply"
+    assert inputs["anthropometry"]["head_width"] == pytest.approx(14.1)
+    assert inputs["anthropometry"]["pinna_height"] == pytest.approx(5.1)
+    assert inputs["metadata"]["age_group"] == "adult"
+    assert inputs["metadata"]["session"] == "A"
+    assert Path(inputs["image"]).name == "frame_001.png"
+    assert Path(inputs["video"]).name == "clip_001.mp4"
 
 
 def test_dataset_pipeline_loads_hrtf_and_derived_acoustic_specs(
@@ -396,9 +454,9 @@ def test_dataset_pipeline_loads_hrtf_and_derived_acoustic_specs(
 ) -> None:
     source_hrtf = load_hrtf(sofa_path)
     try:
-        source_count = int(source_hrtf.IR.values.shape[0])
-        sample_rate = float(source_hrtf.IR.sample_rate)
-        frequency_count = int(source_hrtf.TF.frequency_bins.shape[0])
+        source_count = int(_ir_values(source_hrtf).shape[0])
+        sample_rate = float(_sample_rate(source_hrtf))
+        frequency_count = int(_frequency_bins(source_hrtf).shape[0])
     finally:
         if (
             source_hrtf.Sofa is not None
@@ -456,15 +514,27 @@ def test_dataset_pipeline_loads_hrtf_and_derived_acoustic_specs(
     assert dataset.available_subjects == list(subject_ids)
     assert dataset.selected_subjects == list(subject_ids)
     assert dataset.sample_rate == sample_rate
-    assert dataset.positions.shape[0] == source_count
-    assert dataset.frequency_bins.shape == (frequency_count,)
+    assert cast(np.ndarray, dataset.positions).shape[0] == source_count
+    assert cast(np.ndarray, dataset.frequency_bins).shape == (frequency_count,)
     assert dataset.selected_position_indices == (0, 1)
 
     loaded_hrtf = dataset.get_subject_hrtf("S001")
     assert dataset.get_subject_hrtf("S001") is loaded_hrtf
+    assert loaded_hrtf.Sofa is not None
+    assert loaded_hrtf.Sofa.is_open() is False
 
-    sample = dataset[0]
-    next_position_sample = dataset[1]
+    dataset.clear_cache()
+    assert dataset._state.cache == {}
+    reloaded_hrtf = dataset.get_subject_hrtf("S001")
+    assert reloaded_hrtf is not loaded_hrtf
+    assert reloaded_hrtf.Sofa is not None
+    assert reloaded_hrtf.Sofa.is_open() is False
+
+    sample = cast(dict[str, Any], dataset[0])
+    next_position_sample = cast(dict[str, Any], dataset[1])
+    sample_inputs = _mapping(sample["inputs"])
+    sample_target = _mapping(sample["target"])
+    next_position_inputs = _mapping(next_position_sample["inputs"])
 
     assert set(sample) == {"inputs", "target", "meta"}
     assert sample["meta"] == {
@@ -485,16 +555,48 @@ def test_dataset_pipeline_loads_hrtf_and_derived_acoustic_specs(
         "frequency_index": None,
         "sample_index": None,
     }
-    assert set(sample["inputs"]) == {"magnitude_db", "position_index"}
-    assert set(sample["target"]) == {"itd", "ild"}
-    assert np.asarray(sample["inputs"]["magnitude_db"]).shape == (frequency_count,)
-    assert np.all(np.isfinite(sample["inputs"]["magnitude_db"]))
-    assert sample["inputs"]["position_index"] == 0
-    assert next_position_sample["inputs"]["position_index"] == 1
-    assert np.asarray(sample["target"]["itd"]).shape == ()
-    assert np.asarray(sample["target"]["ild"]).shape == ()
-    assert np.isfinite(sample["target"]["itd"])
-    assert np.isfinite(sample["target"]["ild"])
+    assert set(sample_inputs) == {"magnitude_db", "position_index"}
+    assert set(sample_target) == {"itd", "ild"}
+    assert np.asarray(sample_inputs["magnitude_db"]).shape == (frequency_count,)
+    assert np.all(np.isfinite(sample_inputs["magnitude_db"]))
+    assert sample_inputs["position_index"] == 0
+    assert next_position_inputs["position_index"] == 1
+    assert np.asarray(sample_target["itd"]).shape == ()
+    assert np.asarray(sample_target["ild"]).shape == ()
+    assert np.isfinite(sample_target["itd"])
+    assert np.isfinite(sample_target["ild"])
+
+    open_dataset = BaseDataset(
+        root=tmp_path,
+        config=config,
+        dataset_hrtf_variant="measured",
+        inputs=HRTFSpec(index_by=("subject",)),
+        target=(),
+        sofa_open=True,
+    )
+    open_hrtf = open_dataset.get_subject_hrtf("S001")
+    assert open_hrtf.Sofa is not None
+    assert open_hrtf.Sofa.is_open() is True
+    open_dataset.clear_cache()
+    assert open_dataset._state.cache == {}
+    assert open_hrtf.Sofa.is_open() is False
+
+    preloaded_dataset = BaseDataset(
+        root=tmp_path,
+        config=config,
+        dataset_hrtf_variant="measured",
+        inputs=HRTFSpec(index_by=("subject",)),
+        target=(),
+        preload_hrtfs=True,
+    )
+    assert ("hrtf", "S001") in preloaded_dataset._state.cache
+    assert ("hrtf", "S002") in preloaded_dataset._state.cache
+    for subject_id in subject_ids:
+        cached_hrtf = cast(HRTF, preloaded_dataset._state.cache[("hrtf", subject_id)])
+        assert cached_hrtf.Sofa is not None
+        assert cached_hrtf.Sofa.is_open() is False
+    preloaded_dataset.clear_cache()
+    assert preloaded_dataset._state.cache == {}
 
 
 def test_download_plan_supports_resource_specific_base_urls(tmp_path: Path) -> None:
@@ -622,22 +724,25 @@ def test_collate_samples_returns_training_ready_tensor_dtypes() -> None:
         },
     ]
 
-    collated = collate_samples(batch)
+    collated = cast(dict[str, Any], collate_samples(batch))
+    collated_inputs = _mapping(collated["inputs"])
+    collated_target = _mapping(collated["target"])
+    collated_meta = _mapping(collated["meta"])
 
-    assert collated["inputs"]["magnitude"].dtype == torch.float32
-    assert collated["inputs"]["magnitude"].shape == (2, 2)
-    assert collated["target"]["sh"].dtype == torch.float32
-    assert collated["target"]["sh"].shape == (2, 1, 2)
-    assert collated["inputs"]["anthropometry"].dtype == torch.float32
-    assert collated["inputs"]["anthropometry"].shape == (2, 2)
-    assert collated["inputs"]["position_index"].dtype == torch.int64
-    assert collated["inputs"]["position_index"].tolist() == [0, 1]
-    assert collated["inputs"]["mesh"] == [Path("S001.ply"), Path("S002.ply")]
-    assert collated["meta"]["dataset"] == ["integration", "integration"]
-    assert collated["meta"]["subject_id"] == ["S001", "S002"]
-    assert collated["meta"]["position_index"].dtype == torch.int64
-    assert collated["meta"]["position_index"].tolist() == [0, 1]
-    assert collated["meta"]["ear"] is None
-    assert collated["meta"]["ear_index"] is None
-    assert collated["meta"]["frequency_index"] is None
-    assert collated["meta"]["sample_index"] is None
+    assert collated_inputs["magnitude"].dtype == torch.float32
+    assert collated_inputs["magnitude"].shape == (2, 2)
+    assert collated_target["sh"].dtype == torch.float32
+    assert collated_target["sh"].shape == (2, 1, 2)
+    assert collated_inputs["anthropometry"].dtype == torch.float32
+    assert collated_inputs["anthropometry"].shape == (2, 2)
+    assert collated_inputs["position_index"].dtype == torch.int64
+    assert collated_inputs["position_index"].tolist() == [0, 1]
+    assert collated_inputs["mesh"] == [Path("S001.ply"), Path("S002.ply")]
+    assert collated_meta["dataset"] == ["integration", "integration"]
+    assert collated_meta["subject_id"] == ["S001", "S002"]
+    assert collated_meta["position_index"].dtype == torch.int64
+    assert collated_meta["position_index"].tolist() == [0, 1]
+    assert collated_meta["ear"] is None
+    assert collated_meta["ear_index"] is None
+    assert collated_meta["frequency_index"] is None
+    assert collated_meta["sample_index"] is None

@@ -13,10 +13,11 @@ if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
 
 
+
 def itd(
     hrtf: "HRTF",
     method: str = "threshold",
-    output: str = "samples",
+    output: str = "time",
     thresh_level: float = -10.0,
     upper_cut_freq: float = 3000.0,
     filter_order: int = 10,
@@ -48,7 +49,7 @@ def itd(
     method : {``threshold``, ``maxiacce``}, default=``threshold``
         Estimator used to resolve the left/right delay. ``threshold`` is an
         onset detector, while ``maxiacce`` uses envelope cross-correlation.
-    output : {``time``, ``samples``}, default=``samples``
+    output : {``time``, ``samples``}, default=``time``
         Unit used for the returned ITD values. ``time`` returns microseconds.
     thresh_level : float, default=-10.0
         Threshold offset in decibels used by method=``threshold``. The
@@ -82,17 +83,23 @@ def itd(
 
     Examples
     --------
-    Estimate one signed ITD value per source position:
+    Estimate one signed ITD value in microseconds per source position:
 
     >>> from hrtfpykit.hrtf import load_hrtf, itd
     >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+    >>> itd_time = itd(hrtf)
+    >>> itd_time.shape
+    (793,)
+
+    Request ITD values in samples:
+
     >>> itd_samples = itd(hrtf, output="samples")
     >>> itd_samples.shape
     (793,)
 
     Return ITD magnitude in microseconds:
 
-    >>> abs_itd_time = itd(hrtf, output="time", absolute=True)
+    >>> abs_itd_time = itd(hrtf, absolute=True)
     >>> abs_itd_time.shape
     (793,)
 
@@ -525,9 +532,9 @@ def rms(
     if selected_axes:
         selected_axes_tuple = tuple(selected_axes)
         if reduction_method_key == "mean":
-            rms_values = np.mean(rms_values, axis=selected_axes_tuple)
+            rms_values = np.asarray(np.mean(rms_values, axis=selected_axes_tuple))
         else:
-            rms_values = np.sqrt(np.mean(np.square(rms_values), axis=selected_axes_tuple))
+            rms_values = np.asarray(np.sqrt(np.mean(np.square(rms_values), axis=selected_axes_tuple)))
 
     return np.asarray(rms_values)
 
@@ -984,9 +991,12 @@ def ild_difference(
     return np.asarray(reduced_values)
 
 
-def lsd(
+
+
+def hrtf_difference(
     hrtf_reference: "HRTF",
     hrtfs: "HRTF | list[HRTF] | tuple[HRTF, ...]",
+    metric: str = "rmse",
     ear: str = "both",
     plane: str = "all",
     plane_angle: float = 0.0,
@@ -997,29 +1007,65 @@ def lsd(
     reduction_method: str = "mean",
     epsilon: float = 1e-12,
 ) -> np.ndarray | float:
-    """Compute log-spectral distortion from a reference HRTF.
+    """Compute HRTF difference metrics against a reference HRTF.
 
-    ``lsd`` compares one reference HRTF against one or more HRTFs in the
-    logarithmic magnitude domain. The metric first computes dB magnitude
-    differences for each selected source, ear, and frequency bin. It then
-    applies RMS over frequency, producing one LSD value per selected source and
-    selected ear.
+    ``hrtf_difference`` compares one reference HRTF with one or more HRTFs on
+    the same source grid. ``"rmse"``, ``"mae"``, and ``"nrmse"`` compare
+    ``IR.values``. ``"lsd"`` compares ``TF.values``. The function selects the
+    requested sources and ears, computes the selected metric for each compared
+    HRTF, source, and ear, and then applies any requested reduction.
 
-    If ``hrtfs`` is one HRTF, no leading comparison axis is added. If ``hrtfs``
-    contains several HRTFs, the first axis indexes the compared HRTF LSD arrays.
-    With ``ear="both"`` and no reduction, one compared HRTF returns
-    ``(selected_sources, 2)`` and several compared HRTF LSD arrays return
-    ``(len(lsds), selected_sources, 2)``.
+    ``metric="rmse"``, ``metric="mae"``, and ``metric="nrmse"`` use
+    ``IR.values`` with shape ``(positions, ears, samples)``. The reference and
+    compared HRTFs must provide matching IR shapes and matching IR sample
+    rates. For each selected source and ear, the sample error is computed as
+    ``compared - reference``. RMSE returns
+    ``sqrt(mean(error ** 2))`` in linear amplitude units. MAE returns
+    ``mean(abs(error))`` in linear amplitude units. NRMSE returns
+    ``sqrt(sum(error ** 2) / sum(reference ** 2))`` as a ratio normalized by
+    the reference, applies any requested reduction to that ratio, and finally
+    converts the result to dB with ``20 * log10``.
+
+    ``metric="lsd"`` uses ``TF.values`` with shape
+    ``(positions, ears, frequency_bins)``. The reference and compared HRTFs
+    must provide matching TF shapes, matching ``TF.frequency_bins``, and
+    matching source positions. Magnitudes are converted to dB, compared as
+    reference minus compared magnitude, and reduced over the selected frequency
+    bins with an RMS operation. The resulting LSD values are in dB before any
+    ``reduction_axis`` reduction is applied.
+
+    Source selection is resolved against ``hrtf_reference.Sources`` in
+    spherical degrees. ``plane`` is applied first, then explicit ``positions``
+    queries are intersected with that plane selection. For LSD, ``frequencies``
+    maps requested frequencies to the nearest available TF bins and removes
+    duplicate bin selections. ``frequency_bands`` selects inclusive frequency
+    ranges. If neither frequency selector is provided for LSD, the metric uses
+    available bins from 20 Hz to 20000 Hz.
+
+    Without ``reduction_axis``, one compared HRTF returns the natural metric
+    array with no leading comparison axis. Several compared HRTFs return a
+    leading difference axis. ``reduction_axis="differences"`` reduces the
+    compared HRTF axis, ``"sources"`` reduces selected source positions,
+    ``"ears"`` reduces the ear axis, and ``"global"`` reduces all available
+    metric axes. Reductions use either arithmetic mean or root mean square,
+    according to ``reduction_method``.
 
     Parameters
     ----------
     hrtf_reference : HRTF
-        Reference HRTF. It must provide TF values, frequency bins, and source
+        Reference HRTF. ``"rmse"``, ``"mae"``, and ``"nrmse"`` require
+        ``IR.values`` and ``IR.sample_rate``. ``metric="lsd"`` requires
+        ``TF.values`` and ``TF.frequency_bins``. All metrics require source
         positions.
     hrtfs : HRTF or sequence of HRTF
-        HRTF object or objects compared against ``hrtf_reference``. Every HRTF
-        must use the same source grid, TF shape, and frequency bins as the
-        reference.
+        HRTF object or objects compared against ``hrtf_reference``. Compared
+        HRTFs must use the same source grid as the reference. ``"rmse"``,
+        ``"mae"``, and ``"nrmse"`` also require matching IR shape and sample
+        rate. ``metric="lsd"`` also requires matching TF shape and frequency
+        bins.
+    metric : {``"rmse"``, ``"mae"``, ``"nrmse"``, ``"lsd"``}, default=``"rmse"``
+        Difference metric. ``"rmse"`` and ``"mae"`` return linear amplitude
+        error. ``"nrmse"`` and ``"lsd"`` return dB.
     ear : {``"left"``, ``"right"``, ``"both"``}, default=``"both"``
         Ear channel selection. ``"left"`` uses ear channel 0, ``"right"`` uses
         ear channel 1, and ``"both"`` keeps both ears unless the ear axis is
@@ -1034,134 +1080,87 @@ def lsd(
         Optional source-position selector. Queries are resolved on the
         reference source grid and intersected with the selected plane.
     frequencies : float, sequence of float, numpy.ndarray, or None, default=None
-        Optional frequency selector in hertz. Each requested frequency is
-        mapped to the nearest available TF bin. Mutually exclusive with
-        ``frequency_bands``.
+        Frequency selector in hertz for ``metric="lsd"``. Each requested
+        frequency is mapped to the nearest available TF bin. Mutually exclusive
+        with ``frequency_bands``.
     frequency_bands : pair, sequence of pairs, numpy.ndarray, or None, default=None
-        Optional inclusive frequency band or bands in hertz. Mutually exclusive
-        with ``frequencies``.
-    reduction_axis : {``"lsds"``, ``"sources"``, ``"ears"``, ``"global"``}, sequence, or None, default=None
-        Axis or axes reduced after LSD values are computed. None returns the
-        natural LSD array. ``"lsds"`` reduces the compared HRTF LSD axis and
-        preserves sources and ears. ``"sources"`` reduces source positions.
-        ``"ears"`` reduces ears and requires ``ear="both"``. ``"global"``
-        reduces all axes.
+        Inclusive frequency band or bands in hertz for ``metric="lsd"``.
+        Mutually exclusive with ``frequencies``.
+    reduction_axis : {``"differences"``, ``"sources"``, ``"ears"``, ``"global"``}, sequence, or None, default=None
+        Axis or axes reduced after metric values are computed. None returns the
+        natural metric array. ``"differences"`` reduces the compared HRTF axis.
+        ``"sources"`` reduces source positions. ``"ears"`` reduces ears and
+        requires ``ear="both"``. ``"global"`` reduces all axes. Metric aliases
+        such as ``"rmses"``, ``"maes"``, ``"nrmses"``, and ``"lsds"`` are
+        accepted for the compared HRTF axis.
     reduction_method : {``"mean"``, ``"rms"``}, default=``"mean"``
-        Reduction method. ``"mean"`` computes the arithmetic mean of LSD values.
-        ``"rms"`` computes the root mean square over the selected axis.
+        Reduction method applied to selected metric values. ``"mean"``
+        computes the arithmetic mean. ``"rms"`` computes the root mean square.
     epsilon : float, default=1e-12
-        Positive lower bound applied to magnitudes before conversion to dB.
+        Positive lower bound used for NRMSE reference energy normalization,
+        LSD magnitude flooring, and dB conversion.
 
     Returns
     -------
     numpy.ndarray or float
-        LSD values in dB after the requested reduction. A single compared HRTF
-        has no leading comparison axis. Several compared HRTF LSD arrays keep
-        that axis unless ``reduction_axis`` includes ``"lsds"`` or ``"global"``. A
-        full global reduction returns a scalar float.
+        Difference values after the requested reduction. ``rmse`` and ``mae``
+        results are linear amplitude errors. ``nrmse`` and ``lsd`` results are
+        in dB. A full global reduction returns a scalar float.
 
     Raises
     ------
     ValueError
-        If any input is not an HRTF object, if ``hrtfs`` is empty, if TF values
-        or frequency bins are missing, if source grids, TF shapes, or frequency
-        bins differ, if selected data are not arranged as
+        If any input is not an HRTF object, if ``hrtfs`` is empty, if selected
+        metric data are missing, if source grids or metric shapes differ,
+        if selected data are not arranged as ``(positions, ears, samples)`` or
         ``(positions, ears, frequency_bins)``, if option values are unsupported,
-        if ``ears`` reduction is requested without ``ear="both"``, if epsilon
-        is not finite and positive, or if source or frequency selectors produce
-        no data.
+        if epsilon is not finite and positive, or if source or frequency
+        selectors produce no data.
 
     Examples
     --------
-    Compare one processed HRTF against a reference and keep one value per source:
+    Compute one RMSE value per source for the left ear:
 
-    >>> from hrtfpykit.hrtf import load_hrtf, lsd
+    >>> from hrtfpykit.hrtf import hrtf_difference, load_hrtf
     >>> reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
-    >>> processed = reference.transform.apply_gain(gain=10, scale="db")
-    >>> values = lsd(reference, processed, ear="left")
+    >>> processed = reference.transform.apply_gain(gain=-1.0, scale="db")
+    >>> values = hrtf_difference(reference, processed, metric="rmse", ear="left")
     >>> values.shape
     (793,)
 
-    Return one global RMS score from two compared HRTF LSD arrays:
+    Compute one global NRMSE score in dB:
 
-    >>> score = lsd(
+    >>> nrmse_score = hrtf_difference(
     ...     reference,
-    ...     [processed, processed],
-    ...     ear="both",
+    ...     processed,
+    ...     metric="nrmse",
     ...     reduction_axis="global",
     ...     reduction_method="rms",
     ... )
-    >>> isinstance(score, float)
+    >>> isinstance(nrmse_score, float)
     True
+
+    Compute LSD over an explicit frequency band:
+
+    >>> lsd_values = hrtf_difference(
+    ...     reference,
+    ...     processed,
+    ...     metric="lsd",
+    ...     ear="both",
+    ...     frequency_bands=(700.0, 1800.0),
+    ...     reduction_axis="ears",
+    ... )
+    >>> lsd_values.shape
+    (793,)
     """
-    if isinstance(hrtfs, (list, tuple)):
-        compared_hrtfs = tuple(hrtfs)
-    else:
-        compared_hrtfs = (hrtfs,)
-    if len(compared_hrtfs) == 0:
-        raise ValueError("hrtfs must contain at least one HRTF")
+    metric_key = str(metric).strip().lower()
+    if metric_key not in {"rmse", "mae", "nrmse", "lsd"}:
+        raise ValueError("metric must be one of: rmse, mae, nrmse, lsd")
 
-    if not hasattr(hrtf_reference, "TF") or not hasattr(hrtf_reference, "Sources"):
-        raise ValueError("hrtf_reference must be an HRTF instance")
-    if hrtf_reference.TF.values is None:
-        raise ValueError("hrtf_reference TF data is not available")
-    if hrtf_reference.TF.frequency_bins is None:
-        raise ValueError("hrtf_reference TF frequency_bins are required")
-    for compared_index, hrtf in enumerate(compared_hrtfs):
-        if not hasattr(hrtf, "TF") or not hasattr(hrtf, "Sources"):
-            raise ValueError(f"hrtfs[{compared_index}] must be an HRTF instance")
-        if hrtf.TF.values is None:
-            raise ValueError(f"hrtfs[{compared_index}] TF data is not available")
-        if hrtf.TF.frequency_bins is None:
-            raise ValueError(f"hrtfs[{compared_index}] TF frequency_bins are required")
-
-    plane_key = str(plane).strip().lower()
-    if plane_key not in {"all", "horizontal", "median"}:
-        raise ValueError("plane must be one of: all, horizontal, median")
-
-    reduction_method_key = str(reduction_method).strip().lower()
-    if reduction_method_key not in {"mean", "rms"}:
-        raise ValueError("reduction_method must be one of: mean, rms")
-
-    global_reduction = False
-    if reduction_axis is None:
-        reduction_axes: tuple[str, ...] = ()
-    elif isinstance(reduction_axis, str):
-        reduction_axis_key = reduction_axis.strip().lower()
-        if reduction_axis_key in {"", "none"}:
-            reduction_axes = ()
-        elif reduction_axis_key == "global":
-            global_reduction = True
-            reduction_axes = ("lsds", "sources", "ears")
-        elif reduction_axis_key in {"lsd", "lsds"}:
-            reduction_axes = ("lsds",)
-        elif reduction_axis_key in {"source", "sources"}:
-            reduction_axes = ("sources",)
-        elif reduction_axis_key in {"ear", "ears"}:
-            reduction_axes = ("ears",)
-        else:
-            raise ValueError("reduction_axis must be lsds, sources, ears, global, a sequence of axes, or None")
-    elif isinstance(reduction_axis, tuple | list):
-        normalized_axes: list[str] = []
-        for axis in reduction_axis:
-            axis_key = str(axis).strip().lower()
-            if axis_key in {"", "none"}:
-                raise ValueError("reduction_axis='none' cannot be combined with other axes")
-            if axis_key == "global":
-                raise ValueError("reduction_axis='global' cannot be combined with other axes")
-            if axis_key in {"lsd", "lsds"}:
-                normalized_axis = "lsds"
-            elif axis_key in {"source", "sources"}:
-                normalized_axis = "sources"
-            elif axis_key in {"ear", "ears"}:
-                normalized_axis = "ears"
-            else:
-                raise ValueError("reduction_axis entries must be lsds, sources, or ears")
-            if normalized_axis not in normalized_axes:
-                normalized_axes.append(normalized_axis)
-        reduction_axes = tuple(normalized_axes)
-    else:
-        raise ValueError("reduction_axis must be a string, sequence of strings, or None")
+    if metric_key != "lsd" and (frequencies is not None or frequency_bands is not None):
+        raise ValueError("frequencies and frequency_bands are only supported when metric='lsd'")
+    if frequencies is not None and frequency_bands is not None:
+        raise ValueError("frequencies and frequency_bands are mutually exclusive")
 
     if isinstance(epsilon, bool):
         raise ValueError("epsilon must be a finite, positive value.")
@@ -1172,36 +1171,22 @@ def lsd(
     if not np.isfinite(epsilon) or epsilon <= 0.0:
         raise ValueError("epsilon must be a finite, positive value.")
 
-    reference_positions = np.asarray(hrtf_reference.Sources.get_positions(angle_unit="degrees"), dtype=float)
-    for compared_index, hrtf in enumerate(compared_hrtfs):
-        compared_positions = np.asarray(hrtf.Sources.get_positions(angle_unit="degrees"), dtype=float)
-        if reference_positions.shape != compared_positions.shape:
-            raise ValueError("HRTFs must have the same number of source positions")
-        if not np.allclose(reference_positions, compared_positions, atol=1e-8, rtol=0.0):
-            raise ValueError("HRTFs must share the same source positions for LSD")
+    if isinstance(hrtfs, (list, tuple)):
+        compared_hrtfs = tuple(hrtfs)
+    else:
+        compared_hrtfs = (hrtfs,)
+    if len(compared_hrtfs) == 0:
+        raise ValueError("hrtfs must contain at least one HRTF")
 
-    reference_tf = np.asarray(hrtf_reference.TF.values)
-    if reference_tf.ndim != 3:
-        raise ValueError("TF values must have shape (positions, ears, frequency_bins)")
-    if reference_tf.shape[0] != reference_positions.shape[0]:
-        raise ValueError("TF positions axis must match source positions count")
-    if reference_tf.shape[1] < 2:
-        raise ValueError("TF ear axis must contain at least two channels (0=left, 1=right)")
-
-    reference_frequency_bins = np.asarray(hrtf_reference.TF.frequency_bins, dtype=float).reshape(-1)
-    if reference_frequency_bins.size != reference_tf.shape[-1]:
-        raise ValueError("TF frequency axis length must match frequency_bins length")
+    if not hasattr(hrtf_reference, "Sources"):
+        raise ValueError("hrtf_reference must be an HRTF instance")
     for compared_index, hrtf in enumerate(compared_hrtfs):
-        compared_tf = np.asarray(hrtf.TF.values)
-        if compared_tf.ndim != 3:
-            raise ValueError("TF values must have shape (positions, ears, frequency_bins)")
-        if reference_tf.shape != compared_tf.shape:
-            raise ValueError("HRTFs must have matching TF shapes for LSD")
-        compared_frequency_bins = np.asarray(hrtf.TF.frequency_bins, dtype=float).reshape(-1)
-        if reference_frequency_bins.shape != compared_frequency_bins.shape:
-            raise ValueError("HRTFs must have matching TF frequency_bins")
-        if not np.allclose(reference_frequency_bins, compared_frequency_bins, atol=1e-8, rtol=0.0):
-            raise ValueError("HRTFs must share the same TF frequency_bins for LSD")
+        if not hasattr(hrtf, "Sources"):
+            raise ValueError(f"hrtfs[{compared_index}] must be an HRTF instance")
+
+    plane_key = str(plane).strip().lower()
+    if plane_key not in {"all", "horizontal", "median"}:
+        raise ValueError("plane must be one of: all, horizontal, median")
 
     ear_key = str(ear).strip().lower()
     if ear_key not in {"left", "right", "both"}:
@@ -1212,18 +1197,102 @@ def lsd(
         selected_ear_indices = np.array([1], dtype=int)
     else:
         selected_ear_indices = np.array([0, 1], dtype=int)
+
+    reduction_method_key = str(reduction_method).strip().lower()
+    if reduction_method_key not in {"mean", "rms"}:
+        raise ValueError("reduction_method must be one of: mean, rms")
+
+    difference_axis_aliases = {
+        "difference",
+        "differences",
+        "hrtf",
+        "hrtfs",
+        "comparison",
+        "comparisons",
+        "rmse",
+        "rmses",
+        "mae",
+        "maes",
+        "nrmse",
+        "nrmses",
+        "lsd",
+        "lsds",
+    }
+    global_reduction = False
+    if reduction_axis is None:
+        reduction_axes: tuple[str, ...] = ()
+    elif isinstance(reduction_axis, str):
+        reduction_axis_key = reduction_axis.strip().lower()
+        if reduction_axis_key in {"", "none"}:
+            reduction_axes = ()
+        elif reduction_axis_key == "global":
+            global_reduction = True
+            reduction_axes = ("differences", "sources", "ears")
+        elif reduction_axis_key in difference_axis_aliases:
+            reduction_axes = ("differences",)
+        elif reduction_axis_key in {"source", "sources"}:
+            reduction_axes = ("sources",)
+        elif reduction_axis_key in {"ear", "ears"}:
+            reduction_axes = ("ears",)
+        else:
+            raise ValueError(
+                "reduction_axis must be differences, sources, ears, global, "
+                "a sequence of axes, or None"
+            )
+    elif isinstance(reduction_axis, tuple | list):
+        normalized_axes: list[str] = []
+        for axis in reduction_axis:
+            axis_key = str(axis).strip().lower()
+            if axis_key in {"", "none"}:
+                raise ValueError("reduction_axis='none' cannot be combined with other axes")
+            if axis_key == "global":
+                raise ValueError("reduction_axis='global' cannot be combined with other axes")
+            if axis_key in difference_axis_aliases:
+                normalized_axis = "differences"
+            elif axis_key in {"source", "sources"}:
+                normalized_axis = "sources"
+            elif axis_key in {"ear", "ears"}:
+                normalized_axis = "ears"
+            else:
+                raise ValueError("reduction_axis entries must be differences, sources, or ears")
+            if normalized_axis not in normalized_axes:
+                normalized_axes.append(normalized_axis)
+        reduction_axes = tuple(normalized_axes)
+    else:
+        raise ValueError("reduction_axis must be a string, sequence of strings, or None")
+
     if "ears" in reduction_axes and ear_key != "both":
         if global_reduction:
             reduction_axes = tuple(axis for axis in reduction_axes if axis != "ears")
         else:
             raise ValueError("reduction axis 'ears' can only be used when ear='both'")
 
+    reference_positions = np.asarray(
+        hrtf_reference.Sources.get_positions(angle_unit="degrees"),
+        dtype=float,
+    )
+    for compared_index, hrtf in enumerate(compared_hrtfs):
+        compared_positions = np.asarray(
+            hrtf.Sources.get_positions(angle_unit="degrees"),
+            dtype=float,
+        )
+        if reference_positions.shape != compared_positions.shape:
+            raise ValueError("HRTFs must have the same number of source positions")
+        if not np.allclose(reference_positions, compared_positions, atol=1e-8, rtol=0.0):
+            raise ValueError("HRTFs must share the same source positions for HRTF difference metrics")
+
     if plane_key == "all":
         selected_positions = np.arange(reference_positions.shape[0], dtype=int)
     elif plane_key == "horizontal":
-        selected_positions, _ = get_horizontal_plane(hrtf=hrtf_reference, plane_angle=float(plane_angle))
+        selected_positions, _ = get_horizontal_plane(
+            hrtf=hrtf_reference,
+            plane_angle=float(plane_angle),
+        )
     else:
-        selected_positions, _ = get_median_plane(hrtf=hrtf_reference, plane_angle=float(plane_angle))
+        selected_positions, _ = get_median_plane(
+            hrtf=hrtf_reference,
+            plane_angle=float(plane_angle),
+        )
     selected_positions = np.asarray(selected_positions, dtype=int).reshape(-1)
     if selected_positions.size == 0:
         raise ValueError("Selected plane has no source positions")
@@ -1246,98 +1315,229 @@ def lsd(
         if selected_positions.size == 0:
             raise ValueError("No source positions matched the provided positions and plane filters")
 
-    if frequencies is not None and frequency_bands is not None:
-        raise ValueError("frequencies and frequency_bands are mutually exclusive")
-    if frequencies is None and frequency_bands is None:
-        selected_frequency_indices = np.where(
-            (reference_frequency_bins >= 20.0) & (reference_frequency_bins <= 20000.0)
-        )[0]
-        if selected_frequency_indices.size == 0:
-            raise ValueError("No frequency bins available in the default LSD range [20.0, 20000.0] Hz")
-    elif frequencies is not None:
-        raw_frequency_values = np.asarray(frequencies, dtype=object).reshape(-1)
-        if any(isinstance(value, bool | np.bool_) for value in raw_frequency_values.tolist()):
-            raise ValueError("frequencies must contain finite, non-negative value(s)")
-        try:
-            frequency_values = np.asarray(frequencies, dtype=float).reshape(-1)
-        except (TypeError, ValueError):
-            raise ValueError("frequencies must contain finite, non-negative value(s)") from None
-        if frequency_values.size == 0:
-            raise ValueError("frequencies must contain at least one value when provided")
-        if not np.all(np.isfinite(frequency_values)) or np.any(frequency_values < 0.0):
-            raise ValueError("frequencies must contain finite, non-negative value(s)")
-        nearest_frequency_indices = [
-            int(np.argmin(np.abs(reference_frequency_bins - float(target_frequency))))
-            for target_frequency in frequency_values
-        ]
-        selected_frequency_indices = np.asarray(tuple(dict.fromkeys(nearest_frequency_indices)), dtype=int)
-    else:
-        raw_bands = np.asarray(frequency_bands, dtype=object)
-        if any(isinstance(value, bool | np.bool_) for value in raw_bands.reshape(-1).tolist()):
-            raise ValueError("frequency_bands must contain finite, non-negative values")
-        try:
-            bands = np.asarray(frequency_bands, dtype=float)
-        except (TypeError, ValueError):
-            raise ValueError("frequency_bands must contain (minimum, maximum) pairs") from None
-        if bands.ndim == 1 and bands.size == 2:
-            bands = bands.reshape(1, 2)
-        if bands.ndim != 2 or bands.shape[0] == 0 or bands.shape[1] != 2:
-            raise ValueError("frequency_bands must contain (minimum, maximum) pairs")
-        if not np.all(np.isfinite(bands)) or np.any(bands < 0.0):
-            raise ValueError("frequency_bands must contain finite, non-negative values")
-        if np.any(bands[:, 0] > bands[:, 1]):
-            raise ValueError("frequency_bands minimum must not exceed maximum")
-        selected_mask = np.zeros(reference_frequency_bins.shape, dtype=bool)
-        for minimum, maximum in bands:
-            selected_mask |= (reference_frequency_bins >= float(minimum)) & (reference_frequency_bins <= float(maximum))
-        selected_frequency_indices = np.flatnonzero(selected_mask).astype(int)
-        if selected_frequency_indices.size == 0:
-            raise ValueError("frequency_bands selected no available TF bins")
+    if metric_key == "lsd":
+        if not hasattr(hrtf_reference, "TF"):
+            raise ValueError("hrtf_reference must be an HRTF instance")
+        if hrtf_reference.TF.values is None:
+            raise ValueError("hrtf_reference TF data is not available")
+        if hrtf_reference.TF.frequency_bins is None:
+            raise ValueError("hrtf_reference TF frequency_bins are required")
+        for compared_index, hrtf in enumerate(compared_hrtfs):
+            if not hasattr(hrtf, "TF"):
+                raise ValueError(f"hrtfs[{compared_index}] must be an HRTF instance")
+            if hrtf.TF.values is None:
+                raise ValueError(f"hrtfs[{compared_index}] TF data is not available")
+            if hrtf.TF.frequency_bins is None:
+                raise ValueError(f"hrtfs[{compared_index}] TF frequency_bins are required")
 
-    reference_slice = np.asarray(
-        reference_tf[np.ix_(selected_positions, selected_ear_indices, selected_frequency_indices)],
-        dtype=complex,
-    )
-    reference_db = magnitude_to_db(np.maximum(np.abs(reference_slice), epsilon))
-    lsd_arrays: list[np.ndarray] = []
-    for hrtf in compared_hrtfs:
-        compared_tf = np.asarray(hrtf.TF.values)
-        compared_slice = np.asarray(
-            compared_tf[np.ix_(selected_positions, selected_ear_indices, selected_frequency_indices)],
+        reference_tf = np.asarray(hrtf_reference.TF.values)
+        if reference_tf.ndim != 3:
+            raise ValueError("TF values must have shape (positions, ears, frequency_bins)")
+        if reference_tf.shape[0] != reference_positions.shape[0]:
+            raise ValueError("TF positions axis must match source positions count")
+        if reference_tf.shape[1] < 2:
+            raise ValueError("TF ear axis must contain at least two channels (0=left, 1=right)")
+        reference_frequency_bins = np.asarray(hrtf_reference.TF.frequency_bins, dtype=float).reshape(-1)
+        if reference_frequency_bins.size != reference_tf.shape[-1]:
+            raise ValueError("TF frequency axis length must match frequency_bins length")
+        for compared_index, hrtf in enumerate(compared_hrtfs):
+            compared_tf = np.asarray(hrtf.TF.values)
+            if compared_tf.ndim != 3:
+                raise ValueError("TF values must have shape (positions, ears, frequency_bins)")
+            if reference_tf.shape != compared_tf.shape:
+                raise ValueError("HRTFs must have matching TF shapes for LSD")
+            compared_frequency_bins = np.asarray(hrtf.TF.frequency_bins, dtype=float).reshape(-1)
+            if reference_frequency_bins.shape != compared_frequency_bins.shape:
+                raise ValueError("HRTFs must have matching TF frequency_bins")
+            if not np.allclose(reference_frequency_bins, compared_frequency_bins, atol=1e-8, rtol=0.0):
+                raise ValueError("HRTFs must share the same TF frequency_bins for LSD")
+
+        if frequencies is None and frequency_bands is None:
+            selected_frequency_indices = np.where(
+                (reference_frequency_bins >= 20.0) & (reference_frequency_bins <= 20000.0)
+            )[0]
+            if selected_frequency_indices.size == 0:
+                raise ValueError("No frequency bins available in the default LSD range [20.0, 20000.0] Hz")
+        elif frequencies is not None:
+            raw_frequency_values = np.asarray(frequencies, dtype=object).reshape(-1)
+            if any(isinstance(value, bool | np.bool_) for value in raw_frequency_values.tolist()):
+                raise ValueError("frequencies must contain finite, non-negative value(s)")
+            try:
+                frequency_values = np.asarray(frequencies, dtype=float).reshape(-1)
+            except (TypeError, ValueError):
+                raise ValueError("frequencies must contain finite, non-negative value(s)") from None
+            if frequency_values.size == 0:
+                raise ValueError("frequencies must contain at least one value when provided")
+            if not np.all(np.isfinite(frequency_values)) or np.any(frequency_values < 0.0):
+                raise ValueError("frequencies must contain finite, non-negative value(s)")
+            nearest_frequency_indices = [
+                int(np.argmin(np.abs(reference_frequency_bins - float(target_frequency))))
+                for target_frequency in frequency_values
+            ]
+            selected_frequency_indices = np.asarray(tuple(dict.fromkeys(nearest_frequency_indices)), dtype=int)
+        else:
+            raw_bands = np.asarray(frequency_bands, dtype=object)
+            if any(isinstance(value, bool | np.bool_) for value in raw_bands.reshape(-1).tolist()):
+                raise ValueError("frequency_bands must contain finite, non-negative values")
+            try:
+                bands = np.asarray(frequency_bands, dtype=float)
+            except (TypeError, ValueError):
+                raise ValueError("frequency_bands must contain (minimum, maximum) pairs") from None
+            if bands.ndim == 1 and bands.size == 2:
+                bands = bands.reshape(1, 2)
+            if bands.ndim != 2 or bands.shape[0] == 0 or bands.shape[1] != 2:
+                raise ValueError("frequency_bands must contain (minimum, maximum) pairs")
+            if not np.all(np.isfinite(bands)) or np.any(bands < 0.0):
+                raise ValueError("frequency_bands must contain finite, non-negative values")
+            if np.any(bands[:, 0] > bands[:, 1]):
+                raise ValueError("frequency_bands minimum must not exceed maximum")
+            selected_mask = np.zeros(reference_frequency_bins.shape, dtype=bool)
+            for minimum, maximum in bands:
+                selected_mask |= (reference_frequency_bins >= float(minimum)) & (
+                    reference_frequency_bins <= float(maximum)
+                )
+            selected_frequency_indices = np.flatnonzero(selected_mask).astype(int)
+            if selected_frequency_indices.size == 0:
+                raise ValueError("frequency_bands selected no available TF bins")
+
+        reference_slice = np.asarray(
+            reference_tf[np.ix_(selected_positions, selected_ear_indices, selected_frequency_indices)],
             dtype=complex,
         )
-        if reference_slice.shape != compared_slice.shape:
-            raise ValueError("Selected TF slices must have matching shapes")
-        compared_db = magnitude_to_db(np.maximum(np.abs(compared_slice), epsilon))
-        difference_db = reference_db - compared_db
-        lsd_values = np.sqrt(np.mean(np.square(difference_db), axis=-1))
-        if ear_key != "both":
-            lsd_values = np.squeeze(lsd_values, axis=1)
-        lsd_arrays.append(np.asarray(lsd_values, dtype=float))
-
-    lsd_output = np.stack(lsd_arrays, axis=0)
-    if len(reduction_axes) == 0:
-        if len(compared_hrtfs) == 1:
-            return np.asarray(lsd_output[0])
-        return np.asarray(lsd_output)
-
-    selected_axes: list[int] = []
-    for reduction_axis_key in reduction_axes:
-        if reduction_axis_key == "lsds":
-            selected_axes.append(0)
-        elif reduction_axis_key == "sources":
-            selected_axes.append(1)
-        elif reduction_axis_key == "ears":
+        reference_db = magnitude_to_db(np.maximum(np.abs(reference_slice), epsilon))
+        difference_arrays: list[np.ndarray] = []
+        for hrtf in compared_hrtfs:
+            compared_tf = np.asarray(hrtf.TF.values)
+            compared_slice = np.asarray(
+                compared_tf[np.ix_(selected_positions, selected_ear_indices, selected_frequency_indices)],
+                dtype=complex,
+            )
+            if reference_slice.shape != compared_slice.shape:
+                raise ValueError("Selected TF slices must have matching shapes")
+            compared_db = magnitude_to_db(np.maximum(np.abs(compared_slice), epsilon))
+            difference_db = reference_db - compared_db
+            difference_values = np.sqrt(np.mean(np.square(difference_db), axis=-1))
             if ear_key != "both":
-                raise ValueError("reduction axis 'ears' can only be used when ear='both'")
-            selected_axes.append(lsd_output.ndim - 1)
-    selected_axes_tuple = tuple(dict.fromkeys(selected_axes))
-    if reduction_method_key == "mean":
-        reduced_values = np.asarray(np.mean(lsd_output, axis=selected_axes_tuple))
+                difference_values = np.squeeze(difference_values, axis=1)
+            difference_arrays.append(np.asarray(difference_values, dtype=float))
     else:
-        reduced_values = np.asarray(np.sqrt(np.mean(np.square(lsd_output), axis=selected_axes_tuple)))
-    if len(compared_hrtfs) == 1 and reduced_values.ndim > 0 and reduced_values.shape[0] == 1:
-        reduced_values = np.squeeze(reduced_values, axis=0)
-    if reduced_values.ndim == 0:
-        return float(reduced_values)
-    return np.asarray(reduced_values)
+        if not hasattr(hrtf_reference, "IR"):
+            raise ValueError("hrtf_reference must be an HRTF instance")
+        if hrtf_reference.IR.values is None:
+            raise ValueError("hrtf_reference IR data is not available")
+        if hrtf_reference.IR.sample_rate is None:
+            raise ValueError("hrtf_reference IR sample_rate is required")
+
+        reference_sample_rate = hrtf_reference.IR.sample_rate
+        if isinstance(reference_sample_rate, bool):
+            raise ValueError("hrtf_reference IR sample_rate must be a finite, positive value")
+        try:
+            reference_sample_rate = float(reference_sample_rate)
+        except (TypeError, ValueError):
+            raise ValueError("hrtf_reference IR sample_rate must be a finite, positive value") from None
+        if not np.isfinite(reference_sample_rate) or reference_sample_rate <= 0.0:
+            raise ValueError("hrtf_reference IR sample_rate must be a finite, positive value")
+
+        for compared_index, hrtf in enumerate(compared_hrtfs):
+            if not hasattr(hrtf, "IR"):
+                raise ValueError(f"hrtfs[{compared_index}] must be an HRTF instance")
+            if hrtf.IR.values is None:
+                raise ValueError(f"hrtfs[{compared_index}] IR data is not available")
+            if hrtf.IR.sample_rate is None:
+                raise ValueError(f"hrtfs[{compared_index}] IR sample_rate is required")
+            compared_sample_rate = hrtf.IR.sample_rate
+            if isinstance(compared_sample_rate, bool):
+                raise ValueError(
+                    f"hrtfs[{compared_index}] IR sample_rate must be a finite, positive value"
+                )
+            try:
+                compared_sample_rate = float(compared_sample_rate)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"hrtfs[{compared_index}] IR sample_rate must be a finite, positive value"
+                ) from None
+            if not np.isfinite(compared_sample_rate) or compared_sample_rate <= 0.0:
+                raise ValueError(
+                    f"hrtfs[{compared_index}] IR sample_rate must be a finite, positive value"
+                )
+            if not np.isclose(reference_sample_rate, compared_sample_rate, atol=1e-12, rtol=0.0):
+                raise ValueError("HRTFs must share the same IR sample_rate for HRTF difference metrics")
+
+        reference_ir = np.asarray(hrtf_reference.IR.values, dtype=float)
+        if reference_ir.ndim != 3:
+            raise ValueError("IR values must have shape (positions, ears, samples)")
+        if reference_ir.shape[0] != reference_positions.shape[0]:
+            raise ValueError("IR positions axis must match source positions count")
+        if reference_ir.shape[1] < 2:
+            raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
+        if reference_ir.shape[-1] < 1:
+            raise ValueError("IR sample axis must contain at least one sample")
+
+        for compared_index, hrtf in enumerate(compared_hrtfs):
+            compared_ir = np.asarray(hrtf.IR.values, dtype=float)
+            if compared_ir.ndim != 3:
+                raise ValueError("IR values must have shape (positions, ears, samples)")
+            if reference_ir.shape != compared_ir.shape:
+                raise ValueError("HRTFs must have matching IR shapes for HRTF difference metrics")
+
+        sample_indices = np.arange(reference_ir.shape[-1], dtype=int)
+        reference_slice = np.asarray(
+            reference_ir[np.ix_(selected_positions, selected_ear_indices, sample_indices)],
+            dtype=float,
+        )
+        difference_arrays = []
+        for hrtf in compared_hrtfs:
+            compared_ir = np.asarray(hrtf.IR.values, dtype=float)
+            compared_slice = np.asarray(
+                compared_ir[np.ix_(selected_positions, selected_ear_indices, sample_indices)],
+                dtype=float,
+            )
+            if reference_slice.shape != compared_slice.shape:
+                raise ValueError("Selected IR slices must have matching shapes")
+            error_values = compared_slice - reference_slice
+            if metric_key == "rmse":
+                difference_values = np.sqrt(np.mean(np.square(error_values), axis=-1))
+            elif metric_key == "mae":
+                difference_values = np.mean(np.abs(error_values), axis=-1)
+            else:
+                error_energy = np.sum(np.square(error_values), axis=-1)
+                reference_energy = np.sum(np.square(reference_slice), axis=-1)
+                difference_values = np.sqrt(error_energy / np.maximum(reference_energy, epsilon))
+            if ear_key != "both":
+                difference_values = np.squeeze(difference_values, axis=1)
+            difference_arrays.append(np.asarray(difference_values, dtype=float))
+
+    difference_output = np.stack(difference_arrays, axis=0)
+    if len(reduction_axes) == 0:
+        result_values = difference_output[0] if len(compared_hrtfs) == 1 else difference_output
+    else:
+        selected_axes: list[int] = []
+        for reduction_axis_key in reduction_axes:
+            if reduction_axis_key == "differences":
+                selected_axes.append(0)
+            elif reduction_axis_key == "sources":
+                selected_axes.append(1)
+            elif reduction_axis_key == "ears":
+                if ear_key != "both":
+                    raise ValueError("reduction axis 'ears' can only be used when ear='both'")
+                selected_axes.append(difference_output.ndim - 1)
+        selected_axes_tuple = tuple(dict.fromkeys(selected_axes))
+        if reduction_method_key == "mean":
+            result_values = np.asarray(np.mean(difference_output, axis=selected_axes_tuple))
+        else:
+            result_values = np.asarray(
+                np.sqrt(np.mean(np.square(difference_output), axis=selected_axes_tuple))
+            )
+        if (
+            "differences" not in reduction_axes
+            and len(compared_hrtfs) == 1
+            and result_values.ndim > 0
+            and result_values.shape[0] == 1
+        ):
+            result_values = np.squeeze(result_values, axis=0)
+
+    if metric_key == "nrmse":
+        result_values = magnitude_to_db(np.maximum(result_values, epsilon))
+    if result_values.ndim == 0:
+        return float(result_values)
+    return np.asarray(result_values)

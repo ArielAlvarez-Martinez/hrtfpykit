@@ -335,9 +335,10 @@ class DatasetSampleValueSelector:
         KeyError
             If subject_id cannot be loaded through the dataset HRTF path index.
         ValueError
-            If a transformed HRTF changes the position axis in a way that prevents
-            applying the original spec position selection, or if the row ear is not
-            allowed by spec.ears.
+            If the spec domain or signal is unsupported, if a transformed HRTF
+            changes the position axis in a way that prevents applying the
+            original spec position selection, or if the row ear is not allowed
+            by spec.ears.
         IndexError
             If row position, ear, frequency, or sample indices are outside the
             selected array shape.
@@ -359,6 +360,24 @@ class DatasetSampleValueSelector:
         spec_ears = sanitize_ears(spec.ears)
         domain = str(spec.domain).strip().lower()
         signal = str(spec.signal).strip().lower()
+        if domain not in {"time", "frequency"}:
+            raise ValueError("HRTFSpec domain must be one of: time, frequency")
+        if domain == "time" and signal != "ir":
+            raise ValueError("HRTFSpec signal must be ir when domain is time")
+        frequency_signals = {
+            "tf_complex",
+            "tf_real",
+            "tf_imag",
+            "tf_magnitude",
+            "tf_magnitude_db",
+            "tf_phase",
+        }
+        if domain == "frequency" and signal not in frequency_signals:
+            raise ValueError(
+                "HRTFSpec signal must be one of: "
+                "tf_complex, tf_real, tf_imag, tf_magnitude, "
+                "tf_magnitude_db, tf_phase when domain is frequency"
+            )
         state = dataset._state
         hrtf = dataset.get_subject_hrtf(subject_id)
         transformed_hrtf = None
@@ -389,7 +408,11 @@ class DatasetSampleValueSelector:
             elif signal == "tf_phase":
                 values = phase(tf_values)
             else:
-                values = tf_values
+                raise ValueError(
+                    "HRTFSpec signal must be one of: "
+                    "tf_complex, tf_real, tf_imag, tf_magnitude, "
+                    "tf_magnitude_db, tf_phase when domain is frequency"
+                )
 
         axis_names = ["position", "ear", sample_axis_name]
         selected_position_indices = state.spec_position_indices.get(id(spec), state.selected_position_indices)

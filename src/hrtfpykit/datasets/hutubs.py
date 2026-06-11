@@ -39,7 +39,10 @@ class HUTUBS(BaseDataset):
         split: str = "all",
         split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
         split_seed: int = 0,
-        verbose: bool = False,
+        preload_hrtfs: bool = False,
+        check_sofa_against_conventions: bool = False,
+        sofa_open: bool = False,
+        verbose: bool = True,
     ) -> None:
         """
         :class:`~hrtfpykit.datasets.HUTUBS` resolves the local HUTUBS resources
@@ -158,9 +161,22 @@ class HUTUBS(BaseDataset):
             Train, validation, and test split ratios.
         split_seed : int, default=0
             Random seed used for deterministic split assignment.
-        verbose : bool, default=False
-            If True, prints resource and dataset summaries. Download summaries
-            print whenever files are downloaded.
+        preload_hrtfs : bool, default=False
+            If True, load and cache selected subject HRTFs during construction.
+            If False, HRTFs load on first access and stay cached until
+            :meth:`~hrtfpykit.datasets.base.BaseDataset.clear_cache` is called.
+        check_sofa_against_conventions : bool, default=False
+            Whether dataset HRTF loading runs SOFA convention checks before
+            reading files. False keeps normal dataset construction quiet for
+            files with accepted custom SOFA fields.
+        sofa_open : bool, default=False
+            Whether HRTFs loaded by the dataset keep their backing SOFA netCDF
+            datasets open. False closes the handle after arrays and source
+            positions are loaded.
+        verbose : bool, default=True
+            If True, prints the download summary when ``download=True``, then
+            prints resource and dataset summaries after construction. If False,
+            these summaries are not printed.
 
         Returns
         -------
@@ -228,7 +244,7 @@ class HUTUBS(BaseDataset):
                 )
             downloader_class = TUBerlinDownload if selected_download_server == "tu-berlin" else SOFAcousticsDownload
             hrtf_download_variant = download_hrtf_variant
-            downloaded, download_report = downloader_class(
+            _, download_report = downloader_class(
                 config=config,
                 root=root,
                 subject_ids=download_subject_ids,
@@ -240,7 +256,7 @@ class HUTUBS(BaseDataset):
                 download_hrtf_variant=hrtf_download_variant,
                 download_mesh_variant=None,
             )
-            if downloaded or verbose:
+            if verbose:
                 print(download_report)
         super().__init__(
             root=root,
@@ -255,6 +271,9 @@ class HUTUBS(BaseDataset):
             split=split,
             split_ratio=split_ratio,
             split_seed=split_seed,
+            preload_hrtfs=preload_hrtfs,
+            check_sofa_against_conventions=check_sofa_against_conventions,
+            sofa_open=sofa_open,
             verbose=verbose,
         )
         self._state.anthropometry_value_selector = self._select_anthropometry_value

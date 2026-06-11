@@ -177,10 +177,11 @@ class HRTFTransform:
         window_name: str,
         start_sample: int | None = None,
         end_sample: int | None = None,
+        ear: str = "both",
     ) -> Callable[[object], object]:
         """Create a callable that applies a named window to each subject HRIR.
 
-        The returned callable forwards window_name and optional sample bounds to
+        The returned callable forwards window_name, sample bounds, and ear to
         :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_window`. The transform
         operates on time-domain IR values, applies the window along the selected
         interval of the final sample axis, and refreshes the TF representation
@@ -197,18 +198,14 @@ class HRTFTransform:
         end_sample : int or None, default=None
             First sample after the windowed interval. None uses the full IR
             length.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the window.
 
         Returns
         -------
         callable
             Dataset-level transform callable accepting and returning an
             :class:`~hrtfpykit.hrtf.HRTF` object.
-
-        Notes
-        -----
-        Windowing is useful when dataset samples should suppress late HRIR samples
-        or enforce a consistent time-domain taper before frequency-domain features
-        are computed. Samples outside the selected interval are not changed.
 
         Examples
         --------
@@ -219,6 +216,7 @@ class HRTFTransform:
         ...     "hann",
         ...     start_sample=0,
         ...     end_sample=128,
+        ...     ear="left",
         ... )
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -231,6 +229,62 @@ class HRTFTransform:
             window_name,
             start_sample=start_sample,
             end_sample=end_sample,
+            ear=ear,
+        )
+
+    @staticmethod
+    def apply_crop(
+        start_sample: int | None = None,
+        end_sample: int | None = None,
+        window: str | None = None,
+        ear: str = "both",
+    ) -> Callable[[object], object]:
+        """Create a callable that crops each subject HRIR.
+
+        The returned callable forwards start_sample, end_sample, window, and
+        ear to :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_crop`. The
+        transform removes the selected IR sample interval, shifts later samples
+        left, appends zeros to preserve the original IR length, and rebuilds TF
+        values before dataset specs read acoustic data.
+
+        Parameters
+        ----------
+        start_sample : int or None, default=None
+            First sample removed from each impulse response. None starts at
+            sample 0.
+        end_sample : int or None, default=None
+            First sample after the removed interval. This value is required.
+            The interval is Python-style and excludes ``end_sample``.
+        window : str or None, default=None
+            Optional window name used to taper the final retained samples before
+            the trailing zero padding. None skips tapering.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the crop.
+
+        Returns
+        -------
+        callable
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.HRTF` object.
+
+        Examples
+        --------
+        >>> from hrtfpykit.datasets import HUTUBS
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
+        >>> transform = HRTFTransform.apply_crop(64, 128, window="hann", ear="left")
+        >>> dataset = HUTUBS(
+        ...     root="datasets/hutubs",
+        ...     inputs=HRTFSpec(),
+        ...     dataset_hrtf_transform=transform,
+        ... )
+        """
+        return HRTFTransform.build(
+            "apply_crop",
+            start_sample=start_sample,
+            end_sample=end_sample,
+            window=window,
+            ear=ear,
         )
 
     @staticmethod
@@ -238,13 +292,16 @@ class HRTFTransform:
         padding_length: int,
         location: str = "end",
         value: float = 0,
+        preserve_length: bool = False,
+        ear: str = "both",
     ) -> Callable[[object], object]:
         """Create a callable that pads each subject HRIR.
 
-        The returned callable forwards padding_length, location, and value to
-        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_padding`. The transform
-        pads the final IR sample axis and rebuilds TF values with the active FFT
-        length before sample extraction.
+        The returned callable forwards padding_length, location, value,
+        preserve_length, and ear to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_padding`. The
+        transform pads the final IR sample axis and rebuilds TF values with the
+        active FFT length before sample extraction.
 
         Parameters
         ----------
@@ -253,7 +310,12 @@ class HRTFTransform:
         location : {``start``, ``end``}, default=``end``
             Side of the IR sample axis where padding is applied.
         value : float, default=0
-            Constant value used in the padded region.
+            Constant value used in the selected padded region.
+        preserve_length : bool, default=False
+            If True, only start padding is accepted and the transformed HRIR
+            keeps its original sample length.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the requested padding.
 
         Returns
         -------
@@ -261,18 +323,17 @@ class HRTFTransform:
             Dataset-level transform callable accepting and returning an
             :class:`~hrtfpykit.hrtf.HRTF` object.
 
-        Notes
-        -----
-        Padding changes the time-domain sample count available to sample-indexed
-        specs and can also change derived frequency-domain values after TF
-        resynchronization.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
         >>> from hrtfpykit.datasets import HRTFSpec
         >>> from hrtfpykit.datasets import HRTFTransform
-        >>> transform = HRTFTransform.apply_padding(16, location="end", value=0.0)
+        >>> transform = HRTFTransform.apply_padding(
+        ...     16,
+        ...     location="start",
+        ...     preserve_length=True,
+        ...     ear="left",
+        ... )
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
         ...     inputs=HRTFSpec(),
@@ -284,6 +345,8 @@ class HRTFTransform:
             padding_length,
             location=location,
             value=value,
+            preserve_length=preserve_length,
+            ear=ear,
         )
 
     @staticmethod
@@ -374,13 +437,14 @@ class HRTFTransform:
         cutoff: float | tuple[float, float] | None = None,
         num_taps: int = 101,
         window: str | None = None,
+        ear: str = "both",
     ) -> Callable[[object], object]:
         """Create a callable that applies FIR filtering to each subject HRIR.
 
-        The returned callable forwards filter, cutoff, num_taps, and window to
-        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_fir_filter`. Filtering is
-        performed in the time domain, then TF values are rebuilt before specs read
-        the loaded subject.
+        The returned callable forwards filter, cutoff, num_taps, window, and
+        ear to :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_fir_filter`.
+        Filtering is performed in the time domain, then TF values are rebuilt
+        before specs read the loaded subject.
 
         Parameters
         ----------
@@ -393,17 +457,14 @@ class HRTFTransform:
             FIR tap count used to design the filter.
         window : str | None, default=None
             Optional FIR design window.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the FIR filter.
 
         Returns
         -------
         callable
             Dataset-level transform callable accepting and returning an
             :class:`~hrtfpykit.hrtf.HRTF` object.
-
-        Notes
-        -----
-        FIR filtering is appropriate when a reproducible linear-phase preprocessing
-        step should be applied uniformly across all subjects selected by a dataset.
 
         Examples
         --------
@@ -414,6 +475,7 @@ class HRTFTransform:
         ...     "lowpass",
         ...     cutoff=8000.0,
         ...     num_taps=101,
+        ...     ear="right",
         ... )
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -427,6 +489,7 @@ class HRTFTransform:
             cutoff=cutoff,
             num_taps=num_taps,
             window=window,
+            ear=ear,
         )
 
     @staticmethod
@@ -434,13 +497,14 @@ class HRTFTransform:
         filter: str,
         cutoff: float | tuple[float, float] | None = None,
         order: int = 10,
+        ear: str = "both",
     ) -> Callable[[object], object]:
         """Create a callable that applies IIR filtering to each subject HRIR.
 
-        The returned callable forwards filter, cutoff, and order to
-        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_iir_filter`. Filtering is
-        performed in the time domain, then TF values are rebuilt before specs read
-        the loaded subject.
+        The returned callable forwards filter, cutoff, order, and ear to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_iir_filter`.
+        Filtering is performed in the time domain, then TF values are rebuilt
+        before specs read the loaded subject.
 
         Parameters
         ----------
@@ -451,17 +515,14 @@ class HRTFTransform:
             Cutoff frequency or frequency pair in hertz.
         order : int, default=10
             Butterworth filter order.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the IIR filter.
 
         Returns
         -------
         callable
             Dataset-level transform callable accepting and returning an
             :class:`~hrtfpykit.hrtf.HRTF` object.
-
-        Notes
-        -----
-        IIR filtering is useful when compact Butterworth-style preprocessing is more
-        important than linear-phase behavior.
 
         Examples
         --------
@@ -472,6 +533,7 @@ class HRTFTransform:
         ...     "highpass",
         ...     cutoff=200.0,
         ...     order=4,
+        ...     ear="left",
         ... )
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
@@ -484,6 +546,7 @@ class HRTFTransform:
             filter,
             cutoff=cutoff,
             order=order,
+            ear=ear,
         )
 
     @staticmethod
@@ -842,12 +905,13 @@ class HRTFTransform:
     def apply_gain(
         gain: float | np.ndarray,
         scale: str = "db",
+        ear: str = "both",
     ) -> Callable[[object], object]:
         """Create a callable that applies TF-domain gain to each subject.
 
-        The returned callable forwards gain and scale to
-        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_gain`. Gain modifies TF
-        magnitude while preserving phase, then IR values are rebuilt from the
+        The returned callable forwards gain, scale, and ear to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.apply_gain`. Gain modifies
+        TF magnitude while preserving phase, then IR values are rebuilt from the
         adjusted TF.
 
         Parameters
@@ -856,6 +920,8 @@ class HRTFTransform:
             Scalar or broadcast-compatible gain applied to each loaded HRTF.
         scale : {``db``, ``linear``}, default=``db``
             Scale used to interpret gain.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the gain.
 
         Returns
         -------
@@ -863,17 +929,12 @@ class HRTFTransform:
             Dataset-level transform callable accepting and returning an
             :class:`~hrtfpykit.hrtf.HRTF` object.
 
-        Notes
-        -----
-        Scalar gains apply to every source, ear, and frequency bin. Array gains must
-        be broadcast-compatible with each loaded subject's TF layout.
-
         Examples
         --------
         >>> from hrtfpykit.datasets import HUTUBS
         >>> from hrtfpykit.datasets import HRTFSpec
         >>> from hrtfpykit.datasets import HRTFTransform
-        >>> transform = HRTFTransform.apply_gain(3.0, scale="db")
+        >>> transform = HRTFTransform.apply_gain(3.0, scale="db", ear="left")
         >>> dataset = HUTUBS(
         ...     root="datasets/hutubs",
         ...     inputs=HRTFSpec(),
@@ -884,6 +945,102 @@ class HRTFTransform:
             "apply_gain",
             gain,
             scale=scale,
+            ear=ear,
+        )
+
+    @staticmethod
+    def add_ild(
+        ild: float | np.ndarray,
+    ) -> Callable[[object], object]:
+        """Create a callable that adds ILD to each subject HRTF.
+
+        The returned callable forwards ild to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.add_ild`. Positive ILD values
+        increase the left ear level relative to the right ear. Negative values
+        increase the right ear level relative to the left ear. The transform
+        applies symmetric TF-domain gains and rebuilds IR values from the
+        modified TF.
+
+        Parameters
+        ----------
+        ild : float | np.ndarray
+            ILD values in dB. A scalar applies the same ILD to every source and
+            frequency bin. An array matching each loaded subject's TF leading
+            shape applies one ILD per source entry. An array matching the TF
+            leading shape plus the frequency axis applies frequency-dependent
+            ILD values.
+
+        Returns
+        -------
+        callable
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.HRTF` object.
+
+        Notes
+        -----
+        The underlying transform requires two ear channels and TF data. Array
+        ILD inputs must match each loaded subject's source and frequency layout.
+
+        Examples
+        --------
+        >>> from hrtfpykit.datasets import HUTUBS
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
+        >>> transform = HRTFTransform.add_ild(6.0)
+        >>> dataset = HUTUBS(
+        ...     root="datasets/hutubs",
+        ...     inputs=HRTFSpec(),
+        ...     dataset_hrtf_transform=transform,
+        ... )
+        """
+        return HRTFTransform.build(
+            "add_ild",
+            ild,
+        )
+
+    @staticmethod
+    def delete_ild(
+        epsilon: float = 1e-12,
+    ) -> Callable[[object], object]:
+        """Create a callable that removes frequency-dependent ILD from each subject.
+
+        The returned callable forwards epsilon to
+        :meth:`~hrtfpykit.hrtf.transforms.Transform.delete_ild`. The transform
+        measures signed frequency-dependent ILD, applies the inverse symmetric
+        left/right TF-domain gain correction, and rebuilds IR values from the
+        modified TF.
+
+        Parameters
+        ----------
+        epsilon : float, default=1e-12
+            Positive floor used while measuring frequency-dependent ILD.
+
+        Returns
+        -------
+        callable
+            Dataset-level transform callable accepting and returning an
+            :class:`~hrtfpykit.hrtf.HRTF` object.
+
+        Notes
+        -----
+        The underlying transform requires two ear channels and TF data. The ILD
+        correction is frequency-dependent for each loaded subject.
+
+        Examples
+        --------
+        >>> from hrtfpykit.datasets import HUTUBS
+        >>> from hrtfpykit.datasets import HRTFSpec
+        >>> from hrtfpykit.datasets import HRTFTransform
+        >>> transform = HRTFTransform.delete_ild()
+        >>> dataset = HUTUBS(
+        ...     root="datasets/hutubs",
+        ...     inputs=HRTFSpec(),
+        ...     dataset_hrtf_transform=transform,
+        ... )
+        """
+        return HRTFTransform.build(
+            "delete_ild",
+            epsilon=epsilon,
         )
 
     @staticmethod

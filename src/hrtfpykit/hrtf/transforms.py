@@ -4,6 +4,7 @@ import numpy as np
 from typing import TYPE_CHECKING
 
 from ..utils.dsp import (
+    crop,
     downsampling,
     fir_filter,
     iir_filter,
@@ -17,12 +18,19 @@ from ..utils.dsp import (
     upsampling,
     window,
 )
-from ..utils.metrics import itd
+from ..utils.metrics import ild, itd
 from .domain import IR, TF
 from ..utils.directivity import ctf_from_hrtf, dtf_from_hrtf
 
 if TYPE_CHECKING:
     from .hrtf import HRTF
+
+
+def normalize_ear(ear: str) -> str:
+    ear_key = str(ear).strip().lower()
+    if ear_key not in {"both", "left", "right"}:
+        raise ValueError("ear must be one of: both, left, right")
+    return ear_key
 
 
 class Transform:
@@ -71,15 +79,15 @@ class Transform:
         window_name: str,
         start_sample: int | None = None,
         end_sample: int | None = None,
+        ear: str = "both",
     ) -> "HRTF":
         """Apply a time-domain window to IR values and rebuild TF.
 
         The window is applied along the final IR sample axis. By default, it
-        spans the complete HRIR. ``start_sample`` and ``end_sample`` restrict
-        the window to one interval while samples outside that interval remain
-        unchanged. The returned HRTF keeps the original source and ear layout,
-        stores the windowed IR, and recomputes the frequency-domain
-        representation with the current fft_length.
+        spans the complete HRIR and applies to both ears. ``start_sample`` and
+        ``end_sample`` restrict the window to one interval while samples outside
+        that interval remain unchanged. ``ear`` selects whether the window is
+        applied to both ears, only the left ear, or only the right ear.
 
         Parameters
         ----------
@@ -92,6 +100,9 @@ class Transform:
         end_sample : int or None, default=None
             First sample after the windowed interval. None uses the full IR
             length.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the window. ``left`` uses channel 0 and
+            ``right`` uses channel 1.
 
         Returns
         -------
@@ -101,12 +112,12 @@ class Transform:
         Raises
         ------
         ValueError
-            If IR data are unavailable, the requested window is unsupported, or
-            the requested sample interval is invalid.
+            If IR data are unavailable, ear is invalid, the requested window is
+            unsupported, or the requested sample interval is invalid.
 
         Examples
         --------
-        Apply a Hann window to the HRIR samples and keep the source and ear
+        Apply a Hann window to the left-ear HRIR samples and keep the source
         layout unchanged:
 
         >>> from hrtfpykit.hrtf import load_hrtf
@@ -115,6 +126,7 @@ class Transform:
         ...     "hann",
         ...     start_sample=0,
         ...     end_sample=128,
+        ...     ear="left",
         ... )
         >>> windowed.IR.values.shape
         (793, 2, 256)
@@ -123,12 +135,133 @@ class Transform:
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        ir.values = window(
+        ear_key = normalize_ear(ear)
+        if ear_key == "both":
+            ir.values = window(
+                ir,
+                window_name,
+                start_sample=start_sample,
+                end_sample=end_sample,
+            )
+        else:
+            ir_values = ir.values
+            if ir_values is None:
+                raise ValueError("IR data is not available")
+            if not isinstance(ir_values, np.ndarray):
+                raise ValueError("IR data must be a NumPy array")
+            if ir_values.ndim < 2:
+                raise ValueError("IR data must include ear and time axes")
+            if ir_values.shape[-2] < 2:
+                raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
+            ear_index = 0 if ear_key == "left" else 1
+            windowed_values = np.array(ir_values, copy=True)
+            windowed_values[..., ear_index, :] = window(
+                windowed_values[..., ear_index, :],
+                window_name,
+                start_sample=start_sample,
+                end_sample=end_sample,
+            )
+            ir.values = windowed_values
+        tf_from_ir(
             ir,
-            window_name,
-            start_sample=start_sample,
-            end_sample=end_sample,
+            fft_length=transformed_hrtf.fft_length,
         )
+        transformed_hrtf._transformed = True
+        return transformed_hrtf
+
+    def apply_crop(
+        self,
+        start_sample: int | None = None,
+        end_sample: int | None = None,
+        window: str | None = None,
+        ear: str = "both",
+    ) -> "HRTF":
+        """Remove an IR sample interval, append zero padding, and rebuild TF.
+
+        The crop operates on the final IR sample axis. ``start_sample`` is
+        included and ``end_sample`` is excluded, matching Python slicing and
+        :meth:`apply_window`. Samples after the removed interval are shifted
+        left, then zeros are appended at the end so the IR sample length stays
+        unchanged. When window is not None, the final retained samples adjacent
+        to the zero-padded tail are tapered with the named window before TF is
+        recomputed. ``ear`` selects whether the crop is applied to both ears,
+        only the left ear, or only the right ear.
+
+        Parameters
+        ----------
+        start_sample : int or None, default=None
+            First sample removed from each impulse response. None starts at
+            sample 0.
+        end_sample : int or None, default=None
+            First sample after the removed interval. This value is required.
+            For example, ``start_sample=4`` and ``end_sample=8`` removes
+            samples 4, 5, 6, and 7. ``start_sample=None`` and
+            ``end_sample=4`` removes samples 0, 1, 2, and 3.
+        window : str or None, default=None
+            Optional window name used to taper the final retained samples before
+            the trailing zero padding. Supported names match
+            :meth:`apply_window`. None skips tapering.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the crop. ``left`` uses channel 0 and
+            ``right`` uses channel 1.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with cropped and zero-padded IR values and
+            refreshed TF data.
+
+        Raises
+        ------
+        ValueError
+            If IR data are unavailable, ear is invalid, the crop interval is
+            invalid, or window is not None and the requested window name is
+            unsupported.
+
+        Examples
+        --------
+        Remove samples 64 through 127 from the left-ear HRIRs and keep the
+        original IR length by appending zeros:
+
+        >>> from hrtfpykit.hrtf import load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> cropped = hrtf.transform.apply_crop(64, 128, window="hann", ear="left")
+        >>> cropped.IR.values.shape
+        (793, 2, 256)
+        >>> cropped.TF.values.shape
+        (793, 2, 129)
+        >>> cropped.is_transformed()
+        True
+        """
+        transformed_hrtf = self._hrtf.clone()
+        ir = transformed_hrtf.IR
+        ear_key = normalize_ear(ear)
+        if ear_key == "both":
+            ir.values = crop(
+                ir,
+                start_sample=start_sample,
+                end_sample=end_sample,
+                window=window,
+            )
+        else:
+            ir_values = ir.values
+            if ir_values is None:
+                raise ValueError("IR data is not available")
+            if not isinstance(ir_values, np.ndarray):
+                raise ValueError("IR data must be a NumPy array")
+            if ir_values.ndim < 2:
+                raise ValueError("IR data must include ear and time axes")
+            if ir_values.shape[-2] < 2:
+                raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
+            ear_index = 0 if ear_key == "left" else 1
+            cropped_values = np.array(ir_values, copy=True)
+            cropped_values[..., ear_index, :] = crop(
+                cropped_values[..., ear_index, :],
+                start_sample=start_sample,
+                end_sample=end_sample,
+                window=window,
+            )
+            ir.values = cropped_values
         tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
@@ -141,12 +274,18 @@ class Transform:
         padding_length: int,
         location: str = "end",
         value: float = 0,
+        preserve_length: bool = False,
+        ear: str = "both",
     ) -> "HRTF":
         """Pad IR values along the sample axis and rebuild TF.
 
         Padding is applied to the final IR axis while preserving source and ear
-        layout. The frequency-domain representation is recomputed from the
-        padded IR in the returned HRTF.
+        layout. By default, padding applies to both ears and the sample axis
+        grows by padding_length. ``ear`` can target one ear. For start padding
+        without length preservation, the selected ear is shifted right and
+        unselected ears are extended with trailing zeros so their timing stays
+        unchanged. ``preserve_length=True`` applies start padding and removes
+        the same number of samples from the end.
 
         Parameters
         ----------
@@ -155,7 +294,13 @@ class Transform:
         location : {``start``, ``end``}, default=``end``
             Side where the padding is applied.
         value : float, default=0
-            Constant value used in the padded region.
+            Constant value used in the selected padded region.
+        preserve_length : bool, default=False
+            If True, only start padding is accepted and the returned IR keeps
+            the original sample length.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the requested padding. ``left`` uses
+            channel 0 and ``right`` uses channel 1.
 
         Returns
         -------
@@ -165,32 +310,87 @@ class Transform:
         Raises
         ------
         ValueError
-            If IR data are unavailable, padding length is invalid, or
-            location is not supported.
+            If IR data are unavailable, padding length is invalid, location or
+            ear is not supported, or preserve_length=True is used with end
+            padding.
 
         Examples
         --------
-        Append silent samples to every HRIR and rebuild the frequency-domain
-        representation from the padded signals:
+        Delay the left-ear HRIR by prepending zeros while keeping the original
+        IR sample count:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> hrtf.IR.values.shape
         (793, 2, 256)
-        >>> padded = hrtf.transform.apply_padding(32, location="end")
+        >>> padded = hrtf.transform.apply_padding(
+        ...     4,
+        ...     location="start",
+        ...     preserve_length=True,
+        ...     ear="left",
+        ... )
         >>> padded.IR.values.shape
-        (793, 2, 288)
+        (793, 2, 256)
         >>> padded.TF.values.shape
         (793, 2, 129)
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        ir.values = padding(
-            ir,
-            padding_length=padding_length,
-            location=location,
-            value=value,
-        )
+        ear_key = normalize_ear(ear)
+        location_key = str(location).strip().lower()
+        if location_key not in {"start", "end"}:
+            raise ValueError("Padding location must be 'start' or 'end'")
+        if preserve_length and location_key != "start":
+            raise ValueError("preserve_length=True is only supported with start padding")
+        if ear_key == "both":
+            ir.values = padding(
+                ir,
+                padding_length=padding_length,
+                location=location_key,
+                value=value,
+                preserve_length=preserve_length,
+            )
+        else:
+            ir_values = ir.values
+            if ir_values is None:
+                raise ValueError("IR data is not available")
+            if not isinstance(ir_values, np.ndarray):
+                raise ValueError("IR data must be a NumPy array")
+            if ir_values.ndim < 2:
+                raise ValueError("IR data must include ear and time axes")
+            if ir_values.shape[-2] < 2:
+                raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
+            if isinstance(padding_length, bool) or not isinstance(padding_length, int):
+                raise ValueError("Padding must be an integer")
+            if padding_length < 0:
+                raise ValueError("Padding must be non-negative")
+
+            ear_index = 0 if ear_key == "left" else 1
+            if preserve_length:
+                padded_values = np.array(ir_values, copy=True)
+                padded_values[..., ear_index, :] = padding(
+                    padded_values[..., ear_index, :],
+                    padding_length=padding_length,
+                    location=location_key,
+                    value=value,
+                    preserve_length=True,
+                )
+            else:
+                sample_count = ir_values.shape[-1]
+                channel_count = ir_values.shape[-2]
+                padded_values = np.zeros(
+                    ir_values.shape[:-1] + (sample_count + padding_length,),
+                    dtype=ir_values.dtype,
+                )
+                for channel_index in range(channel_count):
+                    if channel_index == ear_index and location_key == "start":
+                        padded_values[..., channel_index, :padding_length] = value
+                        padded_values[..., channel_index, padding_length:] = ir_values[..., channel_index, :]
+                    else:
+                        padded_values[..., channel_index, :sample_count] = ir_values[..., channel_index, :]
+                        if channel_index == ear_index:
+                            padded_values[..., channel_index, sample_count:] = value
+            ir.values = padded_values
         tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
@@ -324,12 +524,14 @@ class Transform:
         cutoff: float | tuple[float, float] | None = None,
         num_taps: int = 101,
         window: str | None = None,
+        ear: str = "both",
     ) -> "HRTF":
         """Apply FIR filtering to IR values and rebuild TF.
 
         Filtering is performed in the time domain along the final IR sample
-        axis. The returned object stores the filtered IR and recomputes the TF
-        representation from it.
+        axis. By default, both ears are filtered. ``ear`` can restrict the
+        filtering to the left or right channel while the other channel remains
+        unchanged.
 
         Parameters
         ----------
@@ -342,6 +544,9 @@ class Transform:
             FIR filter length.
         window : str | None, default=None
             Optional FIR design window.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the filter. ``left`` uses channel 0 and
+            ``right`` uses channel 1.
 
         Returns
         -------
@@ -352,13 +557,12 @@ class Transform:
         ------
         ValueError
             If IR data or sample-rate metadata are unavailable, filter
-            arguments are invalid, or cutoff values are incompatible with the
-            sample rate.
+            arguments are invalid, ear is invalid, or cutoff values are
+            incompatible with the sample rate.
 
         Examples
         --------
-        Low-pass filter the HRIRs with an FIR design and use the returned HRTF
-        for subsequent metric or plotting workflows:
+        Low-pass filter the left-ear HRIRs with an FIR design:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
@@ -366,6 +570,7 @@ class Transform:
         ...     filter="lowpass",
         ...     cutoff=3000.0,
         ...     num_taps=31,
+        ...     ear="left",
         ... )
         >>> filtered.IR.values.shape
         (793, 2, 256)
@@ -374,14 +579,37 @@ class Transform:
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        ir.values = fir_filter(
-            ir,
-            filter=filter,
-            sample_rate=ir.sample_rate,
-            cutoff=cutoff,
-            num_taps=num_taps,
-            window=window,
-        )
+        ear_key = normalize_ear(ear)
+        if ear_key == "both":
+            ir.values = fir_filter(
+                ir,
+                filter=filter,
+                sample_rate=ir.sample_rate,
+                cutoff=cutoff,
+                num_taps=num_taps,
+                window=window,
+            )
+        else:
+            ir_values = ir.values
+            if ir_values is None:
+                raise ValueError("IR data is not available")
+            if not isinstance(ir_values, np.ndarray):
+                raise ValueError("IR data must be a NumPy array")
+            if ir_values.ndim < 2:
+                raise ValueError("IR data must include ear and time axes")
+            if ir_values.shape[-2] < 2:
+                raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
+            ear_index = 0 if ear_key == "left" else 1
+            filtered_values = np.array(ir_values, copy=True)
+            filtered_values[..., ear_index, :] = fir_filter(
+                filtered_values[..., ear_index, :],
+                filter=filter,
+                sample_rate=ir.sample_rate,
+                cutoff=cutoff,
+                num_taps=num_taps,
+                window=window,
+            )
+            ir.values = filtered_values
         tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
@@ -394,12 +622,14 @@ class Transform:
         filter: str,
         cutoff: float | tuple[float, float] | None = None,
         order: int = 10,
+        ear: str = "both",
     ) -> "HRTF":
         """Apply IIR filtering to IR values and rebuild TF.
 
         Filtering is performed in the time domain along the final IR sample
-        axis. The returned object stores the filtered IR and recomputes the TF
-        representation from it.
+        axis. By default, both ears are filtered. ``ear`` can restrict the
+        filtering to the left or right channel while the other channel remains
+        unchanged.
 
         Parameters
         ----------
@@ -410,6 +640,9 @@ class Transform:
             Cutoff frequency or frequency pair in Hz.
         order : int, default=10
             Butterworth filter order.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the filter. ``left`` uses channel 0 and
+            ``right`` uses channel 1.
 
         Returns
         -------
@@ -420,13 +653,12 @@ class Transform:
         ------
         ValueError
             If IR data or sample-rate metadata are unavailable, filter
-            arguments are invalid, or cutoff values are incompatible with the
-            sample rate.
+            arguments are invalid, ear is invalid, or cutoff values are
+            incompatible with the sample rate.
 
         Examples
         --------
-        Apply a Butterworth low-pass filter to the HRIRs and keep the derived
-        transfer functions available on the returned object:
+        Apply a Butterworth low-pass filter to the right-ear HRIRs:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
@@ -434,6 +666,7 @@ class Transform:
         ...     filter="lowpass",
         ...     cutoff=3000.0,
         ...     order=4,
+        ...     ear="right",
         ... )
         >>> filtered.IR.values.shape
         (793, 2, 256)
@@ -442,13 +675,35 @@ class Transform:
         """
         transformed_hrtf = self._hrtf.clone()
         ir = transformed_hrtf.IR
-        ir.values = iir_filter(
-            ir,
-            filter=filter,
-            sample_rate=ir.sample_rate,
-            cutoff=cutoff,
-            order=order,
-        )
+        ear_key = normalize_ear(ear)
+        if ear_key == "both":
+            ir.values = iir_filter(
+                ir,
+                filter=filter,
+                sample_rate=ir.sample_rate,
+                cutoff=cutoff,
+                order=order,
+            )
+        else:
+            ir_values = ir.values
+            if ir_values is None:
+                raise ValueError("IR data is not available")
+            if not isinstance(ir_values, np.ndarray):
+                raise ValueError("IR data must be a NumPy array")
+            if ir_values.ndim < 2:
+                raise ValueError("IR data must include ear and time axes")
+            if ir_values.shape[-2] < 2:
+                raise ValueError("IR ear axis must contain at least two channels (0=left, 1=right)")
+            ear_index = 0 if ear_key == "left" else 1
+            filtered_values = np.array(ir_values, copy=True)
+            filtered_values[..., ear_index, :] = iir_filter(
+                filtered_values[..., ear_index, :],
+                filter=filter,
+                sample_rate=ir.sample_rate,
+                cutoff=cutoff,
+                order=order,
+            )
+            ir.values = filtered_values
         tf_from_ir(
             ir,
             fft_length=transformed_hrtf.fft_length,
@@ -1011,23 +1266,26 @@ class Transform:
         self,
         gain: float | np.ndarray,
         scale: str = "db",
+        ear: str = "both",
     ) -> "HRTF":
         """Apply a TF-domain gain and rebuild IR.
 
         Gain modifies TF magnitude while preserving phase. Scalar gains apply
-        globally; array gains can target sources, ears, or frequency bins when
-        they are broadcast-compatible with :attr:`TF.values <hrtfpykit.hrtf.domain.TF.values>`.
+        globally by default. ``ear`` can restrict the gain to the left or right
+        channel while the other channel remains unchanged. Array gains must be
+        broadcast-compatible with the selected TF layout.
 
         Parameters
         ----------
         gain : float | np.ndarray
-            Gain applied to the current TF magnitude while preserving phase.
-            Scalar gains affect every source, ear, and bin equally. Array
-            gains must be broadcast-compatible with the current TF shape. In
+            Gain applied to the current TF magnitude while preserving phase. In
             scale=``db``, negative values attenuate and positive values
             amplify.
         scale : {``linear``, ``db``}, default=``db``
             Scale used by gain.
+        ear : {``both``, ``left``, ``right``}, default=``both``
+            Ear channel that receives the gain. ``left`` uses channel 0 and
+            ``right`` uses channel 1.
 
         Returns
         -------
@@ -1038,32 +1296,52 @@ class Transform:
         Raises
         ------
         ValueError
-            If TF data or frequency bins are unavailable, scale is invalid,
-            or gain cannot be broadcast to the current TF layout.
+            If TF data are unavailable, scale or ear is invalid, or gain cannot
+            be broadcast to the selected TF layout.
 
         Examples
         --------
-        Apply a broadband attenuation in dB to all source positions and ears:
+        Apply a broadband gain in dB to the left ear:
 
         >>> from hrtfpykit.hrtf import load_hrtf
         >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
         >>> round(float(hrtf.TF.magnitude[0, 0, 1]), 6)
         0.209696
-        >>> quieter = hrtf.transform.apply_gain(-3.0, scale="db")
-        >>> round(float(quieter.TF.magnitude[0, 0, 1]), 6)
-        0.148454
-        >>> quieter.TF.values.shape
+        >>> louder_left = hrtf.transform.apply_gain(3.0, scale="db", ear="left")
+        >>> round(float(louder_left.TF.magnitude[0, 0, 1]), 6)
+        0.296294
+        >>> louder_left.TF.values.shape
         (793, 2, 129)
-        >>> quieter.is_transformed()
+        >>> louder_left.is_transformed()
         True
         """
         transformed_hrtf = self._hrtf.clone()
         tf = transformed_hrtf.TF
-        tf.values = tf_gain(
-            tf,
-            gain=gain,
-            scale=scale,
-        )
+        ear_key = normalize_ear(ear)
+        if ear_key == "both":
+            tf.values = tf_gain(
+                tf,
+                gain=gain,
+                scale=scale,
+            )
+        else:
+            tf_values = tf.values
+            if tf_values is None:
+                raise ValueError("TF data is not available")
+            if not isinstance(tf_values, np.ndarray):
+                raise ValueError("TF data must be a NumPy array")
+            if tf_values.ndim < 2:
+                raise ValueError("TF data must include ear and frequency axes")
+            if tf_values.shape[-2] < 2:
+                raise ValueError("TF ear axis must contain at least two channels (0=left, 1=right)")
+            ear_index = 0 if ear_key == "left" else 1
+            gain_values = np.array(tf_values, copy=True)
+            gain_values[..., ear_index, :] = tf_gain(
+                gain_values[..., ear_index, :],
+                gain=gain,
+                scale=scale,
+            )
+            tf.values = gain_values
         ir_from_tf(
             tf,
             frequency_bins=tf.frequency_bins,
@@ -1358,3 +1636,164 @@ class Transform:
         )
         transformed_hrtf._transformed = True
         return transformed_hrtf
+
+    def add_ild(
+        self,
+        ild: float | np.ndarray,
+    ) -> "HRTF":
+        """Add an interaural level difference in dB and rebuild IR.
+
+        Positive values increase the left ear level relative to the right ear.
+        Negative values increase the right ear level relative to the left ear.
+        The transform applies a symmetric TF-domain correction: half of the ILD
+        is added to the left channel and half is subtracted from the right
+        channel. Existing phase values are preserved and the time-domain IR is
+        rebuilt from the modified TF.
+
+        Parameters
+        ----------
+        ild : float | numpy.ndarray
+            ILD values in dB. A scalar applies the same ILD to every source and
+            frequency bin. An array matching the TF leading shape before the ear
+            and frequency axes applies one ILD per source entry and broadcasts
+            across frequency. An array matching the TF leading shape plus the
+            frequency axis applies frequency-dependent ILD values.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with ILD-modified TF values and rebuilt IR data.
+
+        Raises
+        ------
+        ValueError
+            If TF data are unavailable or do not contain at least two ear
+            channels, if ILD values are empty or non-finite, or if an ILD array
+            shape does not match the accepted source or source and frequency
+            layouts.
+
+        Examples
+        --------
+        Add 6 dB of ILD to every source position and frequency bin:
+
+        >>> from hrtfpykit.hrtf import ild, load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> modified = hrtf.transform.add_ild(6.0)
+        >>> ild(modified, mode="frequency-dependent").shape
+        (793, 129)
+        >>> modified.IR.values.shape
+        (793, 2, 256)
+        >>> modified.is_transformed()
+        True
+        """
+        transformed_hrtf = self._hrtf.clone()
+        tf = transformed_hrtf.TF
+        tf_values = tf.values
+        if tf_values is None:
+            raise ValueError("TF data is not available")
+        if not isinstance(tf_values, np.ndarray):
+            raise ValueError("TF data must be a NumPy array")
+        if tf_values.size == 0:
+            raise ValueError("TF data must be non-empty")
+        if tf_values.ndim < 2:
+            raise ValueError("TF data must include ear and frequency axes")
+        if tf_values.shape[-2] < 2:
+            raise ValueError("TF ear axis must contain at least two channels (0=left, 1=right)")
+
+        if isinstance(ild, bool):
+            raise ValueError("ild must contain finite dB value(s)")
+        ild_values = np.asarray(ild, dtype=float)
+        if ild_values.size == 0:
+            raise ValueError("ild must contain at least one value")
+        if not np.all(np.isfinite(ild_values)):
+            raise ValueError("ild must contain finite dB value(s)")
+
+        leading_shape = tf_values.shape[:-2]
+        frequency_count = tf_values.shape[-1]
+        frequency_shape = leading_shape + (frequency_count,)
+        if ild_values.ndim == 0:
+            ild_pattern = np.full(
+                frequency_shape,
+                float(ild_values.item()),
+                dtype=float,
+            )
+        elif ild_values.shape == leading_shape:
+            ild_pattern = np.broadcast_to(
+                ild_values[..., np.newaxis],
+                frequency_shape,
+            )
+        elif ild_values.shape == frequency_shape:
+            ild_pattern = ild_values
+        else:
+            raise ValueError(
+                "ild array shape must be scalar, TF leading shape "
+                f"{leading_shape}, or TF leading shape plus frequency bins "
+                f"{frequency_shape}; got {ild_values.shape}"
+            )
+
+        gain_values = np.zeros(tf_values.shape, dtype=float)
+        gain_values[..., 0, :] = ild_pattern / 2.0
+        gain_values[..., 1, :] = -ild_pattern / 2.0
+        tf.values = tf_gain(
+            tf,
+            gain=gain_values,
+            scale="db",
+        )
+        ir_from_tf(
+            tf,
+            frequency_bins=tf.frequency_bins,
+            mesh2hrtf_compatible=transformed_hrtf.mesh2hrtf_compatible,
+            n_shift=transformed_hrtf.mesh2hrtf_n_shift,
+        )
+        transformed_hrtf._transformed = True
+        return transformed_hrtf
+
+    def delete_ild(
+        self,
+        epsilon: float = 1e-12,
+    ) -> "HRTF":
+        """Remove frequency-dependent interaural level difference and rebuild IR.
+
+        The transform computes signed frequency-dependent ILD from the current
+        TF values, then applies the inverse ILD with :meth:`add_ild`. This
+        equalizes the first two ear channels at each source position and
+        frequency bin while preserving TF phase.
+
+        Parameters
+        ----------
+        epsilon : float, default=1e-12
+            Positive floor passed to :func:`hrtfpykit.hrtf.ild` while measuring
+            the current frequency-dependent ILD.
+
+        Returns
+        -------
+        HRTF
+            A new HRTF instance with frequency-dependent ILD removed from TF
+            values and rebuilt IR data.
+
+        Raises
+        ------
+        ValueError
+            If TF data are unavailable, if TF data do not contain at least two
+            ear channels, or if epsilon is not finite and positive.
+
+        Examples
+        --------
+        Remove frequency-dependent ILD before inspecting phase-focused data:
+
+        >>> from hrtfpykit.hrtf import ild, load_hrtf
+        >>> hrtf = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
+        >>> no_ild = hrtf.transform.delete_ild()
+        >>> ild(no_ild, mode="frequency-dependent").shape
+        (793, 129)
+        >>> no_ild.TF.values.shape
+        (793, 2, 129)
+        >>> no_ild.is_transformed()
+        True
+        """
+        current_ild = ild(
+            self._hrtf,
+            mode="frequency-dependent",
+            epsilon=epsilon,
+        )
+        return self.add_ild(-current_ild)

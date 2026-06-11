@@ -121,7 +121,6 @@ def ctf_from_hrtf(
 
     source_count = int(tf_values.shape[0])
     tiny = np.finfo(float).tiny
-    selected_indices = sources._selected_indices
 
     if not isinstance(weights, bool):
         raise ValueError("weights must be a boolean")
@@ -232,13 +231,8 @@ def ctf_from_hrtf(
     )
 
     if ctf_hrtf.Sofa is not None:
-        if selected_indices is None:
-            ctf_hrtf.Sources._selected_indices = np.array([0], dtype=int)
-        else:
-            ctf_hrtf.Sources._selected_indices = np.array(
-                [int(np.asarray(selected_indices, dtype=int)[0])],
-                dtype=int,
-            )
+        ctf_hrtf.Sources.positions = np.zeros((1, 3), dtype=float)
+        ctf_hrtf.Sources._selected_indices = None
 
     return ctf_hrtf
 

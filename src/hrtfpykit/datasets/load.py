@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from ..hrtf.hrtf import HRTF
 
 
-def load_hrtf(
+def load_dataset_hrtf(
     dataset: "BaseDataset",
     subject_id: str | int,
     subject_ids: tuple[str, ...] | None = None,
@@ -47,7 +47,8 @@ def load_hrtf(
     dataset : :class:`~hrtfpykit.datasets.base.BaseDataset`
         Dataset instance whose internal
         :class:`~hrtfpykit.datasets.state.DatasetState` contains configuration,
-        resource paths, transform settings, verbosity, and cache objects.
+        resource paths, transform settings, SOFA loading options, verbosity,
+        and cache objects.
     subject_id : str or int
         Subject reference to map and load. Strings can be canonical dataset
         subject IDs or supported subject aliases; integers are one-based subject
@@ -81,7 +82,9 @@ def load_hrtf(
 
     Notes
     -----
-    When dataset._state.verbose is false, stdout emitted by
+    Dataset state controls whether SOFA convention checks run and whether
+    loaded HRTFs keep their backing SOFA netCDF datasets open. When
+    dataset._state.verbose is false, stdout emitted by
     :func:`~hrtfpykit.hrtf.load_hrtf` is captured so dataset indexing stays quiet.
     Missing files emit a warning before :class:`FileNotFoundError` is raised.
 
@@ -117,10 +120,18 @@ def load_hrtf(
     if loaded_hrtf is None:
         try:
             if state.verbose:
-                loaded_hrtf = hrtf.load_hrtf(path)
+                loaded_hrtf = hrtf.load_hrtf(
+                    path,
+                    check_sofa_against_conventions=state.check_sofa_against_conventions,
+                    sofa_open=state.sofa_open,
+                )
             else:
                 with redirect_stdout(io.StringIO()):
-                    loaded_hrtf = hrtf.load_hrtf(path)
+                    loaded_hrtf = hrtf.load_hrtf(
+                        path,
+                        check_sofa_against_conventions=state.check_sofa_against_conventions,
+                        sofa_open=state.sofa_open,
+                    )
             if state.dataset_hrtf_transform is not None:
                 loaded_hrtf = state.dataset_hrtf_transform(loaded_hrtf)
                 if not (

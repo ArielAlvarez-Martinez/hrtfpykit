@@ -61,6 +61,15 @@ class DatasetState:
     dataset_hrtf_transform : callable or None
         Optional transform applied after loading each subject HRTF through dataset
         loading utilities.
+    preload_hrtfs : bool
+        Whether selected subject HRTFs should be loaded into the dataset cache
+        during construction after rows are built.
+    check_sofa_against_conventions : bool
+        Whether dataset HRTF loading should run SOFA convention checks before
+        reading files.
+    sofa_open : bool
+        Whether HRTFs loaded by the dataset should keep their backing SOFA
+        netCDF datasets open.
     requested_subjects : tuple of str or None
         Canonical subject IDs selected as the construction scope before explicit
         exclusions are applied. None uses the full configured subject list.
@@ -197,6 +206,9 @@ class DatasetState:
     name: str = ""
     root: Path = field(default_factory=Path)
     dataset_hrtf_transform: Callable[[object], object] | None = None
+    preload_hrtfs: bool = False
+    check_sofa_against_conventions: bool = False
+    sofa_open: bool = False
     requested_subjects: tuple[str, ...] | None = None
     excluded_subjects: tuple[str, ...] = ()
     dataset_hrtf_variant: str | dict[str, object] | None = None

@@ -173,6 +173,30 @@ class DatasetSpecWorkflow:
         )
         ear_selectable_specs = cast(tuple[Any, ...], get_specs(specs, ear_selectable=True))
 
+        for spec in specs:
+            if not isinstance(spec, HRTFSpec):
+                continue
+            domain = str(spec.domain).strip().lower()
+            if domain not in {"time", "frequency"}:
+                raise ValueError("HRTFSpec domain must be one of: time, frequency")
+            signal = str(spec.signal).strip().lower()
+            if domain == "time" and signal != "ir":
+                raise ValueError("HRTFSpec signal must be ir when domain is time")
+            frequency_signals = {
+                "tf_complex",
+                "tf_real",
+                "tf_imag",
+                "tf_magnitude",
+                "tf_magnitude_db",
+                "tf_phase",
+            }
+            if domain == "frequency" and signal not in frequency_signals:
+                raise ValueError(
+                    "HRTFSpec signal must be one of: "
+                    "tf_complex, tf_real, tf_imag, tf_magnitude, "
+                    "tf_magnitude_db, tf_phase when domain is frequency"
+                )
+
         for descriptor in SPEC_DESCRIPTORS:
             if not descriptor.path_based:
                 continue

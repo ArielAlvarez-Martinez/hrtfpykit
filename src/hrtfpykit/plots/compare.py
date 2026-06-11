@@ -30,7 +30,7 @@ from .types import Heatmap
 from ..utils.warnings import HRTFPyKitWarning, warn_user
 from ..utils.coordinates import get_position_queries, get_source_positions
 from ..utils.dsp import magnitude_to_db
-from ..utils.metrics import ild, ild_difference, itd, itd_difference, lsd
+from ..utils.metrics import hrtf_difference, ild, ild_difference, itd, itd_difference
 from ..utils.planes import get_horizontal_plane
 from .polar import create_horizontal_plane_curve
 
@@ -2499,9 +2499,10 @@ def compare_lsd(
     """Plot log-spectral distortion across source positions.
 
     The function compares ``hrtf_reference`` with one HRTF or several HRTFs
-    using :func:`~hrtfpykit.hrtf.lsd`. The metric computes log-spectral
-    distance in decibels over the selected frequency bins or frequency bands,
-    then returns one LSD value per source and selected ear. This plot reduces
+    using :func:`~hrtfpykit.hrtf.hrtf_difference` with ``metric="lsd"``.
+    The metric computes log-spectral distance in decibels over the selected
+    frequency bins or frequency bands, then returns one LSD value per source
+    and selected ear. This plot reduces
     the compared-HRTF axis with ``reduction_method``. For ``ear="both"``, it
     also reduces the ear axis so each source position is represented by one
     color value.
@@ -2530,17 +2531,17 @@ def compare_lsd(
         ``hrtf_reference``. Several compared HRTFs are reduced into one source
         map with ``reduction_method``.
     ear : {``left``, ``right``, ``both``}, default=``left``
-        Ear channel selection passed to :func:`~hrtfpykit.hrtf.lsd`.
+        Ear channel selection passed to :func:`~hrtfpykit.hrtf.hrtf_difference`.
         ``both`` computes both ears and reduces the ear axis before plotting.
     frequencies : float, sequence of float, numpy.ndarray, or None, default=None
-        Frequency selector in hertz passed to :func:`~hrtfpykit.hrtf.lsd`.
+        Frequency selector in hertz passed to :func:`~hrtfpykit.hrtf.hrtf_difference`.
         Each requested value is mapped to the nearest available TF bin.
     frequency_bands : pair, sequence of pairs, numpy.ndarray, or None, default=None
         Inclusive frequency band or bands in hertz passed to
-        :func:`~hrtfpykit.hrtf.lsd`.
+        :func:`~hrtfpykit.hrtf.hrtf_difference`.
     epsilon : float, default=1e-12
-        Positive floor passed to :func:`~hrtfpykit.hrtf.lsd` before dB
-        conversion.
+        Positive floor passed to :func:`~hrtfpykit.hrtf.hrtf_difference` before
+        dB conversion.
     reduction_method : {``mean``, ``rms``}, default=``mean``
         Method used to reduce compared HRTFs and, for ``ear="both"``, ears.
     azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
@@ -2593,9 +2594,10 @@ def compare_lsd(
     else:
         reduction_axis = "lsds"
     lsd_values = np.asarray(
-        lsd(
+        hrtf_difference(
             hrtf_reference=hrtf_reference,
             hrtfs=hrtfs,
+            metric="lsd",
             ear=ear_key,
             plane="all",
             frequencies=frequencies,

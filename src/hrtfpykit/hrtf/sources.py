@@ -26,12 +26,11 @@ class Sources:
         """Manage source positions, coordinate systems, and spatial selections.
 
         :class:`~hrtfpykit.hrtf.sources.Sources` is the source-position
-        manager used by :class:`~hrtfpykit.hrtf.HRTF`. It reads SOFA
-        ``SourcePosition`` values and their ``SourcePosition:Type`` and
-        ``SourcePosition:Units`` attributes from the owning
-        :class:`~hrtfpykit.hrtf.HRTF` object, converts positions on
-        demand, and resolves source-grid queries used by selection, metrics,
-        spherical harmonics, and plotting utilities.
+        manager used by :class:`~hrtfpykit.hrtf.HRTF`. It stores an
+        in-memory copy of SOFA ``SourcePosition`` values and their
+        ``SourcePosition:Type`` and ``SourcePosition:Units`` attributes,
+        converts positions on demand, and resolves source-grid queries used
+        by selection, metrics, spherical harmonics, and plotting utilities.
 
         The manager stores the target coordinate system in
         :attr:`~hrtfpykit.hrtf.sources.Sources.source_coordinate_system`.
@@ -40,8 +39,8 @@ class Sources:
         methods expose positions; it does not rewrite the stored SOFA
         ``SourcePosition`` array by itself. Spatial subsets created
         through :meth:`~hrtfpykit.hrtf.HRTF.select` are also respected, so
-        returned arrays and matched indices refer to the current HRTF view rather than
-        necessarily to every source in the original SOFA file.
+        returned arrays and matched indices refer to the current HRTF view
+        rather than necessarily to every source in the original SOFA file.
 
         Notes
         -----
@@ -62,10 +61,9 @@ class Sources:
         ----------
         hrtf : :class:`~hrtfpykit.hrtf.HRTF` | None, default=None
             Owning HRTF instance. Most user code obtains this object from
-            :attr:`~hrtfpykit.hrtf.HRTF.Sources`. A usable manager
-            requires an HRTF with a loaded
-            :class:`~hrtfpykit.sofa.SOFA` object containing
-            ``SourcePosition`` metadata.
+            :attr:`~hrtfpykit.hrtf.HRTF.Sources`. When provided, the HRTF
+            must have a loaded :class:`~hrtfpykit.sofa.SOFA` object
+            containing ``SourcePosition`` metadata.
 
         Attributes
         ----------
@@ -87,13 +85,34 @@ class Sources:
         (793, 3)
         """
         self._hrtf = hrtf
-        if self._hrtf is None or self._hrtf.Sofa is None:
-            raise ValueError("Sources requires an HRTF with a loaded SOFA dataset")
-        self.source_coordinate_system = cast(
-            Any,
-            cast(Any, self._hrtf.Sofa.VariableAttributes).get("SourcePosition:Type"),
-        ).value
+        self.positions: np.ndarray | None = None
+        self.position_coordinate_system: str | None = None
+        self.position_units: str | None = None
+        self.source_coordinate_system: str | None = None
         self._selected_indices: np.ndarray | None = None
+        if self._hrtf is not None and self._hrtf.Sofa is not None:
+            if self._hrtf.Sofa.Variables is None or self._hrtf.Sofa.VariableAttributes is None:
+                raise ValueError("SOFA dataset is not loaded")
+            self.positions = np.asarray(
+                cast(
+                    Any,
+                    cast(Any, self._hrtf.Sofa.Variables).get("SourcePosition"),
+                ).value,
+                dtype=float,
+            )
+            self.position_coordinate_system = str(
+                cast(
+                    Any,
+                    cast(Any, self._hrtf.Sofa.VariableAttributes).get("SourcePosition:Type"),
+                ).value
+            )
+            self.position_units = str(
+                cast(
+                    Any,
+                    cast(Any, self._hrtf.Sofa.VariableAttributes).get("SourcePosition:Units"),
+                ).value
+            )
+            self.source_coordinate_system = self.position_coordinate_system
 
     def get_positions(
         self,
@@ -104,12 +123,12 @@ class Sources:
     ) -> np.ndarray:
         """Return the current source grid in the requested coordinate system.
 
-        Positions are read from the owning :class:`~hrtfpykit.hrtf.HRTF`
-        object's SOFA ``SourcePosition`` variable each time this method is
-        called. The SOFA coordinate system is taken from ``SourcePosition:Type``
-        and converted on read. By default, positions are returned in spherical
-        coordinates. If the owning HRTF has been spatially selected, only the
-        selected source rows are returned. If ``plane`` is provided, hrtfpykit
+        Positions are read from the in-memory ``SourcePosition`` snapshot
+        stored on this object. The source coordinate system is taken from
+        ``SourcePosition:Type`` and converted on read. By default, positions
+        are returned in spherical coordinates. If the owning HRTF has been
+        spatially selected, only the selected source rows are returned. If
+        ``plane`` is provided, hrtfpykit
         first resolves the nearest measured plane, keeps only those source
         rows, and then returns them in ``coordinate_system``.
 
@@ -177,20 +196,15 @@ class Sources:
         >>> frontal_xyz.shape
         (22, 3)
         """
-        if self._hrtf is None or self._hrtf.Sofa is None:
-            raise ValueError("Sources requires an HRTF with a loaded SOFA dataset")
-        source_positions = cast(
-            Any,
-            cast(Any, self._hrtf.Sofa.Variables).get("SourcePosition"),
-        ).value
-        source_system = cast(
-            Any,
-            cast(Any, self._hrtf.Sofa.VariableAttributes).get("SourcePosition:Type"),
-        ).value
-        source_units = cast(
-            Any,
-            cast(Any, self._hrtf.Sofa.VariableAttributes).get("SourcePosition:Units"),
-        ).value
+        if self.positions is None:
+            raise ValueError("Source positions are not available")
+        if self.position_coordinate_system is None:
+            raise ValueError("Source position coordinate system is not available")
+        if self.position_units is None:
+            raise ValueError("Source position units are not available")
+        source_positions = np.array(self.positions, dtype=float, copy=True)
+        source_system = self.position_coordinate_system
+        source_units = self.position_units
         target_system = coordinate_system
 
         requested_angle_unit = str(angle_unit).strip().lower()
@@ -224,18 +238,21 @@ class Sources:
             )
 
         if plane is not None:
+            hrtf = self._hrtf
+            if hrtf is None:
+                raise ValueError("Plane selection requires an owning HRTF")
             plane_key = str(plane).strip().lower()
             if plane_key == "horizontal":
                 selected_plane_angle = 0.0 if plane_angle is None else float(plane_angle)
                 plane_indices, _ = get_horizontal_plane(
-                    self._hrtf,
+                    hrtf,
                     plane_angle=selected_plane_angle,
                     angle_unit=requested_angle_unit,
                 )
             elif plane_key == "median":
                 selected_plane_angle = 0.0 if plane_angle is None else float(plane_angle)
                 plane_indices, _ = get_median_plane(
-                    self._hrtf,
+                    hrtf,
                     plane_angle=selected_plane_angle,
                     angle_unit=requested_angle_unit,
                 )
@@ -245,7 +262,7 @@ class Sources:
                 else:
                     selected_plane_angle = float(plane_angle)
                 plane_indices, _ = get_frontal_plane(
-                    self._hrtf,
+                    hrtf,
                     plane_angle=selected_plane_angle,
                     angle_unit=requested_angle_unit,
                 )

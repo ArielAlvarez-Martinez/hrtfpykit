@@ -1,4 +1,5 @@
 from collections.abc import Callable, Mapping, Sequence
+from typing import Any, cast
 from contextlib import redirect_stdout
 from dataclasses import replace
 from itertools import product
@@ -30,10 +31,12 @@ from hrtfpykit.datasets.split import DatasetSplitPlanner
 SONICOM_ROOT = os.getenv("SONICOM_TEST_ROOT") or os.getenv("SONICOM_ROOT")
 RUN_SONICOM_DOWNLOAD_TESTS = os.getenv("SONICOM_TEST_DOWNLOAD", "").strip() == "1"
 _RUN_FULL_SONICOM_TESTS = os.getenv("SONICOM_TEST_FULL", "").strip() == "1"
+_SONICOM_DOWNLOAD_SERVERS = SONICOMConfig().download_servers
+assert _SONICOM_DOWNLOAD_SERVERS is not None
 ALL_SONICOM_SUBJECT_IDS = tuple(
     subject_id
     for subject_id in SONICOMConfig.subject_ids
-    if subject_id not in set(SONICOMConfig().download_servers["imperial"].download_exclude_subject_ids)
+    if subject_id not in set(_SONICOM_DOWNLOAD_SERVERS["imperial"].download_exclude_subject_ids)
 )
 _SUBJECT_LIMIT_OPTION = os.getenv("SONICOM_TEST_SUBJECT_LIMIT", "").strip()
 _SAFE_SUBJECT_LIMIT_ENV = _SUBJECT_LIMIT_OPTION if _SUBJECT_LIMIT_OPTION != "" else "3"
@@ -94,7 +97,7 @@ def _path_exists(path: str | Path | None) -> bool:
 
 def _subject_numbers() -> dict[str, int]:
     return DatasetSplitPlanner.build_subject_number_map(
-        DatasetSplitPlanner.sort_subject_ids(tuple(SONICOMConfig.subject_ids))
+        tuple(DatasetSplitPlanner.sort_subject_ids(tuple(SONICOMConfig.subject_ids)))
     )
 
 
@@ -103,14 +106,17 @@ def _format_hrtf_path(subject_id: str, variant: Mapping[str, object]) -> Path:
     hrtf_type = str(variant["type"])
     sample_rate = variant.get("sample_rate")
     version = variant.get("version")
-    hrtf_type_config = SONICOMConfig.hrtf.types[hrtf_type]
+    hrtf_config = SONICOMConfig.hrtf
+    assert hrtf_config is not None
+    hrtf_type_config = hrtf_config.types[hrtf_type]
     sample_rate_label = None if sample_rate is None else str(sample_rate)
     if hrtf_type_config.sample_rate_labels is not None and sample_rate is not None:
-        sample_rate_label = hrtf_type_config.sample_rate_labels.get(sample_rate, sample_rate_label)
+        sample_rate_label = hrtf_type_config.sample_rate_labels.get(cast(int | str, sample_rate), sample_rate_label)
     version_label = None if version is None else str(version)
     if hrtf_type_config.version_labels is not None and version is not None:
         version_label = hrtf_type_config.version_labels.get(str(version), version_label)
-    relative_path = hrtf_type_config.path_pattern.format(
+    path_pattern = cast(str, hrtf_type_config.path_pattern)
+    relative_path = path_pattern.format(
         subject_id=subject_id,
         subject_number=_subject_numbers()[subject_id],
         type=hrtf_type,
@@ -131,11 +137,14 @@ def _format_mesh_path(subject_id: str, variant: Mapping[str, object]) -> Path:
     assert SONICOM_ROOT is not None
     mesh_type = str(variant["type"])
     version = variant.get("version")
-    mesh_type_config = SONICOMConfig.mesh.types[mesh_type]
+    mesh_config = SONICOMConfig.mesh
+    assert mesh_config is not None
+    mesh_type_config = mesh_config.types[mesh_type]
     version_label = None if version is None else str(version)
     if mesh_type_config.version_labels is not None and version is not None:
         version_label = mesh_type_config.version_labels.get(str(version), version_label)
-    relative_path = mesh_type_config.path_pattern.format(
+    path_pattern = cast(str, mesh_type_config.path_pattern)
+    relative_path = path_pattern.format(
         subject_id=subject_id,
         subject_number=_subject_numbers()[subject_id],
         type=mesh_type,
@@ -214,7 +223,18 @@ def _paths_available(
 
 
 def _spec_key_names(specs: Sequence[object]) -> tuple[str, ...]:
-    return tuple(DatasetSpecWorkflow.get_spec_name(spec) for spec in specs)
+    return tuple(DatasetSpecWorkflow.get_spec_name(cast(Any, spec)) for spec in specs)
+
+
+def _ir_values(value: object) -> np.ndarray:
+    values = cast(Any, value).IR.values
+    assert values is not None
+    return values
+
+
+def _mapping(value: object) -> dict[str, Any]:
+    assert isinstance(value, dict)
+    return cast(dict[str, Any], value)
 
 
 def _identity(value: object) -> object:
@@ -448,11 +468,11 @@ def _build_dataset(
             if subject_id not in set(selected_subject_ids)
         )
         return SONICOM(
-            root=SONICOM_ROOT,
+            root=cast(str | Path, SONICOM_ROOT),
             dataset_hrtf_variant=dataset_hrtf_variant,
             dataset_mesh_variant=_DEFAULT_MESH_VARIANT,
-            inputs=inputs,
-            target=target,
+            inputs=cast(Any, inputs),
+            target=cast(Any, target),
             split=split,
             split_ratio=(0.8, 0.1, 0.1),
             split_seed=0,
@@ -527,8 +547,9 @@ def test_sonicom_config_download_subject_exclusions() -> None:
         "P0396",
     )
 
-    imperial = config.download_servers["imperial"]
-    ecosystem = config.download_servers["sonicom-ecosystem"]
+    download_servers = cast(dict[str, Any], config.download_servers)
+    imperial = download_servers["imperial"]
+    ecosystem = download_servers["sonicom-ecosystem"]
 
     assert imperial.download_exclude_subject_ids == excluded_subject_ids
     assert set(imperial.download_exclude_subject_ids).issubset(subject_ids)
@@ -586,7 +607,7 @@ def test_sonicom_download_plan_follows_subject_limit(tmp_path: Path) -> None:
     assert len(subject_jobs) == len(_TEST_SUBJECT_IDS) * 2
     assert all(job["checksum"] is not None for job in jobs)
     assert all(str(job["url"]).startswith("https://") for job in jobs)
-    assert all(Path(job["destination"]).resolve().is_relative_to(root) for job in jobs)
+    assert all(Path(cast(str | Path, job["destination"])).resolve().is_relative_to(root) for job in jobs)
 
 
 def test_sonicom_empty_download_warning_reports_only_requested_resource_variants(
@@ -659,7 +680,10 @@ def test_sonicom_ecosystem_synthetic_hrtf_uses_subject_checksum_key(
     assert len(jobs) == 1
     assert jobs[0]["subject_id"] == "P0001"
     assert jobs[0]["checksum_key"] == "P0001/HRIR_SONICOM_48000.sofa"
-    assert jobs[0]["checksum"] == SONICOM_CHECKSUMS["hrtf"]["synthetic"]["generic"][48000]["P0001/HRIR_SONICOM_48000.sofa"]
+    assert (
+        jobs[0]["checksum"]
+        == cast(Any, SONICOM_CHECKSUMS["hrtf"])["synthetic"]["generic"][48000]["P0001/HRIR_SONICOM_48000.sofa"]
+    )
 
 
 def test_sonicom_ecosystem_download_uses_scanner_local_patterns_before_transfer(
@@ -751,11 +775,12 @@ def test_sonicom_ecosystem_download_variant_validation_matches_common_errors(
 
 def test_sonicom_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
     config = SONICOMConfig()
-    download_config = config.download_servers["imperial"]
+    download_servers = cast(dict[str, Any], config.download_servers)
+    download_config = download_servers["imperial"]
     config = replace(
         config,
         download_servers={
-            **config.download_servers,
+            **download_servers,
             "imperial": replace(
                 download_config,
                 checksums={"hrtf": {}},
@@ -833,7 +858,7 @@ def test_sonicom_metadata_download_plan(tmp_path: Path) -> None:
     assert len(jobs) == 1
     assert jobs[0]["resource"] == "metadata"
     assert jobs[0]["relative_path"] == "metadata_and_readme/metadata.csv"
-    assert jobs[0]["checksum"] == SONICOM_CHECKSUMS["metadata"]["metadata.csv"]
+    assert jobs[0]["checksum"] == cast(Any, SONICOM_CHECKSUMS["metadata"])["metadata.csv"]
 
 
 def test_sonicom_ecosystem_unsupported_resource_error_mentions_server(tmp_path: Path) -> None:
@@ -857,7 +882,7 @@ def test_sonicom_ecosystem_unsupported_resource_error_mentions_server(tmp_path: 
 
 
 def test_sonicom_windowed_checksums_cover_default_sample_rates() -> None:
-    windowed = SONICOM_CHECKSUMS["hrtf"]["measured"]["Windowed"]
+    windowed = cast(Any, SONICOM_CHECKSUMS["hrtf"])["measured"]["Windowed"]
 
     assert set(windowed) == {44100, 48000, 96000}
     assert len(windowed[44100]) == 399
@@ -880,7 +905,7 @@ def test_sonicom_hrtf_spec_grid(
     if not _path_exists(SONICOM_ROOT):
         pytest.skip(reason="Required local SONICOM dataset is not available")
 
-    spec_kwargs = {}
+    spec_kwargs: dict[str, Any] = {}
     if "position" in index_by:
         spec_kwargs["position_index"] = True
         spec_kwargs["position_one_hot"] = True
@@ -893,8 +918,8 @@ def test_sonicom_hrtf_spec_grid(
 
     spec = HRTFSpec(
         index_by=index_by,
-        positions=positions,
-        plane=plane,
+        positions=cast(Any, positions),
+        plane=cast(Any, plane),
         transform=transform,
         **spec_kwargs,
     )
@@ -916,9 +941,10 @@ def test_sonicom_hrtf_spec_grid(
         return
 
     dataset = _build_dataset(_DEFAULT_HRTF_VARIANT, "all", (spec,), ())
-    sample = dataset[0]
+    sample = cast(dict[str, Any], dataset[0])
     assert sample["inputs"] is not None
-    hrtf_value = sample["inputs"]["hrtf"]
+    sample_inputs = _mapping(sample["inputs"])
+    hrtf_value = sample_inputs["hrtf"]
     assert isinstance(hrtf_value, np.ndarray)
     assert hrtf_value.size > 0
 
@@ -990,7 +1016,7 @@ def test_sonicom_get_subject_hrtf_uses_selected_subject() -> None:
     dataset = _build_dataset(_DEFAULT_HRTF_VARIANT, "all", inputs, ())
     expected_subject = dataset.selected_subjects[0]
     hrtf = dataset.get_subject_hrtf(expected_subject)
-    assert hrtf.IR.values.size > 0
+    assert _ir_values(hrtf).size > 0
     assert hrtf.Sources is not None
 
 
@@ -1136,4 +1162,4 @@ def test_sonicom_download_resources_follow_subject_limit(tmp_path: Path) -> None
         assert len(subject_jobs) == expected_subject_jobs
         assert dataset.available_subjects == list(_TEST_SUBJECT_IDS)
         assert dataset.selected_subjects == list(_TEST_SUBJECT_IDS)
-        assert all(Path(job["destination"]).is_file() for job in jobs)
+        assert all(Path(cast(str | Path, job["destination"])).is_file() for job in jobs)

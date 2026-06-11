@@ -832,17 +832,133 @@ def window(
     windowed_ir[..., start:end] = windowed_ir[..., start:end] * window_values
     return windowed_ir
 
+
+def crop(
+    ir: np.ndarray | "IR",
+    start_sample: int | None = None,
+    end_sample: int | None = None,
+    window: str | None = None,
+) -> np.ndarray:
+    """Remove an IR sample interval and append zero padding at the end.
+
+    The crop is applied along the final sample axis. ``start_sample`` is
+    included and ``end_sample`` is excluded, matching Python slicing. The
+    removed interval is closed by shifting later samples left, then zeros are
+    appended at the end so the returned IR keeps the original sample length.
+
+    Parameters
+    ----------
+    ir : np.ndarray | IR
+        Time-domain samples or :class:`~hrtfpykit.hrtf.domain.IR` object with
+        .values. The final axis is interpreted as time samples.
+    start_sample : int or None, default=None
+        First sample removed from the IR. None starts at sample 0.
+    end_sample : int or None, default=None
+        First sample after the removed interval. This value is required. For
+        example, ``start_sample=4`` and ``end_sample=8`` removes samples 4, 5,
+        6, and 7. ``start_sample=None`` and ``end_sample=4`` removes samples
+        0, 1, 2, and 3.
+    window : str or None, default=None
+        Optional window name applied to the final retained samples before the
+        zero-padded tail. Window names match :func:`window`. None skips this
+        tapering step.
+
+    Returns
+    -------
+    np.ndarray
+        Cropped and zero-padded IR values with the same shape as the input.
+
+    Raises
+    ------
+    ValueError
+        If IR data are missing, scalar, empty, or not stored as a NumPy array,
+        if the requested sample interval is invalid, or if window is not None
+        and the requested window name is unsupported.
+
+    Examples
+    --------
+    Remove four samples from a one-dimensional impulse response and preserve
+    the original length with trailing zeros:
+
+    >>> import numpy as np
+    >>> crop(np.arange(10), start_sample=4, end_sample=8)
+    array([0, 1, 2, 3, 8, 9, 0, 0, 0, 0])
+    >>> crop(np.arange(10), end_sample=4)
+    array([4, 5, 6, 7, 8, 9, 0, 0, 0, 0])
+    """
+    if isinstance(ir, np.ndarray):
+        ir_values = ir
+    else:
+        if not hasattr(ir, "values"):
+            raise ValueError("ir must be a NumPy array or an IR instance")
+        ir_values = cast(Any, ir).values
+    if ir_values is None:
+        raise ValueError("IR data is not available")
+    if not isinstance(ir_values, np.ndarray):
+        raise ValueError("IR data must be a NumPy array")
+    if ir_values.ndim == 0:
+        raise ValueError("IR data must have at least one dimension")
+    length = ir_values.shape[-1]
+    if length <= 0:
+        raise ValueError("IR data must contain at least one sample")
+    if start_sample is None:
+        start = 0
+    else:
+        if isinstance(start_sample, bool) or not isinstance(start_sample, int):
+            raise ValueError("start_sample must be an integer or None")
+        start = start_sample
+    if end_sample is None:
+        raise ValueError("end_sample must be an integer")
+    if isinstance(end_sample, bool) or not isinstance(end_sample, int):
+        raise ValueError("end_sample must be an integer")
+    end = end_sample
+    if start < 0 or end < 0:
+        raise ValueError("start_sample and end_sample must be non-negative")
+    if start >= end:
+        raise ValueError("start_sample must be lower than end_sample")
+    if end > length:
+        raise ValueError("end_sample cannot exceed the IR sample length")
+
+    crop_length = end - start
+    retained_ir = np.concatenate(
+        (
+            ir_values[..., :start],
+            ir_values[..., end:],
+        ),
+        axis=-1,
+    )
+    retained_length = retained_ir.shape[-1]
+    if window is not None and retained_length > 0:
+        if not isinstance(window, str):
+            raise ValueError("window must be a window name or None")
+        taper_length = min(crop_length, retained_length)
+        retained_ir = globals()["window"](
+            retained_ir,
+            window,
+            start_sample=retained_length - taper_length,
+            end_sample=retained_length,
+        )
+
+    zero_padding = np.zeros(
+        ir_values.shape[:-1] + (crop_length,),
+        dtype=ir_values.dtype,
+    )
+    return np.concatenate((retained_ir, zero_padding), axis=-1)
+
 def padding(
     ir: np.ndarray | "IR",
     padding_length: int,
     location: str = "end",
     value: float | complex = 0,
+    preserve_length: bool = False,
 ) -> np.ndarray:
     """Pad impulse-response values along the sample axis.
 
     The function accepts either a raw NumPy array or an :class:`~hrtfpykit.hrtf.domain.IR` domain object
     and appends or prepends constant samples on the last axis. The spatial and
-    ear axes are preserved exactly; only the time-sample length changes.
+    ear axes are preserved exactly. By default, the time-sample length grows by
+    padding_length. With ``preserve_length=True``, start padding shifts samples
+    to the right and drops the same number of samples from the end.
 
     Parameters
     ----------
@@ -855,6 +971,9 @@ def padding(
         Side where the padding is applied.
     value : float | complex, default=0
         Constant value used in the padded region.
+    preserve_length : bool, default=False
+        If True, only start padding is accepted and the returned IR keeps the
+        original sample length.
 
     Returns
     -------
@@ -865,8 +984,8 @@ def padding(
     ------
     ValueError
         If IR data are missing, empty, or not stored as a NumPy array, if
-        padding_length is not a non-negative integer, or if location is
-        unsupported.
+        padding_length is not a non-negative integer, if location is
+        unsupported, or if preserve_length=True is used with end padding.
     """
 
     if isinstance(ir, np.ndarray):
@@ -881,26 +1000,31 @@ def padding(
         raise ValueError("IR data must be a NumPy array")
     if ir_values.size == 0:
         raise ValueError("IR data must be non-empty")
+    location_key = location.strip().lower()
+    if location_key not in {"start", "end"}:
+        raise ValueError("Padding location must be 'start' or 'end'")
+    if preserve_length and location_key != "start":
+        raise ValueError("preserve_length=True is only supported with start padding")
     if isinstance(padding_length, bool) or not isinstance(padding_length, int):
         raise ValueError("Padding must be an integer")
     if padding_length < 0:
         raise ValueError("Padding must be non-negative")
     if padding_length == 0:
         return ir_values
-    location_key = location.strip().lower()
     if location_key == "start":
         before, after = padding_length, 0
-    elif location_key == "end":
-        before, after = 0, padding_length
     else:
-        raise ValueError("Padding location must be 'start' or 'end'")
+        before, after = 0, padding_length
     pad_width = [(0, 0)] * (ir_values.ndim - 1) + [(before, after)]
-    return np.pad(
+    padded_ir = np.pad(
         ir_values,
         pad_width,
         mode="constant",
         constant_values=value,
     )
+    if preserve_length:
+        return padded_ir[..., : ir_values.shape[-1]]
+    return padded_ir
 
 
 def fir_filter(

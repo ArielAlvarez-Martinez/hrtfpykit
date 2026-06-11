@@ -29,6 +29,7 @@ def load_hrtf(
     fft_length: int | None = None,
     mesh2hrtf_compatible: bool = False,
     mesh2hrtf_n_shift: int | None = 30,
+    sofa_open: bool = True,
 ) -> "HRTF":
     """Load a SOFA file as an :class:`~hrtfpykit.hrtf.HRTF` object.
 
@@ -94,6 +95,12 @@ def load_hrtf(
         Optional circular shift in samples applied after TF-to-IR
         reconstruction when mesh2hrtf_compatible=True. The selected value is
         stored on the returned object.
+    sofa_open : bool, default=True
+        If True, keep the backing SOFA netCDF4 dataset open. If False, close
+        it after IR, TF, and source positions are loaded into memory. The
+        returned HRTF still keeps a :class:`~hrtfpykit.sofa.SOFA` object, but
+        SOFA-backed metadata and variable access require calling
+        ``hrtf.Sofa.open()`` or loading with ``sofa_open=True``.
 
     Returns
     -------
@@ -101,6 +108,7 @@ def load_hrtf(
         Loaded :class:`~hrtfpykit.hrtf.HRTF` object with
         :class:`~hrtfpykit.hrtf.domain.IR`,
         :class:`~hrtfpykit.hrtf.domain.TF`,
+        :attr:`~hrtfpykit.hrtf.HRTF.Sources`,
         :attr:`~hrtfpykit.hrtf.HRTF.SOFAConventions`, and
         :attr:`~hrtfpykit.hrtf.HRTF.fft_length` populated. For
         SimpleFreeFieldHRTF input, Mesh2HRTF compatible load options are also
@@ -194,6 +202,9 @@ def load_hrtf(
         if fft_length_used is not None:
             hrtf.fft_length = fft_length_used
         hrtf.SOFAConventions = convention
+        _ = hrtf.Sources
+        if not sofa_open:
+            Sofa.close()
         return hrtf
 
     required_variables = ("Data.Real", "Data.Imag", "N")
@@ -237,6 +248,9 @@ def load_hrtf(
     hrtf.SOFAConventions = convention
     hrtf.mesh2hrtf_compatible = bool(mesh2hrtf_compatible)
     hrtf.mesh2hrtf_n_shift = mesh2hrtf_n_shift
+    _ = hrtf.Sources
+    if not sofa_open:
+        Sofa.close()
     return hrtf
 
 
@@ -482,17 +496,19 @@ class HRTF:
 
         The clone receives copied IR and TF arrays, sample-rate and
         frequency-bin metadata, FFT length, Mesh2HRTF compatible reconstruction
-        settings, transformation state, and source selection state. When the
-        backing :class:`~hrtfpykit.sofa.SOFA` object can be cloned, the clone
-        receives an independent SOFA handle; otherwise the original handle is
-        retained.
+        settings, transformation state, and source selection state. If the
+        source object is backed by an open SOFA dataset, the clone receives an
+        independent in-memory SOFA clone. If the source SOFA dataset is closed,
+        the clone keeps a closed SOFA object and uses the copied in-memory IR,
+        TF, and Sources data for runtime operations.
 
         Returns
         -------
         HRTF
             New object with copied acoustic arrays, domain metadata, source
             selection state, SOFA convention metadata, Mesh2HRTF compatible
-            loading state, and transformation flag.
+            loading state, transformation flag, and matching SOFA open/closed
+            state.
 
         Examples
         --------
@@ -506,12 +522,16 @@ class HRTF:
         >>> hrtf_copy.IR.values[0, 0, 0] == hrtf.IR.values[0, 0, 0]
         False
         """
-        sofa_clone = self.Sofa
+        sofa_clone = None
         if self.Sofa is not None:
-            try:
+            if self.Sofa.is_open():
                 sofa_clone = self.Sofa.clone()
-            except ValueError:
-                sofa_clone = self.Sofa
+            else:
+                sofa_clone = SOFA()
+                sofa_clone.netCDF4_dataset = self.Sofa.netCDF4_dataset
+                sofa_clone.path = self.Sofa.path
+                sofa_clone._modified = self.Sofa._modified
+                sofa_clone._change_messages = list(self.Sofa._change_messages)
         hrtf = HRTF(Sofa=sofa_clone)
         hrtf.SOFAConventions = self.SOFAConventions
         hrtf.fft_length = self.fft_length
@@ -527,6 +547,16 @@ class HRTF:
         if self.TF.frequency_bins is not None:
             hrtf.TF.frequency_bins = np.array(self.TF.frequency_bins, copy=True)
         if "Sources" in self.__dict__:
+            hrtf.__dict__["Sources"] = Sources(None)
+            hrtf.Sources._hrtf = hrtf
+            if self.Sources.positions is not None:
+                hrtf.Sources.positions = np.array(
+                    self.Sources.positions,
+                    dtype=float,
+                    copy=True,
+                )
+            hrtf.Sources.position_coordinate_system = self.Sources.position_coordinate_system
+            hrtf.Sources.position_units = self.Sources.position_units
             hrtf.Sources.source_coordinate_system = self.Sources.source_coordinate_system
             if self.Sources._selected_indices is not None:
                 hrtf.Sources._selected_indices = np.array(
@@ -540,8 +570,9 @@ class HRTF:
         """Reset in-memory HRTF data to the backed SOFA content.
 
         This method discards current in-memory acoustic edits and reloads the
-        active domain data from :attr:`~hrtfpykit.hrtf.HRTF.Sofa`. HRIR
-        files are restored from ``Data.IR`` and ``Data.SamplingRate`` and then
+        active domain data from :attr:`~hrtfpykit.hrtf.HRTF.Sofa`. The backed
+        SOFA dataset must be open. HRIR files are restored from ``Data.IR`` and
+        ``Data.SamplingRate`` and then
         converted to TF. HRTF files are restored from ``Data.Real``,
         ``Data.Imag``, and ``N``
         and then converted to IR. If the object was loaded with
@@ -560,9 +591,9 @@ class HRTF:
         Raises
         ------
         ValueError
-            If no SOFA file is attached, the SOFA file is not loaded, the
-            convention is unsupported, or required acoustic variables are
-            missing or empty.
+            If no SOFA file is attached, the SOFA file is not loaded, the SOFA
+            dataset is closed, the convention is unsupported, or required
+            acoustic variables are missing or empty.
 
         Examples
         --------
@@ -579,8 +610,10 @@ class HRTF:
         >>> restored.is_transformed()
         False
         """
-        if self.Sofa is None:
+        if self.Sofa is None or self.Sofa.netCDF4_dataset is None:
             raise ValueError("Cannot reset an HRTF without a loaded SOFA dataset")
+        if not self.Sofa.is_open():
+            raise ValueError("SOFA dataset is closed")
         if self.Sofa.GlobalAttributes is None or self.Sofa.Variables is None:
             raise ValueError("SOFA dataset is not loaded")
 
@@ -668,9 +701,17 @@ class HRTF:
             self.fft_length = fft_length_used
 
         if "Sources" in self.__dict__:
-            self.Sources.source_coordinate_system = (
+            self.Sources.positions = np.asarray(
+                cast(Any, cast(Any, self.Sofa.Variables).get("SourcePosition")).value,
+                dtype=float,
+            )
+            self.Sources.position_coordinate_system = str(
                 cast(Any, cast(Any, self.Sofa.VariableAttributes).get("SourcePosition:Type")).value
             )
+            self.Sources.position_units = str(
+                cast(Any, cast(Any, self.Sofa.VariableAttributes).get("SourcePosition:Units")).value
+            )
+            self.Sources.source_coordinate_system = self.Sources.position_coordinate_system
             self.Sources._selected_indices = None
         self.SOFAConventions = convention
         self._transformed = False
@@ -724,15 +765,20 @@ class HRTF:
 
         Dimension handling is conservative. If transformed data no longer fit
         existing SOFA dimensions, synchronization raises unless
-        ``change_sofa_dimensions=True``. When resizing is allowed, supported
-        dependent variables on the measurement axis are subset with the current
-        source selection; unsupported dependent variables still raise explicit
-        errors to avoid silently corrupting SOFA structure.
+        ``change_sofa_dimensions=True``. Source selections are written as real
+        ``M`` dimension changes, including single-source selections with
+        ``M=1``. Ear-selected HRTFs stay valid in memory, but SOFA
+        synchronization requires both left and right receiver channels. When
+        resizing is allowed, supported dependent variables on the measurement
+        axis are subset with the current source selection; unsupported
+        dependent variables still raise explicit errors to avoid silently
+        corrupting SOFA structure.
 
         The method updates the in-memory
-        :attr:`~hrtfpykit.hrtf.HRTF.Sofa` object only. Use
-        :meth:`~hrtfpykit.hrtf.HRTF.save` to persist the synchronized
-        SOFA object to disk. When TF values must be converted back to IR during
+        :attr:`~hrtfpykit.hrtf.HRTF.Sofa` object only and requires its backing
+        SOFA dataset to be open. Use :meth:`~hrtfpykit.hrtf.HRTF.save` to
+        persist the synchronized SOFA object to disk. When TF values must be
+        converted back to IR during
         synchronization, the stored Mesh2HRTF compatible reconstruction
         settings are reused.
 
@@ -754,10 +800,11 @@ class HRTF:
         Raises
         ------
         ValueError
-            If no SOFA file is loaded, the convention is unsupported,
-            required domain values are missing, transformed shapes cannot be
-            represented by the SOFA dimensions, or requested dimension changes
-            would affect variables that the method cannot update safely.
+            If no SOFA file is loaded, the SOFA dataset is closed, the
+            convention is unsupported, required domain values are missing,
+            transformed shapes cannot be represented by the SOFA dimensions, or
+            requested dimension changes would affect variables that the method
+            cannot update safely.
 
         Examples
         --------
@@ -774,7 +821,10 @@ class HRTF:
         """
         if self.Sofa is None or self.Sofa.netCDF4_dataset is None:
             raise ValueError("SOFA dataset is not loaded")
+        if not self.Sofa.is_open():
+            raise ValueError("SOFA dataset is closed")
 
+        old_sofa = self.Sofa
         if self.Sofa.GlobalAttributes is None or self.Sofa.Variables is None:
             raise ValueError("SOFA dataset is not loaded")
         try:
@@ -863,9 +913,6 @@ class HRTF:
                 else:
                     backed_state_matches = False
             if backed_state_matches:
-                print(
-                    "HRTF is not transformed. SOFA-backed object is already up to date."
-                )
                 return
 
         if resolved_sofa_convention == "SimpleFreeFieldHRIR":
@@ -908,211 +955,168 @@ class HRTF:
             }
 
         if resolved_sofa_convention == "SimpleFreeFieldHRIR":
+            receiver_target_names: tuple[str, ...] = ("Data.IR",)
+        else:
+            receiver_target_names = ("Data.Real", "Data.Imag")
+        for receiver_target_name in receiver_target_names:
+            receiver_values = np.asarray(target_variables[receiver_target_name])
+            if receiver_values.ndim < 3 or receiver_values.shape[-2] < 2:
+                raise ValueError(
+                    "Cannot save an ear-selected HRTF to SOFA. "
+                    "SOFA HRTF files require both left and right receiver channels."
+                )
+
+        if resolved_sofa_convention == "SimpleFreeFieldHRIR":
             obsolete_variables: tuple[str, ...] = ("Data.Real", "Data.Imag", "N")
         else:
             obsolete_variables = ("Data.IR", "Data.SamplingRate")
-        if resolved_sofa_convention != backed_convention:
-            working_sofa = self.Sofa.clone()
-            working_dataset = working_sofa.netCDF4_dataset
-            if working_dataset is None:
-                raise ValueError("SOFA dataset is not loaded")
-            for obsolete_variable in obsolete_variables:
-                if obsolete_variable in working_dataset.variables:
-                    working_sofa.delete_variable(obsolete_variable)
-        else:
-            working_sofa = self.Sofa
-
-        dataset = cast(Any, working_sofa.netCDF4_dataset)
-        if dataset is None:
-            raise ValueError("SOFA dataset is not loaded")
-        missing_dc_normalization = False
-        if (
-            resolved_sofa_convention == "SimpleFreeFieldHRTF"
-            and backed_convention == "SimpleFreeFieldHRTF"
-            and not self._transformed
-            and "Data.Real" in dataset.variables
-            and "Data.Imag" in dataset.variables
-            and "N" in dataset.variables
-        ):
-            backed_tf = (
-                np.asarray(dataset.variables["Data.Real"][:], dtype=float)
-                + 1j * np.asarray(dataset.variables["Data.Imag"][:], dtype=float)
-            )
-            backed_frequency_bins = np.asarray(dataset.variables["N"][:], dtype=float)
-            normalized_tf, normalized_frequency_bins = prepend_missing_dc(
-                backed_tf,
-                backed_frequency_bins,
-            )
-            missing_dc_normalization = (
-                normalized_tf.shape == np.asarray(target_variables["Data.Real"]).shape
-                and normalized_frequency_bins.shape == np.asarray(target_variables["N"]).shape
-                and normalized_tf.shape[-1] != backed_tf.shape[-1]
-                and np.allclose(np.real(normalized_tf), target_variables["Data.Real"])
-                and np.allclose(np.imag(normalized_tf), target_variables["Data.Imag"])
-                and np.allclose(normalized_frequency_bins, target_variables["N"])
-            )
-        allow_dimension_changes = change_sofa_dimensions or missing_dc_normalization
-        existing_target_variables = [
-            variable_name
-            for variable_name in target_variables
-            if variable_name in dataset.variables
-        ]
-        missing_target_variables = [
-            variable_name
-            for variable_name in target_variables
-            if variable_name not in dataset.variables
-        ]
-
-        missing_variable_dimensions: dict[str, tuple[str, ...]] = {}
-        dimension_overrides: dict[str, int] = {}
-        for variable_name in missing_target_variables:
-            target_values = np.asarray(target_variables[variable_name])
-            if variable_name == "N":
-                    variable_dimensions: tuple[str, ...] = ("N",)
-            elif variable_name == "Data.SamplingRate":
-                variable_dimensions = ("I",)
+        working_sofa: SOFA | None = None
+        updated_sofa: SOFA | None = None
+        try:
+            if resolved_sofa_convention != backed_convention:
+                working_sofa = self.Sofa.clone()
+                working_dataset = working_sofa.netCDF4_dataset
+                if working_dataset is None:
+                    raise ValueError("SOFA dataset is not loaded")
+                for obsolete_variable in obsolete_variables:
+                    if obsolete_variable in working_dataset.variables:
+                        working_sofa.delete_variable(obsolete_variable)
             else:
-                if "Data.IR" in dataset.variables:
-                    variable_dimensions = tuple(dataset.variables["Data.IR"].dimensions)
-                elif "Data.Real" in dataset.variables:
-                    variable_dimensions = tuple(dataset.variables["Data.Real"].dimensions)
-                elif "Data.Imag" in dataset.variables:
-                    variable_dimensions = tuple(dataset.variables["Data.Imag"].dimensions)
-                else:
-                    variable_dimensions = ("M", "R", "N")
-            missing_variable_dimensions[variable_name] = variable_dimensions
-            if target_values.ndim > len(variable_dimensions):
-                raise ValueError(
-                    f"Variable '{variable_name}' has incompatible rank for SOFA dimensions"
+                working_sofa = self.Sofa
+
+            dataset = cast(Any, working_sofa.netCDF4_dataset)
+            if dataset is None:
+                raise ValueError("SOFA dataset is not loaded")
+            missing_dc_normalization = False
+            if (
+                resolved_sofa_convention == "SimpleFreeFieldHRTF"
+                and backed_convention == "SimpleFreeFieldHRTF"
+                and not self._transformed
+                and "Data.Real" in dataset.variables
+                and "Data.Imag" in dataset.variables
+                and "N" in dataset.variables
+            ):
+                backed_tf = (
+                    np.asarray(dataset.variables["Data.Real"][:], dtype=float)
+                    + 1j * np.asarray(dataset.variables["Data.Imag"][:], dtype=float)
                 )
-            aligned_target_shape = (
-                (1,) * (len(variable_dimensions) - target_values.ndim)
-                + tuple(target_values.shape)
-            )
-            for axis_index, dimension_name in enumerate(variable_dimensions):
-                if dimension_name not in dataset.dimensions:
-                    continue
-                dimension = dataset.dimensions[dimension_name]
-                if dimension.isunlimited():
-                    continue
-                target_size = int(aligned_target_shape[axis_index])
-                if target_size == 1:
-                    continue
-                current_size = int(dimension.size)
-                if current_size == target_size:
-                    continue
-                if dimension_name in dimension_overrides:
-                    if dimension_overrides[dimension_name] != target_size:
-                        raise ValueError(
-                            f"Conflicting target size for dimension '{dimension_name}'"
-                        )
-                else:
-                    dimension_overrides[dimension_name] = target_size
+                backed_frequency_bins = np.asarray(dataset.variables["N"][:], dtype=float)
+                normalized_tf, normalized_frequency_bins = prepend_missing_dc(
+                    backed_tf,
+                    backed_frequency_bins,
+                )
+                missing_dc_normalization = (
+                    normalized_tf.shape == np.asarray(target_variables["Data.Real"]).shape
+                    and normalized_frequency_bins.shape == np.asarray(target_variables["N"]).shape
+                    and normalized_tf.shape[-1] != backed_tf.shape[-1]
+                    and np.allclose(np.real(normalized_tf), target_variables["Data.Real"])
+                    and np.allclose(np.imag(normalized_tf), target_variables["Data.Imag"])
+                    and np.allclose(normalized_frequency_bins, target_variables["N"])
+                )
+            allow_dimension_changes = change_sofa_dimensions or missing_dc_normalization
+            existing_target_variables = [
+                variable_name
+                for variable_name in target_variables
+                if variable_name in dataset.variables
+            ]
+            missing_target_variables = [
+                variable_name
+                for variable_name in target_variables
+                if variable_name not in dataset.variables
+            ]
 
-        mismatched_variables: list[str] = []
-        for variable_name in existing_target_variables:
-            target_values = target_variables[variable_name]
-            variable_shape = tuple(dataset.variables[variable_name].shape)
-            target_array = np.asarray(target_values)
-            if target_array.ndim > len(variable_shape):
-                mismatched_variables.append(variable_name)
-                continue
-            try:
-                np.broadcast_to(target_array, variable_shape)
-            except ValueError:
-                mismatched_variables.append(variable_name)
-        if (mismatched_variables or dimension_overrides) and not allow_dimension_changes:
-            mismatch_text = ", ".join(mismatched_variables)
-            raise ValueError(
-                "Transformed HRTF dimensions differ from SOFA-backed variables "
-                f"({mismatch_text}). Set change_sofa_dimensions=True to allow resizing."
-            )
-
-        updated_sofa: SOFA
-        if not mismatched_variables and not dimension_overrides:
-            updated_sofa = working_sofa.clone()
-            for variable_name in existing_target_variables:
-                target_values = target_variables[variable_name]
-                current_values = np.asarray(dataset.variables[variable_name][:])
-                target_array = np.asarray(target_values)
-                try:
-                    comparable_target = np.broadcast_to(target_array, current_values.shape)
-                except ValueError:
-                    updated_sofa.modify_variable(variable_name, target_values)
+            missing_variable_dimensions: dict[str, tuple[str, ...]] = {}
+            dimension_overrides: dict[str, int] = {}
+            selected_m_size: int | None = None
+            if selected_indices is not None:
+                selected_m_size = int(np.asarray(selected_indices, dtype=int).size)
+                if selected_m_size <= 0:
+                    raise ValueError("Selected source subset must contain at least one source")
+                if "M" in dataset.dimensions:
+                    dimension = dataset.dimensions["M"]
+                    if not dimension.isunlimited() and int(dimension.size) != selected_m_size:
+                        dimension_overrides["M"] = selected_m_size
+            for variable_name in missing_target_variables:
+                target_values = np.asarray(target_variables[variable_name])
+                if variable_name == "N":
+                        variable_dimensions: tuple[str, ...] = ("N",)
+                elif variable_name == "Data.SamplingRate":
+                    variable_dimensions = ("I",)
                 else:
-                    if not np.allclose(current_values, comparable_target):
-                        updated_sofa.modify_variable(variable_name, target_values)
-        else:
-            for variable_name in mismatched_variables:
-                variable = dataset.variables[variable_name]
-                target_array = np.asarray(target_variables[variable_name])
-                if target_array.ndim > len(variable.dimensions):
+                    if "Data.IR" in dataset.variables:
+                        variable_dimensions = tuple(dataset.variables["Data.IR"].dimensions)
+                    elif "Data.Real" in dataset.variables:
+                        variable_dimensions = tuple(dataset.variables["Data.Real"].dimensions)
+                    elif "Data.Imag" in dataset.variables:
+                        variable_dimensions = tuple(dataset.variables["Data.Imag"].dimensions)
+                    else:
+                        variable_dimensions = ("M", "R", "N")
+                missing_variable_dimensions[variable_name] = variable_dimensions
+                if target_values.ndim > len(variable_dimensions):
                     raise ValueError(
                         f"Variable '{variable_name}' has incompatible rank for SOFA dimensions"
                     )
-                target_shape = (
-                    (1,) * (len(variable.dimensions) - target_array.ndim)
-                    + tuple(target_array.shape)
+                aligned_target_shape = (
+                    (1,) * (len(variable_dimensions) - target_values.ndim)
+                    + tuple(target_values.shape)
                 )
-                for axis_index, dimension_name in enumerate(variable.dimensions):
+                if selected_m_size is not None and "M" in variable_dimensions:
+                    m_axis_index = variable_dimensions.index("M")
+                    if int(aligned_target_shape[m_axis_index]) != selected_m_size:
+                        raise ValueError(
+                            "Selected HRTF source axis must match the selected source subset"
+                        )
+                for axis_index, dimension_name in enumerate(variable_dimensions):
+                    if dimension_name not in dataset.dimensions:
+                        continue
                     dimension = dataset.dimensions[dimension_name]
                     if dimension.isunlimited():
                         continue
-                    target_size = int(target_shape[axis_index])
+                    target_size = int(aligned_target_shape[axis_index])
                     if target_size == 1:
+                        continue
+                    current_size = int(dimension.size)
+                    if current_size == target_size:
                         continue
                     if dimension_name in dimension_overrides:
                         if dimension_overrides[dimension_name] != target_size:
                             raise ValueError(
                                 f"Conflicting target size for dimension '{dimension_name}'"
                             )
-                    elif int(dimension.size) != target_size:
+                    else:
                         dimension_overrides[dimension_name] = target_size
 
-            if dimension_overrides:
-                overridden_dimension_names = set(dimension_overrides)
-                dependent_variable_overrides: dict[str, np.ndarray] = {}
-                for variable_name, variable in dataset.variables.items():
-                    if variable_name in target_variables:
-                        continue
-                    affected_dimensions = tuple(
-                        dimension_name
-                        for dimension_name in variable.dimensions
-                        if dimension_name in overridden_dimension_names
-                    )
-                    if not affected_dimensions:
-                        continue
-                    if (
-                        len(affected_dimensions) == 1
-                        and affected_dimensions[0] == "M"
-                        and selected_indices is not None
-                    ):
-                        variable_values = np.asarray(variable[:])
-                        axis_index = variable.dimensions.index("M")
-                        variable_values = np.take(
-                            variable_values,
-                            np.asarray(selected_indices, dtype=int),
-                            axis=axis_index,
-                        )
-                        dependent_variable_overrides[variable_name] = variable_values
-                        continue
-                    if any(
-                        dimension_name in overridden_dimension_names
-                        for dimension_name in variable.dimensions
-                    ):
-                        raise ValueError(
-                            "Cannot resize SOFA dimensions because dependent variable "
-                            f"'{variable_name}' is not handled by update_sofa"
-                        )
-                updated_sofa = working_sofa.copy_with(
-                    dim_sizes=dimension_overrides,
-                    variables={
-                        variable_name: target_variables[variable_name]
-                        for variable_name in existing_target_variables
-                    }
-                    | dependent_variable_overrides,
+            mismatched_variables: list[str] = []
+            for variable_name in existing_target_variables:
+                target_values = target_variables[variable_name]
+                variable_shape = tuple(dataset.variables[variable_name].shape)
+                variable_dimensions = tuple(dataset.variables[variable_name].dimensions)
+                target_array = np.asarray(target_values)
+                if target_array.ndim > len(variable_shape):
+                    mismatched_variables.append(variable_name)
+                    continue
+                aligned_target_shape = (
+                    (1,) * (len(variable_dimensions) - target_array.ndim)
+                    + tuple(target_array.shape)
                 )
-            else:
+                if selected_m_size is not None and "M" in variable_dimensions:
+                    m_axis_index = variable_dimensions.index("M")
+                    if int(aligned_target_shape[m_axis_index]) != selected_m_size:
+                        raise ValueError(
+                            "Selected HRTF source axis must match the selected source subset"
+                        )
+                try:
+                    np.broadcast_to(target_array, variable_shape)
+                except ValueError:
+                    mismatched_variables.append(variable_name)
+            if (mismatched_variables or dimension_overrides) and not allow_dimension_changes:
+                mismatch_text = ", ".join(mismatched_variables)
+                raise ValueError(
+                    "Transformed HRTF dimensions differ from SOFA-backed variables "
+                    f"({mismatch_text}). Set change_sofa_dimensions=True to allow resizing."
+                )
+
+            if not mismatched_variables and not dimension_overrides:
                 updated_sofa = working_sofa.clone()
                 for variable_name in existing_target_variables:
                     target_values = target_variables[variable_name]
@@ -1125,84 +1129,200 @@ class HRTF:
                     else:
                         if not np.allclose(current_values, comparable_target):
                             updated_sofa.modify_variable(variable_name, target_values)
-
-        updated_dataset = updated_sofa.netCDF4_dataset
-        if updated_dataset is None:
-            raise ValueError("SOFA dataset is not loaded")
-        for variable_name in missing_target_variables:
-            target_values = np.asarray(target_variables[variable_name])
-            variable_dimensions = missing_variable_dimensions[variable_name]
-
-            if target_values.ndim > len(variable_dimensions):
-                raise ValueError(
-                    f"Variable '{variable_name}' has incompatible rank for SOFA dimensions"
-                )
-            aligned_target_shape = (
-                (1,) * (len(variable_dimensions) - target_values.ndim)
-                + tuple(target_values.shape)
-            )
-            for axis_index, dimension_name in enumerate(variable_dimensions):
-                if dimension_name not in updated_dataset.dimensions:
-                    if not allow_dimension_changes:
-                        raise ValueError(
-                            f"Dimension '{dimension_name}' is missing in SOFA dataset. "
-                            "Set change_sofa_dimensions=True to allow creating missing dimensions."
-                        )
-                    updated_sofa.create_dimension(
-                        dimension_name,
-                        int(aligned_target_shape[axis_index]),
-                    )
-                    continue
-                dimension = updated_dataset.dimensions[dimension_name]
-                if dimension.isunlimited():
-                    continue
-                current_size = int(dimension.size)
-                target_size = int(aligned_target_shape[axis_index])
-                if target_size in {1, current_size}:
-                    continue
-                raise ValueError(
-                    f"Cannot create variable '{variable_name}': dimension '{dimension_name}' "
-                    f"size mismatch ({current_size} != {target_size})"
-                )
-
-            variable_attributes: dict[str, str] | None = None
-            if variable_name == "Data.SamplingRate":
-                variable_attributes = {"Units": "hertz"}
-            elif variable_name == "N":
-                variable_attributes = {
-                    "Units": "hertz",
-                    "LongName": "frequency",
-                }
-            updated_sofa.create_variable(
-                name=variable_name,
-                data=target_values,
-                dimensions=variable_dimensions,
-                attributes=variable_attributes,
-            )
-
-        for obsolete_variable in obsolete_variables:
-            if obsolete_variable in updated_dataset.variables:
-                updated_sofa.delete_variable(obsolete_variable)
-
-        updated_sofa.path = self.Sofa.path
-        resolved_global_attributes = {
-            "SOFAConventions": resolved_sofa_convention,
-            "DataType": (
-                "FIR"
-                if resolved_sofa_convention == "SimpleFreeFieldHRIR"
-                else "TF"
-            ),
-        }
-        for attribute_name, attribute_value in resolved_global_attributes.items():
-            if attribute_name in updated_dataset.ncattrs():
-                current_value = getattr(updated_dataset, attribute_name)
-                if current_value != attribute_value:
-                    updated_sofa.modify_global_attribute(attribute_name, attribute_value)
             else:
-                updated_sofa.create_global_attribute(attribute_name, attribute_value)
-        self.Sofa = updated_sofa
-        self.SOFAConventions = resolved_sofa_convention
-        return
+                for variable_name in mismatched_variables:
+                    variable = dataset.variables[variable_name]
+                    target_array = np.asarray(target_variables[variable_name])
+                    if target_array.ndim > len(variable.dimensions):
+                        raise ValueError(
+                            f"Variable '{variable_name}' has incompatible rank for SOFA dimensions"
+                        )
+                    target_shape = (
+                        (1,) * (len(variable.dimensions) - target_array.ndim)
+                        + tuple(target_array.shape)
+                    )
+                    for axis_index, dimension_name in enumerate(variable.dimensions):
+                        dimension = dataset.dimensions[dimension_name]
+                        if dimension.isunlimited():
+                            continue
+                        target_size = int(target_shape[axis_index])
+                        if target_size == 1:
+                            continue
+                        if dimension_name in dimension_overrides:
+                            if dimension_overrides[dimension_name] != target_size:
+                                raise ValueError(
+                                    f"Conflicting target size for dimension '{dimension_name}'"
+                                )
+                        elif int(dimension.size) != target_size:
+                            dimension_overrides[dimension_name] = target_size
+
+                if dimension_overrides:
+                    overridden_dimension_names = set(dimension_overrides)
+                    dependent_variable_overrides: dict[str, np.ndarray] = {}
+                    for variable_name, variable in dataset.variables.items():
+                        if variable_name in target_variables:
+                            continue
+                        affected_dimensions = tuple(
+                            dimension_name
+                            for dimension_name in variable.dimensions
+                            if dimension_name in overridden_dimension_names
+                        )
+                        if not affected_dimensions:
+                            continue
+                        if len(affected_dimensions) == 1 and affected_dimensions[0] == "M":
+                            if (
+                                variable_name == "SourcePosition"
+                                and "Sources" in self.__dict__
+                                and self.Sources.positions is not None
+                            ):
+                                source_positions = np.asarray(self.Sources.positions, dtype=float)
+                                if source_positions.shape[0] == int(dimension_overrides["M"]):
+                                    dependent_variable_overrides[variable_name] = source_positions
+                                    continue
+                            if selected_indices is not None:
+                                variable_values = np.asarray(variable[:])
+                                axis_index = variable.dimensions.index("M")
+                                variable_values = np.take(
+                                    variable_values,
+                                    np.asarray(selected_indices, dtype=int),
+                                    axis=axis_index,
+                                )
+                                dependent_variable_overrides[variable_name] = variable_values
+                                continue
+                        if any(
+                            dimension_name in overridden_dimension_names
+                            for dimension_name in variable.dimensions
+                        ):
+                            raise ValueError(
+                                "Cannot resize SOFA dimensions because dependent variable "
+                                f"'{variable_name}' is not handled by update_sofa"
+                            )
+                    updated_sofa = working_sofa.copy_with(
+                        dim_sizes=dimension_overrides,
+                        variables={
+                            variable_name: target_variables[variable_name]
+                            for variable_name in existing_target_variables
+                        }
+                        | dependent_variable_overrides,
+                    )
+                else:
+                    updated_sofa = working_sofa.clone()
+                    for variable_name in existing_target_variables:
+                        target_values = target_variables[variable_name]
+                        current_values = np.asarray(dataset.variables[variable_name][:])
+                        target_array = np.asarray(target_values)
+                        try:
+                            comparable_target = np.broadcast_to(target_array, current_values.shape)
+                        except ValueError:
+                            updated_sofa.modify_variable(variable_name, target_values)
+                        else:
+                            if not np.allclose(current_values, comparable_target):
+                                updated_sofa.modify_variable(variable_name, target_values)
+
+            updated_dataset = updated_sofa.netCDF4_dataset
+            if updated_dataset is None:
+                raise ValueError("SOFA dataset is not loaded")
+            for variable_name in missing_target_variables:
+                target_values = np.asarray(target_variables[variable_name])
+                variable_dimensions = missing_variable_dimensions[variable_name]
+
+                if target_values.ndim > len(variable_dimensions):
+                    raise ValueError(
+                        f"Variable '{variable_name}' has incompatible rank for SOFA dimensions"
+                    )
+                aligned_target_shape = (
+                    (1,) * (len(variable_dimensions) - target_values.ndim)
+                    + tuple(target_values.shape)
+                )
+                for axis_index, dimension_name in enumerate(variable_dimensions):
+                    if dimension_name not in updated_dataset.dimensions:
+                        if not allow_dimension_changes:
+                            raise ValueError(
+                                f"Dimension '{dimension_name}' is missing in SOFA dataset. "
+                                "Set change_sofa_dimensions=True to allow creating missing dimensions."
+                            )
+                        updated_sofa.create_dimension(
+                            dimension_name,
+                            int(aligned_target_shape[axis_index]),
+                        )
+                        continue
+                    dimension = updated_dataset.dimensions[dimension_name]
+                    if dimension.isunlimited():
+                        continue
+                    current_size = int(dimension.size)
+                    target_size = int(aligned_target_shape[axis_index])
+                    if target_size in {1, current_size}:
+                        continue
+                    raise ValueError(
+                        f"Cannot create variable '{variable_name}': dimension '{dimension_name}' "
+                        f"size mismatch ({current_size} != {target_size})"
+                    )
+
+                variable_attributes: dict[str, str] | None = None
+                if variable_name == "Data.SamplingRate":
+                    variable_attributes = {"Units": "hertz"}
+                elif variable_name == "N":
+                    variable_attributes = {
+                        "Units": "hertz",
+                        "LongName": "frequency",
+                    }
+                updated_sofa.create_variable(
+                    name=variable_name,
+                    data=target_values,
+                    dimensions=variable_dimensions,
+                    attributes=variable_attributes,
+                )
+
+            for obsolete_variable in obsolete_variables:
+                if obsolete_variable in updated_dataset.variables:
+                    updated_sofa.delete_variable(obsolete_variable)
+
+            updated_sofa.path = self.Sofa.path
+            resolved_global_attributes = {
+                "SOFAConventions": resolved_sofa_convention,
+                "DataType": (
+                    "FIR"
+                    if resolved_sofa_convention == "SimpleFreeFieldHRIR"
+                    else "TF"
+                ),
+            }
+            for attribute_name, attribute_value in resolved_global_attributes.items():
+                if attribute_name in updated_dataset.ncattrs():
+                    current_value = getattr(updated_dataset, attribute_name)
+                    if current_value != attribute_value:
+                        updated_sofa.modify_global_attribute(attribute_name, attribute_value)
+                else:
+                    updated_sofa.create_global_attribute(attribute_name, attribute_value)
+            self.Sofa = updated_sofa
+            self.SOFAConventions = resolved_sofa_convention
+            if working_sofa is not old_sofa and working_sofa is not updated_sofa:
+                working_dataset = working_sofa.netCDF4_dataset
+                if working_dataset is not None:
+                    is_open = getattr(working_dataset, "isopen", None)
+                    if not callable(is_open) or bool(is_open()):
+                        working_dataset.close()
+            if old_sofa is not updated_sofa:
+                old_dataset = old_sofa.netCDF4_dataset
+                if old_dataset is not None:
+                    is_open = getattr(old_dataset, "isopen", None)
+                    if not callable(is_open) or bool(is_open()):
+                        old_dataset.close()
+            return
+
+        except Exception:
+            if updated_sofa is not None and updated_sofa is not self.Sofa and updated_sofa is not old_sofa and updated_sofa is not working_sofa:
+                updated_dataset = updated_sofa.netCDF4_dataset
+                if updated_dataset is not None:
+                    is_open = getattr(updated_dataset, "isopen", None)
+                    if not callable(is_open) or bool(is_open()):
+                        updated_dataset.close()
+            if working_sofa is not None and working_sofa is not old_sofa:
+                working_dataset = working_sofa.netCDF4_dataset
+                if working_dataset is not None:
+                    is_open = getattr(working_dataset, "isopen", None)
+                    if not callable(is_open) or bool(is_open()):
+                        working_dataset.close()
+            raise
 
     def save(
         self,
@@ -1217,7 +1337,8 @@ class HRTF:
         :meth:`~hrtfpykit.hrtf.HRTF.update_sofa` so the backed
         :class:`~hrtfpykit.sofa.SOFA` object reflects the current in-memory
         IR/TF state and requested convention, then delegates the disk write to
-        :meth:`~hrtfpykit.sofa.SOFA.save`.
+        :meth:`~hrtfpykit.sofa.SOFA.save`. The backed SOFA dataset must be
+        open.
 
         Parameters
         ----------
@@ -1239,7 +1360,8 @@ class HRTF:
         Raises
         ------
         ValueError
-            If no SOFA file is attached or synchronization fails.
+            If no SOFA file is attached, the SOFA dataset is closed, or
+            synchronization fails.
         FileExistsError
             If the target path already exists and overwrite=False.
 
@@ -1266,6 +1388,18 @@ class HRTF:
             change_sofa_dimensions=change_sofa_dimensions,
             sofa_convention=sofa_convention,
         )
+        if path is None and self.Sofa.path is not None:
+            sofa_dataset = self.Sofa.netCDF4_dataset
+            if sofa_dataset is None:
+                raise ValueError("SOFA dataset is not loaded")
+            filepath = getattr(sofa_dataset, "filepath", None)
+            if callable(filepath):
+                try:
+                    current_sofa_path = Path(str(filepath()))
+                except RuntimeError:
+                    current_sofa_path = None
+                if current_sofa_path is not None and current_sofa_path.name.startswith("inmemory_"):
+                    return self.Sofa.save(path=self.Sofa.path, overwrite=True)
         return self.Sofa.save(path=path, overwrite=overwrite)
 
     def select(
@@ -1389,8 +1523,8 @@ class HRTF:
 
         selecting_spatial = selecting_positions or selecting_plane or selecting_angles
         if selecting_spatial:
-            if transformed_hrtf.Sofa is None:
-                raise ValueError("Spatial selection requires a loaded SOFA dataset")
+            if transformed_hrtf.Sources.positions is None:
+                raise ValueError("Spatial selection requires source positions")
             current_source_indices = transformed_hrtf.Sources._selected_indices
             source_positions = transformed_hrtf.Sources.get_positions(angle_unit=angle_unit)
             if source_positions.ndim != 2 or source_positions.shape[-1] != 3:

@@ -9,7 +9,7 @@ from .build import (
 )
 from .specs_workflow import DatasetSpecWorkflow
 from .config import DatasetConfig
-from .load import load_hrtf
+from .load import load_dataset_hrtf
 from .state import DatasetState
 from .summary import dataset_summary, resources_summary
 from .values import DatasetSampleValueSelector
@@ -44,6 +44,9 @@ class BaseDataset:
         split: str = "all",
         split_ratio: tuple[float, float, float] = (0.8, 0.1, 0.1),
         split_seed: int = 0,
+        preload_hrtfs: bool = False,
+        check_sofa_against_conventions: bool = False,
+        sofa_open: bool = False,
         verbose: bool = False,
     ) -> None:
         """Construct the shared dataset interface used by dataset integrations.
@@ -115,6 +118,19 @@ class BaseDataset:
             ``all``.
         split_seed : int, default=0
             Seed used for deterministic subject shuffling before split assignment.
+        preload_hrtfs : bool, default=False
+            If True, load and cache HRTF objects for the selected subjects
+            during construction. If False, HRTFs load on first access and stay
+            cached until :meth:`~hrtfpykit.datasets.base.BaseDataset.clear_cache`
+            is called.
+        check_sofa_against_conventions : bool, default=False
+            Whether dataset HRTF loading runs SOFA convention checks before
+            reading files. False keeps normal dataset construction quiet for
+            files with accepted custom SOFA fields.
+        sofa_open : bool, default=False
+            Whether HRTFs loaded by the dataset keep their backing SOFA netCDF
+            datasets open. False closes the handle after arrays and source
+            positions are loaded.
         verbose : bool, default=False
             If True, prints the resource and dataset summaries after
             construction.
@@ -149,6 +165,9 @@ class BaseDataset:
             split=split,
             split_ratio=split_ratio,
             split_seed=split_seed,
+            preload_hrtfs=preload_hrtfs,
+            check_sofa_against_conventions=check_sofa_against_conventions,
+            sofa_open=sofa_open,
             verbose=verbose,
         )
         self._state.resources_summary = cast(str, resources_summary(self))
@@ -191,7 +210,59 @@ class BaseDataset:
             If the resolved HRTF file is missing.
         """
 
-        return load_hrtf(self, subject_id)
+        return load_dataset_hrtf(self, subject_id)
+
+    def preload_hrtfs(self) -> None:
+        """Load and cache HRTFs for the selected dataset subjects.
+
+        This method calls
+        :meth:`~hrtfpykit.datasets.base.BaseDataset.get_subject_hrtf` for each
+        subject in the active split. The loaded HRTF objects are stored in the
+        dataset cache and reused by indexed sample extraction.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If loading any selected subject HRTF fails.
+        KeyError
+            If a selected subject has no HRTF resource in the dataset scan.
+        FileNotFoundError
+            If a selected subject HRTF file is missing.
+        """
+        for subject_id in self._state.selected_subjects:
+            self.get_subject_hrtf(subject_id)
+
+    def clear_cache(self) -> None:
+        """Clear cached dataset values and close cached SOFA datasets.
+
+        Cached HRTF objects may own open SOFA netCDF datasets. This method
+        closes each distinct cached SOFA dataset once before clearing the cache,
+        so a cached object graph can be released without closing the same
+        netCDF handle multiple times.
+
+        Returns
+        -------
+        None
+        """
+        closed_datasets: list[object] = []
+        for cached_value in self._state.cache.values():
+            sofa = getattr(cached_value, "Sofa", None)
+            if sofa is None:
+                continue
+            dataset = getattr(sofa, "netCDF4_dataset", None)
+            if dataset is None:
+                continue
+            if any(dataset is closed_dataset for closed_dataset in closed_datasets):
+                continue
+            is_open = getattr(dataset, "isopen", None)
+            if not callable(is_open) or bool(is_open()):
+                dataset.close()
+            closed_datasets.append(dataset)
+        self._state.cache.clear()
 
     def resources_summary(self) -> str:
         """Return the resource scan summary created during construction.

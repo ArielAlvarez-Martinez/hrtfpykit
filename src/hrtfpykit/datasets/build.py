@@ -63,6 +63,9 @@ class DatasetBuilder:
         split: str,
         split_ratio: tuple[float, float, float],
         split_seed: int,
+        preload_hrtfs: bool,
+        check_sofa_against_conventions: bool,
+        sofa_open: bool,
         subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         exclude_subject_ids: str | int | tuple[str | int, ...] | list[str | int] | None = None,
         verbose: bool = False,
@@ -118,6 +121,15 @@ class DatasetBuilder:
             Train, validation, and test ratios used for split planning.
         split_seed : int
             Seed used for deterministic subject shuffling.
+        preload_hrtfs : bool
+            Whether selected subject HRTFs should be loaded into the dataset
+            cache during construction after rows are built.
+        check_sofa_against_conventions : bool
+            Whether dataset HRTF loading should run SOFA convention checks before
+            reading files.
+        sofa_open : bool
+            Whether HRTFs loaded by the dataset should keep their backing SOFA
+            netCDF datasets open.
         subject_ids : str, int, sequence, or None
             Optional subject references used as the initial construction scope
             before exclusions, resource intersection, and split planning. None
@@ -166,6 +178,9 @@ class DatasetBuilder:
             subject_ids,
             tuple(config.subject_ids),
         )
+        state.preload_hrtfs = bool(preload_hrtfs)
+        state.check_sofa_against_conventions = bool(check_sofa_against_conventions)
+        state.sofa_open = bool(sofa_open)
         state.verbose = bool(verbose)
 
         state.dataset_hrtf_variant = None
@@ -354,6 +369,9 @@ class DatasetBuilder:
             selected_frequency_indices=state.selected_frequency_indices,
             selected_sample_indices=state.selected_sample_indices,
         )
+        dataset.clear_cache()
+        if state.preload_hrtfs:
+            dataset.preload_hrtfs()
 
     @staticmethod
     def _build_rows(

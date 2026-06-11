@@ -1,4 +1,5 @@
 from collections.abc import Callable, Sequence
+from typing import Any, cast
 from dataclasses import replace
 import io
 import os
@@ -152,7 +153,18 @@ def _paths_available(
 
 
 def _spec_key_names(specs: Sequence[object]) -> tuple[str, ...]:
-    return tuple(DatasetSpecWorkflow.get_spec_name(spec) for spec in specs)
+    return tuple(DatasetSpecWorkflow.get_spec_name(cast(Any, spec)) for spec in specs)
+
+
+def _ir_values(value: object) -> np.ndarray:
+    values = cast(Any, value).IR.values
+    assert values is not None
+    return values
+
+
+def _mapping(value: object) -> dict[str, Any]:
+    assert isinstance(value, dict)
+    return cast(dict[str, Any], value)
 
 
 def _uses_acoustic_specs(
@@ -578,10 +590,10 @@ def _build_dataset(
         )
 
         return HUTUBS(
-            root=HUTUBS_ROOT,
+            root=cast(str | Path, HUTUBS_ROOT),
             dataset_hrtf_variant=dataset_hrtf_variant,
-            inputs=inputs,
-            target=target,
+            inputs=cast(Any, inputs),
+            target=cast(Any, target),
             split=split,
             split_ratio=(0.8, 0.1, 0.1),
             split_seed=0,
@@ -604,7 +616,7 @@ def test_hutubs_config_subject_ids_are_valid() -> None:
 def test_hutubs_config_subject_exclusions() -> None:
     config = HUTUBSConfig()
 
-    assert all(server.download_exclude_subject_ids == () for server in config.download_servers.values())
+    assert all(server.download_exclude_subject_ids == () for server in cast(dict[str, Any], config.download_servers).values())
 
 
 @pytest.mark.parametrize(
@@ -650,16 +662,17 @@ def test_hutubs_download_plan_follows_subject_limit(tmp_path: Path) -> None:
     assert len(subject_jobs) == len(_TEST_SUBJECT_IDS) * 2
     assert all(job["checksum"] is not None for job in jobs)
     assert all(str(job["url"]).startswith("https://") for job in jobs)
-    assert all(Path(job["destination"]).resolve().is_relative_to(root) for job in jobs)
+    assert all(Path(cast(str | Path, job["destination"])).resolve().is_relative_to(root) for job in jobs)
 
 
 def test_hutubs_missing_checksum_fails_download_plan(tmp_path: Path) -> None:
     config = HUTUBSConfig()
-    download_config = config.download_servers["sofacoustics"]
+    download_servers = cast(dict[str, Any], config.download_servers)
+    download_config = download_servers["sofacoustics"]
     config = replace(
         config,
         download_servers={
-            **config.download_servers,
+            **download_servers,
             "sofacoustics": replace(
                 download_config,
                 checksums={"hrtf": {}},
@@ -745,6 +758,19 @@ def test_hutubs_spec_workflow_does_not_mutate_spec_objects() -> None:
     assert anthropometry_spec.grouped_by == "subject-ear"
     assert anthropometry_spec.ear == "LEFT"
 
+    with pytest.raises(ValueError, match="tf_complex, tf_real"):
+        DatasetSpecWorkflow.build(
+            config=HUTUBSConfig,
+            inputs=(HRTFSpec(domain="frequency"),),
+            target=(),
+        )
+
+    DatasetSpecWorkflow.build(
+        config=HUTUBSConfig,
+        inputs=(HRTFSpec(domain="frequency", signal="tf_complex"),),
+        target=(),
+    )
+
 
 def test_hutubs_anthropometry_download_plan(tmp_path: Path) -> None:
     jobs = SOFAcousticsDownload(config=HUTUBSConfig(), root=tmp_path, download_server="sofacoustics").build_download_plan(
@@ -754,7 +780,7 @@ def test_hutubs_anthropometry_download_plan(tmp_path: Path) -> None:
     assert len(jobs) == 1
     assert jobs[0]["resource"] == "anthropometry"
     assert jobs[0]["relative_path"] == "AntrhopometricMeasures.csv"
-    assert jobs[0]["checksum"] == HUTUBS_CHECKSUMS["anthropometry"]["AntrhopometricMeasures.csv"]
+    assert jobs[0]["checksum"] == cast(Any, HUTUBS_CHECKSUMS["anthropometry"])["AntrhopometricMeasures.csv"]
 
 
 @pytest.mark.parametrize(
@@ -772,7 +798,7 @@ def test_hutubs_hrtf_spec_grid(
     if not _path_exists(HUTUBS_ROOT):
         pytest.skip(reason="Required local datasets are not available")
 
-    spec_kwargs = {}
+    spec_kwargs: dict[str, Any] = {}
     if "position" in index_by:
         spec_kwargs["position_index"] = True
         spec_kwargs["position_one_hot"] = True
@@ -785,8 +811,8 @@ def test_hutubs_hrtf_spec_grid(
 
     spec = HRTFSpec(
         index_by=index_by,
-        positions=positions,
-        plane=plane,
+        positions=cast(Any, positions),
+        plane=cast(Any, plane),
         transform=transform,
         **spec_kwargs,
     )
@@ -826,10 +852,11 @@ def test_hutubs_hrtf_spec_grid(
         inputs=(spec,),
         target=(),
     )
-    sample = dataset[0]
+    sample = cast(dict[str, Any], dataset[0])
     assert "inputs" in sample
     assert sample["inputs"] is not None
-    hrtf_value = sample["inputs"]["hrtf"]
+    sample_inputs = _mapping(sample["inputs"])
+    hrtf_value = sample_inputs["hrtf"]
     assert isinstance(hrtf_value, np.ndarray)
     assert hrtf_value.size > 0
     return
@@ -896,8 +923,8 @@ def test_hutubs_real_dataset_all_combinations(
         dataset = _build_dataset(
             dataset_hrtf_variant=dataset_hrtf_variant,
             split=split,
-            inputs=inputs,
-            target=target,
+            inputs=cast(Any, inputs),
+            target=cast(Any, target),
         )
     except ValueError as exc:
         if "Split" in str(exc) and "produced an empty dataset" in str(exc):
@@ -964,7 +991,7 @@ def test_hutubs_get_subject_hrtf_uses_selected_subject() -> None:
     )
     expected_subject = dataset.selected_subjects[0]
     hrtf = dataset.get_subject_hrtf(expected_subject)
-    assert hrtf.IR.values.size > 0
+    assert _ir_values(hrtf).size > 0
     assert hrtf.Sources is not None
 
 
@@ -1008,6 +1035,7 @@ def test_hutubs_len_matches_subject_count_for_ear_indexed_rows() -> None:
             plane="horizontal",
             index_by=("subject", "ear"),
             domain="frequency",
+            signal="tf_magnitude",
             ear_one_hot=True,
         ),
     )
@@ -1021,10 +1049,10 @@ def test_hutubs_len_matches_subject_count_for_ear_indexed_rows() -> None:
     )
 
     dataset = HUTUBS(
-        root=HUTUBS_ROOT,
+        root=cast(str | Path, HUTUBS_ROOT),
         dataset_hrtf_variant="measured",
-        inputs=inputs,
-        target=target,
+        inputs=cast(Any, inputs),
+        target=cast(Any, target),
         exclude_subject_ids=excluded_subject_ids,
         split="all",
         verbose=False,
@@ -1051,9 +1079,9 @@ def test_hutubs_summary_reports_available_and_selected_subjects() -> None:
     )
 
     dataset = HUTUBS(
-        root=HUTUBS_ROOT,
+        root=cast(str | Path, HUTUBS_ROOT),
         dataset_hrtf_variant="measured",
-        inputs=inputs,
+        inputs=cast(Any, inputs),
         target=(),
         exclude_subject_ids=excluded_subject_ids,
         split="train",
@@ -1085,9 +1113,9 @@ def test_hutubs_constructor_verbose_false_is_quiet() -> None:
     output = io.StringIO()
     with redirect_stdout(output):
         dataset = HUTUBS(
-            root=HUTUBS_ROOT,
+            root=cast(str | Path, HUTUBS_ROOT),
             dataset_hrtf_variant="measured",
-            inputs=inputs,
+            inputs=cast(Any, inputs),
             target=(),
             exclude_subject_ids=excluded_subject_ids,
             split="all",
@@ -1142,4 +1170,4 @@ def test_hutubs_download_resources_follow_subject_limit(tmp_path: Path) -> None:
         assert len(subject_jobs) == expected_subject_jobs
         assert dataset.available_subjects == list(_TEST_SUBJECT_IDS)
         assert dataset.selected_subjects == list(_TEST_SUBJECT_IDS)
-        assert all(Path(job["destination"]).is_file() for job in jobs)
+        assert all(Path(cast(str | Path, job["destination"])).is_file() for job in jobs)

@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import inspect
 import pathlib
-import sys
 import warnings
-from typing import Any, TextIO, cast
 
 
-PACKAGE_ROOT = pathlib.Path(__file__).resolve().parent
+PACKAGE_ROOT = pathlib.Path(__file__).resolve().parents[1]
 __all__ = [
     "HRTFPyKitWarning",
     "SOFAWarning",
@@ -31,23 +29,6 @@ class SOFAConventionWarning(SOFAWarning):
 
 class SOFAShapeWarning(SOFAWarning):
     """Warning category for SOFA dimension and shape mismatches."""
-
-
-ORIGINAL_SHOWWARNING = getattr(
-    warnings.showwarning,
-    "_hrtfpykit_original",
-    warnings.showwarning,
-)
-
-
-def showwarning(message, category, filename, lineno, file=None, line=None):
-    """Render hrtfpykit warnings as concise message lines."""
-    stream = sys.stderr if file is None else cast(TextIO, file)
-    stream.write(f"{category.__name__}: {message}\n")
-
-
-cast(Any, showwarning)._hrtfpykit_original = ORIGINAL_SHOWWARNING
-warnings.showwarning = showwarning
 
 
 def warn_user(

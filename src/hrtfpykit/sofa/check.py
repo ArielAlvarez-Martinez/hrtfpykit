@@ -269,7 +269,7 @@ def check_sofa_security(
     target: Optional[Union[str, pathlib.Path, netCDF4.Dataset]] = None,
     hdf5_version: Optional[str] = None,
     min_safe_hdf5: str = HDF5_MIN_SAFE_VERSION,
-    print_report: bool = True,
+    print_report: bool = False,
     paranoid_mode: bool = False,
 ) -> dict[str, Any]:
     """Run security checks for SOFA/HDF5 file handling.

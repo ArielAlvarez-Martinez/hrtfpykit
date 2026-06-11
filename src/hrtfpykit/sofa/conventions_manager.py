@@ -26,18 +26,28 @@ class ConventionsManager:
         return "\n".join(lines)
     
     @staticmethod
-    def available_conventions_specifications() -> None:
-        """Print the list of available SOFA conventions and versions.
+    def available_conventions_specifications(display: bool = False) -> str:
+        """Return the list of available SOFA conventions and versions.
 
-        The table is built from the local ``CONVENTIONS`` registry.
+        The table is built from the local ``CONVENTIONS`` registry. Set
+        ``display=True`` to also print the table.
+
+        Parameters
+        ----------
+        display : bool, default=False
+            If True, print the formatted table before returning it.
+
+        Returns
+        -------
+        str
+            Formatted table with the available convention names and versions.
 
         Raises
         ------
         ValueError
             If no conventions are registered.
-
         """
-        if len(CONVENTIONS) is False:
+        if not CONVENTIONS:
             raise ValueError("There is no conventions available yet")
 
         rows = [("AVAILABLE CONVENTIONS", "VERSION")]
@@ -45,7 +55,9 @@ class ConventionsManager:
             version_list = ", ".join(sorted(versions.keys()))
             rows.append((convention, version_list))
         table = ConventionsManager._format_table(rows)
-        print(table)
+        if display:
+            print(table)
+        return table
 
     @staticmethod
     def inspect_sofa_specification(

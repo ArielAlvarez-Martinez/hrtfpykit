@@ -58,7 +58,7 @@ Content:
    ild
    itd_difference
    ild_difference
-   lsd
+   hrtf_difference
    SH
    sht
    sht_inverse

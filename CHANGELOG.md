@@ -36,9 +36,9 @@ use the `vx.y.z` format.
   `Sources.get_positions`, so users can request spherical, Cartesian, or
   lateral-polar positions and filter source grids by horizontal, median, or
   frontal planes directly at read time.
-- Added `frequency_bands` to `lsd`, matching `HRTFSpec` frequency-band
-  selection semantics and remaining mutually exclusive with explicit
-  `frequencies` queries.
+- Added `frequency_bands` to `hrtf_difference(metric="lsd")`, matching
+  `HRTFSpec` frequency-band selection semantics and remaining mutually
+  exclusive with explicit `frequencies` queries.
 - Added `plot_etc` for position-based energy time curve plots from HRIR data.
 - Added `plot_etc_plane` for plane-based energy time curve heatmaps over
   horizontal and median HRTF source planes.
@@ -47,6 +47,37 @@ use the `vx.y.z` format.
 - Added `subject_ids` and `download_subject_ids` to dataset constructors so
   users can include a small subject scope directly, then apply
   `exclude_subject_ids` or `download_exclude_subject_ids` on top of that scope.
+- Added dataset HRTF cache controls with `preload_hrtfs` and
+  `clear_cache`, so selected subject HRTFs can be loaded eagerly for training
+  workflows or released explicitly when cached SOFA-backed objects are no longer
+  needed.
+- Added dataset HRTF loading controls `check_sofa_against_conventions` and
+  `sofa_open` to `BaseDataset`, `ARI`, `HUTUBS`, and `SONICOM`.
+- Added `SOFA.is_open()`, `SOFA.close()`, and `SOFA.open()` for explicit
+  management of the backing netCDF4 dataset handle.
+- Added `load_hrtf(..., sofa_open=False)` for loading HRTF data into memory and
+  closing the file-backed SOFA dataset handle after the HRTF object has been
+  initialized.
+- Added `Transform.add_ild()` and `Transform.delete_ild()` for TF-domain
+  ILD editing, with matching dataset wrappers `HRTFTransform.add_ild()` and
+  `HRTFTransform.delete_ild()`. `add_ild()` accepts scalar dB values, one value
+  per source, or one value per source and frequency bin; `delete_ild()` removes
+  frequency-dependent ILD with symmetric left/right gain correction.
+- Added `Transform.apply_crop()` and `HRTFTransform.apply_crop()` for
+  sample-indexed HRIR interval removal with trailing zero padding and optional
+  end tapering before TF resynchronization. Omitting `start_sample` starts the
+  crop at sample 0.
+- Added `hrtf_difference()` for HRTF comparison with `rmse`, `mae`,
+  `nrmse`, and `lsd` metrics. `rmse` and `mae` return linear HRIR
+  amplitude error, `nrmse` normalizes by the reference HRIR energy and
+  returns dB, and `lsd` compares TF magnitudes in dB.
+- Added ear-selective support to `Transform.apply_window()`,
+  `Transform.apply_crop()`, `Transform.apply_padding()`,
+  `Transform.apply_fir_filter()`, `Transform.apply_iir_filter()`, and
+  `Transform.apply_gain()`, with matching `HRTFTransform` wrappers.
+  `apply_padding()` also supports
+  `preserve_length=True` for start padding that delays the selected ear without
+  increasing the HRIR sample count.
 
 ### Changed
 
@@ -61,6 +92,16 @@ use the `vx.y.z` format.
 - Changed dataset constructors to separate `download_exclude_subject_ids` from
   `exclude_subject_ids`, so download filtering and dataset-building filtering
   can be controlled independently.
+- Changed `ARI`, `HUTUBS`, and `SONICOM` to default `verbose=True`, so
+  resource and dataset summaries are printed unless users disable verbose output.
+- Changed dataset HRTF loading to use the internal `load_dataset_hrtf` wrapper
+  and forward dataset-level SOFA loading options to the canonical
+  `hrtfpykit.hrtf.load_hrtf` function.
+- Changed standard dataset HRTF loading to default to
+  `check_sofa_against_conventions=False` and `sofa_open=False`, avoiding SOFA
+  convention warnings and open netCDF handles during normal dataset use while
+  keeping loaded IR, TF, source positions, sample rates, and frequency bins
+  available in memory.
 - Changed built-in download exclusions to live on `DownloadServerConfig` as
   `download_exclude_subject_ids` instead of dataset construction config.
 - Removed the legacy single-server `DownloadConfig` and `DatasetConfig.download`
@@ -91,11 +132,13 @@ use the `vx.y.z` format.
   default to `azimuth_range_mode="-180-180"` and `plot_type="heatmap"`.
   Quickstart LSD comparison images were regenerated for the scatter and heatmap
   examples.
-- Changed `itd_difference`, `ild_difference`, and `lsd` to compare
+- Changed `itd_difference`, `ild_difference`, and
+  `hrtf_difference(metric="lsd")` to compare
   `hrtf_reference` against one HRTF or a sequence of HRTFs. A single compared
   HRTF returns the natural metric shape, while several compared HRTF metric
   arrays keep a leading comparison axis.
-- Changed `itd_difference`, `ild_difference`, and `lsd` reduction controls to
+- Changed `itd_difference`, `ild_difference`, and
+  `hrtf_difference(metric="lsd")` reduction controls to
   use `reduction_axis` and `reduction_method`, with metric-specific axes such
   as `itds`, `ilds`, `lsds`, `sources`, `ears`, and `global`.
 - Changed `ild` and `ild_difference` to return decibel values only.
@@ -104,7 +147,8 @@ use the `vx.y.z` format.
   `absolute=True` for unsigned ITD values.
 - Changed ITD time outputs from `output="seconds"` to `output="time"`;
   `itd`, `itd_difference`, ITD plots, and ITD difference plots now report
-  time values in microseconds. `Transform.add_itd(unit="time")` and
+  time values in microseconds. `itd` and `ITDSpec` now default to
+  `output="time"`. `Transform.add_itd(unit="time")` and
   `HRTFTransform.add_itd(unit="time")` also interpret time values as
   microseconds.
 - Changed HRIR duration helpers and time-domain plot axes to milliseconds:
@@ -114,7 +158,8 @@ use the `vx.y.z` format.
   feature extraction.
 - Changed SOFAcoustics download server configuration to use direct per-dataset
   base URLs instead of a shared base URL plus `path_prefix`.
-- Changed `lsd` reduction semantics to compute the natural frequency-reduced
+- Changed `hrtf_difference(metric="lsd")` reduction semantics to compute
+  the natural frequency-reduced
   LSD per compared HRTF, source, and ear first, then reduce those metric values
   with `reduction_axis`.
 - Changed `rms` into an HRTF-level metric exported from `hrtfpykit.hrtf`.
@@ -123,6 +168,8 @@ use the `vx.y.z` format.
 - Changed `sht` to require an `HRTF` object and reject standalone `TF` domain
   inputs, keeping spherical-harmonic decomposition tied to the active HRTF
   source grid and frequency metadata.
+- Changed `ConventionsManager.available_conventions_specifications()` to return
+  the formatted convention table and print only when `display=True`.
 - Removed redundant `plot_amplitude_and_magnitude`; use `plot_amplitude` and
   `plot_magnitude` separately.
 - Removed `plot_lsd_plane` .
@@ -139,7 +186,10 @@ use the `vx.y.z` format.
   `hrtfpykit.plots` functions such as `plot_magnitude(hrtf, ...)`,
   `plot_etc(hrtf, ...)`, and `plot_source_grid(hrtf, ...)`.
 - Changed `compare_lsd` to accept `ear="both"` by delegating ear averaging to
-  `lsd` with an explicit `ears` reduction axis.
+  `hrtf_difference(metric="lsd")` with an explicit `ears` reduction axis.
+- Improved the `hrtf_difference()` docstring with direct descriptions of
+  `IR.values`, `TF.values`, source and ear selection, reductions, and return
+  units.
 - Improved `IR`, `TF`, and `Sources` docstrings with task-focused examples for
   inspecting time-domain data, frequency-domain data, and source-grid queries.
 - Changed checksum planning to use an explicit per-job `checksum_key` instead of
@@ -172,6 +222,9 @@ use the `vx.y.z` format.
 - Improved SOFA wrapper API documentation with consistent method ordering and
   practical examples for dimensions, variables, global attributes, and variable
   attributes.
+- Changed SOFA-backed accessors and copy/save helpers to raise clear errors
+  when the backing netCDF4 dataset is missing or closed.
+- Removed SOFA load, save, and edit print side effects from library methods.
 - Documented in `AnthropometrySpec` and `MetadataSpec` that subjects with
   missing, empty, NaN, or infinite table fields are removed during dataset
   construction, and that users can exclude incomplete fields with
@@ -179,6 +232,13 @@ use the `vx.y.z` format.
 
 ### Fixed
 
+- Fixed `HRTF.update_sofa()` source-subset synchronization so selected
+  single-source HRTFs are saved with `M=1` instead of broadcasting the
+  selected source back to the original measurement count.
+- Fixed SOFA synchronization to reject ear-selected HRTFs instead of saving
+  squeezed single-ear arrays as ambiguous receiver data.
+- Fixed `HRTFSpec(domain="frequency", signal="ir")` validation so frequency
+  specs require explicit `tf_*` signal names.
 - Fixed downloader/scanner inconsistency where files found by dataset scanning,
   such as `root/metadata.csv` for SONICOM metadata, could still be downloaded
   again because the downloader only checked the official configured destination.
@@ -191,6 +251,15 @@ use the `vx.y.z` format.
 - Fixed verbose dataset constructors so download summaries print when
   `verbose=True` even if files were only verified or no new files were
   downloaded.
+- Fixed dataset HRTF validation to use temporary per-subject caches and close
+  cached SOFA handles after validation, avoiding leftover validation HRTFs in
+  the runtime dataset cache.
+- Fixed SOFA clone, save, and copy flows to preserve variable storage metadata,
+  including compression filters, chunking, endian settings, checksums,
+  quantization options, and fill values.
+- Fixed HRTF SOFA handle lifecycle during clone, update, and save workflows so
+  temporary and replaced netCDF handles are closed and closed SOFA datasets fail
+  explicitly.
 
 ## [v0.1.2] - 2026-06-02
 

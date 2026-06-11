@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from .config import DatasetConfig
-from .load import load_hrtf
+from .load import load_dataset_hrtf
 from .load import load_table
 from .specs_registry import get_specs, has_specs
 from .sanitize import sanitize_extensions
@@ -55,7 +55,7 @@ class DatasetResourcesValidator:
         The scanner can find files by path pattern, but construction should reject
         corrupt, missing, or incompatible acoustic resources before samples are
         indexed. This validator loads each candidate through
-        :func:`~hrtfpykit.datasets.load.load_hrtf`, reuses the dataset HRTF cache,
+        :func:`~hrtfpykit.datasets.load.load_dataset_hrtf`, reuses the dataset HRTF cache,
         enforces a consistent sample rate across loaded subjects, records load
         failures, and returns only paths that are still usable.
 
@@ -121,20 +121,37 @@ class DatasetResourcesValidator:
                     stacklevel=2,
                 )
                 continue
+            validation_cache: dict[object, object] = {}
             try:
-                hrtf = load_hrtf(
+                hrtf = load_dataset_hrtf(
                     self._dataset,
                     subject_id,
                     subject_ids=tuple(state.config.subject_ids),
                     hrtf_paths=hrtf_paths,
-                    cache=state.cache,
+                    cache=validation_cache,
+                )
+                current_sample_rate = (
+                    None if hrtf.IR.sample_rate is None else float(hrtf.IR.sample_rate)
                 )
             except Exception as error:
                 failed_hrtf_loads.append((subject_id, path, error))
                 continue
-            current_sample_rate = (
-                None if hrtf.IR.sample_rate is None else float(hrtf.IR.sample_rate)
-            )
+            finally:
+                closed_datasets: list[object] = []
+                for cached_value in validation_cache.values():
+                    sofa = getattr(cached_value, "Sofa", None)
+                    if sofa is None:
+                        continue
+                    dataset = getattr(sofa, "netCDF4_dataset", None)
+                    if dataset is None:
+                        continue
+                    if any(dataset is closed_dataset for closed_dataset in closed_datasets):
+                        continue
+                    is_open = getattr(dataset, "isopen", None)
+                    if not callable(is_open) or bool(is_open()):
+                        dataset.close()
+                    closed_datasets.append(dataset)
+                validation_cache.clear()
             if validated_sample_rate is None:
                 validated_sample_rate = current_sample_rate
             elif current_sample_rate != validated_sample_rate:
