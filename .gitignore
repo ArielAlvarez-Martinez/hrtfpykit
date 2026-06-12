@@ -9,7 +9,6 @@ venv/
 .pytest_cache/
 .ruff_cache/
 docs/_build/
-hrtf.sofa
 hrtfs/
 build/
 hrtfpykit-wheel/
