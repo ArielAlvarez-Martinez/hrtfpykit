@@ -92,7 +92,15 @@ class HRTFSpec:
         ears : {``both``, ``left``, ``right``} or sequence of str, default=``both``
             Ear axis selection when the spec is indexed by ear.
         index_by : str or tuple of str, default=(``subject``,)
-            Dataset row axes for this spec. Supported axes depend on domain.
+            Dataset row axes for this spec. For ``domain="time"``, supported
+            canonical combinations are ``("subject",)``, ``("subject", "position")``,
+            ``("subject", "ear")``, ``("subject", "samples")``,
+            ``("subject", "position", "ear")``, ``("subject", "position", "samples")``,
+            ``("subject", "ear", "samples")``, and
+            ``("subject", "position", "ear", "samples")``. For
+            ``domain="frequency"``, replace ``"samples"`` with ``"frequency"``.
+            ``"source"``, ``"sources"``, and ``"positions"`` are accepted as
+            aliases for ``"position"`` and normalize to ``"position"``.
         position_one_hot, position_index, ear_one_hot, ear_index : bool, default=False
             Whether row context encodings are exposed in the sample inputs.
         frequency_one_hot, frequency_index, sample_one_hot, sample_index : bool, default=False
@@ -203,7 +211,10 @@ class ITDSpec:
         plane : str, tuple, dict, or None, default=None
             Optional plane selector used instead of explicit position indices.
         index_by : str or tuple of str, default=(``subject``,)
-            Dataset row axes. ITD supports subject only and position indexed rows.
+            Dataset row axes. Supported canonical combinations are
+            ``("subject",)`` and ``("subject", "position")``. ``"source"``,
+            ``"sources"``, and ``"positions"`` are accepted as aliases for
+            ``"position"`` and normalize to ``"position"``.
         position_one_hot, position_index : bool, default=False
             Whether position context encodings are exposed in sample inputs.
         method : str, default=``threshold``
@@ -314,8 +325,12 @@ class ILDSpec:
         plane : str, tuple, dict, or None, default=None
             Optional plane selector used instead of explicit position indices.
         index_by : str or tuple of str, default=(``subject``,)
-            Dataset row axes. Frequency indexing requires ``mode`` set to
-            ``frequency-dependent``.
+            Dataset row axes. Broad-band ILD supports ``("subject",)`` and
+            ``("subject", "position")``. Frequency-dependent ILD also supports
+            ``("subject", "frequency")`` and
+            ``("subject", "position", "frequency")``. ``"source"``,
+            ``"sources"``, and ``"positions"`` are accepted as aliases for
+            ``"position"`` and normalize to ``"position"``.
         position_one_hot, position_index : bool, default=False
             Whether position context encodings are exposed in sample inputs.
         frequency_one_hot, frequency_index : bool, default=False
@@ -419,7 +434,10 @@ class SHSpec:
         ears : {``both``, ``left``, ``right``} or sequence of str, default=``both``
             Ear selection when the dataset is indexed by ear.
         index_by : str or tuple of str, default=(``subject``,)
-            Dataset row axes. SH specs support ear and frequency indexing.
+            Dataset row axes. Supported canonical combinations are
+            ``("subject",)``, ``("subject", "ear")``,
+            ``("subject", "frequency")``, and
+            ``("subject", "ear", "frequency")``.
         ear_one_hot, ear_index : bool, default=False
             Whether ear context encodings are exposed in sample inputs.
         frequency_one_hot, frequency_index : bool, default=False
@@ -640,8 +658,10 @@ class AnthropometrySpec:
             Row or column indices to remove while loading the table.
         accessed_by : {``row``, ``column``}, default=``row``
             Whether subjects are represented by rows or columns.
-        grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
-            Dataset grouping used to select anthropometry values.
+        grouped_by : str or tuple of str, default=(``subject``,)
+            Dataset grouping used to select anthropometry values. Supported
+            values are ``"subject"``, ``("subject",)``, ``"subject-ear"``, and
+            ``("subject", "ear")``.
         subject_id : bool, default=True
             Whether the table provides explicit subject IDs. CSV tables with
             subjects in rows use the first column, CSV tables with subjects in
@@ -771,8 +791,10 @@ class MetadataSpec:
             Row or column indices to remove while loading the table.
         accessed_by : {``row``, ``column``}, default=``row``
             Whether subjects are represented by rows or columns.
-        grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
-            Dataset grouping used to select metadata values.
+        grouped_by : str or tuple of str, default=(``subject``,)
+            Dataset grouping used to select metadata values. Supported values
+            are ``"subject"``, ``("subject",)``, ``"subject-ear"``, and
+            ``("subject", "ear")``.
         subject_id : bool, default=True
             Whether the table provides explicit subject IDs. CSV tables with
             subjects in rows use the first column, CSV tables with subjects in
@@ -890,8 +912,10 @@ class ImageSpec:
             Optional image root path. ``None`` uses the active dataset image
             configuration when available. Absolute paths are used directly.
             Relative paths are resolved from the dataset root.
-        grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
+        grouped_by : str or tuple of str, default=(``subject``,)
             Whether images are grouped only by subject or by subject and ear.
+            Supported values are ``"subject"``, ``("subject",)``,
+            ``"subject-ear"``, and ``("subject", "ear")``.
         extensions : tuple of str or None, default=None
             Optional image extensions to search.
         ear_one_hot, ear_index : bool, default=False
@@ -1004,8 +1028,10 @@ class VideoSpec:
             Optional video root path. ``None`` uses the active dataset video
             configuration when available. Absolute paths are used directly.
             Relative paths are resolved from the dataset root.
-        grouped_by : {``subject``} or (``subject``, ``ear``), default=(``subject``,)
+        grouped_by : str or tuple of str, default=(``subject``,)
             Whether videos are grouped only by subject or by subject and ear.
+            Supported values are ``"subject"``, ``("subject",)``,
+            ``"subject-ear"``, and ``("subject", "ear")``.
         extensions : tuple of str or None, default=None
             Optional video extensions to search.
         ear_one_hot, ear_index : bool, default=False

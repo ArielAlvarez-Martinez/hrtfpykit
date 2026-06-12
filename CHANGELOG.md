@@ -5,7 +5,7 @@ This file tracks released tags and upcoming release work for `hrtfpykit`.
 Historical baseline tags keep their original names. Future release tags should
 use the `vx.y.z` format.
 
-## [v0.2.0.dev0] - Unreleased
+## [v0.2.0] - 2026-06-13
 
 ### Added
 
@@ -73,6 +73,14 @@ use the `vx.y.z` format.
   returns dB, and `lsd` compares TF magnitudes in dB.
 - Added `compare_hrtf_difference()` for source-map visualization of
   `hrtf_difference()` metrics with scatter and heatmap renderers.
+- Added `hrtfpykit.datasets.torch.hrtf_loss()` for PyTorch training losses
+  based on RMSE, MAE, and LSD over tensor predictions while keeping gradients
+  connected to the model output.
+- Added `hrtfpykit.datasets.torch` documentation as the PyTorch integration
+  module for dataset workflows, with separate docs pages for `collate_samples()`
+  and `hrtf_loss()`.
+- Added the "Mastering HRTF transformation and visualization" tutorial
+  notebook for transform, metric, and plot workflows based on SONICOM HRTFs.
 - Added ear-selective support to `Transform.apply_window()`,
   `Transform.apply_crop()`, `Transform.apply_padding()`,
   `Transform.apply_fir_filter()`, `Transform.apply_iir_filter()`, and
@@ -146,7 +154,11 @@ use the `vx.y.z` format.
 - Changed `itd_difference`, `ild_difference`, and
   `hrtf_difference(metric="lsd")` reduction controls to
   use `reduction_axis` and `reduction_method`, with metric-specific axes such
-  as `itds`, `ilds`, `lsds`, `sources`, `ears`, and `global`.
+  as `itds`, `ilds`, `differences`, `positions`, `ears`, and `global`.
+  `source` and `sources` remain accepted as aliases for position reductions.
+- Changed dataset spec axis naming to use `position` and `positions` as the
+  canonical `index_by` and `grouped_by` spelling while accepting `source` and
+  `sources` as aliases.
 - Changed `ild` and `ild_difference` to return decibel values only.
 - Changed `itd` into an HRTF-level metric exported from `hrtfpykit.hrtf`.
   It now reads `hrtf.IR.values` and `hrtf.IR.sample_rate` directly and supports
@@ -166,11 +178,11 @@ use the `vx.y.z` format.
   base URLs instead of a shared base URL plus `path_prefix`.
 - Changed `hrtf_difference(metric="lsd")` reduction semantics to compute
   the natural frequency-reduced
-  LSD per compared HRTF, source, and ear first, then reduce those metric values
+  LSD per compared HRTF, position, and ear first, then reduce those metric values
   with `reduction_axis`.
 - Changed `rms` into an HRTF-level metric exported from `hrtfpykit.hrtf`.
   It computes per-HRIR RMS over samples first, then applies
-  `reduction_axis` and `reduction_method` over source and ear axes.
+  `reduction_axis` and `reduction_method` over position and ear axes.
 - Changed `sht` to require an `HRTF` object and reject standalone `TF` domain
   inputs, keeping spherical-harmonic decomposition tied to the active HRTF
   source grid and frequency metadata.
@@ -477,6 +489,8 @@ use the `vx.y.z` format.
   `hrtfpykit.datasets`, with separate pages for SOFA validation helpers, HRTF
   metrics, spherical harmonic utilities, plot functions, dataset specs, and
   `HRTFTransform`.
+- Reordered tutorial navigation so the transformation and visualization tutorial
+  appears next to the HRTF and plots tutorials in the sidebar.
 - Updated the Quick Start to describe the integrated SOFA, HRTF, plots, and
   datasets workflow, including flatter plot examples and dataset spec links.
 

@@ -63,5 +63,6 @@ Content:
    Starting with hrtfpykit.sofa <starting_with_hrtfpykit_sofa>
    Starting with hrtfpykit.hrtf <starting_with_hrtfpykit_hrtf>
    Starting with hrtfpykit.plots <starting_with_hrtfpykit_plots>
+   Mastering HRTF transformation and visualization <mastering_hrtfpykit_transformation_and_visualization>
    Starting with hrtfpykit.datasets <starting_with_hrtfpykit_datasets>
    Mastering hrtfpykit.datasets Specs <mastering_hrtfpykit_datasets_specs>

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from hrtfpykit.datasets import collate_samples
+from hrtfpykit.datasets.torch import collate_samples, hrtf_loss
 from hrtfpykit.datasets.base import BaseDataset
 from hrtfpykit.datasets.config import (
     AnthropometryConfig,
@@ -746,3 +746,55 @@ def test_collate_samples_returns_training_ready_tensor_dtypes() -> None:
     assert collated_meta["ear_index"] is None
     assert collated_meta["frequency_index"] is None
     assert collated_meta["sample_index"] is None
+
+
+def test_hrtf_loss_returns_scalar_training_loss_and_gradients() -> None:
+    torch = pytest.importorskip("torch")
+
+    prediction = torch.tensor(
+        [
+            [
+                [[0.0, 3.0, 6.0], [1.0, 2.0, 3.0]],
+                [[2.0, 4.0, 8.0], [3.0, 6.0, 9.0]],
+            ]
+        ],
+        dtype=torch.float32,
+        requires_grad=True,
+    )
+    target = torch.zeros_like(prediction)
+
+    for metric in ("rmse", "mae", "lsd"):
+        prediction.grad = None
+        loss = hrtf_loss(prediction, target, metric=metric, input_scale="db")
+
+        assert loss.shape == torch.Size([])
+        assert torch.isfinite(loss)
+
+        loss.backward(retain_graph=True)
+        assert prediction.grad is not None
+        assert torch.isfinite(prediction.grad).all()
+
+
+def test_hrtf_loss_linear_lsd_matches_db_rmse_over_frequency() -> None:
+    torch = pytest.importorskip("torch")
+
+    target = torch.ones((2, 3), dtype=torch.float32)
+    prediction = torch.tensor(
+        [
+            [1.0, 0.5, 0.25],
+            [2.0, 1.0, 0.5],
+        ],
+        dtype=torch.float32,
+        requires_grad=True,
+    )
+
+    loss = hrtf_loss(prediction, target, metric="lsd", input_scale="linear")
+    prediction_db = 20.0 * torch.log10(torch.clamp(prediction, min=1e-12))
+    target_db = torch.zeros_like(prediction_db)
+    expected = torch.sqrt(torch.mean((prediction_db - target_db) ** 2, dim=-1) + 1e-12).mean()
+
+    assert torch.allclose(loss, expected)
+
+    loss.backward()
+    assert prediction.grad is not None
+    assert torch.isfinite(prediction.grad).all()

@@ -372,7 +372,7 @@ def rms(
 
     ``rms`` is an HRTF metric. It reads HRIR data from ``hrtf.IR.values``
     and always computes the first RMS over the final sample axis. For standard
-    HRTF data with shape ``(sources, ears, samples)``, this returns one RMS
+    HRTF data with shape ``(positions, ears, samples)``, this returns one RMS
     value for each source and ear.
 
     ``reduction_axis`` applies only after the sample axis RMS is computed. It
@@ -398,13 +398,14 @@ def rms(
         Reference used when ``output="db"``. The default is 1.0. ``"max"``
         uses the maximum RMS value before output conversion and domain
         reduction.
-    reduction_axis : {"source", "ear", "global"}, tuple of str, or None
+    reduction_axis : {"position", "ear", "global"}, tuple of str, or None
         HRTF axis or axes reduced after the first RMS calculation. The default
-        is None, which returns the natural source by ear RMS array.
-        ``"source"`` reduces all leading source axes and preserves ears.
-        ``"ear"`` reduces the ear axis and preserves source axes.
-        ``"global"`` reduces source and ear axes. The plural aliases
-        ``"sources"`` and ``"ears"`` are also accepted.
+        is None, which returns the natural position by ear RMS array.
+        ``"position"`` or ``"positions"`` reduces all source-position axes and
+        preserves ears. ``"ear"`` or ``"ears"`` reduces the ear axis and
+        preserves positions. ``"global"`` reduces position and ear axes.
+        ``"source"`` and ``"sources"`` are accepted as aliases for
+        ``"position"`` and ``"positions"``.
     reduction_method : {"mean", "rms"}
         Method used for ``reduction_axis``. The default is ``"mean"``.
         ``"mean"`` computes the arithmetic average of the RMS values in the
@@ -480,13 +481,13 @@ def rms(
     elif isinstance(reduction_axis, str):
         reduction_axis_key = reduction_axis.strip().lower()
         if reduction_axis_key == "global":
-            reduction_axes = ("source", "ear")
-        elif reduction_axis_key in {"source", "sources"}:
-            reduction_axes = ("source",)
+            reduction_axes = ("position", "ear")
+        elif reduction_axis_key in {"position", "positions", "source", "sources"}:
+            reduction_axes = ("position",)
         elif reduction_axis_key in {"ear", "ears"}:
             reduction_axes = ("ear",)
         else:
-            raise ValueError("reduction_axis must be source, ear, global, a tuple of source/ear, or None")
+            raise ValueError("reduction_axis must be position, ear, global, a tuple of position/ear, or None")
     elif isinstance(reduction_axis, tuple):
         if len(reduction_axis) == 0:
             raise ValueError("reduction_axis tuple cannot be empty")
@@ -495,12 +496,12 @@ def rms(
             reduction_axis_key = str(reduction_axis_value).strip().lower()
             if reduction_axis_key == "global":
                 raise ValueError("reduction_axis='global' cannot be combined with other axes")
-            if reduction_axis_key in {"source", "sources"}:
-                reduction_axes_list.append("source")
+            if reduction_axis_key in {"position", "positions", "source", "sources"}:
+                reduction_axes_list.append("position")
             elif reduction_axis_key in {"ear", "ears"}:
                 reduction_axes_list.append("ear")
             else:
-                raise ValueError("reduction_axis tuple entries must be source or ear")
+                raise ValueError("reduction_axis tuple entries must be position or ear")
         if len(set(reduction_axes_list)) != len(reduction_axes_list):
             raise ValueError("reduction_axis tuple cannot contain repeated entries")
         reduction_axes = tuple(reduction_axes_list)
@@ -524,9 +525,9 @@ def rms(
             if rms_values.ndim < 1:
                 raise ValueError("reduction_axis='ear' requires an ear axis")
             selected_axes.append(rms_values.ndim - 1)
-        elif reduction_axis_key == "source":
+        elif reduction_axis_key == "position":
             if rms_values.ndim < 2:
-                raise ValueError("reduction_axis='source' requires at least one source axis")
+                raise ValueError("reduction_axis='position' requires at least one position axis")
             selected_axes.extend(range(rms_values.ndim - 1))
 
     if selected_axes:
@@ -559,7 +560,7 @@ def itd_difference(
     leading comparison axis is added. If ``hrtfs`` contains several HRTFs, the
     first axis indexes the compared
     HRTF ITD arrays, so standard HRTF data returns shape
-    ``(len(itds), sources)``.
+    ``(len(itds), positions)``.
 
     The default result is signed. Positive values mean the compared HRTF has a
     greater ITD value than the reference at the same source position. Set
@@ -593,12 +594,13 @@ def itd_difference(
     absolute : bool, default=False
         If False, return signed differences ``compared - reference``. If True,
         return ``abs(compared - reference)``.
-    reduction_axis : {``"itds"``, ``"sources"``, ``"global"``} or None, default=None
+    reduction_axis : {``"itds"``, ``"positions"``, ``"global"``} or None, default=None
         Axis reduced after differences are computed. None returns every compared
         ITD difference array. ``"itds"`` reduces the compared HRTF ITD axis and
-        preserves source positions. ``"sources"`` reduces source positions and
-        preserves the compared HRTF ITD axis when several HRTF ITD arrays are provided.
-        ``"global"`` reduces all axes.
+        preserves source positions. ``"position"`` or ``"positions"`` reduces
+        source positions and preserves the compared HRTF ITD axis when several
+        HRTF ITD arrays are provided. ``"global"`` reduces all axes.
+        ``"source"`` and ``"sources"`` are accepted as aliases.
     reduction_method : {``"mean"``, ``"rms"``}, default=``"mean"``
         Reduction method. ``"mean"`` computes the arithmetic mean over the
         selected axes. Use it with ``absolute=True`` to compute MAE. Use
@@ -608,8 +610,8 @@ def itd_difference(
     -------
     numpy.ndarray
         ITD differences after the requested reduction. Without reduction, a
-        single compared HRTF returns ``(sources,)`` for standard data. Several
-        compared HRTF ITD arrays return ``(len(itds), sources)``.
+        single compared HRTF returns ``(positions,)`` for standard data. Several
+        compared HRTF ITD arrays return ``(len(itds), positions)``.
 
     Raises
     ------
@@ -621,7 +623,7 @@ def itd_difference(
 
     Examples
     --------
-    Compare one processed HRTF against a reference and keep one value per source:
+    Compare one processed HRTF against a reference and keep one value per position:
 
     >>> from hrtfpykit.hrtf import itd_difference, load_hrtf
     >>> reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
@@ -665,8 +667,10 @@ def itd_difference(
         reduction_axis_key = str(reduction_axis).strip().lower()
         if reduction_axis_key in {"", "none"}:
             reduction_axis_key = None
-        elif reduction_axis_key not in {"itd", "itds", "source", "sources", "global"}:
-            raise ValueError("reduction_axis must be itds, sources, global, or None")
+        elif reduction_axis_key in {"position", "positions", "source", "sources"}:
+            reduction_axis_key = "positions"
+        elif reduction_axis_key not in {"itd", "itds", "global"}:
+            raise ValueError("reduction_axis must be itds, positions, global, or None")
 
     if isinstance(hrtfs, (list, tuple)):
         compared_hrtfs = tuple(hrtfs)
@@ -763,10 +767,10 @@ def itd_difference(
         return np.asarray(difference_values)
     if reduction_axis_key in {"itd", "itds"}:
         reduction_axes = (0,)
-    elif reduction_axis_key in {"source", "sources"}:
+    elif reduction_axis_key == "positions":
         reduction_axes = tuple(range(1, difference_values.ndim))
         if len(reduction_axes) == 0:
-            raise ValueError("reduction_axis='sources' requires a source axis")
+            raise ValueError("reduction_axis='positions' requires a position axis")
     else:
         reduction_axes = tuple(range(difference_values.ndim))
 
@@ -796,7 +800,7 @@ def ild_difference(
     leading comparison axis is added. If ``hrtfs`` contains several HRTFs, the
     first axis indexes the compared
     HRTF ILD arrays. Broad-band mode then returns shape
-    ``(len(ilds), sources)`` for standard data, and frequency-dependent mode
+    ``(len(ilds), positions)`` for standard data, and frequency-dependent mode
     returns shape ``(len(ilds), sources, frequency_bins)``.
 
     The default result is signed. Positive values mean the compared HRTF has a
@@ -825,12 +829,13 @@ def ild_difference(
     absolute : bool, default=False
         If False, return signed differences ``compared - reference``. If True,
         return ``abs(compared - reference)``.
-    reduction_axis : {``"ilds"``, ``"sources"``, ``"global"``} or None, default=None
+    reduction_axis : {``"ilds"``, ``"positions"``, ``"global"``} or None, default=None
         Axis reduced after differences are computed. None returns every compared
         ILD difference array. ``"ilds"`` reduces the compared HRTF ILD axis and
-        preserves source positions. ``"sources"`` reduces source positions and
-        preserves the compared HRTF ILD axis when several HRTF ILD arrays are provided.
-        ``"global"`` reduces all axes.
+        preserves source positions. ``"position"`` or ``"positions"`` reduces
+        source positions and preserves the compared HRTF ILD axis when several
+        HRTF ILD arrays are provided. ``"global"`` reduces all axes.
+        ``"source"`` and ``"sources"`` are accepted as aliases.
     reduction_method : {``"mean"``, ``"rms"``}, default=``"mean"``
         Reduction method. ``"mean"`` computes the arithmetic mean over the
         selected axes. Use it with ``absolute=True`` to compute MAE. Use
@@ -840,8 +845,8 @@ def ild_difference(
     -------
     numpy.ndarray
         ILD differences after the requested reduction. Without reduction, a
-        single compared HRTF returns ``(sources,)`` in broad-band mode and
-        ``(sources, frequency_bins)`` in frequency-dependent mode. Several
+        single compared HRTF returns ``(positions,)`` in broad-band mode and
+        ``(positions, frequency_bins)`` in frequency-dependent mode. Several
         compared HRTF ILD arrays keep a leading ILD comparison axis.
 
     Raises
@@ -854,7 +859,7 @@ def ild_difference(
 
     Examples
     --------
-    Compare one processed HRTF against a reference and keep one value per source:
+    Compare one processed HRTF against a reference and keep one value per position:
 
     >>> from hrtfpykit.hrtf import ild_difference, load_hrtf
     >>> reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
@@ -863,7 +868,7 @@ def ild_difference(
     >>> values.shape
     (793,)
 
-    Average absolute ILD differences from several HRTFs into one source curve:
+    Average absolute ILD differences from several HRTFs into one position curve:
 
     >>> values = ild_difference(
     ...     reference,
@@ -902,8 +907,10 @@ def ild_difference(
         reduction_axis_key = str(reduction_axis).strip().lower()
         if reduction_axis_key in {"", "none"}:
             reduction_axis_key = None
-        elif reduction_axis_key not in {"ild", "ilds", "source", "sources", "global"}:
-            raise ValueError("reduction_axis must be ilds, sources, global, or None")
+        elif reduction_axis_key in {"position", "positions", "source", "sources"}:
+            reduction_axis_key = "positions"
+        elif reduction_axis_key not in {"ild", "ilds", "global"}:
+            raise ValueError("reduction_axis must be ilds, positions, global, or None")
 
     if isinstance(hrtfs, (list, tuple)):
         compared_hrtfs = tuple(hrtfs)
@@ -972,13 +979,13 @@ def ild_difference(
         return np.asarray(difference_values)
     if reduction_axis_key in {"ild", "ilds"}:
         reduction_axes = (0,)
-    elif reduction_axis_key in {"source", "sources"}:
+    elif reduction_axis_key == "positions":
         if mode_key == "frequency-dependent":
             reduction_axes = tuple(range(1, difference_values.ndim - 1))
         else:
             reduction_axes = tuple(range(1, difference_values.ndim))
         if len(reduction_axes) == 0:
-            raise ValueError("reduction_axis='sources' requires a source axis")
+            raise ValueError("reduction_axis='positions' requires a position axis")
     else:
         reduction_axes = tuple(range(difference_values.ndim))
 
@@ -1045,10 +1052,11 @@ def hrtf_difference(
     Without ``reduction_axis``, one compared HRTF returns the natural metric
     array with no leading comparison axis. Several compared HRTFs return a
     leading difference axis. ``reduction_axis="differences"`` reduces the
-    compared HRTF axis, ``"sources"`` reduces selected source positions,
-    ``"ears"`` reduces the ear axis, and ``"global"`` reduces all available
-    metric axes. Reductions use either arithmetic mean or root mean square,
-    according to ``reduction_method``.
+    compared HRTF axis, ``"position"`` or ``"positions"`` reduces selected
+    source positions, ``"ears"`` reduces the ear axis, and ``"global"``
+    reduces all available metric axes. ``"source"`` and ``"sources"`` are
+    accepted as aliases for the position axis. Reductions use either arithmetic
+    mean or root mean square, according to ``reduction_method``.
 
     Parameters
     ----------
@@ -1086,13 +1094,14 @@ def hrtf_difference(
     frequency_bands : pair, sequence of pairs, numpy.ndarray, or None, default=None
         Inclusive frequency band or bands in hertz for ``metric="lsd"``.
         Mutually exclusive with ``frequencies``.
-    reduction_axis : {``"differences"``, ``"sources"``, ``"ears"``, ``"global"``}, sequence, or None, default=None
+    reduction_axis : {``"differences"``, ``"positions"``, ``"ears"``, ``"global"``}, sequence, or None, default=None
         Axis or axes reduced after metric values are computed. None returns the
         natural metric array. ``"differences"`` reduces the compared HRTF axis.
-        ``"sources"`` reduces source positions. ``"ears"`` reduces ears and
-        requires ``ear="both"``. ``"global"`` reduces all axes. Metric aliases
-        such as ``"rmses"``, ``"maes"``, ``"nrmses"``, and ``"lsds"`` are
-        accepted for the compared HRTF axis.
+        ``"position"`` or ``"positions"`` reduces source positions. ``"ears"``
+        reduces ears and requires ``ear="both"``. ``"global"`` reduces all axes.
+        ``"source"`` and ``"sources"`` are accepted as aliases for positions.
+        Metric aliases such as ``"rmses"``, ``"maes"``, ``"nrmses"``, and
+        ``"lsds"`` are accepted for the compared HRTF axis.
     reduction_method : {``"mean"``, ``"rms"``}, default=``"mean"``
         Reduction method applied to selected metric values. ``"mean"``
         computes the arithmetic mean. ``"rms"`` computes the root mean square.
@@ -1119,7 +1128,7 @@ def hrtf_difference(
 
     Examples
     --------
-    Compute one RMSE value per source for the left ear:
+    Compute one RMSE value per position for the left ear:
 
     >>> from hrtfpykit.hrtf import hrtf_difference, load_hrtf
     >>> reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
@@ -1227,16 +1236,16 @@ def hrtf_difference(
             reduction_axes = ()
         elif reduction_axis_key == "global":
             global_reduction = True
-            reduction_axes = ("differences", "sources", "ears")
+            reduction_axes = ("differences", "positions", "ears")
         elif reduction_axis_key in difference_axis_aliases:
             reduction_axes = ("differences",)
-        elif reduction_axis_key in {"source", "sources"}:
-            reduction_axes = ("sources",)
+        elif reduction_axis_key in {"position", "positions", "source", "sources"}:
+            reduction_axes = ("positions",)
         elif reduction_axis_key in {"ear", "ears"}:
             reduction_axes = ("ears",)
         else:
             raise ValueError(
-                "reduction_axis must be differences, sources, ears, global, "
+                "reduction_axis must be differences, positions, ears, global, "
                 "a sequence of axes, or None"
             )
     elif isinstance(reduction_axis, tuple | list):
@@ -1249,12 +1258,12 @@ def hrtf_difference(
                 raise ValueError("reduction_axis='global' cannot be combined with other axes")
             if axis_key in difference_axis_aliases:
                 normalized_axis = "differences"
-            elif axis_key in {"source", "sources"}:
-                normalized_axis = "sources"
+            elif axis_key in {"position", "positions", "source", "sources"}:
+                normalized_axis = "positions"
             elif axis_key in {"ear", "ears"}:
                 normalized_axis = "ears"
             else:
-                raise ValueError("reduction_axis entries must be differences, sources, or ears")
+                raise ValueError("reduction_axis entries must be differences, positions, or ears")
             if normalized_axis not in normalized_axes:
                 normalized_axes.append(normalized_axis)
         reduction_axes = tuple(normalized_axes)
@@ -1515,7 +1524,7 @@ def hrtf_difference(
         for reduction_axis_key in reduction_axes:
             if reduction_axis_key == "differences":
                 selected_axes.append(0)
-            elif reduction_axis_key == "sources":
+            elif reduction_axis_key == "positions":
                 selected_axes.append(1)
             elif reduction_axis_key == "ears":
                 if ear_key != "both":

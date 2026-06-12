@@ -49,7 +49,8 @@ dataset specs, and batching utilities.
    from hrtfpykit.plots import sht_reconstruction_comparison, sht_reconstruction_error
    
    from hrtfpykit.datasets import HUTUBS, SONICOM
-   from hrtfpykit.datasets import HRTFSpec, ITDSpec, ImageSpec, collate_samples
+   from hrtfpykit.datasets import HRTFSpec, ITDSpec, ImageSpec
+   from hrtfpykit.datasets.torch import collate_samples
 
 Download Two SONICOM Example HRTFs
 ----------------------------------
@@ -473,7 +474,7 @@ dataset resources. Spec objects such as :doc:`HRTFSpec </datasets/HRTFSpec>`,
 define which acoustic arrays, metrics, and subject resources are returned as
 inputs or targets. The example below downloads a small HUTUBS subset, builds a
 dataset, reads one sample, and batches samples for PyTorch with
-:func:`collate_samples() <hrtfpykit.datasets.collate_samples>`. For downloads,
+:func:`collate_samples() <hrtfpykit.datasets.torch.collate_samples>`. For downloads,
 local resource layouts, transforms, splits, and batching, continue with
 :doc:`Starting with hrtfpykit.datasets </tutorials/starting_with_hrtfpykit_datasets>`;
 for a deeper treatment of specs, see
@@ -483,7 +484,8 @@ for a deeper treatment of specs, see
 
    from torch.utils.data import DataLoader
 
-   from hrtfpykit.datasets import HUTUBS, HRTFSpec, ILDSpec, ITDSpec, collate_samples
+   from hrtfpykit.datasets import HUTUBS, HRTFSpec, ILDSpec, ITDSpec
+   from hrtfpykit.datasets.torch import collate_samples
 
    # Keep the quickstart small: download and build only pp1 through pp10.
    selected_subject_ids = tuple(f"pp{i}" for i in range(1, 11))

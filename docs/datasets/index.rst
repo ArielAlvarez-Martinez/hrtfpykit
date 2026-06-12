@@ -118,6 +118,9 @@ Content:
 .. toctree::
    :maxdepth: 1
 
+   ARI <ari>
+   HUTUBS <hutubs>
+   SONICOM <sonicom>
    HRTFSpec
    ITDSpec
    ILDSpec
@@ -128,7 +131,4 @@ Content:
    ImageSpec
    VideoSpec
    HRTFTransform
-   collate_samples <collate_samples>
-   ARI <ari>
-   HUTUBS <hutubs>
-   SONICOM <sonicom>
+   torch <torch/index>

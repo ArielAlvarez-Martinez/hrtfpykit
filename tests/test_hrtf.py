@@ -809,7 +809,7 @@ def test_real_hrtf_metric_rms_matches_sample_axis_calculation(real_hrtf: HRTF) -
 
     linear_values = rms(real_hrtf, output="linear")
     db_values = rms(real_hrtf, output="db", reference="max")
-    source_mean = rms(real_hrtf, output="linear", reduction_axis="source")
+    position_mean = rms(real_hrtf, output="linear", reduction_axis="position")
     ear_rms = rms(
         real_hrtf,
         output="linear",
@@ -826,7 +826,7 @@ def test_real_hrtf_metric_rms_matches_sample_axis_calculation(real_hrtf: HRTF) -
     np.testing.assert_allclose(linear_values, expected)
     assert db_values.shape == expected.shape
     assert np.max(db_values) == pytest.approx(0.0)
-    np.testing.assert_allclose(source_mean, np.mean(expected, axis=0))
+    np.testing.assert_allclose(position_mean, np.mean(expected, axis=0))
     np.testing.assert_allclose(ear_rms, np.sqrt(np.mean(np.square(expected), axis=-1)))
     np.testing.assert_allclose(global_rms, np.sqrt(np.mean(np.square(expected))))
 
@@ -899,13 +899,13 @@ def test_real_hrtf_metric_ir_errors_reduce_like_lsd(real_hrtf: HRTF) -> None:
     )
     assert np.asarray(compared_reduced).shape == (source_count, 2)
 
-    source_reduced = hrtf_difference(
+    position_reduced = hrtf_difference(
         real_hrtf,
         [processed, quieter],
         metric="rmse",
-        reduction_axis="sources",
+        reduction_axis="positions",
     )
-    assert np.asarray(source_reduced).shape == (2, 2)
+    assert np.asarray(position_reduced).shape == (2, 2)
 
     ear_reduced = hrtf_difference(real_hrtf, processed, metric="rmse", reduction_axis="ears")
     assert np.asarray(ear_reduced).shape == (source_count,)
@@ -914,7 +914,7 @@ def test_real_hrtf_metric_ir_errors_reduce_like_lsd(real_hrtf: HRTF) -> None:
         real_hrtf,
         [processed, quieter],
         metric="rmse",
-        reduction_axis=("sources", "ears"),
+        reduction_axis=("positions", "ears"),
         reduction_method="rms",
     )
     assert np.asarray(per_hrtf_scores).shape == (2,)
@@ -935,7 +935,7 @@ def test_real_hrtf_metric_ir_errors_reduce_like_lsd(real_hrtf: HRTF) -> None:
         real_hrtf,
         processed,
         metric="nrmse",
-        reduction_axis=("sources", "ears"),
+        reduction_axis=("positions", "ears"),
         reduction_method="rms",
     )
     assert isinstance(nrmse_score, float)
@@ -990,14 +990,14 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
         positions="front",
         frequency_bands=band,
     )
-    source_reduced = hrtf_difference(
+    position_reduced = hrtf_difference(
         real_hrtf,
         processed,
         metric="lsd",
         ear="both",
         positions="front",
         frequency_bands=band,
-        reduction_axis="sources",
+        reduction_axis="positions",
     )
     ears_reduced = hrtf_difference(
         real_hrtf,
@@ -1008,22 +1008,22 @@ def test_real_hrtf_metric_lsd_accepts_frequency_bands(real_hrtf: HRTF) -> None:
         frequency_bands=band,
         reduction_axis="ears",
     )
-    left_source_reduced = hrtf_difference(
+    left_position_reduced = hrtf_difference(
         real_hrtf,
         processed,
         metric="lsd",
         ear="left",
         positions="front",
         frequency_bands=band,
-        reduction_axis="sources",
+        reduction_axis="positions",
     )
 
     assert np.asarray(band_values).shape == np.asarray(explicit_values).shape
     assert np.asarray(band_values).shape == (1,)
     assert np.asarray(both_ear_values).shape == (1, 2)
-    assert np.asarray(source_reduced).shape == (2,)
+    assert np.asarray(position_reduced).shape == (2,)
     assert np.asarray(ears_reduced).shape == (1,)
-    assert isinstance(left_source_reduced, float)
+    assert isinstance(left_position_reduced, float)
     np.testing.assert_allclose(band_values, explicit_values)
 
     with pytest.raises(ValueError, match="can only be used when ear='both'"):

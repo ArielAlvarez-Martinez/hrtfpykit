@@ -54,13 +54,16 @@ def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
 
     A string equal to ``subject`` becomes a single-axis tuple. A string such as
     ``subject-position`` is split on hyphens. Sequence inputs are stripped and
-    lowercased element by element.
+    lowercased element by element. ``source``, ``sources``, and ``positions``
+    are accepted as aliases and normalized to the canonical ``position`` axis.
 
     Parameters
     ----------
     index_by : str or sequence of str
         Requested dataset row axes. The first axis must be ``subject``. Optional
         following axes are ``position``, ``ear``, ``frequency``, or ``samples``.
+        ``source``, ``sources``, and ``positions`` are accepted as aliases for
+        ``position`` and normalize to ``position``.
 
     Returns
     -------
@@ -76,17 +79,22 @@ def sanitize_index_by(index_by: str | Sequence[str]) -> tuple[str, ...]:
 
     """
     allowed_axes = {"position", "ear", "frequency", "samples"}
+    axis_aliases = {
+        "source": "position",
+        "sources": "position",
+        "positions": "position",
+    }
     normalized: tuple[str, ...]
     if isinstance(index_by, str):
         value = str(index_by).strip().lower()
         if value == "subject":
             normalized = ("subject",)
         elif value.startswith("subject-"):
-            normalized = tuple(part for part in value.split("-") if part != "")
+            normalized = tuple(axis_aliases.get(part, part) for part in value.split("-") if part != "")
         else:
-            normalized = (value,)
+            normalized = (axis_aliases.get(value, value),)
     else:
-        normalized = tuple(str(value).strip().lower() for value in index_by)
+        normalized = tuple(axis_aliases.get(str(value).strip().lower(), str(value).strip().lower()) for value in index_by)
     values = normalized
     if len(values) == 0:
         raise ValueError("index_by must not be empty")
@@ -118,8 +126,9 @@ def sanitize_grouped_by(grouped_by: str | Sequence[str]) -> tuple[str, ...]:
     Parameters
     ----------
     grouped_by : str or sequence of str
-        Requested grouping axes. Supported normalized values are (``subject``,) and
-        (``subject``, ``ear``).
+        Requested grouping axes. Supported normalized values are ``("subject",)``
+        and ``("subject", "ear")``. String shorthands ``"subject"`` and
+        ``"subject-ear"`` are accepted.
 
     Returns
     -------

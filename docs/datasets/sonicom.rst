@@ -37,7 +37,7 @@ files through the same HRTF workflow used by the rest of the package.
 
 **Implementation status.**
 
-Last updated: 2026-06-08. The current hrtfpykit SONICOM configuration exposes
+Last updated: 2026-06-13. The current hrtfpykit SONICOM configuration exposes
 subject identifiers ``P0001`` through ``P0405``. The Imperial transfer server is
 the most complete configured source for this implementation: it provides
 ``metadata``, ``hrtf``, and ``mesh`` resource groups, with six download-level

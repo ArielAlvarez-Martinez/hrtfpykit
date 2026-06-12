@@ -12,7 +12,6 @@ from .specs import (
     SHSpec,
     VideoSpec,
 )
-from ..utils.torch import collate_samples
 from .transforms import HRTFTransform
 
 
@@ -30,5 +29,4 @@ __all__ = [
     "SHSpec",
     "SONICOM",
     "VideoSpec",
-    "collate_samples",
 ]
