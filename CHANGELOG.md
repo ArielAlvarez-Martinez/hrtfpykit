@@ -237,6 +237,7 @@ use the `vx.y.z` format.
   `exclude_column` or `exclude_row` depending on table orientation.
 
 ### Fixed
+
 - Fixed `HRTF.update_sofa()` source-subset synchronization so selected
   single-source HRTFs are saved with `M=1` instead of broadcasting the
   selected source back to the original measurement count.
