@@ -933,7 +933,7 @@ class AzimuthAnglesAxis(DirectionAxis):
         Parameters
         ----------
         range_mode : str | None, default=None
-            Requested azimuth convention. None resolves to ``-180-180``.
+            Requested azimuth convention. None resolves to ``0-360``.
 
         Returns
         -------
@@ -947,7 +947,7 @@ class AzimuthAnglesAxis(DirectionAxis):
 
         """
         resolved_range_mode = (
-            AzimuthAnglesAxis.azimuth_range_modes[1]
+            AzimuthAnglesAxis.azimuth_range_modes[0]
             if range_mode is None
             else str(range_mode).strip()
         )
