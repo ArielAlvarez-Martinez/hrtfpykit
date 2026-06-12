@@ -207,9 +207,9 @@ def compare_magnitude(
         )
         if len(color_values) == 0:
             color_values = ["tab:blue"]
-        resolved_line_colors = [str(color_values[index % len(color_values)]) for index in range(hrtf_count)]
+        resolved_line_colors = [color_values[index % len(color_values)] for index in range(hrtf_count)]
     else:
-        resolved_line_colors = [str(value) for value in line_colors]
+        resolved_line_colors = list(line_colors)
         if len(resolved_line_colors) != hrtf_count:
             raise ValueError("line_colors length must match len(hrtfs)")
 
@@ -624,9 +624,9 @@ def compare_amplitude(
         )
         if len(color_values) == 0:
             color_values = ["tab:blue"]
-        resolved_line_colors = [str(color_values[index % len(color_values)]) for index in range(hrtf_count)]
+        resolved_line_colors = [color_values[index % len(color_values)] for index in range(hrtf_count)]
     else:
-        resolved_line_colors = [str(value) for value in line_colors]
+        resolved_line_colors = list(line_colors)
         if len(resolved_line_colors) != hrtf_count:
             raise ValueError("line_colors length must match len(hrtfs)")
 
@@ -934,9 +934,9 @@ def compare_absolute_itd(
         )
         if len(color_values) == 0:
             color_values = ["tab:blue"]
-        resolved_line_colors = [str(color_values[index % len(color_values)]) for index in range(hrtf_count)]
+        resolved_line_colors = [color_values[index % len(color_values)] for index in range(hrtf_count)]
     else:
-        resolved_line_colors = [str(value) for value in line_colors]
+        resolved_line_colors = list(line_colors)
         if len(resolved_line_colors) != hrtf_count:
             raise ValueError("line_colors length must match len(hrtfs)")
 
@@ -1183,9 +1183,9 @@ def compare_absolute_ild(
         )
         if len(color_values) == 0:
             color_values = ["tab:blue"]
-        resolved_line_colors = [str(color_values[index % len(color_values)]) for index in range(hrtf_count)]
+        resolved_line_colors = [color_values[index % len(color_values)] for index in range(hrtf_count)]
     else:
-        resolved_line_colors = [str(value) for value in line_colors]
+        resolved_line_colors = list(line_colors)
         if len(resolved_line_colors) != hrtf_count:
             raise ValueError("line_colors length must match len(hrtfs)")
 
@@ -1441,9 +1441,9 @@ def compare_itd(
         )
         if len(color_values) == 0:
             color_values = ["tab:blue"]
-        resolved_line_colors = [str(color_values[index % len(color_values)]) for index in range(hrtf_count)]
+        resolved_line_colors = [color_values[index % len(color_values)] for index in range(hrtf_count)]
     else:
-        resolved_line_colors = [str(value) for value in line_colors]
+        resolved_line_colors = list(line_colors)
         if len(resolved_line_colors) != hrtf_count:
             raise ValueError("line_colors length must match len(hrtfs)")
 
@@ -1700,9 +1700,9 @@ def compare_ild(
         )
         if len(color_values) == 0:
             color_values = ["tab:blue"]
-        resolved_line_colors = [str(color_values[index % len(color_values)]) for index in range(hrtf_count)]
+        resolved_line_colors = [color_values[index % len(color_values)] for index in range(hrtf_count)]
     else:
-        resolved_line_colors = [str(value) for value in line_colors]
+        resolved_line_colors = list(line_colors)
         if len(resolved_line_colors) != hrtf_count:
             raise ValueError("line_colors length must match len(hrtfs)")
 

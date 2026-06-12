@@ -238,6 +238,10 @@ use the `vx.y.z` format.
 
 ### Fixed
 
+<<<<<<< HEAD
+=======
+- Fixed comparison plot color handling so Matplotlib RGB tuple color cycles are passed through as valid colors instead of being converted to invalid tuple strings.
+>>>>>>> dev
 - Fixed `HRTF.update_sofa()` source-subset synchronization so selected
   single-source HRTFs are saved with `M=1` instead of broadcasting the
   selected source back to the original measurement count.

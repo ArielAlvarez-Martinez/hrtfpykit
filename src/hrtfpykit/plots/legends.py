@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any, cast
 
 import matplotlib.pyplot as plt
 
@@ -129,7 +130,7 @@ class Ear(Legends):
                 f"legend labels must contain {expected_label_count} entries for ear='{ear}'"
             )
         resolved_location = Ear.location if location is None else location
-        ax.legend(labels=resolved_labels, loc=resolved_location)
+        ax.legend(labels=resolved_labels, loc=cast(Any, resolved_location))
 
 
 class Subjects(Legends):
@@ -243,6 +244,6 @@ class Subjects(Legends):
             else (float(bbox_to_anchor[0]), float(bbox_to_anchor[1]))
         )
         if resolved_bbox is None:
-            ax.legend(labels=resolved_labels, loc=resolved_location)
+            ax.legend(labels=resolved_labels, loc=cast(Any, resolved_location))
             return
-        ax.legend(labels=resolved_labels, loc=resolved_location, bbox_to_anchor=resolved_bbox)
+        ax.legend(labels=resolved_labels, loc=cast(Any, resolved_location), bbox_to_anchor=resolved_bbox)

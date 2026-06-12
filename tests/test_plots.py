@@ -338,7 +338,22 @@ def test_real_hrtf_compare_plot_functions_create_matplotlib_figures(
     name: str,
     plot_call,
 ) -> None:
-    result = plot_call(comparison_hrtfs)
+    tuple_color_cycle = plt.cycler(
+        color=[
+            (
+                0.12156862745098039,
+                0.4666666666666667,
+                0.7058823529411765,
+            ),
+            (
+                1.0,
+                0.4980392156862745,
+                0.054901960784313725,
+            ),
+        ]
+    )
+    with plt.rc_context({"axes.prop_cycle": tuple_color_cycle}):
+        result = plot_call(comparison_hrtfs)
 
     assert result is None
     assert_current_matplotlib_figure_has_axes()
