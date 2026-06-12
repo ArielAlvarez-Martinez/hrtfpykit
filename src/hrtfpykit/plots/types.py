@@ -107,7 +107,7 @@ class Heatmap:
     }
     colorbar_location: str = "right"
     colorbar_fraction: float = 0.03
-    colorbar_pad: float = 0.2
+    colorbar_pad: float = 0.15
 
     @staticmethod
     def create(

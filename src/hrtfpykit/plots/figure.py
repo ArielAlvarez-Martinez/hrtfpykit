@@ -109,6 +109,7 @@ class Figure:
                 "font.size": rc.default,
                 "axes.titlesize": rc.axis_title,
                 "axes.labelsize": rc.axis_labels,
+                "axes.labelpad": rc.axis_label_pad,
                 "xtick.labelsize": rc.ticks,
                 "ytick.labelsize": rc.ticks,
                 "legend.fontsize": rc.legend,

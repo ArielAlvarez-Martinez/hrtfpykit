@@ -7,6 +7,7 @@ if os.getenv("HRTFPYKIT_TEST_SHOW_PLOTS", "") != "1":
     matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure as MplFigure
 import numpy as np
 import pytest
 
@@ -241,7 +242,8 @@ def test_real_hrtf_plot_methods_create_matplotlib_figures(
 ) -> None:
     result = plot_call(real_hrtf)
 
-    assert result is None
+    assert isinstance(result, MplFigure)
+    assert result is plt.gcf()
     assert_current_matplotlib_figure_has_axes()
 
 
@@ -355,7 +357,8 @@ def test_real_hrtf_compare_plot_functions_create_matplotlib_figures(
     with plt.rc_context({"axes.prop_cycle": tuple_color_cycle}):
         result = plot_call(comparison_hrtfs)
 
-    assert result is None
+    assert isinstance(result, MplFigure)
+    assert result is plt.gcf()
     assert_current_matplotlib_figure_has_axes()
 
 
@@ -396,5 +399,6 @@ def test_real_hrtf_sh_plot_functions_create_matplotlib_figures(
     reconstructed_magnitude = np.asarray(real_hrtf.TF.magnitude, dtype=float)
     result = plot_call(real_hrtf, reconstructed_magnitude)
 
-    assert result is None
+    assert isinstance(result, MplFigure)
+    assert result is plt.gcf()
     assert_current_matplotlib_figure_has_axes()

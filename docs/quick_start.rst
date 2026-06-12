@@ -230,13 +230,13 @@ harmonics:
 hrtfpykit.plots: Visualizing HRTF data
 --------------------------------------
 
-The :doc:`plots API </plots/index>` contains the Matplotlib visualizations for
-HRTF objects and metric outputs. The examples begin with individual HRTF views:
-HRIR amplitude, HRTF magnitude, absolute ITD, signed ILD, source grids, and
-spectrum planes. They then move to pairwise comparisons with amplitude,
-magnitude, absolute ITD, and HRTF difference maps, including LSD scatter and
-heatmap views. For figure controls, plane plots, comparison maps, cue
-difference maps, and spherical harmonic figures, see
+The :doc:`plots API </plots/index>` turns loaded HRTF objects and metric
+outputs into figures for inspecting spatial acoustic behavior. The examples
+begin with individual HRTF views: HRIR amplitude, HRTF magnitude, absolute ITD,
+signed ILD, source grids, and spectrum planes. They then move to pairwise
+comparisons with amplitude, magnitude, absolute ITD, and HRTF difference maps,
+including LSD scatter and heatmap views. For figure controls, plane plots,
+comparison maps, cue difference maps, and spherical harmonic figures, see
 :doc:`Starting with hrtfpykit.plots </tutorials/starting_with_hrtfpykit_plots>`.
 
 |

@@ -1037,8 +1037,10 @@ class BaseDownload(ABC):
         """Execute secure downloads for the selected official resources.
 
         This method validates the root, builds the plan, executes each job, tracks
-        downloaded and verified files, and returns a human-readable summary. Failed
-        jobs emit a warning after all planned jobs have been processed.
+        downloaded and verified files, and returns a human-readable summary. Partial
+        failures stay in the summary so dataset construction can continue with the
+        resources that were downloaded or already verified. If every planned job fails
+        and no usable file is produced, the download stops before dataset construction.
 
         Download execution follows the explicit download plan. It does not fall back
         to specs, dataset HRTF variants, or dataset mesh variants when a resource or
@@ -1070,13 +1072,13 @@ class BaseDownload(ABC):
         Warns
         -----
         UserWarning
-            If one or more planned jobs fails after the downloader processes all
-            jobs. Successfully downloaded or verified files remain on disk.
+            If the request produces no planned files.
 
         Raises
         ------
         ValueError
-            If planning fails or if the root cannot be used.
+            If planning fails, if the root cannot be used, or if every planned
+            download job fails without producing or verifying any usable file.
         """
 
         self.validate_supported_download_filters(
@@ -1191,8 +1193,19 @@ class BaseDownload(ABC):
             verified_count,
             failures,
         )
-        if len(failures) > 0:
-            warnings.warn(summary, stacklevel=2)
+        if (
+            len(failures) == len(download_jobs)
+            and downloaded_count == 0
+            and verified_count == 0
+        ):
+            raise ValueError(
+                f"{self.config.name} download failed because none of the planned files "
+                "could be downloaded or verified. The selected download server may be "
+                "unavailable, rejecting access, or missing every requested resource. "
+                "Retry later, choose another download_server if the dataset supports "
+                "one, or place the required files under the dataset root before "
+                f"constructing the dataset.\n{summary}"
+            )
         return self.finalize_download(downloaded_count > 0, summary)
 
     def finalize_download(self, downloaded: bool, summary: str) -> tuple[bool, str]:

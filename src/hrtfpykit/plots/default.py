@@ -98,6 +98,8 @@ class RC:
         Font size for x- and y-axis tick labels.
     axis_labels : float
         Font size for axis labels.
+    axis_label_pad : float
+        Padding between an axis and its label, in points.
     default : float
         Global default font size.
     axis_title : float
@@ -110,7 +112,8 @@ class RC:
     legend_title: float = 10
     legend: float = 9
     ticks: float = 7
-    axis_labels: float = 9
+    axis_labels: float = 10
+    axis_label_pad: float = 2.0
     default: float = 10
     axis_title: float = 10
     fig_title: float = 12

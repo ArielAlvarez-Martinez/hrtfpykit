@@ -19,10 +19,12 @@ source positions, sampling rates, and frequency vectors; and
 ``sofa.VariableAttributes`` for per-variable metadata such as coordinate-system
 types, units, and semantic labels.
 
-All four access paths read the same parent SOFA state.  When no SOFA file is
-loaded they return ``None``; when a file is loaded, they reflect the current
-``sofa.netCDF4_dataset`` handle used by inspection, editing, summary, clone, and
-save workflows.
+All four access paths read the same parent SOFA state through the current
+``sofa.netCDF4_dataset`` handle.  The handle must be open: if no dataset is
+attached, or if the dataset was closed with :meth:`~hrtfpykit.sofa.SOFA.close`,
+these properties raise ``ValueError``.  File-backed SOFA objects can be reopened
+with :meth:`~hrtfpykit.sofa.SOFA.open`; in-memory clones should be saved or kept
+open while they are being edited.
 
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure as MplFigure
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.interpolate import griddata
@@ -57,55 +58,50 @@ def compare_magnitude(
     show_titles: bool = True,
     show_labels: bool = True,
     show_legends: bool = True,
-) -> None:
-    """Compare HRTF magnitude responses across multiple :class:`~hrtfpykit.hrtf.HRTF` objects.
+) -> MplFigure:
+    """Compare HRTF magnitude responses from several HRTFs.
 
-    The function overlays one magnitude curve per HRTF for each requested
-    source position. It is designed for comparing subjects, measurements,
-    model outputs, or processing pipelines that share a broadly comparable
-    source grid and frequency range. Each position query is resolved against
-    every HRTF independently, then the real resolved positions are checked so
-    the caller is warned when a named or numeric query resolves to different
-    source coordinates across subjects.
+    ``compare_magnitude`` reads ``TF.magnitude`` and ``TF.frequency_bins`` from every HRTF
+    in ``hrtfs``. For each requested source query, it resolves the nearest measured source
+    in every HRTF with ``hrtf.Sources.get_position_index(...)`` and overlays the selected
+    magnitude traces. When ``unit="db"``, values are converted to decibels.
 
-    Frequency limits are resolved across all provided HRTFs. If freq_min or
-    freq_max is omitted, the plotted range is restricted to the overlapping
-    frequency span available in every input. Frequency values are shown in kHz
-    on the x-axis, while freq_min and freq_max are specified in Hz to
-    match the stored frequency bins.
+    Frequency limits are resolved across all inputs. If the same query resolves to different
+    real source coordinates across HRTFs, the function emits an
+    :class:`~hrtfpykit.utils.warnings.HRTFPyKitWarning` so the comparison is explicit about
+    source mismatch.
 
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
-        entries. Every object must contain frequency-domain data and frequency
-        bins.
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least
+        2 and at most 5 entries. Every object must contain frequency domain data and
+        frequency bins.
     positions : str | list | tuple | np.ndarray, default=(``front``,)
         Position query or collection of position queries. Up to 4 positions are
         accepted. Query resolution uses each HRTF's nearest available source in
         spherical coordinates.
     ear : {``left``, ``right``, ``both``}, default=``left``
-        Ear channel selection. ``both`` requires exactly one position and
-        creates separate left-ear and right-ear subplots.
+        Ear channel selection. ``both`` requires exactly one position and creates
+        separate left ear and right ear subplots.
     x_axis : {``linear``, ``log``}, default=``linear``
-        Frequency-axis scale used for all subplots.
+        Frequency axis scale used for all subplots.
     unit : {``db``, ``linear``}, default=``db``
-        Magnitude representation. ``db`` converts magnitudes with
-        magnitude-to-decibel conversion; ``linear`` plots raw
-        magnitudes.
+        Magnitude representation. ``db`` converts magnitudes with decibel conversion;
+        ``linear`` plots raw magnitudes.
     reference : float | str, default=1.0
-        Reference used when ``unit`` is ``db``. ``max`` normalizes all plotted
-        curves to the maximum selected magnitude over the requested positions,
-        frequency range, and ear selection.
+        Reference used when ``unit`` is ``db``. ``max`` normalizes all plotted curves to
+        the maximum selected magnitude over the requested positions, frequency range,
+        and ear selection.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
-        One line color per subject. Uses Matplotlib default cycle when omitted.
+        One line color per subject. Uses the default color cycle when omitted.
     line_styles : list[str] | tuple[str, ...] | None, default=None
         One line style per subject. Defaults to solid lines.
     legend_location : str | None, default=None
-        Legend location. Defaults to ``upper right`` when ``x_axis`` is ``linear``
-        and ``upper left`` when ``x_axis`` is ``log``.
+        Legend location. Defaults to ``upper right`` when ``x_axis`` is ``linear`` and
+        ``upper left`` when ``x_axis`` is ``log``.
     legend_bbox_to_anchor : tuple[float, float] | None, default=None
         Optional legend anchor tuple (x, y).
     freq_min : float | None, default=None
@@ -113,9 +109,9 @@ def compare_magnitude(
     freq_max : float | None, default=None
         Maximum frequency in Hz. If omitted, resolved from all HRTFs.
     show : bool, default=True
-        If True, calls matplotlib.pyplot.show().
+        If True, display the figure before returning.
     show_titles : bool, default=True
-        Controls generated subplot and figure titles.
+        If False, suppress generated subplot and figure titles.
     show_labels : bool, default=True
         If False, suppress generated axis labels and colorbar labels.
     show_legends : bool, default=True
@@ -123,34 +119,32 @@ def compare_magnitude(
 
     Returns
     -------
-    None
+    matplotlib.figure.Figure
+        Figure containing the overlaid HRTF magnitude comparisons.
 
     Raises
     ------
     ValueError
         If the HRTF list length, option values, legend/style lengths, requested
-        positions, frequency range, TF availability, frequency bins, or ear
-        channels are invalid.
+        positions, frequency range, TF availability, frequency bins, or ear channels are
+        invalid.
 
     Warns
     -----
     HRTFPyKitWarning
-        If the same position query resolves to different real source
-        coordinates in different HRTFs.
+        If the same position query resolves to different real source coordinates in
+        different HRTFs.
 
     Notes
     -----
-    One single-ear position uses :class:`~hrtfpykit.plots.layouts.Layout_1`,
-    two positions use :class:`~hrtfpykit.plots.layouts.Layout_2Vertical`, and
-    three or four positions use :class:`~hrtfpykit.plots.layouts.Layout_3`.
-    When ``ear`` is ``both``, the function uses
-    :class:`~hrtfpykit.plots.layouts.Layout_2Horizontal` and one position,
-    placing left-ear and right-ear comparisons side by side.
+    With one selected source and ``ear="both"``, the figure places the left and right ear
+    comparisons in separate panels. Otherwise, each requested source gets its own panel and
+    every HRTF is drawn in that panel.
 
     Examples
     --------
-    Compare left-ear magnitude responses from two SOFA files at the front
-    direction, using a logarithmic frequency axis and a shared dB reference:
+    Compare left ear magnitude responses from two SOFA files at the front direction, using a
+    logarithmic frequency axis and a shared dB reference:
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_magnitude
@@ -478,6 +472,7 @@ def compare_magnitude(
 
     if show:
         plt.show()
+    return figure.fig
 
 
 def compare_amplitude(
@@ -494,41 +489,36 @@ def compare_amplitude(
     show_titles: bool = True,
     show_labels: bool = True,
     show_legends: bool = True,
-) -> None:
-    """Compare HRIR amplitude curves across multiple HRTF instances.
+) -> MplFigure:
+    """Compare HRIR amplitude responses from several HRTFs.
 
-    The function overlays one time-domain impulse-response waveform per HRTF
-    for each requested source position. It is intended for comparing HRIR shape,
-    delay, windowing, or preprocessing effects across subjects or pipeline
-    outputs. Each position query is resolved independently for every HRTF, and a
-    warning is emitted when the real resolved source coordinate differs across
-    inputs.
+    ``compare_amplitude`` reads ``IR.values`` from every HRTF in ``hrtfs``. For each
+    requested source query, it resolves the nearest measured source in every HRTF with
+    ``hrtf.Sources.get_position_index(...)`` and overlays the selected impulse responses.
 
-    The horizontal axis can show milliseconds or sample indices. Time mode requires
-    every input HRTF to provide
-    :attr:`IR.sample_rate <hrtfpykit.hrtf.domain.IR.sample_rate>`; sample mode
-    only requires the impulse-response array.
+    The x axis can show sample indices or time in milliseconds. Time mode uses each HRTF's
+    ``IR.sample_rate``. If the same query resolves to different real source coordinates
+    across HRTFs, the function emits an :class:`~hrtfpykit.utils.warnings.HRTFPyKitWarning`.
 
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must
-        contain at least 2 and at most 5 entries. Every object must contain
-        time-domain IR data.
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least
+        2 and at most 5 entries. Every object must contain time domain IR data.
     positions : str | list | tuple | np.ndarray, default=(``front``,)
         Position query or collection of position queries. Up to 4 positions are
         accepted. Query resolution uses each HRTF's nearest available source in
         spherical coordinates.
     ear : {``left``, ``right``, ``both``}, default=``left``
-        Ear channel selection. ``both`` requires exactly one position and
-        creates separate left-ear and right-ear subplots.
+        Ear channel selection. ``both`` requires exactly one position and creates
+        separate left ear and right ear subplots.
     x_axis : {``time``, ``samples``}, default=``time``
-        Horizontal axis mode for waveforms. ``time`` converts samples to
-        milliseconds using each HRTF's sample rate.
+        Horizontal axis mode for waveforms. ``time`` converts samples to milliseconds
+        using each HRTF's sample rate.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
-        One line color per subject. Uses Matplotlib default cycle when omitted.
+        One line color per subject. Uses the default color cycle when omitted.
     line_styles : list[str] | tuple[str, ...] | None, default=None
         One line style per subject. Defaults to solid lines.
     legend_location : str | None, default=None
@@ -536,9 +526,9 @@ def compare_amplitude(
     legend_bbox_to_anchor : tuple[float, float] | None, default=None
         Optional legend anchor tuple (x, y).
     show : bool, default=True
-        If True, calls matplotlib.pyplot.show().
+        If True, display the figure before returning.
     show_titles : bool, default=True
-        Controls generated subplot and figure titles.
+        If False, suppress generated subplot and figure titles.
     show_labels : bool, default=True
         If False, suppress generated axis labels and colorbar labels.
     show_legends : bool, default=True
@@ -546,33 +536,32 @@ def compare_amplitude(
 
     Returns
     -------
-    None
+    matplotlib.figure.Figure
+        Figure containing the overlaid HRIR amplitude comparisons.
 
     Raises
     ------
     ValueError
         If the HRTF list length, option values, legend/style lengths, requested
-        positions, IR availability, sample-rate requirements, IR shape, or ear
-        channels are invalid.
+        positions, IR availability, sample rate requirements, IR shape, or ear channels
+        are invalid.
 
     Warns
     -----
     HRTFPyKitWarning
-        If the same position query resolves to different real source
-        coordinates in different HRTFs.
+        If the same position query resolves to different real source coordinates in
+        different HRTFs.
 
     Notes
     -----
-    The layout selection mirrors
-    :func:`~hrtfpykit.plots.compare_magnitude`: one single-ear
-    position uses :class:`~hrtfpykit.plots.layouts.Layout_1`, two positions use :class:`~hrtfpykit.plots.layouts.Layout_2Vertical`, three or
-    four positions use :class:`~hrtfpykit.plots.layouts.Layout_3`, and ear=``both`` uses
-    :class:`~hrtfpykit.plots.layouts.Layout_2Horizontal` for one position.
+    With one selected source and ``ear="both"``, the figure places the left and right ear
+    comparisons in separate panels. Otherwise, each requested source gets its own panel and
+    every HRTF is drawn in that panel.
 
     Examples
     --------
-    Compare left-ear front-direction impulse responses for two HRTFs, using
-    sample indices on the x-axis:
+    Compare left ear front direction impulse responses for two HRTFs, using sample indices
+    on the x axis:
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_amplitude
@@ -811,6 +800,7 @@ def compare_amplitude(
 
     if show:
         plt.show()
+    return figure.fig
 
 
 def compare_absolute_itd(
@@ -825,33 +815,31 @@ def compare_absolute_itd(
     show_titles: bool = True,
     show_labels: bool = True,
     show_legends: bool = True,
-) -> None:
-    """Compare absolute ITD polar curves across multiple HRTF instances.
+) -> MplFigure:
+    """Compare absolute ITD curves from several HRTFs.
 
-    This function computes broad-band interaural time difference for each HRTF,
-    converts it to an absolute magnitude in microseconds, extracts the nearest
-    horizontal-plane curve to ``plane_angle``, and overlays one polar trace
-    per HRTF. It is intended for comparing timing-cue magnitude across subjects,
-    measured datasets, or processing pipelines. The plotted values are ITD
-    magnitudes.
+    ``compare_absolute_itd`` calls :func:`~hrtfpykit.hrtf.itd` for each HRTF as ``itd(hrtf,
+    method="threshold", output="time", thresh_level=-10.0, upper_cut_freq=3000.0,
+    filter_order=10, absolute=True)``. It selects the nearest measured horizontal plane for
+    each HRTF, sorts each polar curve by azimuth, and overlays the curves in one figure.
 
-    Each HRTF resolves the requested horizontal plane independently. The figure
-    title uses the real resolved elevation from the first HRTF, and the function
-    warns if other inputs resolve to a different elevation.
+    Each HRTF resolves the requested horizontal plane independently. If compared HRTFs
+    resolve to different real elevations, the function emits an
+    :class:`~hrtfpykit.utils.warnings.HRTFPyKitWarning`.
 
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must
-        contain at least 2 and at most 5 entries. Every object must contain IR
-        data and an IR sample rate.
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least
+        2 and at most 5 entries. Every object must contain IR data and an IR sample
+        rate.
     plane_angle : float, default=0.0
-        Requested horizontal-plane elevation in degrees. The nearest available
-        elevation is selected separately for each HRTF.
+        Requested horizontal plane elevation in degrees. The nearest available elevation
+        is selected separately for each HRTF.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
-        One line color per subject. Uses Matplotlib default cycle when omitted.
+        One line color per subject. Uses the default color cycle when omitted.
     line_styles : list[str] | tuple[str, ...] | None, default=None
         One line style per subject. Defaults to solid lines.
     legend_location : str | None, default=None
@@ -859,7 +847,7 @@ def compare_absolute_itd(
     legend_bbox_to_anchor : tuple[float, float] | None, default=None
         Legend anchor tuple (x, y). Defaults to (1.08, 1.08).
     show : bool, default=True
-        If True, calls matplotlib.pyplot.show().
+        If True, display the figure before returning.
     show_titles : bool, default=True
         If False, suppress generated figure titles.
     show_labels : bool, default=True
@@ -869,26 +857,24 @@ def compare_absolute_itd(
 
     Returns
     -------
-    None
+    matplotlib.figure.Figure
+        Figure containing the overlaid absolute ITD polar curves.
 
     Raises
     ------
     ValueError
-        If the HRTF list length, plane_angle, legend/style lengths, IR
-        availability, or sample-rate availability are invalid.
+        If the HRTF list length, plane_angle, legend/style lengths, IR availability, or
+        sample rate availability are invalid.
 
     Warns
     -----
     HRTFPyKitWarning
-        If HRTFs resolve the requested horizontal plane to different real
-        elevations.
+        If HRTFs resolve the requested horizontal plane to different real elevations.
 
     Notes
     -----
-    The polar angular axis uses spherical azimuth in the SOFA anticlockwise
-    convention, with front at 0 degrees, listener-left at 90 degrees, back at
-    180 degrees, and listener-right at 270 degrees. The radial axis uses
-    Labels.itd_time and integer microsecond tick labels.
+    The polar angular axis uses spherical azimuth in the SOFA convention. The radial axis
+    uses ITD time units and integer microsecond tick labels.
 
     Examples
     --------
@@ -987,7 +973,7 @@ def compare_absolute_itd(
         ):
             warn_user(
                 (
-                    "compare_absolute_itd resolved different horizontal-plane elevations: "
+                    "compare_absolute_itd resolved different horizontal plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1061,6 +1047,7 @@ def compare_absolute_itd(
         )
     if show:
         plt.show()
+    return figure.fig
 
 
 def compare_absolute_ild(
@@ -1075,32 +1062,30 @@ def compare_absolute_ild(
     show_titles: bool = True,
     show_labels: bool = True,
     show_legends: bool = True,
-) -> None:
-    """Compare absolute broad-band ILD polar curves across multiple HRTF instances.
+) -> MplFigure:
+    """Compare absolute broad band ILD curves from several HRTFs.
 
-    This function computes absolute broad-band interaural level difference for
-    each HRTF, extracts the nearest horizontal-plane curve to ``plane_angle``,
-    and overlays one polar trace per HRTF. It is intended for comparing
-    absolute level cues across subjects, measured datasets, or processing
-    pipelines.
+    ``compare_absolute_ild`` calls :func:`~hrtfpykit.hrtf.ild` for each HRTF as ``ild(hrtf,
+    mode="broad-band", epsilon=1e-12, absolute=True)``. It selects the nearest measured
+    horizontal plane for each HRTF, sorts each polar curve by azimuth, and overlays the
+    curves in one figure.
 
-    Each HRTF resolves the requested horizontal plane independently. The figure
-    title uses the real resolved elevation from the first HRTF, and the function
-    warns if other inputs resolve to a different elevation.
+    Each HRTF resolves the requested horizontal plane independently. If compared HRTFs
+    resolve to different real elevations, the function emits an
+    :class:`~hrtfpykit.utils.warnings.HRTFPyKitWarning`.
 
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must
-        contain at least 2 and at most 5 entries. Every object must contain IR
-        data.
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least
+        2 and at most 5 entries. Every object must contain IR data.
     plane_angle : float, default=0.0
-        Requested horizontal-plane elevation in degrees. The nearest available
-        elevation is selected separately for each HRTF.
+        Requested horizontal plane elevation in degrees. The nearest available elevation
+        is selected separately for each HRTF.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
-        One line color per subject. Uses Matplotlib default cycle when omitted.
+        One line color per subject. Uses the default color cycle when omitted.
     line_styles : list[str] | tuple[str, ...] | None, default=None
         One line style per subject. Defaults to solid lines.
     legend_location : str | None, default=None
@@ -1108,7 +1093,7 @@ def compare_absolute_ild(
     legend_bbox_to_anchor : tuple[float, float] | None, default=None
         Legend anchor tuple (x, y). Defaults to (1.08, 1.08).
     show : bool, default=True
-        If True, calls matplotlib.pyplot.show().
+        If True, display the figure before returning.
     show_titles : bool, default=True
         If False, suppress generated figure titles.
     show_labels : bool, default=True
@@ -1118,30 +1103,28 @@ def compare_absolute_ild(
 
     Returns
     -------
-    None
+    matplotlib.figure.Figure
+        Figure containing the overlaid absolute broad band ILD polar curves.
 
     Raises
     ------
     ValueError
-        If the HRTF list length, plane_angle, legend/style lengths, or IR
-        availability is invalid.
+        If the HRTF list length, plane_angle, legend/style lengths, or IR availability
+        is invalid.
 
     Warns
     -----
     HRTFPyKitWarning
-        If HRTFs resolve the requested horizontal plane to different real
-        elevations.
+        If HRTFs resolve the requested horizontal plane to different real elevations.
 
     Notes
     -----
-    The polar angular axis uses spherical azimuth in the SOFA anticlockwise
-    convention, with front at 0 degrees, listener-left at 90 degrees, back at
-    180 degrees, and listener-right at 270 degrees. The radial axis uses
-    Labels.ild_db and integer tick labels because ILD is displayed in decibels.
+    The polar angular axis uses spherical azimuth in the SOFA convention. The radial axis
+    uses ILD dB units and integer tick labels.
 
     Examples
     --------
-    Compare absolute broad-band ILD on the horizontal plane for two HRTFs:
+    Compare absolute broad band ILD on the horizontal plane for two HRTFs:
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_absolute_ild
@@ -1233,7 +1216,7 @@ def compare_absolute_ild(
         ):
             warn_user(
                 (
-                    "compare_absolute_ild resolved different horizontal-plane elevations: "
+                    "compare_absolute_ild resolved different horizontal plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1307,6 +1290,7 @@ def compare_absolute_ild(
         )
     if show:
         plt.show()
+    return figure.fig
 
 
 def compare_itd(
@@ -1322,40 +1306,38 @@ def compare_itd(
     show_titles: bool = True,
     show_labels: bool = True,
     show_legends: bool = True,
-) -> None:
-    """Compare signed ITD curves across multiple HRTFs.
+) -> MplFigure:
+    """Compare signed ITD curves from several HRTFs.
 
-    This function computes broad-band signed ITD in microseconds for each HRTF,
-    extracts the nearest horizontal-plane slice to ``plane_angle``, sorts
-    the slice by azimuth, and overlays one azimuth-versus-ITD line per
-    HRTF. It is intended for inspecting timing-cue directionality across
-    subjects, datasets, or processing pipelines.
+    ``compare_itd`` calls :func:`~hrtfpykit.hrtf.itd` for each HRTF as ``itd(hrtf,
+    method="threshold", output="time", thresh_level=-10.0, upper_cut_freq=3000.0,
+    filter_order=10, absolute=False)``. For every HRTF, it selects the nearest measured
+    horizontal plane from that HRTF source grid, sorts sources by azimuth, and overlays
+    signed ITD in microseconds.
 
-    The plotted values preserve ITD sign. The x-axis uses
-    ``azimuth_range_mode``. In ``0-360`` mode, azimuth follows the SOFA
-    anticlockwise convention directly: front is 0 degrees, listener-left is
-    90 degrees, back is 180 degrees, and listener-right is 270 degrees. In
-    ``-180-180`` mode, listener-right wraps to -90 degrees and the displayed
-    x-axis is reversed so listener-left appears visually left.
+    The plotted values keep the sign convention of :func:`~hrtfpykit.hrtf.itd`.
+    ``azimuth_range_mode="-180-180"`` reverses the displayed x axis so listener left appears
+    on the left side of the figure.
 
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
-        entries. Every object must contain IR data and an IR sample rate.
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least
+        2 and at most 5 entries. Every object must contain IR data and an IR sample
+        rate.
     plane_angle : float, default=0.0
-        Requested horizontal-plane elevation in degrees. The nearest available
-        elevation is selected separately for each HRTF.
+        Requested horizontal plane elevation in degrees. The nearest available elevation
+        is selected separately for each HRTF.
     azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
-        Azimuth convention used on the x-axis. ``0-360`` follows the SOFA
-        anticlockwise convention: front is 0 degrees, listener-left is
-        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
-        ``-180-180`` wraps listener-right to -90 degrees and reverses the
-        displayed x-axis so listener-left appears visually left.
+        Azimuth convention used on the x axis. ``0-360`` follows the SOFA anticlockwise
+    convention: front is 0 degrees, listener left is 90 degrees, back is 180
+        degrees, and listener right is 270 degrees. ``-180-180`` wraps listener right to
+        -90 degrees and reverses the displayed x axis so listener left appears visually
+        left.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
-        One line color per subject. Uses Matplotlib default cycle when omitted.
+        One line color per subject. Uses the default color cycle when omitted.
     line_styles : list[str] | tuple[str, ...] | None, default=None
         One line style per subject. Defaults to solid lines.
     legend_location : str | None, default=None
@@ -1363,7 +1345,7 @@ def compare_itd(
     legend_bbox_to_anchor : tuple[float, float] | None, default=None
         Optional legend anchor tuple (x, y).
     show : bool, default=True
-        If True, calls matplotlib.pyplot.show().
+        If True, display the figure before returning.
     show_titles : bool, default=True
         If False, suppress generated figure titles.
     show_labels : bool, default=True
@@ -1373,26 +1355,26 @@ def compare_itd(
 
     Returns
     -------
-    None
+    matplotlib.figure.Figure
+        Figure containing the overlaid signed ITD curves.
 
     Raises
     ------
     ValueError
-        If the HRTF list length, plane_angle, azimuth range, legend/style
-        lengths, IR availability, sample-rate availability, selected plane, or
-        computed ITD shape is invalid.
+        If the HRTF list length, plane_angle, azimuth range, legend/style lengths, IR
+        availability, sample rate availability, selected plane, or computed ITD shape is
+        invalid.
 
     Warns
     -----
     HRTFPyKitWarning
-        If HRTFs resolve the requested horizontal plane to different real
-        elevations.
+        If HRTFs resolve the requested horizontal plane to different real elevations.
 
     Notes
     -----
-    The plot uses one Cartesian axis and overlays all subjects in the same
-    coordinate frame. Curves may have different azimuth sample locations if the
-    HRTFs use different source grids.
+    The plot uses one Cartesian axis and overlays all HRTFs in the same coordinate frame.
+    Curves can have different azimuth sample locations when the HRTFs use different source
+    grids.
 
     Examples
     --------
@@ -1499,7 +1481,7 @@ def compare_itd(
         if not np.isclose(compared_real_elevation, reference_real_elevation, atol=1e-8, rtol=0.0):
             warn_user(
                 (
-                    "compare_itd resolved different horizontal-plane elevations: "
+                    "compare_itd resolved different horizontal plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1566,6 +1548,7 @@ def compare_itd(
         )
     if show:
         plt.show()
+    return figure.fig
 
 
 def compare_ild(
@@ -1581,40 +1564,36 @@ def compare_ild(
     show_titles: bool = True,
     show_labels: bool = True,
     show_legends: bool = True,
-) -> None:
-    """Compare signed ILD curves across multiple HRTFs.
+) -> MplFigure:
+    """Compare signed broad band ILD curves from several HRTFs.
 
-    This function computes broad-band signed ILD in decibels for each HRTF,
-    extracts the nearest horizontal-plane slice to ``plane_angle``, sorts
-    the slice by azimuth, and overlays one azimuth-versus-ILD line per
-    HRTF. It is intended for inspecting level-cue directionality across
-    subjects, datasets, or processing pipelines.
+    ``compare_ild`` calls :func:`~hrtfpykit.hrtf.ild` for each HRTF as ``ild(hrtf,
+    mode="broad-band", epsilon=1e-12, absolute=False)``. For every HRTF, it selects the
+    nearest measured horizontal plane from that HRTF source grid, sorts sources by azimuth,
+    and overlays signed ILD in dB.
 
-    The plotted values preserve ILD sign. The x-axis uses
-    ``azimuth_range_mode``. In ``0-360`` mode, azimuth follows the SOFA
-    anticlockwise convention directly: front is 0 degrees, listener-left is
-    90 degrees, back is 180 degrees, and listener-right is 270 degrees. In
-    ``-180-180`` mode, listener-right wraps to -90 degrees and the displayed
-    x-axis is reversed so listener-left appears visually left.
+    The plotted values keep the sign convention of :func:`~hrtfpykit.hrtf.ild`.
+    ``azimuth_range_mode="-180-180"`` reverses the displayed x axis so listener left appears
+    on the left side of the figure.
 
     Parameters
     ----------
     hrtfs : list[HRTF]
-        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least 2 and at most 5
-        entries. Every object must contain IR data.
+        :class:`~hrtfpykit.hrtf.HRTF` objects to compare. The list must contain at least
+        2 and at most 5 entries. Every object must contain IR data.
     plane_angle : float, default=0.0
-        Requested horizontal-plane elevation in degrees. The nearest available
-        elevation is selected separately for each HRTF.
+        Requested horizontal plane elevation in degrees. The nearest available elevation
+        is selected separately for each HRTF.
     azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
-        Azimuth convention used on the x-axis. ``0-360`` follows the SOFA
-        anticlockwise convention: front is 0 degrees, listener-left is
-        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
-        ``-180-180`` wraps listener-right to -90 degrees and reverses the
-        displayed x-axis so listener-left appears visually left.
+        Azimuth convention used on the x axis. ``0-360`` follows the SOFA anticlockwise
+    convention: front is 0 degrees, listener left is 90 degrees, back is 180
+        degrees, and listener right is 270 degrees. ``-180-180`` wraps listener right to
+        -90 degrees and reverses the displayed x axis so listener left appears visually
+        left.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
-        One line color per subject. Uses Matplotlib default cycle when omitted.
+        One line color per subject. Uses the default color cycle when omitted.
     line_styles : list[str] | tuple[str, ...] | None, default=None
         One line style per subject. Defaults to solid lines.
     legend_location : str | None, default=None
@@ -1622,7 +1601,7 @@ def compare_ild(
     legend_bbox_to_anchor : tuple[float, float] | None, default=None
         Optional legend anchor tuple (x, y).
     show : bool, default=True
-        If True, calls matplotlib.pyplot.show().
+        If True, display the figure before returning.
     show_titles : bool, default=True
         If False, suppress generated figure titles.
     show_labels : bool, default=True
@@ -1632,26 +1611,25 @@ def compare_ild(
 
     Returns
     -------
-    None
+    matplotlib.figure.Figure
+        Figure containing the overlaid signed broad band ILD curves.
 
     Raises
     ------
     ValueError
-        If the HRTF list length, plane_angle, azimuth range, legend/style
-        lengths, IR availability, selected plane, or computed ILD shape is
-        invalid.
+        If the HRTF list length, plane_angle, azimuth range, legend/style lengths, IR
+        availability, selected plane, or computed ILD shape is invalid.
 
     Warns
     -----
     HRTFPyKitWarning
-        If HRTFs resolve the requested horizontal plane to different real
-        elevations.
+        If HRTFs resolve the requested horizontal plane to different real elevations.
 
     Notes
     -----
-    The plot uses one Cartesian axis and overlays all subjects in the same
-    coordinate frame. Curves may have different azimuth sample locations if the
-    HRTFs use different source grids.
+    The plot uses one Cartesian axis and overlays all HRTFs in the same coordinate frame.
+    Curves can have different azimuth sample locations when the HRTFs use different source
+    grids.
 
     Examples
     --------
@@ -1755,7 +1733,7 @@ def compare_ild(
         if not np.isclose(compared_real_elevation, reference_real_elevation, atol=1e-8, rtol=0.0):
             warn_user(
                 (
-                    "compare_ild resolved different horizontal-plane elevations: "
+                    "compare_ild resolved different horizontal plane elevations: "
                     f"subject_1={reference_real_elevation:.6f} vs "
                     f"subject_{subject_index + 1}={compared_real_elevation:.6f}"
                 ),
@@ -1822,6 +1800,7 @@ def compare_ild(
         )
     if show:
         plt.show()
+    return figure.fig
 
 
 def compare_itd_difference(
@@ -1841,73 +1820,60 @@ def compare_itd_difference(
     show_titles: bool = True,
     show_labels: bool = True,
     show_legends: bool = True,
-) -> None:
-    """Plot ITD differences between a reference HRTF and compared HRTFs.
+) -> MplFigure:
+    """Plot ITD difference values over the reference source grid.
 
-    The function computes interaural time difference (ITD) values for
-    ``hrtf_reference`` and for each HRTF in ``hrtfs`` using
-    :func:`~hrtfpykit.hrtf.itd_difference`. The reference ITD values are
-    subtracted from the compared values on matching source positions. When
-    ``hrtfs`` contains several HRTFs, the compared-HRTF axis is reduced with
-    ``reduction_method`` to produce one ITD difference value per source.
+    ``compare_itd_difference`` calls :func:`~hrtfpykit.hrtf.itd_difference` as
+    ``itd_difference(hrtf_reference=hrtf_reference, hrtfs=hrtfs, method=method,
+    output=output, thresh_level=thresh_level, upper_cut_freq=upper_cut_freq,
+    filter_order=filter_order, absolute=absolute, reduction_axis="itds",
+    reduction_method=reduction_method)``. The result is one ITD difference value per source
+    position after reducing the compared HRTF axis when several HRTFs are provided.
 
-    Source coordinates are taken from ``hrtf_reference`` in spherical degrees.
-    The x-axis shows azimuth and the y-axis shows elevation. Azimuth follows
-    the SOFA anticlockwise convention in ``0-360`` mode: front is 0 degrees,
-    listener-left is 90 degrees, back is 180 degrees, and listener-right is
-    270 degrees. In ``-180-180`` mode, listener-right wraps to -90 degrees and
-    the displayed x-axis is reversed so listener-left appears visually left.
-    Color encodes the ITD difference at each source position. With
-    ``absolute=True``, colors encode ITD difference magnitudes. With
-    ``absolute=False``, colors encode signed ``compared - reference`` values.
-
-    ``plot_type`` controls the source-map representation. ``"scatter"`` draws
-    measured source positions as colored markers. ``"heatmap"`` interpolates
-    the source values onto a regular azimuth/elevation image grid and renders
-    the result as a continuous color field. Single source positions at the top
-    or bottom elevation pole are treated as pole values across azimuth during
-    heatmap interpolation.
+    Source coordinates are read from ``hrtf_reference.Sources`` in spherical degrees.
+    ``plot_type="scatter"`` colors the measured source positions directly, while
+    ``plot_type="heatmap"`` interpolates the same source values onto an azimuth and
+    elevation image grid.
 
     Parameters
     ----------
     hrtf_reference : HRTF
-        Reference HRTF. It must provide IR data, an IR sample rate, and the
-        source grid used for the plot coordinates.
+        Reference HRTF. It must provide IR data, an IR sample rate, and the source grid
+        used for the plot coordinates.
     hrtfs : HRTF or sequence of HRTF
-        Compared HRTF object or objects. Every compared HRTF must use the same
-        source positions as ``hrtf_reference``. Several compared HRTFs are
-        reduced into one source map with ``reduction_method``.
+        Compared HRTF object or objects. Every compared HRTF must use the same source
+        positions as ``hrtf_reference``. Several compared HRTFs are reduced into one
+        source map with ``reduction_method``.
     method : {``threshold``, ``maxiacce``}, default=``threshold``
         ITD estimator passed to :func:`~hrtfpykit.hrtf.itd_difference`.
     output : {``time``, ``samples``}, default=``time``
-        Unit used for ITD values and the colorbar label. ``time`` returns
-        microseconds. ``samples`` returns sample offsets.
+        Unit used for ITD values and the colorbar label. ``time`` returns microseconds.
+        ``samples`` returns sample offsets.
     thresh_level : float, default=-10.0
         Threshold offset passed to the threshold ITD estimator.
     upper_cut_freq : float, default=3000.0
-        Low-pass cutoff frequency in hertz used by the ITD estimator.
+        Low pass cutoff frequency in hertz used by the ITD estimator.
     filter_order : int, default=10
         Filter order used by the ITD estimator.
     absolute : bool, default=True
-        Difference sign handling. ``True`` plots absolute ITD differences;
-        ``False`` plots signed ``compared - reference`` differences.
+        Difference sign handling. ``True`` plots absolute ITD differences; ``False``
+        plots signed ``compared - reference`` differences.
     reduction_method : {``mean``, ``rms``}, default=``mean``
-        Method used to reduce the compared-HRTF axis when ``hrtfs`` contains
-        several HRTFs.
+        Method used to reduce the compared HRTF axis when ``hrtfs`` contains several
+        HRTFs.
     azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
-        Azimuth convention applied to the x-axis. ``0-360`` follows the SOFA
-        anticlockwise convention: front is 0 degrees, listener-left is
-        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
-        ``-180-180`` wraps listener-right to -90 degrees and reverses the
-        displayed x-axis so listener-left appears visually left.
+        Azimuth convention applied to the x axis. ``0-360`` follows the SOFA
+        anticlockwise convention: front is 0 degrees, listener left is 90 degrees, back
+        is 180 degrees, and listener right is 270 degrees. ``-180-180`` wraps listener
+        right to -90 degrees and reverses the displayed x axis so listener left appears
+        visually left.
     plot_type : {``scatter``, ``heatmap``}, default=``heatmap``
-        Source-map renderer. ``scatter`` plots measured sources as colored
-        markers. ``heatmap`` plots an interpolated azimuth/elevation color
-        image.
+        Source map renderer. ``scatter`` plots measured sources as colored markers.
+        ``heatmap`` plots an interpolated azimuth/elevation color image.
     colormap : str, default=``jet``
-        Matplotlib colormap name used for source-map coloring.
+        Colormap name used for source map coloring.
     show : bool, default=True
-        If True, calls matplotlib.pyplot.show().
+        If True, display the figure before returning.
     show_titles : bool, default=True
         If True, adds the default figure title.
     show_labels : bool, default=True
@@ -1917,18 +1883,18 @@ def compare_itd_difference(
 
     Returns
     -------
-    None
+    matplotlib.figure.Figure
+        Figure containing the ITD difference source map.
 
     Raises
     ------
     ValueError
-        If ITD difference calculation fails, source positions are invalid, or
-        the number of ITD difference values differs from the number of source
-        positions.
+        If ITD difference calculation fails, source positions are invalid, or the number
+        of ITD difference values differs from the number of source positions.
 
     Examples
     --------
-    Plot an interpolated ITD-difference heatmap:
+    Plot an interpolated ITD difference heatmap:
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_itd_difference
@@ -2185,6 +2151,7 @@ def compare_itd_difference(
         )
     if show:
         plt.show()
+    return figure.fig
 
 
 def compare_ild_difference(
@@ -2200,66 +2167,51 @@ def compare_ild_difference(
     show_titles: bool = True,
     show_labels: bool = True,
     show_legends: bool = True,
-) -> None:
-    """Plot broad-band ILD differences across source positions.
+) -> MplFigure:
+    """Plot broad band ILD difference values over the reference source grid.
 
-    The function computes broad-band interaural level difference (ILD) values
-    for ``hrtf_reference`` and for each HRTF in ``hrtfs`` using
-    :func:`~hrtfpykit.hrtf.ild_difference`. The reference ILD values are
-    subtracted from the compared values on matching source positions. When
-    ``hrtfs`` contains several HRTFs, the compared-HRTF axis is reduced with
-    ``reduction_method`` to produce one ILD difference value in decibels per
-    source.
+    ``compare_ild_difference`` calls :func:`~hrtfpykit.hrtf.ild_difference` as
+    ``ild_difference(hrtf_reference=hrtf_reference, hrtfs=hrtfs, mode="broad-band",
+    epsilon=epsilon, absolute=absolute, reduction_axis="ilds",
+    reduction_method=reduction_method)``. The result is one ILD difference value in dB per
+    source position after reducing the compared HRTF axis when several HRTFs are provided.
 
-    Source coordinates are taken from ``hrtf_reference`` in spherical degrees.
-    The x-axis shows azimuth and the y-axis shows elevation. Azimuth follows
-    the SOFA anticlockwise convention in ``0-360`` mode: front is 0 degrees,
-    listener-left is 90 degrees, back is 180 degrees, and listener-right is
-    270 degrees. In ``-180-180`` mode, listener-right wraps to -90 degrees and
-    the displayed x-axis is reversed so listener-left appears visually left.
-    Color encodes the broad-band ILD difference at each source position. With
-    ``absolute=True``, colors encode ILD difference magnitudes. With
-    ``absolute=False``, colors encode signed ``compared - reference`` values.
-
-    ``plot_type`` controls the source-map representation. ``"scatter"`` draws
-    measured source positions as colored markers. ``"heatmap"`` interpolates
-    the source values onto a regular azimuth/elevation image grid and renders
-    the result as a continuous color field. Single source positions at the top
-    or bottom elevation pole are treated as pole values across azimuth during
-    heatmap interpolation.
+    Source coordinates are read from ``hrtf_reference.Sources`` in spherical degrees.
+    ``plot_type="scatter"`` colors the measured source positions directly, while
+    ``plot_type="heatmap"`` interpolates the same source values onto an azimuth and
+    elevation image grid.
 
     Parameters
     ----------
     hrtf_reference : HRTF
-        Reference HRTF. It must provide IR data and the source grid used for
-        the plot coordinates.
+        Reference HRTF. It must provide IR data and the source grid used for the plot
+        coordinates.
     hrtfs : HRTF or sequence of HRTF
-        Compared HRTF object or objects. Every compared HRTF must use the same
-        source positions as ``hrtf_reference``. Several compared HRTFs are
-        reduced into one source map with ``reduction_method``.
+        Compared HRTF object or objects. Every compared HRTF must use the same source
+        positions as ``hrtf_reference``. Several compared HRTFs are reduced into one
+        source map with ``reduction_method``.
     epsilon : float, default=1e-12
         Positive floor passed to :func:`~hrtfpykit.hrtf.ild_difference` before
-        level-ratio conversion.
+        level ratio conversion.
     absolute : bool, default=True
-        Difference sign handling. ``True`` plots absolute ILD differences;
-        ``False`` plots signed ``compared - reference`` differences.
+        Difference sign handling. ``True`` plots absolute ILD differences; ``False``
+        plots signed ``compared - reference`` differences.
     reduction_method : {``mean``, ``rms``}, default=``mean``
-        Method used to reduce the compared-HRTF axis when ``hrtfs`` contains
-        several HRTFs.
+        Method used to reduce the compared HRTF axis when ``hrtfs`` contains several
+        HRTFs.
     azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
-        Azimuth convention applied to the x-axis. ``0-360`` follows the SOFA
-        anticlockwise convention: front is 0 degrees, listener-left is
-        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
-        ``-180-180`` wraps listener-right to -90 degrees and reverses the
-        displayed x-axis so listener-left appears visually left.
+        Azimuth convention applied to the x axis. ``0-360`` follows the SOFA
+        anticlockwise convention: front is 0 degrees, listener left is 90 degrees, back
+        is 180 degrees, and listener right is 270 degrees. ``-180-180`` wraps listener
+        right to -90 degrees and reverses the displayed x axis so listener left appears
+        visually left.
     plot_type : {``scatter``, ``heatmap``}, default=``heatmap``
-        Source-map renderer. ``scatter`` plots measured sources as colored
-        markers. ``heatmap`` plots an interpolated azimuth/elevation color
-        image.
+        Source map renderer. ``scatter`` plots measured sources as colored markers.
+        ``heatmap`` plots an interpolated azimuth/elevation color image.
     colormap : str, default=``jet``
-        Matplotlib colormap name used for source-map coloring.
+        Colormap name used for source map coloring.
     show : bool, default=True
-        If True, calls matplotlib.pyplot.show().
+        If True, display the figure before returning.
     show_titles : bool, default=True
         If True, adds the default figure title.
     show_labels : bool, default=True
@@ -2269,18 +2221,18 @@ def compare_ild_difference(
 
     Returns
     -------
-    None
+    matplotlib.figure.Figure
+        Figure containing the broad band ILD difference source map.
 
     Raises
     ------
     ValueError
-        If ILD difference calculation fails, source positions are invalid, or
-        the number of ILD difference values differs from the number of source
-        positions.
+        If ILD difference calculation fails, source positions are invalid, or the number
+        of ILD difference values differs from the number of source positions.
 
     Examples
     --------
-    Plot broad-band ILD difference magnitudes as measured source markers:
+    Plot broad band ILD difference magnitudes as measured source markers:
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_ild_difference
@@ -2527,6 +2479,7 @@ def compare_ild_difference(
         )
     if show:
         plt.show()
+    return figure.fig
 
 
 def compare_hrtf_difference(
@@ -2545,50 +2498,40 @@ def compare_hrtf_difference(
     show_titles: bool = True,
     show_labels: bool = True,
     show_legends: bool = True,
-) -> None:
-    """Plot an HRTF difference metric across source positions.
+) -> MplFigure:
+    """Plot HRTF difference values over the reference source grid.
 
-    ``compare_hrtf_difference`` compares ``hrtf_reference`` with one HRTF or
-    several HRTFs through :func:`~hrtfpykit.hrtf.hrtf_difference`. The selected
-    ``metric`` controls the acoustic quantity represented by color:
-    ``"lsd"`` computes TF-domain log-spectral distortion in dB, ``"rmse"``
-    and ``"mae"`` compute linear HRIR amplitude error, and ``"nrmse"``
-    computes reference-normalized HRIR error in dB. The compared-HRTF axis is
-    reduced with ``reduction_method``. When ``ear="both"``, the ear axis is
-    reduced with the same method so each source position contributes one color
-    value.
+    ``compare_hrtf_difference`` calls :func:`~hrtfpykit.hrtf.hrtf_difference` as
+    ``hrtf_difference(hrtf_reference=hrtf_reference, hrtfs=hrtfs, metric=metric, ear=ear,
+    plane="all", frequencies=frequencies, frequency_bands=frequency_bands,
+    reduction_axis=..., reduction_method=reduction_method, epsilon=epsilon)``.
+    ``metric="lsd"`` computes log spectral distortion from ``TF`` data, ``metric="rmse"``
+    and ``metric="mae"`` compute linear HRIR amplitude error from ``IR`` data, and
+    ``metric="nrmse"`` computes reference normalized HRIR error in dB.
 
-    Source coordinates are read from ``hrtf_reference`` in spherical degrees.
-    The x-axis shows azimuth and the y-axis shows elevation. Azimuth follows
-    the SOFA anticlockwise convention in ``0-360`` mode: front is 0 degrees,
-    listener-left is 90 degrees, back is 180 degrees, and listener-right is
-    270 degrees. In ``-180-180`` mode, listener-right wraps to -90 degrees and
-    the displayed x-axis is reversed so listener-left appears visually left.
-    The colorbar shows the selected metric units. ``plot_type="scatter"``
-    draws measured source positions as colored markers. ``plot_type="heatmap"``
-    interpolates source values onto a regular azimuth/elevation display grid.
-    Single source positions at the top or bottom elevation pole are expanded
-    across azimuth during heatmap interpolation.
+    Source coordinates are read from ``hrtf_reference.Sources`` in spherical degrees.
+    ``plot_type="scatter"`` colors the measured source positions directly, while
+    ``plot_type="heatmap"`` interpolates the same source values onto an azimuth and
+    elevation image grid.
 
     Parameters
     ----------
     hrtf_reference : HRTF
-        Reference HRTF. It must provide the source grid used for plot
-        coordinates and the domain data required by ``metric``.
+        Reference HRTF. It must provide the source grid used for plot coordinates and
+        the domain data required by ``metric``.
     hrtfs : HRTF or sequence of HRTF
-        Compared HRTF object or objects. Every compared HRTF must use the same
-        source positions and metric data shape as ``hrtf_reference``. Several
-        compared HRTFs are reduced into one source map with
-        ``reduction_method``.
+        Compared HRTF object or objects. Every compared HRTF must use the same source
+        positions and metric data shape as ``hrtf_reference``. Several compared HRTFs
+        are reduced into one source map with ``reduction_method``.
     metric : {``lsd``, ``rmse``, ``nrmse``, ``mae``}, default=``lsd``
         HRTF difference metric plotted on the source map.
     ear : {``left``, ``right``, ``both``}, default=``left``
         Ear channel selection passed to :func:`~hrtfpykit.hrtf.hrtf_difference`.
         ``both`` computes both ears and reduces the ear axis before plotting.
     frequencies : float, sequence of float, numpy.ndarray, or None, default=None
-        Frequency selector in hertz passed to
-        :func:`~hrtfpykit.hrtf.hrtf_difference` for ``metric="lsd"``. Each
-        requested value is mapped to the nearest available TF bin.
+        Frequency selector in hertz passed to :func:`~hrtfpykit.hrtf.hrtf_difference`
+        for ``metric="lsd"``. Each requested value is mapped to the nearest available TF
+        bin.
     frequency_bands : pair, sequence of pairs, numpy.ndarray, or None, default=None
         Inclusive frequency band or bands in hertz passed to
         :func:`~hrtfpykit.hrtf.hrtf_difference` for ``metric="lsd"``.
@@ -2597,19 +2540,18 @@ def compare_hrtf_difference(
     reduction_method : {``mean``, ``rms``}, default=``mean``
         Method used to reduce compared HRTFs and, for ``ear="both"``, ears.
     azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
-        Azimuth convention applied to the x-axis. ``0-360`` follows the SOFA
-        anticlockwise convention: front is 0 degrees, listener-left is
-        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
-        ``-180-180`` wraps listener-right to -90 degrees and reverses the
-        displayed x-axis so listener-left appears visually left.
+        Azimuth convention applied to the x axis. ``0-360`` follows the SOFA
+        anticlockwise convention: front is 0 degrees, listener left is 90 degrees, back
+        is 180 degrees, and listener right is 270 degrees. ``-180-180`` wraps listener
+        right to -90 degrees and reverses the displayed x axis so listener left appears
+        visually left.
     plot_type : {``scatter``, ``heatmap``}, default=``heatmap``
-        Source-map renderer. ``scatter`` plots measured sources as colored
-        markers. ``heatmap`` plots an interpolated azimuth/elevation color
-        image.
+        Source map renderer. ``scatter`` plots measured sources as colored markers.
+        ``heatmap`` plots an interpolated azimuth/elevation color image.
     colormap : str, default=``jet``
-        Matplotlib colormap name used for source-map coloring.
+        Colormap name used for source map coloring.
     show : bool, default=True
-        If True, calls matplotlib.pyplot.show().
+        If True, display the figure before returning.
     show_titles : bool, default=True
         If True, adds the default figure title.
     show_labels : bool, default=True
@@ -2619,17 +2561,18 @@ def compare_hrtf_difference(
 
     Returns
     -------
-    None
+    matplotlib.figure.Figure
+        Figure containing the selected HRTF difference source map.
 
     Raises
     ------
     ValueError
-        If metric calculation fails, source positions are invalid, or the
-        number of metric values differs from the number of source positions.
+        If metric calculation fails, source positions are invalid, or the number of
+        metric values differs from the number of source positions.
 
     Examples
     --------
-    Plot a left-ear LSD heatmap:
+    Plot a left ear LSD heatmap:
 
     >>> from hrtfpykit.hrtf import load_hrtf
     >>> from hrtfpykit.plots import compare_hrtf_difference
@@ -2901,3 +2844,4 @@ def compare_hrtf_difference(
         )
     if show:
         plt.show()
+    return figure.fig
