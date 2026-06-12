@@ -104,11 +104,13 @@ once to download the measured 44.1 kHz FreeFieldComp HRTF resources for
 hrtfpykit.sofa: Working with SOFA files
 ---------------------------------------
 
-The :doc:`sofa API</sofa/index>` is the file structure layer of hrtfpykit. It
-represents dimensions, variables, metadata, conventions, and raw stored values as
-structured Python objects. HRTF objects, plots, and dataset pipelines build on
-this layer when they need SOFA-backed data, while the same layer can inspect and
-edit the stable SOFA conventions registered in hrtfpykit.
+The :doc:`sofa API </sofa/index>` is hrtfpykit's interface to the SOFA file
+structure. It exposes dimensions, variables, global attributes, convention
+metadata, and stored arrays as Python objects. The example below loads a file,
+checks its metadata and source positions, reads HRIR data, edits a cloned SOFA
+object, and writes the edited file. For a longer guide to SOFA inspection,
+editing, validation, and saving, see
+:doc:`Starting with hrtfpykit.sofa </tutorials/starting_with_hrtfpykit_sofa>`.
 
 .. code-block:: python
 
@@ -151,14 +153,15 @@ edit the stable SOFA conventions registered in hrtfpykit.
 hrtfpykit.hrtf: Handling HRTF objects
 -------------------------------------
 
-The :doc:`hrtf API </hrtf/index>` is the HRTF object layer for SOFA files
-that follow the ``SimpleFreeFieldHRIR`` or ``SimpleFreeFieldHRTF`` conventions.
-It loads those files through the SOFA API and keeps IR data, TF data, source
-positions, and the backed SOFA object synchronized. Selection and transform
-methods return new HRTF objects, leaving the original state available for
-inspection, comparison, reset, metrics, plotting, and save workflows.
-Plotting functions live in :mod:`hrtfpykit.plots` and receive loaded HRTF
-objects explicitly.
+The :doc:`hrtf API </hrtf/index>` is the main interface for loaded HRTF and
+HRIR data. An :class:`~hrtfpykit.hrtf.HRTF` object keeps IR values, TF values,
+source positions, metrics, transforms, and the backing SOFA object aligned. The
+example follows the object workflow: load an HRTF, inspect the time and
+frequency representations, select directions and samples, apply a window,
+synchronize the SOFA representation, reset from SOFA, and save. The HRTF
+tutorial then extends that workflow into transforms, metrics, and spherical
+harmonics:
+:doc:`Starting with hrtfpykit.hrtf </tutorials/starting_with_hrtfpykit_hrtf>`.
 
 .. code-block:: python
 
@@ -227,14 +230,14 @@ objects explicitly.
 hrtfpykit.plots: Visualizing HRTF data
 --------------------------------------
 
-The :doc:`plots API </plots/index>` is the visualization layer of hrtfpykit.
-Single-HRTF plotting functions receive one loaded :class:`~hrtfpykit.hrtf.HRTF`
-object and visualize its current IR, TF, and source-grid state. Comparison
-functions place multiple HRTFs in the same visual frame for
-amplitude, magnitude, ITD, ILD, and LSD inspection. Spherical harmonic plot
-functions visualize SHT reconstruction quality and reconstruction error for
-workflows based on :class:`~hrtfpykit.hrtf.SH`,
-:func:`~hrtfpykit.hrtf.sht`, and related harmonic representations.
+The :doc:`plots API </plots/index>` contains the Matplotlib visualizations for
+HRTF objects and metric outputs. The examples begin with individual HRTF views:
+HRIR amplitude, HRTF magnitude, absolute ITD, signed ILD, source grids, and
+spectrum planes. They then move to pairwise comparisons with amplitude,
+magnitude, absolute ITD, and HRTF difference maps, including LSD scatter and
+heatmap views. For figure controls, plane plots, comparison maps, cue
+difference maps, and spherical harmonic figures, see
+:doc:`Starting with hrtfpykit.plots </tutorials/starting_with_hrtfpykit_plots>`.
 
 |
 
@@ -464,17 +467,17 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 hrtfpykit.datasets: Building dataset pipelines
 ----------------------------------------------
 
-The :doc:`datasets API </datasets/index>` is the dataset construction and
-resource preparation layer for public HRTF datasets. Dataset objects are
-configured with spec objects such as :doc:`HRTFSpec </datasets/HRTFSpec>`,
-:doc:`ITDSpec </datasets/ITDSpec>`, and :doc:`ILDSpec </datasets/ILDSpec>`,
-which declare the acoustic values, cue metrics, and subject resources exposed
-as sample inputs and targets. hrtfpykit can download selected official resources
-before construction, or it can scan files you downloaded manually and copied
-under the dataset root using the accepted local layouts. The same pattern can
-align HRTFs with anthropometry, metadata, meshes, images, videos, or other
-available resources, then read one sample directly or batch samples for PyTorch
-with :func:`collate_samples() <hrtfpykit.datasets.collate_samples>`.
+The :doc:`datasets API </datasets/index>` builds indexed HRTF samples from
+dataset resources. Spec objects such as :doc:`HRTFSpec </datasets/HRTFSpec>`,
+:doc:`ITDSpec </datasets/ITDSpec>`, and :doc:`ILDSpec </datasets/ILDSpec>`
+define which acoustic arrays, metrics, and subject resources are returned as
+inputs or targets. The example below downloads a small HUTUBS subset, builds a
+dataset, reads one sample, and batches samples for PyTorch with
+:func:`collate_samples() <hrtfpykit.datasets.collate_samples>`. For downloads,
+local resource layouts, transforms, splits, and batching, continue with
+:doc:`Starting with hrtfpykit.datasets </tutorials/starting_with_hrtfpykit_datasets>`;
+for a deeper treatment of specs, see
+:doc:`Mastering hrtfpykit.datasets Specs </tutorials/mastering_hrtfpykit_datasets_specs>`.
 
 .. code-block:: python
 
