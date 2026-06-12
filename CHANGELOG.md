@@ -71,6 +71,8 @@ use the `vx.y.z` format.
   `nrmse`, and `lsd` metrics. `rmse` and `mae` return linear HRIR
   amplitude error, `nrmse` normalizes by the reference HRIR energy and
   returns dB, and `lsd` compares TF magnitudes in dB.
+- Added `compare_hrtf_difference()` for source-map visualization of
+  `hrtf_difference()` metrics with scatter and heatmap renderers.
 - Added ear-selective support to `Transform.apply_window()`,
   `Transform.apply_crop()`, `Transform.apply_padding()`,
   `Transform.apply_fir_filter()`, `Transform.apply_iir_filter()`, and
@@ -123,15 +125,19 @@ use the `vx.y.z` format.
   `plot_absolute_itd`, `plot_ild`, `plot_absolute_ild`,
   `plot_ild_fd`, `compare_absolute_itd`, `compare_absolute_ild`,
   `compare_itd`, `compare_ild`, `compare_itd_difference`,
-  `compare_ild_difference`, and `compare_lsd` replace the older curve, plane, and
+  `compare_ild_difference`, and `compare_hrtf_difference` replace the older curve, plane, and
   comparison-plot names. Metric difference functions are now
   `itd_difference` and `ild_difference`.
-- Changed compare plots that use azimuth axes so `compare_itd` and
-  `compare_ild` expose `azimuth_range_mode`, while source-map comparison plots
-  `compare_itd_difference`, `compare_ild_difference`, and `compare_lsd` now
-  default to `azimuth_range_mode="-180-180"` and `plot_type="heatmap"`.
-  Quickstart LSD comparison images were regenerated for the scatter and heatmap
-  examples.
+- Changed plots that expose `azimuth_range_mode` to default to
+  `azimuth_range_mode="0-360"`. The signed `"-180-180"` mode now reverses
+  azimuth only when it is plotted on the x-axis, so listener-left appears on
+  the left side of Cartesian figures while y-axis azimuth keeps normal numeric
+  orientation. Plane plot docstrings now document horizontal-plane azimuth and
+  median-plane lateral-polar polar angle conventions.
+- Changed source-map comparison plots `compare_itd_difference`,
+  `compare_ild_difference`, and `compare_hrtf_difference` to default to
+  `plot_type="heatmap"`. Quickstart HRTF-difference comparison images were
+  regenerated for the scatter and heatmap examples.
 - Changed `itd_difference`, `ild_difference`, and
   `hrtf_difference(metric="lsd")` to compare
   `hrtf_reference` against one HRTF or a sequence of HRTFs. A single compared
@@ -185,8 +191,8 @@ use the `vx.y.z` format.
 - Changed single-HRTF plots from inherited `HRTF` methods to module-level
   `hrtfpykit.plots` functions such as `plot_magnitude(hrtf, ...)`,
   `plot_etc(hrtf, ...)`, and `plot_source_grid(hrtf, ...)`.
-- Changed `compare_lsd` to accept `ear="both"` by delegating ear averaging to
-  `hrtf_difference(metric="lsd")` with an explicit `ears` reduction axis.
+- Removed the legacy `compare_lsd()` plot API. Use
+  `compare_hrtf_difference(metric="lsd")` for LSD source-map comparisons.
 - Improved the `hrtf_difference()` docstring with direct descriptions of
   `IR.values`, `TF.values`, source and ear selection, reductions, and return
   units.

@@ -55,8 +55,8 @@ class Labels:
         or samples.
     compare_ild_difference_db : str
         Colorbar label for ILD-difference comparison plots in decibels.
-    compare_lsd_db : str
-        Label for log-spectral-distance comparison values.
+    compare_hrtf_difference_lsd_db, compare_hrtf_difference_rmse, compare_hrtf_difference_nrmse_db, compare_hrtf_difference_mae : str
+        Colorbar labels for HRTF difference comparison plots.
     label_box : dict[str, object]
         Matplotlib text bounding-box style used by orientation annotations in
         source-grid plots.
@@ -106,7 +106,10 @@ class Labels:
     compare_itd_difference_time = "ITD Difference (µs)"
     compare_itd_difference_samples = "ITD Difference (samples)"
     compare_ild_difference_db = "ILD Difference (dB)"
-    compare_lsd_db = "LSD (dB)"
+    compare_hrtf_difference_lsd_db = "LSD (dB)"
+    compare_hrtf_difference_rmse = "RMSE (amplitude)"
+    compare_hrtf_difference_nrmse_db = "NRMSE (dB)"
+    compare_hrtf_difference_mae = "MAE (amplitude)"
     label_box = {
         "boxstyle": "round,pad=0.18",
         "facecolor": "white",

@@ -22,7 +22,7 @@ from .compare import (
     compare_ild,
     compare_itd_difference,
     compare_ild_difference,
-    compare_lsd,
+    compare_hrtf_difference,
 )
 from .sh import sht_reconstruction_comparison, sht_reconstruction_error
 
@@ -49,7 +49,7 @@ __all__ = [
     "compare_ild",
     "compare_itd_difference",
     "compare_ild_difference",
-    "compare_lsd",
+    "compare_hrtf_difference",
     "sht_reconstruction_comparison",
     "sht_reconstruction_error",
 ]

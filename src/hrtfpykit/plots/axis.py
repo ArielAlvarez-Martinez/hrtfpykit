@@ -885,9 +885,17 @@ class AzimuthAnglesAxis(DirectionAxis):
 
     :class:`~hrtfpykit.plots.axis.AzimuthAnglesAxis` normalizes azimuth values
     and applies the direction formatter used by horizontal-plane,
-    source-position, and cue-difference plots. It supports the unsigned
-    SOFA-style ``0-360`` convention and the signed ``-180-180`` convention often
-    used for frontal-left/right views.
+    source-position, and cue-difference plots. hrtfpykit follows the SOFA
+    spherical convention in degrees: azimuth increases anticlockwise in the
+    listener-centered horizontal plane, with front at 0 degrees, listener-left
+    at 90 degrees, back at 180 degrees, and listener-right at 270 degrees.
+
+    The default ``0-360`` range shows this convention directly. The signed
+    ``-180-180`` range wraps listener-right to -90 degrees while listener-left
+    remains +90 degrees. When signed azimuth is applied to the x-axis,
+    hrtfpykit reverses the displayed x-axis so listener-left appears on the
+    left side of the figure and listener-right appears on the right side.
+    Signed azimuth on y-axes keeps the normal Matplotlib numeric orientation.
 
     Attributes
     ----------
@@ -1000,7 +1008,10 @@ class AzimuthAnglesAxis(DirectionAxis):
         passed to
         :meth:`~hrtfpykit.plots.axis.DirectionAxis.apply_direction` so limits
         follow the data. If values is None, the selected range mode supplies the
-        default azimuth limits.
+        default azimuth limits. In signed ``-180-180`` mode, x-axis azimuth is
+        displayed with +90 degrees on the left side of the figure and
+        -90 degrees on the right side. Signed y-axis azimuth keeps the normal
+        increasing bottom-to-top numeric orientation.
 
         Parameters
         ----------
@@ -1045,6 +1056,10 @@ class AzimuthAnglesAxis(DirectionAxis):
             ),
             label=label,
         )
+        if axis == "x" and resolved_range_mode == AzimuthAnglesAxis.azimuth_range_modes[1]:
+            x_lower, x_upper = ax.get_xlim()
+            if x_lower < x_upper:
+                ax.set_xlim(x_upper, x_lower)
 
 
 class AzimuthAnglesAxisPolarProjection(Axis):

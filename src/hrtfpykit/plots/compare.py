@@ -885,8 +885,10 @@ def compare_absolute_itd(
 
     Notes
     -----
-    The polar theta axis uses a north-up orientation with 30-degree ticks. The
-    radial axis uses Labels.itd_time and integer microsecond tick labels.
+    The polar angular axis uses spherical azimuth in the SOFA anticlockwise
+    convention, with front at 0 degrees, listener-left at 90 degrees, back at
+    180 degrees, and listener-right at 270 degrees. The radial axis uses
+    Labels.itd_time and integer microsecond tick labels.
 
     Examples
     --------
@@ -1132,9 +1134,10 @@ def compare_absolute_ild(
 
     Notes
     -----
-    The polar theta axis uses a north-up orientation with 30-degree ticks. The
-    radial axis uses Labels.ild_db and integer tick labels because ILD is
-    displayed in decibels.
+    The polar angular axis uses spherical azimuth in the SOFA anticlockwise
+    convention, with front at 0 degrees, listener-left at 90 degrees, back at
+    180 degrees, and listener-right at 270 degrees. The radial axis uses
+    Labels.ild_db and integer tick labels because ILD is displayed in decibels.
 
     Examples
     --------
@@ -1309,7 +1312,7 @@ def compare_absolute_ild(
 def compare_itd(
     hrtfs: list["HRTF"],
     plane_angle: float = 0.0,
-    azimuth_range_mode: str = "-180-180",
+    azimuth_range_mode: str = "0-360",
     legends: list[str] | tuple[str, ...] | None = None,
     line_colors: list[str] | tuple[str, ...] | None = None,
     line_styles: list[str] | tuple[str, ...] | None = None,
@@ -1329,7 +1332,11 @@ def compare_itd(
     subjects, datasets, or processing pipelines.
 
     The plotted values preserve ITD sign. The x-axis uses
-    ``azimuth_range_mode``.
+    ``azimuth_range_mode``. In ``0-360`` mode, azimuth follows the SOFA
+    anticlockwise convention directly: front is 0 degrees, listener-left is
+    90 degrees, back is 180 degrees, and listener-right is 270 degrees. In
+    ``-180-180`` mode, listener-right wraps to -90 degrees and the displayed
+    x-axis is reversed so listener-left appears visually left.
 
     Parameters
     ----------
@@ -1339,8 +1346,12 @@ def compare_itd(
     plane_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available
         elevation is selected separately for each HRTF.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
-        Azimuth convention used on the x-axis.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
+        Azimuth convention used on the x-axis. ``0-360`` follows the SOFA
+        anticlockwise convention: front is 0 degrees, listener-left is
+        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
+        ``-180-180`` wraps listener-right to -90 degrees and reverses the
+        displayed x-axis so listener-left appears visually left.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
@@ -1560,7 +1571,7 @@ def compare_itd(
 def compare_ild(
     hrtfs: list["HRTF"],
     plane_angle: float = 0.0,
-    azimuth_range_mode: str = "-180-180",
+    azimuth_range_mode: str = "0-360",
     legends: list[str] | tuple[str, ...] | None = None,
     line_colors: list[str] | tuple[str, ...] | None = None,
     line_styles: list[str] | tuple[str, ...] | None = None,
@@ -1580,7 +1591,11 @@ def compare_ild(
     subjects, datasets, or processing pipelines.
 
     The plotted values preserve ILD sign. The x-axis uses
-    ``azimuth_range_mode``.
+    ``azimuth_range_mode``. In ``0-360`` mode, azimuth follows the SOFA
+    anticlockwise convention directly: front is 0 degrees, listener-left is
+    90 degrees, back is 180 degrees, and listener-right is 270 degrees. In
+    ``-180-180`` mode, listener-right wraps to -90 degrees and the displayed
+    x-axis is reversed so listener-left appears visually left.
 
     Parameters
     ----------
@@ -1590,8 +1605,12 @@ def compare_ild(
     plane_angle : float, default=0.0
         Requested horizontal-plane elevation in degrees. The nearest available
         elevation is selected separately for each HRTF.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
-        Azimuth convention used on the x-axis.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
+        Azimuth convention used on the x-axis. ``0-360`` follows the SOFA
+        anticlockwise convention: front is 0 degrees, listener-left is
+        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
+        ``-180-180`` wraps listener-right to -90 degrees and reverses the
+        displayed x-axis so listener-left appears visually left.
     legends : list[str] | tuple[str, ...] | None, default=None
         Subject legend labels. Defaults to ``subject_1`` through ``subject_n``.
     line_colors : list[str] | tuple[str, ...] | None, default=None
@@ -1815,7 +1834,7 @@ def compare_itd_difference(
     filter_order: int = 10,
     absolute: bool = True,
     reduction_method: str = "mean",
-    azimuth_range_mode: str = "-180-180",
+    azimuth_range_mode: str = "0-360",
     plot_type: str = "heatmap",
     colormap: str = "jet",
     show: bool = True,
@@ -1833,10 +1852,14 @@ def compare_itd_difference(
     ``reduction_method`` to produce one ITD difference value per source.
 
     Source coordinates are taken from ``hrtf_reference`` in spherical degrees.
-    The x-axis shows azimuth, the y-axis shows elevation, and color encodes
-    the ITD difference at each source position. With ``absolute=True``, colors
-    encode ITD difference magnitudes. With ``absolute=False``, colors encode
-    signed ``compared - reference`` values.
+    The x-axis shows azimuth and the y-axis shows elevation. Azimuth follows
+    the SOFA anticlockwise convention in ``0-360`` mode: front is 0 degrees,
+    listener-left is 90 degrees, back is 180 degrees, and listener-right is
+    270 degrees. In ``-180-180`` mode, listener-right wraps to -90 degrees and
+    the displayed x-axis is reversed so listener-left appears visually left.
+    Color encodes the ITD difference at each source position. With
+    ``absolute=True``, colors encode ITD difference magnitudes. With
+    ``absolute=False``, colors encode signed ``compared - reference`` values.
 
     ``plot_type`` controls the source-map representation. ``"scatter"`` draws
     measured source positions as colored markers. ``"heatmap"`` interpolates
@@ -1871,8 +1894,12 @@ def compare_itd_difference(
     reduction_method : {``mean``, ``rms``}, default=``mean``
         Method used to reduce the compared-HRTF axis when ``hrtfs`` contains
         several HRTFs.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
-        Azimuth convention applied to the x-axis.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
+        Azimuth convention applied to the x-axis. ``0-360`` follows the SOFA
+        anticlockwise convention: front is 0 degrees, listener-left is
+        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
+        ``-180-180`` wraps listener-right to -90 degrees and reverses the
+        displayed x-axis so listener-left appears visually left.
     plot_type : {``scatter``, ``heatmap``}, default=``heatmap``
         Source-map renderer. ``scatter`` plots measured sources as colored
         markers. ``heatmap`` plots an interpolated azimuth/elevation color
@@ -1946,6 +1973,7 @@ def compare_itd_difference(
     if spherical_positions.shape[0] != difference_values.shape[0]:
         raise ValueError("ITD difference values must match number of source positions")
 
+    azimuth_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=azimuth_range_mode)
     azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
     elevation_values = np.asarray(spherical_positions[:, 1], dtype=float)
     transformed_azimuth_values = AzimuthAnglesAxis.transform_values(
@@ -2125,9 +2153,15 @@ def compare_itd_difference(
     if resolved_plot_type == "scatter":
         x_span = x_max - x_min
         x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
-        ax.set_xlim(x_min - x_padding, x_max + x_padding)
+        x_lower = x_min - x_padding
+        x_upper = x_max + x_padding
     else:
-        ax.set_xlim(x_min, x_max)
+        x_lower = x_min
+        x_upper = x_max
+    if azimuth_range_mode == AzimuthAnglesAxis.azimuth_range_modes[1]:
+        ax.set_xlim(x_upper, x_lower)
+    else:
+        ax.set_xlim(x_lower, x_upper)
     ElevationAnglesAxis.apply(
         ax=ax,
         axis="y",
@@ -2159,7 +2193,7 @@ def compare_ild_difference(
     epsilon: float = 1e-12,
     absolute: bool = True,
     reduction_method: str = "mean",
-    azimuth_range_mode: str = "-180-180",
+    azimuth_range_mode: str = "0-360",
     plot_type: str = "heatmap",
     colormap: str = "jet",
     show: bool = True,
@@ -2178,8 +2212,12 @@ def compare_ild_difference(
     source.
 
     Source coordinates are taken from ``hrtf_reference`` in spherical degrees.
-    The x-axis shows azimuth, the y-axis shows elevation, and color encodes
-    the broad-band ILD difference at each source position. With
+    The x-axis shows azimuth and the y-axis shows elevation. Azimuth follows
+    the SOFA anticlockwise convention in ``0-360`` mode: front is 0 degrees,
+    listener-left is 90 degrees, back is 180 degrees, and listener-right is
+    270 degrees. In ``-180-180`` mode, listener-right wraps to -90 degrees and
+    the displayed x-axis is reversed so listener-left appears visually left.
+    Color encodes the broad-band ILD difference at each source position. With
     ``absolute=True``, colors encode ILD difference magnitudes. With
     ``absolute=False``, colors encode signed ``compared - reference`` values.
 
@@ -2208,8 +2246,12 @@ def compare_ild_difference(
     reduction_method : {``mean``, ``rms``}, default=``mean``
         Method used to reduce the compared-HRTF axis when ``hrtfs`` contains
         several HRTFs.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
-        Azimuth convention applied to the x-axis.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
+        Azimuth convention applied to the x-axis. ``0-360`` follows the SOFA
+        anticlockwise convention: front is 0 degrees, listener-left is
+        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
+        ``-180-180`` wraps listener-right to -90 degrees and reverses the
+        displayed x-axis so listener-left appears visually left.
     plot_type : {``scatter``, ``heatmap``}, default=``heatmap``
         Source-map renderer. ``scatter`` plots measured sources as colored
         markers. ``heatmap`` plots an interpolated azimuth/elevation color
@@ -2278,6 +2320,7 @@ def compare_ild_difference(
     if spherical_positions.shape[0] != difference_values.shape[0]:
         raise ValueError("ILD difference values must match number of source positions")
 
+    azimuth_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=azimuth_range_mode)
     azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
     elevation_values = np.asarray(spherical_positions[:, 1], dtype=float)
     transformed_azimuth_values = AzimuthAnglesAxis.transform_values(
@@ -2452,9 +2495,15 @@ def compare_ild_difference(
     if resolved_plot_type == "scatter":
         x_span = x_max - x_min
         x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
-        ax.set_xlim(x_min - x_padding, x_max + x_padding)
+        x_lower = x_min - x_padding
+        x_upper = x_max + x_padding
     else:
-        ax.set_xlim(x_min, x_max)
+        x_lower = x_min
+        x_upper = x_max
+    if azimuth_range_mode == AzimuthAnglesAxis.azimuth_range_modes[1]:
+        ax.set_xlim(x_upper, x_lower)
+    else:
+        ax.set_xlim(x_lower, x_upper)
     ElevationAnglesAxis.apply(
         ax=ax,
         axis="y",
@@ -2480,15 +2529,16 @@ def compare_ild_difference(
         plt.show()
 
 
-def compare_lsd(
+def compare_hrtf_difference(
     hrtf_reference: "HRTF",
     hrtfs: "HRTF | list[HRTF] | tuple[HRTF, ...]",
+    metric: str = "lsd",
     ear: str = "left",
     frequencies: float | list[float] | tuple[float, ...] | np.ndarray | None = None,
     frequency_bands: tuple[float, float] | list[tuple[float, float]] | tuple[tuple[float, float], ...] | np.ndarray | None = None,
     epsilon: float = 1e-12,
     reduction_method: str = "mean",
-    azimuth_range_mode: str = "-180-180",
+    azimuth_range_mode: str = "0-360",
     plot_type: str = "heatmap",
     colormap: str = "jet",
     show: bool = True,
@@ -2496,56 +2546,62 @@ def compare_lsd(
     show_labels: bool = True,
     show_legends: bool = True,
 ) -> None:
-    """Plot log-spectral distortion across source positions.
+    """Plot an HRTF difference metric across source positions.
 
-    The function compares ``hrtf_reference`` with one HRTF or several HRTFs
-    using :func:`~hrtfpykit.hrtf.hrtf_difference` with ``metric="lsd"``.
-    The metric computes log-spectral distance in decibels over the selected
-    frequency bins or frequency bands, then returns one LSD value per source
-    and selected ear. This plot reduces
-    the compared-HRTF axis with ``reduction_method``. For ``ear="both"``, it
-    also reduces the ear axis so each source position is represented by one
-    color value.
+    ``compare_hrtf_difference`` compares ``hrtf_reference`` with one HRTF or
+    several HRTFs through :func:`~hrtfpykit.hrtf.hrtf_difference`. The selected
+    ``metric`` controls the acoustic quantity represented by color:
+    ``"lsd"`` computes TF-domain log-spectral distortion in dB, ``"rmse"``
+    and ``"mae"`` compute linear HRIR amplitude error, and ``"nrmse"``
+    computes reference-normalized HRIR error in dB. The compared-HRTF axis is
+    reduced with ``reduction_method``. When ``ear="both"``, the ear axis is
+    reduced with the same method so each source position contributes one color
+    value.
 
-    Source coordinates are taken from ``hrtf_reference`` in spherical degrees.
-    The x-axis shows azimuth, the y-axis shows elevation, and color encodes
-    the LSD value at each source position. Frequency selection is controlled
-    by ``frequencies`` or ``frequency_bands``. The default metric behavior uses
-    the library LSD frequency range.
-
-    ``plot_type`` controls the source-map representation. ``"scatter"`` draws
-    measured source positions as colored markers. ``"heatmap"`` interpolates
-    the source values onto a regular azimuth/elevation image grid and renders
-    the result as a continuous color field. Single source positions at the top
-    or bottom elevation pole are treated as pole values across azimuth during
-    heatmap interpolation.
+    Source coordinates are read from ``hrtf_reference`` in spherical degrees.
+    The x-axis shows azimuth and the y-axis shows elevation. Azimuth follows
+    the SOFA anticlockwise convention in ``0-360`` mode: front is 0 degrees,
+    listener-left is 90 degrees, back is 180 degrees, and listener-right is
+    270 degrees. In ``-180-180`` mode, listener-right wraps to -90 degrees and
+    the displayed x-axis is reversed so listener-left appears visually left.
+    The colorbar shows the selected metric units. ``plot_type="scatter"``
+    draws measured source positions as colored markers. ``plot_type="heatmap"``
+    interpolates source values onto a regular azimuth/elevation display grid.
+    Single source positions at the top or bottom elevation pole are expanded
+    across azimuth during heatmap interpolation.
 
     Parameters
     ----------
     hrtf_reference : HRTF
-        Reference HRTF. It must provide TF data, frequency bins, and the source
-        grid used for the plot coordinates.
+        Reference HRTF. It must provide the source grid used for plot
+        coordinates and the domain data required by ``metric``.
     hrtfs : HRTF or sequence of HRTF
         Compared HRTF object or objects. Every compared HRTF must use the same
-        source positions, TF shape, and TF frequency bins as
-        ``hrtf_reference``. Several compared HRTFs are reduced into one source
-        map with ``reduction_method``.
+        source positions and metric data shape as ``hrtf_reference``. Several
+        compared HRTFs are reduced into one source map with
+        ``reduction_method``.
+    metric : {``lsd``, ``rmse``, ``nrmse``, ``mae``}, default=``lsd``
+        HRTF difference metric plotted on the source map.
     ear : {``left``, ``right``, ``both``}, default=``left``
         Ear channel selection passed to :func:`~hrtfpykit.hrtf.hrtf_difference`.
         ``both`` computes both ears and reduces the ear axis before plotting.
     frequencies : float, sequence of float, numpy.ndarray, or None, default=None
-        Frequency selector in hertz passed to :func:`~hrtfpykit.hrtf.hrtf_difference`.
-        Each requested value is mapped to the nearest available TF bin.
+        Frequency selector in hertz passed to
+        :func:`~hrtfpykit.hrtf.hrtf_difference` for ``metric="lsd"``. Each
+        requested value is mapped to the nearest available TF bin.
     frequency_bands : pair, sequence of pairs, numpy.ndarray, or None, default=None
         Inclusive frequency band or bands in hertz passed to
-        :func:`~hrtfpykit.hrtf.hrtf_difference`.
+        :func:`~hrtfpykit.hrtf.hrtf_difference` for ``metric="lsd"``.
     epsilon : float, default=1e-12
-        Positive floor passed to :func:`~hrtfpykit.hrtf.hrtf_difference` before
-        dB conversion.
+        Positive floor passed to :func:`~hrtfpykit.hrtf.hrtf_difference`.
     reduction_method : {``mean``, ``rms``}, default=``mean``
         Method used to reduce compared HRTFs and, for ``ear="both"``, ears.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
-        Azimuth convention applied to the x-axis.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
+        Azimuth convention applied to the x-axis. ``0-360`` follows the SOFA
+        anticlockwise convention: front is 0 degrees, listener-left is
+        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
+        ``-180-180`` wraps listener-right to -90 degrees and reverses the
+        displayed x-axis so listener-left appears visually left.
     plot_type : {``scatter``, ``heatmap``}, default=``heatmap``
         Source-map renderer. ``scatter`` plots measured sources as colored
         markers. ``heatmap`` plots an interpolated azimuth/elevation color
@@ -2568,36 +2624,52 @@ def compare_lsd(
     Raises
     ------
     ValueError
-        If LSD calculation fails, source positions are invalid, or the number
-        of LSD values differs from the number of source positions.
+        If metric calculation fails, source positions are invalid, or the
+        number of metric values differs from the number of source positions.
 
     Examples
     --------
-    Plot an LSD heatmap for the right ear:
+    Plot a left-ear LSD heatmap:
 
     >>> from hrtfpykit.hrtf import load_hrtf
-    >>> from hrtfpykit.plots import compare_lsd
+    >>> from hrtfpykit.plots import compare_hrtf_difference
     >>> hrtf_reference = load_hrtf("P0001_FreeFieldComp_44kHz.sofa")
     >>> hrtf_compared = load_hrtf("P0002_FreeFieldComp_44kHz.sofa")
-    >>> compare_lsd(
+    >>> compare_hrtf_difference(
     ...     hrtf_reference,
     ...     hrtf_compared,
-    ...     ear="right",
+    ...     metric="lsd",
+    ...     ear="left",
     ...     plot_type="heatmap",
     ...     colormap="viridis",
     ... )
     """
+    metric_key = str(metric).strip().lower()
+    if metric_key not in {"lsd", "rmse", "nrmse", "mae"}:
+        raise ValueError("metric must be one of: lsd, rmse, nrmse, mae")
+    metric_colorbar_labels = {
+        "lsd": Labels.compare_hrtf_difference_lsd_db,
+        "rmse": Labels.compare_hrtf_difference_rmse,
+        "nrmse": Labels.compare_hrtf_difference_nrmse_db,
+        "mae": Labels.compare_hrtf_difference_mae,
+    }
+    metric_title_labels = {
+        "lsd": "LSD",
+        "rmse": "RMSE",
+        "nrmse": "NRMSE",
+        "mae": "MAE",
+    }
     ear_key = str(ear).strip().lower()
     reduction_axis: str | tuple[str, str]
     if ear_key == "both":
-        reduction_axis = ("lsds", "ears")
+        reduction_axis = ("differences", "ears")
     else:
-        reduction_axis = "lsds"
-    lsd_values = np.asarray(
+        reduction_axis = "differences"
+    difference_values = np.asarray(
         hrtf_difference(
             hrtf_reference=hrtf_reference,
             hrtfs=hrtfs,
-            metric="lsd",
+            metric=metric_key,
             ear=ear_key,
             plane="all",
             frequencies=frequencies,
@@ -2619,9 +2691,10 @@ def compare_lsd(
     )
     if spherical_positions.ndim != 2 or spherical_positions.shape[1] < 2:
         raise ValueError("Source positions must have shape (N, 3) in spherical coordinates")
-    if spherical_positions.shape[0] != lsd_values.shape[0]:
-        raise ValueError("LSD values must match number of source positions")
+    if spherical_positions.shape[0] != difference_values.shape[0]:
+        raise ValueError("HRTF difference values must match number of source positions")
 
+    azimuth_range_mode = AzimuthAnglesAxis.get_range_mode(range_mode=azimuth_range_mode)
     azimuth_values = np.asarray(spherical_positions[:, 0], dtype=float)
     elevation_values = np.asarray(spherical_positions[:, 1], dtype=float)
     transformed_azimuth_values = AzimuthAnglesAxis.transform_values(
@@ -2639,15 +2712,15 @@ def compare_lsd(
     resolved_plot_type = str(plot_type).strip().lower()
     if resolved_plot_type not in {"scatter", "heatmap"}:
         raise ValueError("plot_type accepts scatter or heatmap")
-    value_min = float(np.min(lsd_values))
-    value_max = float(np.max(lsd_values))
-    colorbar_label = Labels.compare_lsd_db
+    value_min = float(np.min(difference_values))
+    value_max = float(np.max(difference_values))
+    colorbar_label = metric_colorbar_labels[metric_key]
     source_map: Any
     if resolved_plot_type == "scatter":
         source_map = ax.scatter(
             transformed_azimuth_values,
             elevation_values,
-            c=lsd_values,
+            c=difference_values,
             cmap=colormap,
             s=32.0,
             edgecolors="black",
@@ -2666,7 +2739,7 @@ def compare_lsd(
             raise ValueError("heatmap plot_type requires at least three source positions")
         heatmap_values = np.zeros(unique_coordinates.shape[0], dtype=float)
         heatmap_counts = np.zeros(unique_coordinates.shape[0], dtype=float)
-        np.add.at(heatmap_values, inverse_indices, lsd_values)
+        np.add.at(heatmap_values, inverse_indices, difference_values)
         np.add.at(heatmap_counts, inverse_indices, 1.0)
         heatmap_values = heatmap_values / heatmap_counts
         azimuth_grid_values = np.linspace(
@@ -2796,9 +2869,15 @@ def compare_lsd(
     if resolved_plot_type == "scatter":
         x_span = x_max - x_min
         x_padding = 8.0 if np.isclose(x_span, 0.0) else max(8.0, 0.05 * x_span)
-        ax.set_xlim(x_min - x_padding, x_max + x_padding)
+        x_lower = x_min - x_padding
+        x_upper = x_max + x_padding
     else:
-        ax.set_xlim(x_min, x_max)
+        x_lower = x_min
+        x_upper = x_max
+    if azimuth_range_mode == AzimuthAnglesAxis.azimuth_range_modes[1]:
+        ax.set_xlim(x_upper, x_lower)
+    else:
+        ax.set_xlim(x_lower, x_upper)
     ElevationAnglesAxis.apply(
         ax=ax,
         axis="y",
@@ -2818,7 +2897,7 @@ def compare_lsd(
             figure.fig,
             figure.axes,
             figure.figure_title_y,
-            Titles.compare_lsd,
+            f"{Titles.compare_hrtf_difference}: {metric_title_labels[metric_key]}",
         )
     if show:
         plt.show()

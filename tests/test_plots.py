@@ -20,7 +20,7 @@ from hrtfpykit.plots import (
     compare_ild_difference,
     compare_itd,
     compare_itd_difference,
-    compare_lsd,
+    compare_hrtf_difference,
     plot_absolute_ild,
     plot_absolute_itd,
     plot_amplitude,
@@ -312,8 +312,8 @@ def test_real_hrtf_plot_methods_create_matplotlib_figures(
             ),
         ),
         (
-            "compare_lsd",
-            lambda hrtfs: compare_lsd(
+            "compare_hrtf_difference",
+            lambda hrtfs: compare_hrtf_difference(
                 hrtfs[0],
                 hrtfs[1],
                 ear="both",
@@ -330,7 +330,7 @@ def test_real_hrtf_plot_methods_create_matplotlib_figures(
         "compare_ild",
         "compare_itd_difference",
         "compare_ild_difference",
-        "compare_lsd",
+        "compare_hrtf_difference",
     ],
 )
 def test_real_hrtf_compare_plot_functions_create_matplotlib_figures(

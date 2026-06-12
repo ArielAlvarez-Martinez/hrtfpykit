@@ -706,7 +706,7 @@ def plot_etc_plane(
     hrtf: "HRTF",
     plane: str = "horizontal",
     plane_angle: float = 0.0,
-    azimuth_range_mode: str = "-180-180",
+    azimuth_range_mode: str = "0-360",
     ear: str = "both",
     x_axis: str = "time",
     reference: float | str = "max",
@@ -726,12 +726,13 @@ def plot_etc_plane(
     ``20 * log10(abs(h) / reference)``.
 
     Horizontal planes are selected by the nearest available spherical
-    elevation to ``plane_angle`` and use ``azimuth_range_mode`` on the
-    vertical axis. Median-plane plots are selected by the nearest available
-    lateral-polar lateral angle to ``plane_angle`` and use lateral-polar
-    polar angle on the vertical axis. With ear=``both``, the method creates
-    one heatmap for the left ear and one heatmap for the right ear using
-    shared color limits.
+    elevation to ``plane_angle``. Their y-axis is spherical azimuth in the
+    selected ``azimuth_range_mode``. Median planes are selected by the nearest
+    available lateral-polar lateral angle to ``plane_angle``. Their y-axis is
+    lateral-polar polar angle, where 0 degrees is front, 90 degrees is up,
+    180 degrees is back, and -90 degrees is down. With ear=``both``, the
+    method creates one heatmap for the left ear and one heatmap for the right
+    ear using shared color limits.
 
     Parameters
     ----------
@@ -743,8 +744,14 @@ def plot_etc_plane(
         Plane coordinate in degrees used to resolve the nearest measured
         plane. For ``plane="horizontal"`` this is spherical elevation. For
         ``plane="median"`` this is lateral-polar lateral angle.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
         Azimuth convention used for horizontal-plane azimuth values.
+        ``0-360`` follows the SOFA anticlockwise convention: front is
+        0 degrees, listener-left is 90 degrees, back is 180 degrees, and
+        listener-right is 270 degrees. ``-180-180`` wraps listener-right to
+        -90 degrees. Because horizontal-plane azimuth is drawn on the y-axis
+        in this plot, signed azimuth keeps normal Matplotlib numeric
+        orientation.
     ear : {``left``, ``right``, ``both``}, default=``both``
         Ear channel to display. When ``both`` is selected, a separate
         heatmap is created for each ear.
@@ -986,7 +993,7 @@ def plot_spectrum_plane(
     hrtf: "HRTF",
     plane: str = "horizontal",
     plane_angle: float = 0.0,
-    azimuth_range_mode: str = "-180-180",
+    azimuth_range_mode: str = "0-360",
     x_axis: str = "linear",
     unit: str = "db",
     ear: str = "both",
@@ -1008,10 +1015,13 @@ def plot_spectrum_plane(
     median plane.
 
     Horizontal planes are selected by the nearest available spherical
-    elevation to ``plane_angle``. Median-plane plots are selected by the
-    nearest available lateral-polar lateral angle to ``plane_angle``. With
-    ear=``both``, the method creates one heatmap for the left ear and one
-    heatmap for the right ear using shared color limits.
+    elevation to ``plane_angle``. Their y-axis is spherical azimuth in the
+    selected ``azimuth_range_mode``. Median planes are selected by the nearest
+    available lateral-polar lateral angle to ``plane_angle``. Their y-axis is
+    lateral-polar polar angle, where 0 degrees is front, 90 degrees is up,
+    180 degrees is back, and -90 degrees is down. With ear=``both``, the
+    method creates one heatmap for the left ear and one heatmap for the right
+    ear using shared color limits.
 
     Parameters
     ----------
@@ -1023,8 +1033,14 @@ def plot_spectrum_plane(
         Plane coordinate in degrees used to resolve the nearest measured
         plane. For ``plane="horizontal"`` this is spherical elevation. For
         ``plane="median"`` this is lateral-polar lateral angle.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
         Azimuth convention used for horizontal-plane azimuth values.
+        ``0-360`` follows the SOFA anticlockwise convention: front is
+        0 degrees, listener-left is 90 degrees, back is 180 degrees, and
+        listener-right is 270 degrees. ``-180-180`` wraps listener-right to
+        -90 degrees. Because horizontal-plane azimuth is drawn on the y-axis
+        in this plot, signed azimuth keeps normal Matplotlib numeric
+        orientation.
     x_axis : {``linear``, ``log``}, default=``linear``
         Frequency scale used on the x axis.
     unit : {``db``, ``linear``}, default=``db``
@@ -1067,10 +1083,12 @@ def plot_spectrum_plane(
 
     Notes
     -----
-    Horizontal-plane azimuths use ``azimuth_range_mode``. When
-    unit=``db`` and reference=``max``, normalization
-    is computed over the plotted plane and selected ear channels before
-    conversion to decibels.
+    Horizontal-plane azimuth follows the selected ``azimuth_range_mode`` on the
+    y-axis. In signed mode, +90 degrees remains above -90 degrees because the
+    visual left/right reversal is applied only when azimuth is plotted on the
+    x-axis. When unit=``db`` and reference=``max``, normalization is computed
+    over the plotted plane and selected ear channels before conversion to
+    decibels.
 
     Examples
     --------
@@ -1574,7 +1592,7 @@ def plot_elevation_spectrum(
 def plot_itd(
     hrtf: "HRTF",
     plane_angle: float = 0.0,
-    azimuth_range_mode: str = "-180-180",
+    azimuth_range_mode: str = "0-360",
     show: bool = True,
     show_titles: bool = True,
     show_labels: bool = True,
@@ -1592,8 +1610,12 @@ def plot_itd(
     plane_angle : float, default=0.0
         Target horizontal-plane elevation used to select the horizontal plane. The nearest
         available elevation in the grid is used.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
-        Azimuth convention used on the x-axis.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
+        Azimuth convention used on the x-axis. ``0-360`` follows the SOFA
+        anticlockwise convention: front is 0 degrees, listener-left is
+        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
+        ``-180-180`` wraps listener-right to -90 degrees and reverses the
+        displayed x-axis so listener-left appears visually left.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
     show_titles : bool, default=True
@@ -1616,7 +1638,11 @@ def plot_itd(
 
     Notes
     -----
-    Azimuth uses ``azimuth_range_mode``.
+    In ``azimuth_range_mode="0-360"``, the x-axis follows the SOFA azimuth
+    convention directly. In ``azimuth_range_mode="-180-180"``, the x-axis is
+    displayed right-to-left numerically so +90 degrees, listener-left, appears
+    on the left side of the figure and -90 degrees, listener-right, appears on
+    the right side.
 
     Examples
     --------
@@ -1760,9 +1786,10 @@ def plot_absolute_itd(
 
     Notes
     -----
-    The polar azimuth axis uses 30-degree ticks with a north-up orientation.
-    The radial label defaults to Labels.itd_time and radial ticks use
-    integer microsecond labels.
+    The polar angular axis uses spherical azimuth in the SOFA anticlockwise
+    convention, with front at 0 degrees, listener-left at 90 degrees, back at
+    180 degrees, and listener-right at 270 degrees. The radial label defaults
+    to Labels.itd_time and radial ticks use integer microsecond labels.
 
     Examples
     --------
@@ -1853,7 +1880,7 @@ def plot_ild_fd(
     hrtf: "HRTF",
     plane: str = "horizontal",
     plane_angle: float = 0.0,
-    azimuth_range_mode: str = "-180-180",
+    azimuth_range_mode: str = "0-360",
     colormap: str = "jet",
     freq_min: float | None = None,
     freq_max: float | None = None,
@@ -1871,10 +1898,12 @@ def plot_ild_fd(
     angle for the median plane.
 
     Horizontal planes are selected by the nearest available spherical
-    elevation to ``plane_angle``. Median-plane plots are selected by the
-    nearest available lateral-polar lateral angle to ``plane_angle``. The
-    ILD values are computed in decibels from the current transfer functions
-    before plotting.
+    elevation to ``plane_angle``. Their y-axis is spherical azimuth in the
+    selected ``azimuth_range_mode``. Median planes are selected by the nearest
+    available lateral-polar lateral angle to ``plane_angle``. Their y-axis is
+    lateral-polar polar angle, where 0 degrees is front, 90 degrees is up,
+    180 degrees is back, and -90 degrees is down. The ILD values are computed
+    in decibels from the current transfer functions before plotting.
 
     Parameters
     ----------
@@ -1886,8 +1915,14 @@ def plot_ild_fd(
         Plane coordinate in degrees used to resolve the nearest measured
         plane. For ``plane="horizontal"`` this is spherical elevation. For
         ``plane="median"`` this is lateral-polar lateral angle.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
         Azimuth convention used for horizontal-plane azimuth values.
+        ``0-360`` follows the SOFA anticlockwise convention: front is
+        0 degrees, listener-left is 90 degrees, back is 180 degrees, and
+        listener-right is 270 degrees. ``-180-180`` wraps listener-right to
+        -90 degrees. Because horizontal-plane azimuth is drawn on the y-axis
+        in this plot, signed azimuth keeps normal Matplotlib numeric
+        orientation.
     colormap : str, default=``jet``
         Matplotlib colormap name used for the heatmap.
     freq_min : float | None, default=None
@@ -1920,9 +1955,10 @@ def plot_ild_fd(
 
     Notes
     -----
-    Horizontal-plane azimuths use ``azimuth_range_mode``. The
-    frequency axis is always linear for this plot because
-    the method currently builds a :class:`~hrtfpykit.plots.axis.FrequencyLinearAxis` configuration.
+    Horizontal-plane azimuth follows the selected ``azimuth_range_mode`` on the
+    y-axis. In signed mode, +90 degrees remains above -90 degrees because the
+    visual left/right reversal is applied only when azimuth is plotted on the
+    x-axis. The frequency axis uses the linear frequency-axis formatter.
 
     Examples
     --------
@@ -2084,7 +2120,7 @@ def plot_ild_fd(
 def plot_ild(
     hrtf: "HRTF",
     plane_angle: float = 0.0,
-    azimuth_range_mode: str = "-180-180",
+    azimuth_range_mode: str = "0-360",
     show: bool = True,
     show_titles: bool = True,
     show_labels: bool = True,
@@ -2103,8 +2139,12 @@ def plot_ild(
     plane_angle : float, default=0.0
         Target horizontal-plane elevation used to select the horizontal plane. The nearest
         available elevation in the grid is used.
-    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``-180-180``
-        Azimuth convention used on the x-axis.
+    azimuth_range_mode : {``0-360``, ``-180-180``}, default=``0-360``
+        Azimuth convention used on the x-axis. ``0-360`` follows the SOFA
+        anticlockwise convention: front is 0 degrees, listener-left is
+        90 degrees, back is 180 degrees, and listener-right is 270 degrees.
+        ``-180-180`` wraps listener-right to -90 degrees and reverses the
+        displayed x-axis so listener-left appears visually left.
     show : bool, default=True
         If True, call matplotlib.pyplot.show() before returning.
     show_titles : bool, default=True
@@ -2127,7 +2167,11 @@ def plot_ild(
 
     Notes
     -----
-    Azimuth uses ``azimuth_range_mode``.
+    In ``azimuth_range_mode="0-360"``, the x-axis follows the SOFA azimuth
+    convention directly. In ``azimuth_range_mode="-180-180"``, the x-axis is
+    displayed right-to-left numerically so +90 degrees, listener-left, appears
+    on the left side of the figure and -90 degrees, listener-right, appears on
+    the right side.
 
     Examples
     --------
@@ -2268,9 +2312,10 @@ def plot_absolute_ild(
 
     Notes
     -----
-    The polar azimuth axis uses 30-degree ticks with a north-up orientation.
-    The radial label defaults to Labels.ild_db and radial ticks are
-    formatted as integer decibel values.
+    The polar angular axis uses spherical azimuth in the SOFA anticlockwise
+    convention, with front at 0 degrees, listener-left at 90 degrees, back at
+    180 degrees, and listener-right at 270 degrees. The radial label defaults
+    to Labels.ild_db and radial ticks are formatted as integer decibel values.
 
     Examples
     --------

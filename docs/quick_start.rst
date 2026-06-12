@@ -45,7 +45,7 @@ dataset specs, and batching utilities.
    
    from hrtfpykit.plots import plot_amplitude, plot_magnitude, plot_absolute_itd, plot_ild
    from hrtfpykit.plots import plot_source_grid, plot_spectrum_plane
-   from hrtfpykit.plots import compare_amplitude, compare_magnitude, compare_absolute_itd, compare_lsd
+   from hrtfpykit.plots import compare_amplitude, compare_magnitude, compare_absolute_itd, compare_hrtf_difference
    from hrtfpykit.plots import sht_reconstruction_comparison, sht_reconstruction_error
    
    from hrtfpykit.datasets import HUTUBS, SONICOM
@@ -420,13 +420,14 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 .. code-block:: python
 
    from hrtfpykit.hrtf import load_hrtf
-   from hrtfpykit.plots import compare_lsd
+   from hrtfpykit.plots import compare_hrtf_difference
 
    hrtf_a = load_hrtf(hrtf_path_a)
    hrtf_b = load_hrtf(hrtf_path_b)
-   compare_lsd(
+   compare_hrtf_difference(
        hrtf_a,
        hrtf_b,
+       metric="lsd",
        ear="left",
        plot_type="scatter",
    )
@@ -441,13 +442,14 @@ workflows based on :class:`~hrtfpykit.hrtf.SH`,
 .. code-block:: python
 
    from hrtfpykit.hrtf import load_hrtf
-   from hrtfpykit.plots import compare_lsd
+   from hrtfpykit.plots import compare_hrtf_difference
 
    hrtf_a = load_hrtf(hrtf_path_a)
    hrtf_b = load_hrtf(hrtf_path_b)
-   compare_lsd(
+   compare_hrtf_difference(
        hrtf_a,
        hrtf_b,
+       metric="lsd",
        ear="left",
        plot_type="heatmap",
    )
